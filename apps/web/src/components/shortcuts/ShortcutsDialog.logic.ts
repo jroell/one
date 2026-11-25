@@ -15,6 +15,7 @@ import {
   describeWhen,
   whenAstToExpression,
   whenForPlatform,
+  whenWithKnownTerms,
 } from "../settings/KeybindingsSettings.logic";
 
 export interface ShortcutSheetRow {
@@ -238,27 +239,39 @@ function buildShortcutRows(
     const shortcuts = keybindings.map((binding) =>
       shortcutForContext(binding, { composerRequiresModifier }),
     );
+    // A condition on the send shortcut is decided by the mode, so a chord that needs the other
+    // mode does not exist here and shadows nothing; null marks such a binding.
+    const whens = platformWhens.map((when) =>
+      when === null
+        ? null
+        : whenWithKnownTerms(
+            when,
+            new Map([["composerRequiresModifier", composerRequiresModifier]]),
+          ),
+    );
     const conflictKeys = shortcuts.map((shortcut) => shortcutConflictKey(shortcut, platform));
     const sameKey = new Map<string, number[]>();
     keybindings.forEach((_, index) => {
-      if (platformWhens[index] === null) return;
+      if (whens[index] === null) return;
       const key = conflictKeys[index]!;
       const group = sameKey.get(key);
       if (group) group.push(index);
       else sameKey.set(key, [index]);
     });
-    return { shortcuts, conflictKeys, sameKey };
+    return { shortcuts, whens, conflictKeys, sameKey };
   });
   keybindings.forEach((binding, index) => {
     const when = platformWhens[index];
     if (when === null || isUnassigned(binding)) return;
     const expression = whenAstToExpression(when);
     const id = `${binding.command}\u0000${expression}`;
-    for (const { shortcuts, conflictKeys, sameKey } of modes) {
+    for (const { shortcuts, whens, conflictKeys, sameKey } of modes) {
+      const modeWhen = whens[index];
+      if (modeWhen === null) continue;
       const conflictKey = conflictKeys[index]!;
       const shadowers: Array<KeybindingWhenNode | undefined> = [];
       for (const later of sameKey.get(conflictKey) ?? []) {
-        const laterWhen = platformWhens[later];
+        const laterWhen = whens[later];
         if (
           later > index &&
           laterWhen !== null &&
@@ -267,7 +280,7 @@ function buildShortcutRows(
           shadowers.push(laterWhen);
         }
       }
-      if (shadowers.length > 0 && alwaysCoveredBy(when, shadowers, budget)) continue;
+      if (shadowers.length > 0 && alwaysCoveredBy(modeWhen, shadowers, budget)) continue;
       let draft = drafts.get(id);
       if (!draft) {
         draft = {

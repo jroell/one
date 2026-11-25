@@ -89,6 +89,7 @@ export function OneOpening() {
     window.addEventListener("pointerdown", skip, { once: true, capture: true });
     return () => {
       // However this effect ends (skip, timeout, unmount, hot reload), the app must be usable again.
+      delete document.documentElement.dataset.oneOpening;
       if (app) app.inert = false;
       window.clearTimeout(timer);
       stopSound();

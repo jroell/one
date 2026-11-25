@@ -223,6 +223,24 @@ describe("buildShortcutSections", () => {
     expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
   });
 
+  it("lists a send-alternate chord only in the send modes where its condition can hold", () => {
+    const config = [
+      {
+        command: "composer.sendAlternate" as const,
+        key: "mod+enter",
+        when: "composerFocus && composerRequiresModifier",
+      },
+    ];
+    const keysOf = (sendShortcut: "enter" | "mod-enter" | "mod-enter-multiline") =>
+      build(config, { sendShortcut })
+        .flatMap((section) => section.rows)
+        .map((row) => row.keys);
+
+    expect(keysOf("enter")).toEqual([]);
+    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
+    expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
+  });
+
   it("shows a key again once comparing it would exceed the work budget", () => {
     // 256 rules on one key, each covered by the next rule of the other command.
     const config = compileResolvedKeybindingsConfig(

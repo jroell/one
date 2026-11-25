@@ -1,8 +1,9 @@
 import type { AnyRouter } from "@tanstack/react-router";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { isMacPlatform } from "../lib/utils";
 import { useRightPanelStore } from "../rightPanelStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
@@ -138,5 +139,36 @@ describe("chat route commands", () => {
 
     useRightPanelStore.getState().open(threadRef, "diff");
     expect(offered()).toEqual([false, false, false]);
+  });
+
+  it("offers the preview commands for an unsent draft whose preview is showing", () => {
+    const environmentId = EnvironmentId.make("local");
+    const draftId = DraftId.make("draft-preview");
+    useComposerDraftStore
+      .getState()
+      .setProjectDraftThreadId({ environmentId, projectId: ProjectId.make("active") }, draftId);
+    const draftThreadId = useComposerDraftStore.getState().getDraftSession(draftId)!.threadId;
+    const router = {
+      state: {
+        matches: [
+          { routeId: "__root__", pathname: "/", params: {} },
+          { routeId: "/_chat", pathname: "/", params: {} },
+          { routeId: "/_chat/draft/$draftId", pathname: `/draft/${draftId}`, params: { draftId } },
+        ],
+      },
+    } as unknown as AnyRouter;
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    stack.defer(() => useComposerDraftStore.getState().clearDraftThread(draftId));
+    stack.defer(() => useRightPanelStore.setState({ byThreadKey: {} }));
+    const offered = () =>
+      (["preview.refresh", "preview.focusUrl", "preview.find"] as const).map((command) =>
+        isCommandAvailable(command),
+      );
+
+    expect(offered()).toEqual([false, false, false]);
+
+    useRightPanelStore.getState().open(scopeThreadRef(environmentId, draftThreadId), "preview");
+    expect(offered()).toEqual([true, true, true]);
   });
 });

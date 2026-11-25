@@ -36,6 +36,7 @@ import { isPreviewAvailableFor } from "../../browser/previewRuntime";
 import { resolveDiscoveredServerUrl } from "../../browser/browserTargetResolver";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { cycleThreadTerminal } from "../../lib/cycleThreadTerminal";
+import type { TerminalFocusOwner } from "../../lib/terminalFocus";
 import { confirmTerminalClose } from "../../lib/terminalCloseConfirm";
 import { findReusableProjectScriptTerminal } from "../../lib/projectScriptTerminal";
 import { closingTerminalIds } from "../terminal/closingTerminals";
@@ -74,6 +75,38 @@ export function stepTerminalShortcut(
       return cycleThreadTerminal(threadRef, terminalFocusOwner, direction);
     },
     canRun: ({ terminalFocusOwner }) => threadRef !== null && terminalFocusOwner !== null,
+  };
+}
+
+interface CloseTerminalShortcutInput {
+  readonly hasWriteAccess: () => boolean;
+  readonly activeRightPanelSurface: RightPanelSurface | null;
+  readonly drawerOpen: boolean;
+  readonly drawerActiveTerminalId: string;
+  readonly requestClosePanelTerminal: (terminalId: string) => void;
+  readonly requestCloseTerminal: (terminalId: string) => void;
+}
+
+/**
+ * Closes the focused right-panel terminal, else the drawer's active one. With neither on screen
+ * there is nothing to close, so the command is not offered and a key is left unclaimed.
+ */
+export function closeTerminalShortcut(input: CloseTerminalShortcutInput): ChatShortcutDefinition {
+  const target = (terminalFocusOwner: TerminalFocusOwner | null) => {
+    if (!input.hasWriteAccess()) return null;
+    const surface = input.activeRightPanelSurface;
+    if (terminalFocusOwner === "right-panel" && surface?.kind === "terminal") {
+      return () => input.requestClosePanelTerminal(surface.activeTerminalId);
+    }
+    return input.drawerOpen ? () => input.requestCloseTerminal(input.drawerActiveTerminalId) : null;
+  };
+  return {
+    run: ({ terminalFocusOwner }) => {
+      const close = target(terminalFocusOwner);
+      if (!close) return false;
+      close();
+    },
+    canRun: ({ terminalFocusOwner }) => target(terminalFocusOwner) !== null,
   };
 }
 
@@ -461,14 +494,14 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       openTerminalIfClosed();
       splitTerminal("vertical");
     },
-    "terminal.close": ({ terminalFocusOwner }) => {
-      if (!hasTerminalWriteAccess()) return false;
-      if (terminalFocusOwner === "right-panel" && activeRightPanelSurface?.kind === "terminal") {
-        requestClosePanelTerminal(activeRightPanelSurface.activeTerminalId);
-        return;
-      }
-      if (terminalUiState.terminalOpen) requestCloseTerminal(terminalUiState.activeTerminalId);
-    },
+    "terminal.close": closeTerminalShortcut({
+      hasWriteAccess: hasTerminalWriteAccess,
+      activeRightPanelSurface,
+      drawerOpen: terminalUiState.terminalOpen,
+      drawerActiveTerminalId: terminalUiState.activeTerminalId,
+      requestClosePanelTerminal,
+      requestCloseTerminal,
+    }),
     "terminal.new": ({ terminalFocusOwner }) => {
       if (!hasTerminalWriteAccess()) return false;
       if (terminalFocusOwner === "right-panel") return void addTerminalSurface();

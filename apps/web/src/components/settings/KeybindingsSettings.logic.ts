@@ -312,18 +312,21 @@ export function describeWhen(
 
 type SimplifiedWhen = KeybindingWhenNode | boolean;
 
-function simplifyWhenForPlatform(node: KeybindingWhenNode, isMac: boolean): SimplifiedWhen {
+function simplifyWhen(
+  node: KeybindingWhenNode,
+  known: ReadonlyMap<string, boolean>,
+): SimplifiedWhen {
   switch (node.type) {
     case "identifier":
-      return node.name === "isMac" ? isMac : node;
+      return known.get(node.name) ?? node;
     case "not": {
-      const inner = simplifyWhenForPlatform(node.node, isMac);
+      const inner = simplifyWhen(node.node, known);
       return typeof inner === "boolean" ? !inner : { type: "not", node: inner };
     }
     case "and":
     case "or": {
-      const left = simplifyWhenForPlatform(node.left, isMac);
-      const right = simplifyWhenForPlatform(node.right, isMac);
+      const left = simplifyWhen(node.left, known);
+      const right = simplifyWhen(node.right, known);
       const absorbing = node.type === "or";
       if (left === absorbing || right === absorbing) return absorbing;
       if (typeof left === "boolean") return right;
@@ -333,15 +336,26 @@ function simplifyWhenForPlatform(node: KeybindingWhenNode, isMac: boolean): Simp
   }
 }
 
+/**
+ * The condition left once the named terms are decided; null when it can never hold, undefined
+ * when it always does.
+ */
+export function whenWithKnownTerms(
+  node: KeybindingWhenNode | undefined,
+  known: ReadonlyMap<string, boolean>,
+): KeybindingWhenNode | null | undefined {
+  if (!node) return undefined;
+  const simplified = simplifyWhen(node, known);
+  if (simplified === false) return null;
+  return simplified === true ? undefined : simplified;
+}
+
 /** The condition left once platform terms are decided; null when it can never hold here. */
 export function whenForPlatform(
   node: KeybindingWhenNode | undefined,
   platform = navigator.platform,
 ): KeybindingWhenNode | null | undefined {
-  if (!node) return undefined;
-  const simplified = simplifyWhenForPlatform(node, isMacPlatform(platform));
-  if (simplified === false) return null;
-  return simplified === true ? undefined : simplified;
+  return whenWithKnownTerms(node, new Map([["isMac", isMacPlatform(platform)]]));
 }
 
 /** One command's keys under one condition: the first row edits the rest as alternates. */

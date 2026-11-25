@@ -259,6 +259,9 @@ function mountUpdateButton(
 
 export function showBootError(error: unknown) {
   console.error("One failed to start.", error);
+  // index.html sets this before the app loads and the opening clears it; without an app it would
+  // stay set and keep every keyboard shortcut off.
+  delete document.documentElement.dataset.oneOpening;
   const bootShell = document.getElementById("boot-shell");
   if (!bootShell) return;
 

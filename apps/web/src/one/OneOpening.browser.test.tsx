@@ -89,4 +89,21 @@ describe("the opening on a fresh session", () => {
     expect(document.querySelector(".one-opening")).toBeNull();
     expect(app.root.inert).toBe(false);
   });
+
+  it("turns the keyboard back on when it is removed while still playing", async () => {
+    window.sessionStorage.removeItem(OPENING_SEEN_KEY);
+    setOpeningPreferences({ animation: true, sound: false });
+    onTestFinished(() => setOpeningPreferences({ sound: true }));
+    const app = mountAppRoot();
+    {
+      await using _opening = await render(<OneOpening />, { router: false });
+      await expect
+        .element(page.getByRole("dialog", { name: "One is opening" }))
+        .toBeInTheDocument();
+      // The key dispatcher runs no command while this is set.
+      expect(document.documentElement.dataset.oneOpening).toBe("");
+    }
+    expect(document.documentElement.dataset.oneOpening).toBeUndefined();
+    expect(app.root.inert).toBe(false);
+  });
 });

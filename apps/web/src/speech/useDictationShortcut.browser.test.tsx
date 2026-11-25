@@ -2,7 +2,9 @@ import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { createRef, type RefObject } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { render } from "../../test/render";
+import { dispatchCommandPalette, useCommandPaletteStore } from "../commandPaletteStore";
 import { isCommandAvailable, runRegisteredCommand } from "../shortcuts/commandRegistry";
+import { readPaletteRunContext } from "../shortcuts/paletteRunScope";
 import { useDictationShortcut, type DictationKeyHandlers } from "./useDictationShortcut";
 
 const settings = vi.hoisted(() => ({ mode: "hold" as "hold" | "auto" | "toggle" }));
@@ -14,10 +16,12 @@ function Probe({
   speech,
   targetRef,
   subscribeKeys,
+  ownsFocus,
 }: {
   speech: ShortcutInput["speech"];
   targetRef?: RefObject<HTMLElement | null>;
   subscribeKeys?: ShortcutInput["subscribeKeys"];
+  ownsFocus?: () => boolean;
 }) {
   useDictationShortcut({
     keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
@@ -26,7 +30,7 @@ function Probe({
     terminalOpen: false,
     modelPickerOpen: false,
     ...(targetRef ? { targetRef } : {}),
-    ...(subscribeKeys ? { subscribeKeys, ownsFocus: () => true } : {}),
+    ...(subscribeKeys ? { subscribeKeys, ownsFocus: ownsFocus ?? (() => true) } : {}),
   });
   return null;
 }
@@ -336,4 +340,46 @@ it("starts dictation from the palette in the editor that had focus, never in the
 
   expect(side.start).toHaveBeenCalledOnce();
   expect(hidden.start).not.toHaveBeenCalled();
+});
+
+it("starts dictation from the palette in the annotation editor only if it owned focus when the palette opened", async () => {
+  const main = actions(true);
+  const annotation = actions(true);
+  const guest = { focused: false };
+  const subscribeKeys = () => () => {};
+  using _palette = {
+    [Symbol.dispose]: () =>
+      useCommandPaletteStore.setState(useCommandPaletteStore.getInitialState(), true),
+  };
+  await using screen = await render(
+    <>
+      <Probe speech={main} />
+      <Probe speech={annotation} subscribeKeys={subscribeKeys} ownsFocus={() => guest.focused} />
+      <div data-preview-panel-mode="inline">
+        <input aria-label="Preview address" />
+      </div>
+    </>,
+  );
+  const openPalette = () => {
+    useCommandPaletteStore.setState(useCommandPaletteStore.getInitialState(), true);
+    dispatchCommandPalette({ _tag: "SetOpen", open: true });
+    return readPaletteRunContext();
+  };
+  const address = screen.getByRole("textbox", { name: "Preview address" }).element();
+  if (!(address instanceof HTMLElement)) throw new Error("expected a text field");
+
+  // Focus is in the panel's address bar, so the annotation field had lost it.
+  address.focus();
+  expect(runRegisteredCommand("composer.dictation", openPalette())).toBe(true);
+  expect(main.start).toHaveBeenCalledOnce();
+  expect(annotation.start).not.toHaveBeenCalled();
+
+  // The guest field held focus when the palette opened; the palette then took it.
+  address.blur();
+  guest.focused = true;
+  const context = openPalette();
+  guest.focused = false;
+  expect(runRegisteredCommand("composer.dictation", context)).toBe(true);
+  expect(annotation.start).toHaveBeenCalledOnce();
+  expect(main.start).toHaveBeenCalledOnce();
 });

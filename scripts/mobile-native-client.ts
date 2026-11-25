@@ -214,6 +214,8 @@ const command = Effect.fn("nativeClient.command")(function* (
         ...environment,
         ...(sdk ? { ANDROID_HOME: sdk } : {}),
         APP_VARIANT: "development",
+        // A local native build has no Expo project; app.config.ts fills in a stand-in id for it.
+        ONE_MOBILE_LOCAL_BUILD: "1",
         MOBILE_VERSION_POLICY: "appVersion",
         T3CODE_IOS_PERSONAL_TEAM: "0",
         CI: "1",

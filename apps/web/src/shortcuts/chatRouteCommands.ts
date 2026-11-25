@@ -32,9 +32,9 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useUiStateStore } from "../uiStateStore";
-import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { registerCommandHandlers } from "./commandRegistry";
-import { setActiveThreadKeyReader } from "./paletteRunScope";
+import { setRunScopeSource } from "./paletteRunScope";
 import { type CommandHandler, registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
@@ -73,8 +73,15 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       ? target.threadRef.environmentId
       : (useComposerDraftStore.getState().getDraftSession(target.draftId)?.environmentId ?? null);
   };
+  // The thread the right panel is keyed by: a draft's panel lives under the draft's own thread id.
+  const readPanelThreadRef = () => {
+    const target = readRouteTarget();
+    if (target?.kind !== "draft") return readRouteThreadRef();
+    const draft = useComposerDraftStore.getState().getDraftSession(target.draftId);
+    return draft ? scopeThreadRef(draft.environmentId, draft.threadId) : null;
+  };
   const readPreviewOpen = () => {
-    const threadRef = readRouteThreadRef();
+    const threadRef = readPanelThreadRef();
     // Store-only on purpose: the URL-aware arbitration lives in ChatView's
     // preview toggle, which the action bus reaches.
     return threadRef
@@ -154,7 +161,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     startNewLocalNow();
   };
   const togglePreviewNow = () => {
-    const threadRef = readRouteThreadRef();
+    const threadRef = readPanelThreadRef();
     if (!threadRef || (!canOperatePreview(threadRef.environmentId) && !readPreviewOpen())) {
       return;
     }
@@ -206,7 +213,18 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     run: () => previewActionNow(action),
     canRun: () => onChatRoute() && readPreviewOpen() && canOperateRoutePreview(),
   });
-  const disposeThreadKey = setActiveThreadKeyReader(readRouteThreadKey);
+  const disposeRunScope = setRunScopeSource({
+    readLocation: () => router.history.location.href,
+    readThreadKey: readRouteThreadKey,
+    subscribe: (listener) => {
+      const stopHistory = router.history.subscribe(listener);
+      const stopResolved = router.subscribe("onResolved", listener);
+      return () => {
+        stopHistory();
+        stopResolved();
+      };
+    },
+  });
   const disposeRows = registerCommandHandlers({
     "chat.newLocal": { run: startNewLocalNow, canRun: onChatRoute },
     "chat.newWithoutProject": {
@@ -275,6 +293,6 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   return () => {
     disposeKeys();
     disposeRows();
-    disposeThreadKey();
+    disposeRunScope();
   };
 }

@@ -9,11 +9,15 @@ import {
   useCommandPaletteMount,
   useCommandPaletteStore,
 } from "../commandPaletteStore";
-import { useShortcutsDialogStore } from "../components/shortcuts/shortcutsDialogStore";
+import {
+  toggleShortcutsDialog,
+  useShortcutsDialogStore,
+} from "../components/shortcuts/shortcutsDialogStore";
 import { completePaletteClose } from "./afterPaletteClose";
 import { installCommandPaletteCommands } from "./commandPaletteCommands";
 import { registerCommandHandlers } from "./commandRegistry";
-import { setActiveThreadKeyReader } from "./paletteRunScope";
+import { setRunScopeSource } from "./paletteRunScope";
+import { installChatRouteCommands } from "./chatRouteCommands";
 import { runCommandFromPalette } from "./runCommand";
 
 const keybindings = compileResolvedKeybindingsConfig([
@@ -189,21 +193,36 @@ describe("a command run from a palette row while the palette is still closing", 
     return popup;
   }
 
-  async function setupQueued() {
+  async function setupQueued(queue: "command" | "sheet" = "command") {
     setup();
+    useShortcutsDialogStore.setState({ open: false });
     const stack = new DisposableStack();
     const run = vi.fn();
-    const thread = { key: "env:thread-a" };
+    const where = { location: "/a", threadKey: "env:thread-a" };
+    const listeners = new Set<() => void>();
+    const moveTo = (next: Partial<typeof where>) => {
+      Object.assign(where, next);
+      for (const listener of listeners) listener();
+    };
     stack.defer(registerCommandHandlers({ "terminal.toggle": { run } }));
-    stack.defer(setActiveThreadKeyReader(() => thread.key));
-    const original = window.location.href;
-    stack.defer(() => window.history.replaceState({}, "", original));
+    stack.defer(
+      setRunScopeSource({
+        readLocation: () => where.location,
+        readThreadKey: () => where.threadKey,
+        subscribe: (listener) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+      }),
+    );
+    stack.defer(() => useShortcutsDialogStore.setState({ open: false }));
     const screen = await render(<MountedPalette />, { router: "/" });
     const popup = startClosing(stack);
-    await runCommandFromPalette("terminal.toggle", "Toggle terminal");
+    if (queue === "sheet") toggleShortcutsDialog();
+    else await runCommandFromPalette("terminal.toggle", "Toggle terminal");
     return {
       run,
-      thread,
+      moveTo,
       popup,
       screen,
       [Symbol.asyncDispose]: async () => {
@@ -225,19 +244,65 @@ describe("a command run from a palette row while the palette is still closing", 
   it("is dropped when the thread changes before the popup has left", async () => {
     await using queued = await setupQueued();
 
-    queued.thread.key = "env:thread-b";
+    queued.moveTo({ threadKey: "env:thread-b" });
     completePaletteClose();
 
     expect(queued.run).not.toHaveBeenCalled();
   });
 
-  it("is dropped when the route changes before the popup has left", async () => {
+  it("is dropped when the route changes and returns before the popup has left", async () => {
     await using queued = await setupQueued();
 
-    window.history.pushState({}, "", `${window.location.pathname}?back=1`);
+    queued.moveTo({ location: "/b", threadKey: "env:thread-b" });
+    queued.moveTo({ location: "/a", threadKey: "env:thread-a" });
     completePaletteClose();
 
     expect(queued.run).not.toHaveBeenCalled();
+  });
+
+  it("is dropped when only the hash changes before the popup has left", async () => {
+    await using queued = await setupQueued();
+
+    queued.moveTo({ location: "/a#section" });
+    completePaletteClose();
+
+    expect(queued.run).not.toHaveBeenCalled();
+  });
+
+  it("drops a shortcuts sheet open when the thread changes before the popup has left", async () => {
+    await using queued = await setupQueued("sheet");
+
+    queued.moveTo({ threadKey: "env:thread-b" });
+    completePaletteClose();
+
+    expect(useShortcutsDialogStore.getState().open).toBe(false);
+  });
+
+  it("opens a queued shortcuts sheet when nothing changed", async () => {
+    await using queued = await setupQueued("sheet");
+    expect(useShortcutsDialogStore.getState().open).toBe(false);
+
+    completePaletteClose();
+
+    expect(useShortcutsDialogStore.getState().open).toBe(true);
+    expect(queued.run).not.toHaveBeenCalled();
+  });
+
+  it("is dropped when the real router leaves the route and comes back before the popup has left", async () => {
+    setup();
+    const run = vi.fn();
+    using stack = new DisposableStack();
+    stack.defer(registerCommandHandlers({ "terminal.toggle": { run } }));
+    await using screen = await render(<MountedPalette />, { router: "/" });
+    stack.defer(installChatRouteCommands(screen.router!));
+    startClosing(stack);
+    await runCommandFromPalette("terminal.toggle", "Toggle terminal");
+
+    screen.router!.history.push("/elsewhere");
+    screen.router!.history.push("/");
+    completePaletteClose();
+
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("is dropped when the palette unmounts before the popup has left", async () => {

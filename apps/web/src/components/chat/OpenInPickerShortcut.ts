@@ -14,7 +14,8 @@ import { m } from "../../i18n/messages";
 import { announce } from "../../lib/announce";
 import { openRemoteEditorUrl, useRemoteCapableEditors, useRemoteOpenState } from "../../remoteOpen";
 import { registerCommandHandlers } from "../../shortcuts/commandRegistry";
-import { registerCommands } from "../../shortcuts/dispatcher";
+import { isCommandPaletteOpen } from "../../commandPaletteBus";
+import { isOpeningPlaying, registerCommands } from "../../shortcuts/dispatcher";
 import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
 
@@ -110,9 +111,12 @@ export function useOpenFavoriteEditorShortcut({
   useEffect(() => {
     if (!enabled || remote.mode === "remote-unavailable") return;
     const handler = (event: globalThis.KeyboardEvent) => {
+      // The dispatcher stands down for the opening, the palette and the shortcuts sheet; so does this.
       if (
         event.repeat ||
         event.defaultPrevented ||
+        isOpeningPlaying() ||
+        isCommandPaletteOpen() ||
         !isOpenFavoriteEditorShortcut(event, keybindings)
       )
         return;

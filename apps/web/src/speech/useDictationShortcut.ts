@@ -3,6 +3,7 @@ import type { ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import { useEffect, useRef, type RefObject } from "react";
 
 import { isCommandPaletteOpen } from "../commandPaletteBus";
+import { useCommandPaletteStore } from "../commandPaletteStore";
 import { useClientSettings } from "../hooks/useSettings";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
@@ -64,27 +65,32 @@ function ownsShortcut(id: symbol) {
 const isShown = (element: HTMLElement | null | undefined): element is HTMLElement =>
   !!element?.isConnected && element.getClientRects().length > 0;
 
-const isInPreview = (element: Element) =>
-  element.tagName.toLowerCase() === "webview" ||
-  element.closest("[data-preview-panel-mode]") !== null;
+// The editor with its own focus signal (the preview's annotation field) that held the keyboard
+// when the palette opened. The palette then takes focus, and the signal drops with it.
+let focusOwnerAtPaletteOpen: symbol | null = null;
+useCommandPaletteStore.subscribe((state, previous) => {
+  if (!state.open || previous.open) return;
+  focusOwnerAtPaletteOpen =
+    [...shortcutTargets].find(([, read]) => read().ownsFocus?.() === true)?.[0] ?? null;
+});
 
 /**
- * The editor a palette row starts dictation in while none is recording: the one that held focus
- * when the palette opened, else the page's own composer. An editor that is not on screen, such as
- * a thread kept mounted under Settings, never qualifies.
+ * The editor a palette row starts dictation in while none is recording: the one holding focus
+ * when the palette opened, else the page's own composer. An editor with its own focus signal
+ * counts only if that signal said so at open; one not on screen never qualifies.
  */
-function idleStartTarget(opener: Element | null): symbol | null {
+function idleStartTarget(context: CommandRunContext | undefined): symbol | null {
+  const opener = context ? context.opener : document.activeElement;
   const shown = [...shortcutTargets]
     .map(([id, read]) => [id, read()] as const)
     .filter(([, input]) => !input.targetRef || isShown(input.targetRef.current));
-  if (opener) {
-    const holder =
-      shown.find(([, input]) => input.targetRef?.current?.contains(opener)) ??
-      shown.find(
-        ([, input]) => input.ownsFocus !== undefined && (input.ownsFocus() || isInPreview(opener)),
-      );
-    if (holder) return holder[0];
-  }
+  const focusOwner = context
+    ? focusOwnerAtPaletteOpen
+    : (shown.find(([, input]) => input.ownsFocus?.() === true)?.[0] ?? null);
+  const holder =
+    (opener ? shown.find(([, input]) => input.targetRef?.current?.contains(opener)) : undefined) ??
+    shown.find(([id, input]) => id === focusOwner && input.ownsFocus !== undefined);
+  if (holder) return holder[0];
   return shown.find(([, input]) => !input.targetRef && !input.ownsFocus)?.[0] ?? null;
 }
 
@@ -219,7 +225,7 @@ export function useDictationShortcut(input: ShortcutInput) {
       });
       if (busy) return busy[0] === id.current && speech.state.phase === "recording";
       if (!speech.available || disabled) return false;
-      return idleStartTarget(context ? context.opener : document.activeElement) === id.current;
+      return idleStartTarget(context) === id.current;
     };
     const toggle = (context?: CommandRunContext) => {
       if (!canToggle(context)) return false;

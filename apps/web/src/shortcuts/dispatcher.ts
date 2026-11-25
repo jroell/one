@@ -63,7 +63,7 @@ function readFocusContext(event: KeyboardEvent): Partial<ShortcutMatchContext> {
  * True while the opening covers the app. index.html sets the attribute before app code runs and
  * the opening removes it as it lifts, so the first key press skips the opening and runs nothing.
  */
-function isOpeningPlaying(): boolean {
+export function isOpeningPlaying(): boolean {
   return document.documentElement.dataset.oneOpening !== undefined;
 }
 

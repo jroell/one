@@ -69,6 +69,7 @@ import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import { isShortcutsSheetOnScreen } from "../shortcuts/shortcutsSheet";
 import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
+import { isOpeningPlaying } from "../shortcuts/dispatcher";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
 
@@ -346,7 +347,10 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     if (!showSidebar) return;
     const onKeyDown = (event: KeyboardEvent) => {
       // This listener sits outside the key dispatcher, so it stands down for the sheet itself.
-      if (event.defaultPrevented || isShortcutsSheetOnScreen()) return;
+      // The same goes for the opening: the key that skips it must not also toggle the sidebar.
+      if (event.defaultPrevented || isShortcutsSheetOnScreen() || isOpeningPlaying()) {
+        return;
+      }
       if (
         event.target instanceof HTMLElement &&
         event.target.closest("[data-keybinding-capture]")

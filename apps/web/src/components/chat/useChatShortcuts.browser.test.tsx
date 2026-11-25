@@ -14,7 +14,7 @@ import { selectActiveRightPanelSurface, useRightPanelStore } from "../../rightPa
 import { isCommandAvailable, runRegisteredCommand } from "../../shortcuts/commandRegistry";
 import { readPaletteRunContext } from "../../shortcuts/paletteRunScope";
 import type { ChatComposerHandle } from "./ChatComposer";
-import { stepTerminalShortcut } from "./useChatTerminalActions";
+import { closeTerminalShortcut, stepTerminalShortcut } from "./useChatTerminalActions";
 import { useChatShortcuts } from "./useChatShortcuts";
 
 const shortcutContext = {
@@ -136,6 +136,51 @@ it("leaves a non-Latin launcher letter to the launcher by its physical key", asy
 
   expect(composerKeys).toEqual([]);
   expect(received).toEqual(["\u0435"]);
+});
+
+it("offers Terminal: Close only while there is a terminal to close, and reports not-run if it vanishes", async () => {
+  const closed: string[] = [];
+  const target = { drawerOpen: false };
+  const close = closeTerminalShortcut({
+    hasWriteAccess: () => true,
+    activeRightPanelSurface: null,
+    get drawerOpen() {
+      return target.drawerOpen;
+    },
+    drawerActiveTerminalId: "default",
+    requestClosePanelTerminal: (id) => void closed.push(`panel:${id}`),
+    requestCloseTerminal: (id) => void closed.push(`drawer:${id}`),
+  });
+  function Chat() {
+    useChatShortcuts({
+      enabled: true,
+      keybindings: [],
+      scriptKeybindings: [],
+      getShortcutContext: () => shortcutContext,
+      threadFindActive: false,
+      composerRef: { current: null },
+      branchToolbarRef: { current: null },
+      closeThreadFind: () => {},
+      commands: { "terminal.close": close },
+      fallback: () => undefined,
+    });
+    return null;
+  }
+  await using _screen = await render(<Chat />, options);
+
+  expect(isCommandAvailable("terminal.close")).toBe(false);
+  expect(runRegisteredCommand("terminal.close")).toBe(false);
+
+  target.drawerOpen = true;
+  expect(isCommandAvailable("terminal.close")).toBe(true);
+  expect(runRegisteredCommand("terminal.close")).toBe(true);
+  expect(closed).toEqual(["drawer:default"]);
+
+  target.drawerOpen = false;
+  expect(close.run({ event: { repeat: false, target: null }, terminalFocusOwner: null })).toBe(
+    false,
+  );
+  expect(closed).toEqual(["drawer:default"]);
 });
 
 it.each([

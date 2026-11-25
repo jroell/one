@@ -253,6 +253,31 @@ describe("remote editor links", () => {
   });
 });
 
+describe("open in editor fallback key", () => {
+  it("does nothing while the keyboard shortcuts sheet is open, and opens the project once it closes", async () => {
+    await using fixture = await setup();
+    const { screen, pressOpenFavorite, FavoriteEditorFallback } = fixture;
+    state.allowed.add(selected);
+    // A failed open is not announced, so no timer outlives the test.
+    state.run.mockResolvedValue(AsyncResult.failure(Cause.fail(new Error("No editor"))));
+    await act(async () =>
+      screen.rerender(
+        <>
+          <FavoriteEditorFallback />
+          <div role="dialog" aria-label="Keyboard shortcuts" data-shortcuts-sheet="" />
+        </>,
+      ),
+    );
+
+    expect((await pressOpenFavorite()).defaultPrevented).toBe(false);
+    expect(state.run).not.toHaveBeenCalled();
+
+    await act(async () => screen.rerender(<FavoriteEditorFallback />));
+    expect((await pressOpenFavorite()).defaultPrevented).toBe(true);
+    expect(state.run.mock.calls.map(([call]) => call.input.cwd)).toEqual(["/work/project"]);
+  });
+});
+
 describe("open in editor announcement", () => {
   it("speaks only after the shortcut opened the editor, from the picker or the fallback", async () => {
     await using fixture = await setup();
