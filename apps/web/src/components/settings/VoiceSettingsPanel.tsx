@@ -147,6 +147,7 @@ import { useSearchableSetting } from "./settingsSearch";
 import { useOptionalSettingsScope, useSettingsScope } from "./SettingsScopeContext";
 import { useScopedModelDisabledReason } from "./useScopedModelAvailability";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
+import { OneVoiceChatSettings } from "~/one/OneVoiceChatSettings";
 
 const OFF = "off";
 const DEVICE = "device";
@@ -1451,6 +1452,7 @@ export function VoiceSettingsPanel() {
         "speech-correction-word": cleanupEnabled ? undefined : "speech-post-processing",
       }}
     >
+      <OneVoiceChatSettings />
       <SettingsSection id="voice-input" title={gt("Input")}>
         <SettingsRow
           {...setting("voice-microphone")}

@@ -367,6 +367,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("transparent transparency solid menus dialogs composer")],
   },
   {
+    id: "setting-voice-chat-conqueror",
+    title: msg("Conqueror voice"),
+    to: "/settings/voice",
+    searchTerms: [msg("voice chat deep booming commanding emperor read aloud speech style")],
+  },
+  {
     id: "setting-opening-animation",
     title: msg("Opening animation"),
     to: "/settings/appearance",

@@ -144,7 +144,7 @@ describe("voiceCatalog and personas", () => {
     expect(native.enqueuePcmAudio).toHaveBeenCalledTimes(1);
   });
 
-  it("provides all 6 driving personas with car-safe spoken rules and sanitizes markdown for speech", () => {
+  it("provides all 7 driving personas with car-safe spoken rules and sanitizes markdown for speech", () => {
     expect(DRIVING_PERSONAS.map((p) => p.id)).toEqual([
       "copilot",
       "agent-bridge",
@@ -152,6 +152,7 @@ describe("voiceCatalog and personas", () => {
       "brainstorm",
       "briefing",
       "lore",
+      "conqueror",
     ]);
 
     const instructions = buildPersonaInstructions(getPersonaById("agent-bridge"), {

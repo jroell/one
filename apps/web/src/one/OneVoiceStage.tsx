@@ -8,6 +8,7 @@ import { toastManager } from "~/components/ui/toast";
 import { useThreadVisibleTurnItems } from "~/state/entities";
 import { OneOrb, type OneOrbState } from "./OneOrb";
 import { useVoiceBridge, voiceLevel, type VoiceBridge } from "./voiceBridge";
+import { applyVoiceChatStyle, getVoiceChatStyle } from "./voiceChatPreferences";
 import {
   createSilenceDetector,
   dispatchVoiceSession,
@@ -333,7 +334,7 @@ function ActiveVoiceStage({
     }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = document.documentElement.lang || navigator.language;
-    utterance.rate = 1.04;
+    applyVoiceChatStyle(utterance, synthesis.getVoices(), getVoiceChatStyle());
     let finished = false;
     const finish = () => {
       if (finished) return;

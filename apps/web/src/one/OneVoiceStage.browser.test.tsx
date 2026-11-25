@@ -19,7 +19,7 @@ const NEW_REPLY: VoiceStageMessage = {
   streaming: false,
 };
 
-type MicrophonePhase = "idle" | "recording" | "transcribing" | "error";
+type MicrophonePhase = "idle" | "preparing" | "recording" | "transcribing" | "error";
 
 /** Stands in for the main composer's dictation: the microphone is the boundary being faked. */
 function setup() {
@@ -46,7 +46,10 @@ function setup() {
       heard: microphone.phase === "recording" ? "why is the sky blue" : "",
       start: () => {
         if (microphone.holdStarts) {
+          // Like the real recorder while the permission prompt is open.
           microphone.pendingStart = true;
+          microphone.phase = "preparing";
+          publish();
           return;
         }
         microphone.phase = "recording";

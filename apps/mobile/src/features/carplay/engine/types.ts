@@ -24,7 +24,8 @@ export type PersonaId =
   | "architect"
   | "brainstorm"
   | "briefing"
-  | "lore";
+  | "lore"
+  | "conqueror";
 
 export interface DrivingPersona {
   readonly id: PersonaId;
