@@ -822,7 +822,6 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 @media (prefers-reduced-motion: no-preference) {
   .one-working-mark > svg {
     animation: one-coin 2.4s linear infinite;
-    will-change: transform;
   }
 }
 
@@ -861,21 +860,13 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 
 /* A thread row answers the press itself, within one frame, before the thread
    has loaded: the row takes its selected color and settles in slightly. */
-[data-sidebar-row] {
-  transition: scale 380ms var(--one-ease-spring);
-}
-
-[data-sidebar-row]:active {
+[data-testid="sidebar-row-card"]:active {
   background-color: var(--sidebar-row-selected, var(--sidebar-row-active));
-  scale: 0.985;
-  transition: scale 60ms ease-out;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  [data-sidebar-row],
-  [data-sidebar-row]:active {
-    scale: 1;
-    transition: none;
+@media (prefers-reduced-motion: no-preference) {
+  [data-testid="sidebar-row-card"]:active {
+    scale: 0.985;
   }
 }
 

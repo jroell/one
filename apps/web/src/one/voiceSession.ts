@@ -152,8 +152,9 @@ let releaseMicrophone: (() => void) | null = null;
  * Registers how to stop the recording this conversation started. It runs when
  * the conversation ends, however it ends, so the microphone is never left on.
  */
-export function holdMicrophone(release: () => void): void {
-  releaseMicrophone = release;
+export function holdMicrophone(release: (() => void) | null): void {
+  // A conversation that has already ended holds nothing; a late registration would leak into the next one.
+  releaseMicrophone = session.stage === "off" ? null : release;
 }
 
 export function dispatchVoiceSession(event: VoiceSessionEvent): void {

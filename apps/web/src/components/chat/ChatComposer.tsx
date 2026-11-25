@@ -2448,6 +2448,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const voiceStart = useStableCallback(() => void speechInput.start());
   const voiceSubmit = useStableCallback(() => void submitComposerRef.current());
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
+  // True when the draft with this key was sent and became the thread this composer now writes to.
+  const voiceContinuesDraft = useStableCallback((draftKey: string) => {
+    if (routeKind !== "server") return false;
+    const live = resolveLiveComposerDraftTarget(draftKey as DraftId);
+    return (
+      live !== null &&
+      typeof live !== "string" &&
+      composerTargetKey(live) === composerDraftTargetKey
+    );
+  });
   const publishesVoice = voiceChatHost && !hiddenThread;
   // Voice chat sends a spoken question on its own, so it is offered only when the
   // composer is free: nothing waiting for an answer, and no queued message being edited.
@@ -2476,6 +2486,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     publishVoiceBridge(voiceBridgeOwner, {
       threadKey: composerDraftTargetKey,
       isDraft: routeKind === "draft",
+      continuesDraft: voiceContinuesDraft,
       available: voiceAvailable,
       draftEmpty: voiceDraftEmpty,
       phase: voicePhase,
@@ -2498,6 +2509,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     voiceStart,
     voiceSubmit,
     voiceCancel,
+    voiceContinuesDraft,
   ]);
   const voiceLevelNow = speechInput.level;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands the live microphone level to the ring's frame loop without a render

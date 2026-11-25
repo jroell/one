@@ -27,19 +27,28 @@ function setup() {
     phase: "idle" as MicrophonePhase,
     threadKey: "thread-a",
     isDraft: false,
+    promotedFrom: null as string | null,
     draftEmpty: true,
     recordings: 0,
+    /** A start that was requested and has not begun recording (the permission prompt is open). */
+    pendingStart: false,
+    holdStarts: false,
   };
   const publish = () =>
     publishVoiceBridge("test", {
       threadKey: microphone.threadKey,
       isDraft: microphone.isDraft,
+      continuesDraft: (draftKey) => microphone.promotedFrom === draftKey,
       available: true,
       draftEmpty: microphone.draftEmpty,
       phase: microphone.phase,
       error: null,
       heard: microphone.phase === "recording" ? "why is the sky blue" : "",
       start: () => {
+        if (microphone.holdStarts) {
+          microphone.pendingStart = true;
+          return;
+        }
         microphone.phase = "recording";
         microphone.recordings += 1;
         publish();
@@ -49,6 +58,7 @@ function setup() {
         publish();
       },
       cancel: () => {
+        microphone.pendingStart = false;
         microphone.phase = "idle";
         publish();
       },
@@ -65,10 +75,19 @@ function setup() {
         microphone.phase = "idle";
         publish();
       }),
-    moveComposerTo: (threadKey: string, isDraft = false) =>
+    moveComposerTo: (threadKey: string, promotedFrom: string | null = null) =>
       act(() => {
         microphone.threadKey = threadKey;
-        microphone.isDraft = isDraft;
+        microphone.isDraft = false;
+        microphone.promotedFrom = promotedFrom;
+        publish();
+      }),
+    holdStartPending: () => {
+      microphone.holdStarts = true;
+    },
+    startOrdinaryDictation: () =>
+      act(() => {
+        microphone.phase = "recording";
         publish();
       }),
     startInDraft: () =>
@@ -172,12 +191,54 @@ it("voice chat started in a new thread stays open when the first question turns 
   await voice.startInDraft();
   await screen.getByRole("button", { name: "Send what I said" }).click();
   await voice.finishTranscribing();
-  await voice.moveComposerTo("env:thread-9");
+  await voice.moveComposerTo("env:thread-9", "draft-1");
   await screen.rerender(voice.stage(true, []));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
 
   await screen.rerender(voice.stage(false, [NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+});
+
+it("voice chat started in a new thread closes when another saved thread is opened before the reply", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+
+  await voice.startInDraft();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  await voice.moveComposerTo("env:some-other-thread");
+
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
+});
+
+it("ending voice chat while the microphone is still starting stops that start", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  // The permission prompt is open: the recorder has been asked to start but is not recording yet.
+  voice.holdStartPending();
+
+  await voice.start();
+  await screen.getByRole("button", { name: "End voice chat" }).click();
+
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
+  expect(voice.microphone).toMatchObject({ pendingStart: false, phase: "idle" });
+});
+
+it("ending voice chat leaves a dictation started later with the ordinary shortcut running", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, []));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
+  // Someone starts ordinary dictation while the agent thinks.
+  await voice.startOrdinaryDictation();
+
+  await screen.getByRole("button", { name: "End voice chat" }).click();
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
+  expect(voice.microphone.phase).toBe("recording");
 });
 
 it("voice chat closes and releases the microphone when its screen goes away", async () => {

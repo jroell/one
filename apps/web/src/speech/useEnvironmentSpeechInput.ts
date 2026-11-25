@@ -570,6 +570,8 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     }),
     /** Stops the shared recorder whichever editor started it, and leaves any setup dialog alone. */
     cancelRecording: useStableCallback(() => {
+      // Once setup has taken over a start, there is no recording to stop and its requests must survive.
+      if (setup.open) return;
       startRequestRef.current += 1;
       session?.cancel();
     }),

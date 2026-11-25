@@ -4,6 +4,7 @@ import { XIcon } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
 import { Button } from "~/components/ui/button";
+import { toastManager } from "~/components/ui/toast";
 import { useThreadVisibleTurnItems } from "~/state/entities";
 import { OneOrb, type OneOrbState } from "./OneOrb";
 import { useVoiceBridge, voiceLevel, type VoiceBridge } from "./voiceBridge";
@@ -120,10 +121,11 @@ function ActiveVoiceStage({
   // that one change of key is the same conversation, not another thread.
   const promoted =
     liveBridge !== null &&
+    session.threadKey !== null &&
     liveBridge.threadKey !== session.threadKey &&
     session.startedAsDraft &&
-    !liveBridge.isDraft &&
-    stage !== "listening";
+    stage !== "listening" &&
+    liveBridge.continuesDraft(session.threadKey);
   const promotedKey = promoted ? liveBridge.threadKey : null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves the shared voice session to the saved thread its draft became
   useEffect(() => {
@@ -138,6 +140,8 @@ function ActiveVoiceStage({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const orbButtonRef = useRef<HTMLButtonElement | null>(null);
   const startRequestedRef = useRef(false);
+  /** True from this session's own start request until that recording has settled back to idle. */
+  const ownRecordingRef = useRef(false);
 
   const latestAssistant = messages.findLast((message) => message.role === "assistant") ?? null;
   const reply =
@@ -173,8 +177,16 @@ function ActiveVoiceStage({
   const draftInTheWay = stage === "listening" && bridge?.phase === "idle" && !bridge.draftEmpty;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the shared voice session when the thread, composer or mode it belongs to is gone
   useEffect(() => {
-    if (orphaned || blockedOnUser || draftInTheWay) dispatchVoiceSession({ type: "stop" });
-  }, [orphaned, blockedOnUser, draftInTheWay]);
+    if (!(orphaned || blockedOnUser || draftInTheWay)) return;
+    if (draftInTheWay) {
+      toastManager.add({
+        type: "info",
+        title: gt("Voice chat ended"),
+        description: gt("The composer still holds a message. Send or clear it, then start again."),
+      });
+    }
+    dispatchVoiceSession({ type: "stop" });
+  }, [orphaned, blockedOnUser, draftInTheWay, gt]);
 
   // Listening: start the composer's recording once, then send when the speaker pauses.
   const recordingPhase = bridge?.phase ?? "idle";
@@ -190,18 +202,35 @@ function ActiveVoiceStage({
     // One request per listening turn: a refused start (setup needed, mic blocked) must not retry in a loop.
     if (!bridgeReady || waitingForThread || recordingPhase !== "idle") return;
     if (startRequestedRef.current) return;
+    // The stop effect above may have just ended the conversation in this same commit.
+    if (orphaned || blockedOnUser || draftInTheWay || getVoiceSession().stage !== "listening")
+      return;
+    const current = latest.current.bridge;
+    if (!current) return;
     startRequestedRef.current = true;
-    latest.current.bridge?.start();
-  }, [stage, bridgeReady, waitingForThread, recordingPhase]);
+    ownRecordingRef.current = true;
+    // Held from the request itself, so ending voice chat also stops a start that is still pending.
+    holdMicrophone(current.cancel);
+    current.start();
+  }, [
+    stage,
+    bridgeReady,
+    waitingForThread,
+    recordingPhase,
+    orphaned,
+    blockedOnUser,
+    draftInTheWay,
+  ]);
 
-  // Once the microphone is live, the session holds the way to stop it. A start that
-  // only reached setup is not held, so ending voice chat leaves that setup alone.
-  const recordingLive = recordingPhase === "recording" || recordingPhase === "transcribing";
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands the recorder's stop to the voice session, which releases it when the conversation ends
+  // When this session's recording has settled, it holds nothing: a dictation someone
+  // starts later with the ordinary shortcut is theirs, and ending voice chat leaves it alone.
+  const recordingSettled = recordingPhase === "idle" && stage !== "listening";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- releases the voice session's hold on the recorder once its own recording has finished
   useEffect(() => {
-    const cancel = latest.current.bridge?.cancel;
-    if (recordingLive && cancel) holdMicrophone(cancel);
-  }, [recordingLive]);
+    if (!recordingSettled || !ownRecordingRef.current) return;
+    ownRecordingRef.current = false;
+    holdMicrophone(null);
+  }, [recordingSettled]);
 
   // The microphone never started (voice input needs setup, or the request was refused):
   // close voice chat and leave any setup screen it opened alone.
@@ -218,7 +247,7 @@ function ActiveVoiceStage({
   useEffect(() => {
     const detector = createSilenceDetector();
     let frame = requestAnimationFrame(function tick(now) {
-      if (stage === "listening" && recordingPhase === "recording") {
+      if (stage === "listening" && recordingPhase === "recording" && ownRecordingRef.current) {
         levelRef.current = displayLevel(voiceLevel.current);
         if (detector.sample(voiceLevel.current, now)) submitRef.current();
       } else if (stage === "speaking") {
@@ -314,7 +343,9 @@ function ActiveVoiceStage({
       if (event.key !== "Escape") return;
       // A menu, select or dialog opened over voice chat closes first.
       const stageElement = stageRef.current;
-      const layers = document.querySelectorAll("[role=dialog], [role=menu], [role=listbox]");
+      const layers = document.querySelectorAll(
+        "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]",
+      );
       if ([...layers].some((layer) => layer !== stageElement)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -326,7 +357,9 @@ function ActiveVoiceStage({
       const stageElement = stageRef.current;
       if (!stageElement || !(event.target instanceof Element)) return;
       if (stageElement.contains(event.target)) return;
-      const otherLayer = event.target.closest("[role=dialog], [role=menu], [role=listbox]");
+      const otherLayer = event.target.closest(
+        "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]",
+      );
       if (otherLayer !== null) return;
       orbButtonRef.current?.focus();
     };
@@ -374,7 +407,7 @@ function ActiveVoiceStage({
         : gt("Waiting for the reply");
 
   const onOrbPress = () => {
-    if (stage === "listening" && bridge.phase === "recording") submit();
+    if (stage === "listening" && bridge.phase === "recording" && ownRecordingRef.current) submit();
     else if (stage === "speaking") dispatchVoiceSession({ type: "spoken" });
   };
 

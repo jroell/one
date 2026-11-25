@@ -27,25 +27,36 @@ export function getOpeningPreferences(): OpeningPreferences {
   return snapshot;
 }
 
-export function setOpeningPreferences(next: Partial<OpeningPreferences>): void {
-  snapshot = { ...snapshot, ...next };
+function write(key: string, on: boolean): void {
   try {
-    for (const [key, on] of [
-      [ANIMATION_KEY, snapshot.animation],
-      [SOUND_KEY, snapshot.sound],
-    ] as const) {
-      if (on) window.localStorage.removeItem(key);
-      else window.localStorage.setItem(key, "off");
-    }
+    if (on) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, "off");
   } catch {
     // Without storage the choice lasts for this session only.
   }
+}
+
+/** Saves only the choice that changed, so another window's change to the other one survives. */
+export function setOpeningPreferences(next: Partial<OpeningPreferences>): void {
+  if (next.animation !== undefined) write(ANIMATION_KEY, next.animation);
+  if (next.sound !== undefined) write(SOUND_KEY, next.sound);
+  snapshot = { ...snapshot, ...next };
   for (const listener of listeners) listener();
 }
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  // Another window changed a choice: read both again.
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== ANIMATION_KEY && event.key !== SOUND_KEY) return;
+    snapshot = { animation: !readOff(ANIMATION_KEY), sound: !readOff(SOUND_KEY) };
+    for (const each of listeners) each();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 export function useOpeningPreferences(): OpeningPreferences {

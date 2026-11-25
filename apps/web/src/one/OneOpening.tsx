@@ -33,6 +33,7 @@ export function OneOpening() {
   /** Counts plays, so a replay mounts a fresh ring that ignites again. */
   const [play, setPlay] = useState(0);
   const skipRef = useRef<HTMLButtonElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- runs the opening's timers, sound and skip listeners, all outside React, while the overlay is up
   useEffect(() => {
@@ -40,6 +41,10 @@ export function OneOpening() {
     if (phase === "done") {
       delete document.documentElement.dataset.oneOpening;
       if (app) app.inert = false;
+      // After a replay from Settings, focus goes back to the button that started it.
+      const opener = openerRef.current;
+      openerRef.current = null;
+      if (opener?.isConnected) opener.focus();
       return;
     }
     if (phase === "leaving") {
@@ -54,9 +59,18 @@ export function OneOpening() {
       // Without session storage the opening simply plays again next load.
     }
     // The cover hides the app, so the app takes no focus, keys or clicks until it lifts.
+    openerRef.current =
+      document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+        ? document.activeElement
+        : null;
     if (app) app.inert = true;
     skipRef.current?.focus();
-    const stopSound = getOpeningPreferences().sound ? playOpeningSound(OPENING_SECONDS) : () => {};
+    let stopSound = () => {};
+    try {
+      if (getOpeningPreferences().sound) stopSound = playOpeningSound(OPENING_SECONDS);
+    } catch {
+      // The opening plays silently when the browser refuses audio.
+    }
     const leave = () => {
       stopSound();
       setPhase("leaving");
@@ -71,6 +85,8 @@ export function OneOpening() {
     window.addEventListener("keydown", skip, { once: true, capture: true });
     window.addEventListener("pointerdown", skip, { once: true, capture: true });
     return () => {
+      // However this effect ends (skip, timeout, unmount, hot reload), the app must be usable again.
+      if (app) app.inert = false;
       window.clearTimeout(timer);
       stopSound();
       window.removeEventListener("keydown", skip, { capture: true });
@@ -102,7 +118,12 @@ export function OneOpening() {
       <OneOrb key={play} opening className="one-opening-ring" />
       <p className="one-opening-name">One</p>
       <span aria-hidden="true" className="one-opening-rule" />
-      <button ref={skipRef} type="button" className="one-opening-skip">
+      <button
+        ref={skipRef}
+        type="button"
+        className="one-opening-skip"
+        onClick={() => setPhase("leaving")}
+      >
         {gt("Skip")}
       </button>
     </div>,

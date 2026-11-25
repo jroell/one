@@ -10,6 +10,8 @@ export type VoiceBridge = Readonly<{
   threadKey: string;
   /** A new thread that has not been sent yet; its key changes when the first message is sent. */
   isDraft: boolean;
+  /** Whether this composer's thread is what the unsent draft with that key became when it was sent. */
+  continuesDraft: (draftKey: string) => boolean;
   /** Dictation can start: voice input is set up and this composer may send. */
   available: boolean;
   /** Nothing is typed or attached, so a spoken question is sent on its own. */

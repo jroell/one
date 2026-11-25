@@ -2,6 +2,7 @@ import { useGT } from "gt-react";
 
 import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
+import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { SettingsRow } from "~/components/settings/settingsLayout";
 import { useSearchableSetting } from "~/components/settings/settingsSearch";
 import { replayOpening, setOpeningPreferences, useOpeningPreferences } from "./openingPreferences";
@@ -11,17 +12,22 @@ export function OneOpeningSettings() {
   const gt = useGT();
   const searchableSetting = useSearchableSetting();
   const preferences = useOpeningPreferences();
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   return (
     <>
       <SettingsRow
         {...searchableSetting("setting-opening-animation")}
         devicePreference
-        description={gt(
-          "The ring ignites when One opens. Any key or click skips it, and it never plays under reduced motion.",
-        )}
+        description={
+          reducedMotion
+            ? gt("Off while your system asks for reduced motion.")
+            : gt(
+                "The ring ignites when One opens. Any key or click skips it, and it never plays under reduced motion.",
+              )
+        }
         control={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="xs" onClick={replayOpening}>
+            <Button variant="outline" size="xs" disabled={reducedMotion} onClick={replayOpening}>
               {gt("Play it now")}
             </Button>
             <Switch
@@ -39,7 +45,6 @@ export function OneOpeningSettings() {
         control={
           <Switch
             checked={preferences.sound}
-            disabled={!preferences.animation}
             onCheckedChange={(checked) => setOpeningPreferences({ sound: Boolean(checked) })}
             aria-label={gt("Opening sound")}
           />
