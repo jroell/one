@@ -305,7 +305,7 @@ function ConfiguredSettingsNotificationsRouteScreen() {
       gt("Notifications were denied for this app. Open Settings to enable them."),
       [
         { text: gt("Cancel"), style: "cancel" },
-        { text: gt("Open Settings"), onPress: () => void Linking.openSettings() },
+        { text: gt("Open settings"), onPress: () => void Linking.openSettings() },
       ],
     );
   };
@@ -355,7 +355,7 @@ function ConfiguredSettingsNotificationsRouteScreen() {
           gt("Enable notifications in system Settings to show ongoing agent activity."),
           [
             { text: gt("Cancel"), style: "cancel" },
-            { text: gt("Open Settings"), onPress: () => void Linking.openSettings() },
+            { text: gt("Open settings"), onPress: () => void Linking.openSettings() },
           ],
         );
         return;
@@ -461,7 +461,7 @@ function ConfiguredSettingsNotificationsRouteScreen() {
       gt("Open system Settings to disable notifications for {product}.", { product: "One" }),
       [
         { text: gt("Cancel"), style: "cancel" },
-        { text: gt("Open Settings"), onPress: () => void Linking.openSettings() },
+        { text: gt("Open settings"), onPress: () => void Linking.openSettings() },
       ],
     );
   };
@@ -565,7 +565,7 @@ function ConfiguredSettingsNotificationsRouteScreen() {
         <SettingsSection title={gt("Agent activity")}>
           <SettingsSwitchRow
             icon="bell.badge"
-            label={gt("Device Notifications")}
+            label={gt("Device notifications")}
             disabled={
               !agentAwarenessPlatform.supported ||
               !agentAwarenessPushAvailable ||
@@ -590,9 +590,9 @@ function ConfiguredSettingsNotificationsRouteScreen() {
             label={
               Platform.OS === "android"
                 ? supportsAndroidLiveUpdateSettings()
-                  ? gt("Agent Live Updates")
-                  : gt("Ongoing Agent Activity")
-                : gt("Live Activity Updates")
+                  ? gt("Agent live updates")
+                  : gt("Ongoing agent activity")
+                : gt("Live Activity updates")
             }
             subtitle={agentAwarenessSubtitle}
             value={
@@ -612,7 +612,7 @@ function ConfiguredSettingsNotificationsRouteScreen() {
           {supportsAndroidLiveUpdateSettings() ? (
             <SettingsRow
               icon="bolt.circle"
-              label={gt("Live Update Settings")}
+              label={gt("Live update settings")}
               onPress={() => {
                 void openAndroidLiveUpdateSettings().catch(() => {
                   Dialog.alert(

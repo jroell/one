@@ -122,7 +122,7 @@ export function VoiceStudioSheet({
         <View style={styles.header}>
           <View style={styles.headerTextWrap}>
             <Text style={styles.headerTitle}>
-              <T>Voice Studio</T>
+              <T>Voice studio</T>
             </Text>
             <Text style={styles.headerSubtitle}>
               {sessionActive
@@ -138,7 +138,7 @@ export function VoiceStudioSheet({
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={gt("Close Voice Studio")}
+            accessibilityLabel={gt("Close Voice studio")}
             onPress={handleClose}
             style={({ pressed }) => [styles.closeButton, pressed && styles.buttonPressed]}
           >
@@ -400,7 +400,7 @@ export function VoiceStudioSheet({
                           isPreviewing && styles.sampleButtonLabelPlaying,
                         ]}
                       >
-                        {isPreviewing ? gt("Stop Sample") : gt("Play Sample")}
+                        {isPreviewing ? gt("Stop sample") : gt("Play sample")}
                       </Text>
                     </Pressable>
 
@@ -423,12 +423,16 @@ export function VoiceStudioSheet({
                       ]}
                     >
                       {isActive ? (
-                        <SymbolView name="checkmark" size={16} tintColor={DRIVE_COLORS.obsidian} />
+                        <SymbolView
+                          name="checkmark"
+                          size={16}
+                          tintColor={DRIVE_COLORS.goldBright}
+                        />
                       ) : null}
                       <Text
                         style={[styles.useVoiceLabel, isActive && styles.useVoiceLabelSelected]}
                       >
-                        {isActive ? gt("Selected") : gt("Use Voice")}
+                        {isActive ? gt("Selected") : gt("Use voice")}
                       </Text>
                     </Pressable>
                   </View>
@@ -713,8 +717,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   useVoiceButtonSelected: {
-    backgroundColor: DRIVE_COLORS.goldPrimary,
-    borderColor: DRIVE_COLORS.goldBright,
+    backgroundColor: DRIVE_COLORS.goldSurface,
+    borderColor: DRIVE_COLORS.goldPrimary,
   },
   useVoiceLabel: {
     fontSize: 14,
@@ -722,7 +726,7 @@ const styles = StyleSheet.create({
     color: DRIVE_COLORS.goldBright,
   },
   useVoiceLabelSelected: {
-    color: DRIVE_COLORS.obsidian,
+    color: DRIVE_COLORS.goldBright,
   },
   emptyCard: {
     backgroundColor: DRIVE_COLORS.obsidianCard,

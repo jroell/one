@@ -62,7 +62,7 @@ export function SettingsLegalDocumentRouteScreen({
           />
           <View className="items-center gap-2">
             <Text className="text-center font-t3-bold text-lg text-foreground">
-              {gt("Couldn't load the {document}", { document: documentName.toLowerCase() })}
+              {gt("Couldn't load “{document}”", { document: documentName })}
             </Text>
             <Text selectable className="text-center text-sm leading-normal text-foreground-muted">
               {loadError}
@@ -70,7 +70,7 @@ export function SettingsLegalDocumentRouteScreen({
           </View>
           <View className="w-full max-w-[320px] gap-2">
             <Button
-              label={gt("Try Again")}
+              label={gt("Try again")}
               tone="contrast"
               fullWidth
               onPress={() => {
@@ -84,7 +84,7 @@ export function SettingsLegalDocumentRouteScreen({
               className="items-center rounded-xl px-4 py-3 active:bg-foreground/5"
             >
               <Text className="font-t3-medium text-base text-foreground-muted">
-                <T>Open in Browser</T>
+                <T>Open in browser</T>
               </Text>
             </Pressable>
           </View>

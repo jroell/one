@@ -1,15 +1,14 @@
-import { T, useGT } from "gt-react-native";
+import { useGT } from "gt-react-native";
 import * as Dialog from "../../components/ui/Dialog";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppText as Text } from "../../components/ui/AppText";
-import { SymbolView } from "../../components/ui/AppSymbol";
+import { ListRowLayout } from "../../components/ui/ListRowLayout";
 import { useDeadlinePassed } from "../../lib/clock";
 import {
   type AppUpdateCheckState,
@@ -107,31 +106,18 @@ function AppSettingsSection() {
               : null;
 
   const versionRow = (
-    <View className="flex-row items-center gap-4 p-4">
-      <SymbolView
-        name="info.circle"
-        size={22}
-        tintColorClassName="accent-icon"
-        type="monochrome"
-        weight="regular"
-      />
-      <Text className="flex-1 text-lg text-foreground">
-        <T>Version</T>
-      </Text>
-      <View className="items-end">
-        <Text className="text-lg text-foreground-muted">{versionLabel}</Text>
-        {statusLabel ? (
-          <Text className="text-xs text-foreground-muted/70">{statusLabel}</Text>
-        ) : null}
-      </View>
-    </View>
+    <ListRowLayout
+      icon="info.circle"
+      label={gt("Version")}
+      description={statusLabel ? `${versionLabel} · ${statusLabel}` : versionLabel}
+    />
   );
 
   return (
     <SettingsSection title={gt("App", { $context: "settings section about this mobile app" })}>
       <SettingsRow
         icon="internaldrive"
-        label={gt("Client Storage")}
+        label={gt("Client storage")}
         target="SettingsClientStorage"
       />
       <SettingsRow icon="stethoscope" label={gt("Diagnostics")} target="SettingsDiagnostics" />

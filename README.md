@@ -102,7 +102,7 @@ One runs the coding agents installed on your machine and puts every thread behin
   <tr>
     <td colspan="2" valign="top">
       <h3>One Drive &amp; Apple CarPlay</h3>
-      Talk hands-free on the road through native Apple CarPlay or Phone Drive Mode (iOS and Android). Choose from 29 voices across OpenAI Realtime, Gemini Live, ElevenLabs, and zero-key On-Device speech, switch between 6 driving personas, interrupt naturally with hardware echo cancellation, and check or steer live One threads with verbal confirmation before approvals or messages go out. See the <a href="./docs/user/carplay-voice.md">One Drive &amp; CarPlay guide</a>.
+      Talk hands-free through Phone Drive (iOS and Android) or Apple CarPlay. Pick from 29 voices across OpenAI Realtime, Gemini Live, ElevenLabs and on-device speech, switch between 7 personas, and hear what your One threads are doing. A follow-up message is sent only after you tap Send on the phone, and approvals are never answered by voice. See the <a href="./docs/user/carplay-voice.md">One Drive &amp; CarPlay guide</a>.
     </td>
   </tr>
 </table>

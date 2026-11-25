@@ -57,27 +57,27 @@ const API_KEY_PROVIDERS: ReadonlyArray<{
 }> = [
   {
     id: "openai",
-    label: msg("OpenAI Realtime API Key"),
+    label: msg("OpenAI Realtime API key"),
     placeholder: "sk-...",
     hint: msg("Enables 10 OpenAI Realtime full-duplex voices"),
   },
   {
     id: "gemini",
-    label: msg("Gemini Live API Key"),
+    label: msg("Gemini Live API key"),
     // oxlint-disable-next-line t3code/no-untranslated-copy -- API key prefix format
     placeholder: "AIza...",
     hint: msg("Enables 10 Gemini Live native audio voices"),
   },
   {
     id: "elevenlabs",
-    label: msg("ElevenLabs API Key"),
+    label: msg("ElevenLabs API key"),
     placeholder: "xi-...",
     hint: msg("Enables expressive ElevenLabs voice synthesis and auditions"),
   },
 ];
 
 const THREAD_STATUS_LABELS: Readonly<Record<BridgeThreadView["status"], string>> = {
-  needs_approval: msg("Needs Approval"),
+  needs_approval: msg("Needs approval"),
   running: msg("Running"),
   ready: msg("Ready"),
   error: msg("Issue"),
@@ -145,6 +145,11 @@ export function CarPlayPreviewPanel({
   const [savedNotice, setSavedNotice] = useState<ApiKeyProviderId | null>(null);
 
   const visual = DRIVE_STATE_VISUALS[snapshot.sessionState];
+  // System lines repeat the state title above, so only speech or the linked thread shows here.
+  const carPlayCaption =
+    snapshot.activeCaptionRole !== "system" && snapshot.activeCaption
+      ? snapshot.activeCaption
+      : snapshot.activeThreadTitle;
   const favoriteSet = new Set(snapshot.settings.favoriteVoiceIds);
   const carPlayVoices = [...voices]
     .sort((a, b) => {
@@ -191,17 +196,17 @@ export function CarPlayPreviewPanel({
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>
-              <T>CarPlay & Setup</T>
+              <T>CarPlay & setup</T>
             </Text>
             <Text style={styles.headerSubtitle}>
               {snapshot.carPlayConnected
-                ? gt("Apple CarPlay Connected")
+                ? gt("Apple CarPlay connected")
                 : gt("Interactive CarPlay preview and voice keys")}
             </Text>
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={gt("Close CarPlay and Setup")}
+            accessibilityLabel={gt("Close CarPlay and setup")}
             onPress={onClose}
             style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
           >
@@ -218,7 +223,7 @@ export function CarPlayPreviewPanel({
           {/* Section 1: Widescreen 16:9 CarPlay Head-Unit Simulator */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>
-              <T>Apple CarPlay Head-Unit Preview</T>
+              <T>Apple CarPlay head-unit preview</T>
             </Text>
             <View
               style={[
@@ -313,11 +318,11 @@ export function CarPlayPreviewPanel({
                         <Text numberOfLines={1} style={styles.carPlayMetaLine}>
                           {`${snapshot.activeVoice.displayName} · ${snapshot.activePersona.shortName}`}
                         </Text>
-                        <Text numberOfLines={1} style={styles.carPlayCaptionLine}>
-                          {snapshot.activeCaption ||
-                            snapshot.activeThreadTitle ||
-                            gt("Ready for hands-free voice chat")}
-                        </Text>
+                        {carPlayCaption ? (
+                          <Text numberOfLines={1} style={styles.carPlayCaptionLine}>
+                            {carPlayCaption}
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
 
@@ -326,7 +331,7 @@ export function CarPlayPreviewPanel({
                         <>
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={gt("CarPlay Mute toggle")}
+                            accessibilityLabel={gt("CarPlay mute toggle")}
                             onPress={() => {
                               triggerHaptic();
                               void onToggleMute();
@@ -342,7 +347,7 @@ export function CarPlayPreviewPanel({
                           </Pressable>
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={gt("CarPlay Interrupt")}
+                            accessibilityLabel={gt("CarPlay interrupt")}
                             onPress={() => {
                               triggerHaptic();
                               void onInterrupt();
@@ -355,7 +360,7 @@ export function CarPlayPreviewPanel({
                           </Pressable>
                           <Pressable
                             accessibilityRole="button"
-                            accessibilityLabel={gt("CarPlay End Call")}
+                            accessibilityLabel={gt("CarPlay end call")}
                             onPress={() => {
                               triggerHaptic();
                               void onEndSession();
@@ -370,7 +375,7 @@ export function CarPlayPreviewPanel({
                       ) : (
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={gt("CarPlay Start Talking")}
+                          accessibilityLabel={gt("CarPlay start talking")}
                           onPress={() => {
                             triggerHaptic();
                             void onStartSession();
@@ -378,7 +383,7 @@ export function CarPlayPreviewPanel({
                           style={[styles.carPlayActionBtn, styles.carPlayActionBtnPrimary]}
                         >
                           <Text style={styles.carPlayActionLabelPrimary}>
-                            <T>Start Talking</T>
+                            <T>Start talking</T>
                           </Text>
                         </Pressable>
                       )}
@@ -517,12 +522,12 @@ export function CarPlayPreviewPanel({
           {/* Section 2: Voice & Persona Defaults */}
           <View style={styles.setupCard}>
             <Text style={styles.sectionTitle}>
-              <T>Default Voice & Mode</T>
+              <T>Default voice and mode</T>
             </Text>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={gt("Choose default voice in Voice Studio")}
+              accessibilityLabel={gt("Choose default voice in Voice studio")}
               onPress={() => {
                 triggerHaptic();
                 onOpenVoiceStudio?.();
@@ -531,7 +536,7 @@ export function CarPlayPreviewPanel({
             >
               <View style={styles.summaryRowLeft}>
                 <Text style={styles.rowLabel}>
-                  <T>Active Voice</T>
+                  <T>Active voice</T>
                 </Text>
                 <Text style={styles.rowDescription}>
                   {`${snapshot.activeVoice.displayName} (${m(providerLabelMessage(snapshot.activeVoice.provider))})`}
@@ -543,7 +548,7 @@ export function CarPlayPreviewPanel({
             <View style={styles.divider} />
 
             <Text style={styles.rowLabel}>
-              <T>Default Driving Mode</T>
+              <T>Default driving mode</T>
             </Text>
             <View style={styles.personaChipsWrap}>
               {personas.map((persona) => {
@@ -572,20 +577,20 @@ export function CarPlayPreviewPanel({
           {/* Section 3: Driving Controls & Toggles */}
           <View style={styles.setupCard}>
             <Text style={styles.sectionTitle}>
-              <T>Hands-Free Behavior</T>
+              <T>Hands-free behavior</T>
             </Text>
 
             <View style={styles.toggleRow}>
               <View style={styles.toggleText}>
                 <Text style={styles.rowLabel}>
-                  <T>Hands-Free Barge-in</T>
+                  <T>Hands-free barge-in</T>
                 </Text>
                 <Text style={styles.rowDescription}>
                   <T>Interrupt One mid-sentence just by speaking</T>
                 </Text>
               </View>
               <ThemedSwitch
-                accessibilityLabel={gt("Hands-Free Barge-in")}
+                accessibilityLabel={gt("Hands-free barge-in")}
                 value={snapshot.settings.bargeInEnabled}
                 onValueChange={(value) => {
                   triggerHaptic();
@@ -599,14 +604,14 @@ export function CarPlayPreviewPanel({
             <View style={styles.toggleRow}>
               <View style={styles.toggleText}>
                 <Text style={styles.rowLabel}>
-                  <T>Auto-Start on CarPlay Connect</T>
+                  <T>Auto-start on CarPlay connect</T>
                 </Text>
                 <Text style={styles.rowDescription}>
                   <T>Begin listening automatically when plugged into CarPlay</T>
                 </Text>
               </View>
               <ThemedSwitch
-                accessibilityLabel={gt("Auto-Start on CarPlay Connect")}
+                accessibilityLabel={gt("Auto-start on CarPlay connect")}
                 value={snapshot.settings.autoStartOnCarPlay}
                 onValueChange={(value) => {
                   triggerHaptic();
@@ -620,14 +625,14 @@ export function CarPlayPreviewPanel({
             <View style={styles.toggleRow}>
               <View style={styles.toggleText}>
                 <Text style={styles.rowLabel}>
-                  <T>Agent Bridge Tools</T>
+                  <T>Agent Bridge tools</T>
                 </Text>
                 <Text style={styles.rowDescription}>
                   <T>Allow voice agent to inspect and steer connected One threads</T>
                 </Text>
               </View>
               <ThemedSwitch
-                accessibilityLabel={gt("Agent Bridge Tools")}
+                accessibilityLabel={gt("Agent Bridge tools")}
                 value={snapshot.settings.agentBridgeEnabled}
                 onValueChange={(value) => {
                   triggerHaptic();
@@ -641,7 +646,7 @@ export function CarPlayPreviewPanel({
             <View style={styles.speedBlock}>
               <View style={styles.speedHeader}>
                 <Text style={styles.rowLabel}>
-                  <T>Spoken Speed</T>
+                  <T>Spoken speed</T>
                 </Text>
                 <Text style={styles.speedValueLabel}>
                   {`${snapshot.settings.spokenSpeed.toFixed(2).replace(/\.00$/, ".0")}x`}
@@ -677,7 +682,7 @@ export function CarPlayPreviewPanel({
           {/* Section 4: Secure Provider API Keys */}
           <View style={styles.setupCard}>
             <Text style={styles.sectionTitle}>
-              <T>Realtime Voice API Keys</T>
+              <T>Realtime voice API keys</T>
             </Text>
             <Text style={styles.keySecurityNote}>
               <T>
@@ -764,12 +769,17 @@ export function CarPlayPreviewPanel({
                       onPress={() => void handleSaveKey(provider.id)}
                       style={({ pressed }) => [
                         styles.saveKeyBtn,
-                        draft.trim().length === 0 && styles.btnDisabled,
+                        draft.trim().length === 0 && styles.saveKeyBtnIdle,
                         pressed && styles.pressed,
                       ]}
                     >
-                      <Text style={styles.saveKeyBtnText}>
-                        {savedNotice === provider.id ? gt("Saved") : gt("Save Key")}
+                      <Text
+                        style={[
+                          styles.saveKeyBtnText,
+                          draft.trim().length === 0 && styles.saveKeyBtnTextIdle,
+                        ]}
+                      >
+                        {savedNotice === provider.id ? gt("Saved") : gt("Save key")}
                       </Text>
                     </Pressable>
 
@@ -1265,6 +1275,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: DRIVE_COLORS.obsidian,
   },
+  // Nothing to save yet: a quiet outline, so three idle keys do not read as three gold buttons.
+  saveKeyBtnIdle: {
+    backgroundColor: DRIVE_COLORS.obsidianCardHover,
+    borderWidth: 1,
+    borderColor: DRIVE_COLORS.borderStrong,
+  },
+  saveKeyBtnTextIdle: {
+    color: DRIVE_COLORS.textMuted,
+  },
   clearKeyBtn: {
     minHeight: 44,
     paddingHorizontal: 16,
@@ -1279,9 +1298,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#FCA5A5",
-  },
-  btnDisabled: {
-    opacity: 0.4,
   },
   pressed: {
     opacity: 0.78,

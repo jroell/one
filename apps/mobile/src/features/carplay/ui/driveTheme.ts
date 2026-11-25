@@ -58,7 +58,7 @@ export interface DriveStateVisual {
 
 export const DRIVE_STATE_VISUALS: Readonly<Record<DriveVoiceState, DriveStateVisual>> = {
   idle: {
-    label: msg("Ready to Drive"),
+    label: msg("Ready to drive"),
     sublabel: msg("Tap the ring or Start to talk hands-free"),
     ringPrimary: DRIVE_COLORS.goldPrimary,
     ringSecondary: DRIVE_COLORS.goldDeep,
@@ -128,8 +128,8 @@ export const DRIVE_STATE_VISUALS: Readonly<Record<DriveVoiceState, DriveStateVis
     badgeText: DRIVE_COLORS.goldBright,
   },
   error: {
-    label: msg("Connection Issue"),
-    sublabel: msg("Tap Retry or switch to On-Device voice"),
+    label: msg("Connection issue"),
+    sublabel: msg("Tap Retry or switch to on-device voice"),
     ringPrimary: DRIVE_COLORS.danger,
     ringSecondary: "#991B1B",
     haloColor: "rgba(239, 68, 68, 0.26)",

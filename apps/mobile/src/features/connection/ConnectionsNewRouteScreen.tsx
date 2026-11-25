@@ -135,7 +135,7 @@ function PairingForm({
       gt("Camera access was denied for this app. Open Settings to enable it."),
       [
         { text: gt("Cancel"), style: "cancel" },
-        { text: gt("Open Settings"), onPress: () => void Linking.openSettings() },
+        { text: gt("Open settings"), onPress: () => void Linking.openSettings() },
       ],
     );
   };

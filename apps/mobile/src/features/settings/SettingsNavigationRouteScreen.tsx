@@ -71,7 +71,7 @@ export function SettingsNavigationRouteScreen() {
                     ? gt("Hidden", { $context: "navigation tab visibility status" })
                     : enabled.indexOf(tab) < capacity
                       ? gt("Tab {position}", { position: enabled.indexOf(tab) + 1 })
-                      : gt("In Settings")}
+                      : gt("In settings")}
                 </Text>
               </View>
               <IconButton

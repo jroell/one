@@ -392,7 +392,7 @@ async function defaultConfirmInstallNow(): Promise<boolean> {
       ),
       [
         { onPress: () => resolve(false), style: "cancel", text: m(msg("Later")) },
-        { onPress: () => resolve(true), text: m(msg("Install Now")) },
+        { onPress: () => resolve(true), text: m(msg("Install now")) },
       ],
       { cancelable: true, onDismiss: () => resolve(false) },
     );

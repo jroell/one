@@ -357,7 +357,7 @@ export function SettingsVoiceRouteScreen() {
             <SettingsSection title={gt("Microphone access")}>
               <SettingsActionRow
                 icon="mic"
-                label={permission === "ask" ? gt("Allow microphone access") : gt("Open Settings")}
+                label={permission === "ask" ? gt("Allow microphone access") : gt("Open settings")}
                 onPress={
                   permission === "ask" ? requestPermission : () => void Linking.openSettings()
                 }

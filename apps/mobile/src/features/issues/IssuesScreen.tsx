@@ -361,7 +361,7 @@ export function IssuesScreen(
                 read={(preferences) => preferences.issueSavedViews}
                 write={(issueSavedViews) => ({ issueSavedViews })}
                 list="issue"
-                suggestedName={involvement === "assigned" ? gt("Issues Assigned to Me") : ""}
+                suggestedName={involvement === "assigned" ? gt("Issues assigned to me") : ""}
                 matches={issueViewMatches}
                 scope={{
                   query: tab.searchMode === "resting" ? "" : tab.query,

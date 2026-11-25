@@ -157,7 +157,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
 
   return (
     <View className="flex-1 bg-sheet">
-      <SheetHeader title={gt("Add Comment")} onClose={dismissComposer} />
+      <SheetHeader title={gt("Add comment")} onClose={dismissComposer} />
       <KeyboardSheetBody
         toolbar={
           target ? (

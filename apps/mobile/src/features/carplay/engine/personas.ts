@@ -29,7 +29,7 @@ export const DRIVING_PERSONAS: ReadonlyArray<DrivingPersona> = [
     id: "agent-bridge",
     name: "One Agent Commander",
     shortName: "Commander",
-    tagline: "Monitors live One threads, summarizes progress, and guards approvals.",
+    tagline: "Briefs you on live One threads, tells you what is waiting and lines up follow-ups.",
     iconName: "cpu",
     accentColor: "#F2B649",
     systemPrompt:

@@ -53,7 +53,7 @@ export function SettingsClientStorageRouteScreen() {
       message: gt(
         "This removes offline threads, server metadata, and cached branches for this environment. The saved connection and credentials stay intact.",
       ),
-      confirmText: gt("Clear Cache"),
+      confirmText: gt("Clear cache"),
       destructive: true,
       onConfirm: () =>
         clearCache({ type: "environment", environmentId: environment.environmentId }),
@@ -66,14 +66,14 @@ export function SettingsClientStorageRouteScreen() {
       message: gt(
         "This removes offline data for every environment. Connections, credentials, account data, and app preferences stay intact.",
       ),
-      confirmText: gt("Clear All Caches"),
+      confirmText: gt("Clear all caches"),
       destructive: true,
       onConfirm: () => clearCache({ type: "all" }),
     });
   };
 
   return (
-    <SettingsScreen title={gt("Client Storage")}>
+    <SettingsScreen title={gt("Client storage")}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}

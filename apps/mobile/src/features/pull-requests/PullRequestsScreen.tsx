@@ -7,6 +7,7 @@ import {
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
+import { openSettings } from "../settings/settings-navigation";
 import { useGT } from "gt-react-native";
 import { use, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
@@ -417,7 +418,7 @@ export function PullRequestsScreen(
                         ? query
                           ? gt("No results")
                           : gt("No matching pull requests")
-                        : gt("Connect an environment")
+                        : gt("No environments connected")
                 }
                 detail={
                   result.error ??
@@ -425,7 +426,13 @@ export function PullRequestsScreen(
                     ? gt("Reconnect to load pull requests that aren't saved on this device.")
                     : targets.length
                       ? gt("Pull requests from the selected environments' projects appear here.")
-                      : gt("Add an environment in Settings to browse its pull requests."))
+                      : gt("Add an environment to browse its pull requests."))
+                }
+                actionLabel={targets.length === 0 ? gt("Add environment") : undefined}
+                onAction={
+                  targets.length === 0
+                    ? () => openSettings(navigation, "SettingsEnvironmentNew")
+                    : undefined
                 }
                 variant="plain"
               />

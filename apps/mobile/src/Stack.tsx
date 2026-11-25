@@ -184,7 +184,7 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsNotifications: msg("Notifications"),
   SettingsThreads: msg("Threads"),
   SettingsAbout: msg("About"),
-  SettingsEnvironmentNew: msg("Add Environment"),
+  SettingsEnvironmentNew: msg("Add environment"),
   SettingsArchive: msg("Archive", { $context: "noun, settings page of archived threads" }),
   SettingsNavigation: msg("Navigation tabs"),
   SettingsAppearance: msg("Appearance"),
@@ -201,7 +201,7 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsScheduledTaskEdit: msg("Edit scheduled task"),
   SettingsScheduledTaskBranch: msg("Base branch"),
   SettingsScheduledTaskThread: msg("Destination"),
-  SettingsClientStorage: msg("Client Storage"),
+  SettingsClientStorage: msg("Client storage"),
   SettingsDiagnostics: msg("Diagnostics"),
   SettingsUsageAccount: msg("Account"),
   SettingsOpenSourceLicenses: msg("Open source licenses"),
@@ -218,7 +218,7 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsLegal: msg("Legal"),
   ConnectOnboarding: msg("Set up {product}", { product: "T3 Connect" }),
   Connections: msg("Environments"),
-  ConnectionsNew: msg("Add Environment"),
+  ConnectionsNew: msg("Add environment"),
 };
 
 // Thread settings keep the Duo's vertical bar so cancel, search, filter and confirm sit in the

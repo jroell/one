@@ -49,12 +49,12 @@ function statusBadgeLabel(status: BridgeThreadStatus, pendingApprovalCount: numb
   switch (status) {
     case "needs_approval":
       return pendingApprovalCount === 1
-        ? m(msg("Needs Approval"))
+        ? m(msg("Needs approval"))
         : m(msg("{count} Approvals"), { count: pendingApprovalCount });
     case "running":
       return m(msg("Running"));
     case "error":
-      return m(msg("Needs Attention"));
+      return m(msg("Needs attention"));
     case "ready":
       return m(msg("Ready"));
   }

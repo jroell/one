@@ -1,13 +1,15 @@
+import { deadlineAfter } from "@t3tools/client-runtime/clock";
 import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { msg, T, useGT, useMessages } from "gt-react-native";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StatusBar, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SymbolView } from "../../../components/ui/AppSymbol";
 import { AppText as Text } from "../../../components/ui/AppText";
+import { useDeadlinePassed } from "../../../lib/clock";
 import { DRIVING_PERSONAS, VOICE_CATALOG, useDriveController } from "../engine/index";
 import { CarPlayPreviewPanel } from "./CarPlayPreviewPanel";
 import {
@@ -30,6 +32,12 @@ import { OneVoiceOrb } from "./OneVoiceOrb";
 import { VoiceStudioSheet } from "./VoiceStudioSheet";
 
 const KEEP_AWAKE_TAG = "one-drive-mode";
+
+/**
+ * A new proposal cannot be sent for this long after it appears, so a tap aimed at the proposal
+ * it replaced cannot confirm one the driver has not read.
+ */
+export const PROPOSAL_SEND_GUARD_MS = 700;
 
 const SPEAKER_ROLE_LABELS: Readonly<Record<"user" | "assistant" | "system" | "tool", string>> = {
   user: msg("You"),
@@ -71,6 +79,66 @@ function hapticHeavy() {
 
 function hapticSelection() {
   void Haptics.selectionAsync().catch(() => undefined);
+}
+
+type PendingProposal = NonNullable<DriveSnapshotView["pendingConfirmation"]>;
+
+/**
+ * Keyed by proposal id by its parent, so a replacement proposal mounts a fresh card (and a fresh
+ * guard) instead of reusing the Send button the driver was about to press.
+ */
+function PendingConfirmationCard(props: {
+  readonly proposal: PendingProposal;
+  readonly onConfirm: (proposalId: string) => void | Promise<unknown>;
+  readonly onDismiss: (proposalId: string) => void | Promise<unknown>;
+}) {
+  const { proposal } = props;
+  const gt = useGT();
+  const [armsAt] = useState(() => deadlineAfter(PROPOSAL_SEND_GUARD_MS));
+  const armed = useDeadlinePassed(armsAt);
+
+  return (
+    <View testID="pending-confirmation-card" style={styles.confirmCard}>
+      <Text style={styles.confirmTitle}>
+        <T>Send this message?</T>
+      </Text>
+      <Text style={styles.confirmSummary}>{proposal.summary}</Text>
+      <View style={styles.confirmButtons}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={gt("Send pending message")}
+          accessibilityState={{ disabled: !armed }}
+          disabled={!armed}
+          onPress={() => {
+            hapticHeavy();
+            void props.onConfirm(proposal.id);
+          }}
+          style={({ pressed }) => [
+            styles.confirmApproveBtn,
+            !armed && styles.disabledBtn,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.confirmApproveText}>
+            <T>Send</T>
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={gt("Cancel pending message")}
+          onPress={() => {
+            hapticTap();
+            void props.onDismiss(proposal.id);
+          }}
+          style={({ pressed }) => [styles.confirmDismissBtn, pressed && styles.pressed]}
+        >
+          <Text style={styles.confirmDismissText}>
+            <T>Cancel</T>
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 /**
@@ -130,6 +198,25 @@ export function DriveStageView({
         ? snapshot.inputLevel
         : 0;
 
+  // Idle needs no second line (the ring and the Start button say it), and the error banner
+  // already explains a failure.
+  const stateSublabel =
+    snapshot.reconnectAttempt > 0
+      ? gt("Reconnecting (attempt {attempt})", { attempt: snapshot.reconnectAttempt })
+      : snapshot.sessionState === "idle" || snapshot.errorMessage
+        ? null
+        : m(visual.sublabel);
+
+  // Only real speech is a caption. System lines ("Connecting...", "Session ended") repeat the
+  // state readout or the error banner, so they never fill the card.
+  const lastTurn = snapshot.transcript.at(-1);
+  const caption =
+    snapshot.activeCaption && snapshot.activeCaptionRole !== "system"
+      ? { role: snapshot.activeCaptionRole, text: snapshot.activeCaption }
+      : lastTurn
+        ? { role: lastTurn.role, text: lastTurn.text }
+        : null;
+
   const transportLabel = m(
     providerLabelMessage(snapshot.activeTransport ?? snapshot.activeVoice.provider),
   );
@@ -174,14 +261,16 @@ export function DriveStageView({
         },
       ]}
     >
+      {/* Drive is black in both themes, so the system bar keeps light icons in light mode too. */}
+      <StatusBar barStyle="light-content" />
       {/* Top Status Bar */}
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
             snapshot.carPlayConnected
-              ? gt("CarPlay Connected, open CarPlay preview and setup")
-              : gt("Phone Drive Mode, open CarPlay preview and setup")
+              ? gt("CarPlay connected, open CarPlay preview and setup")
+              : gt("Phone Drive mode, open CarPlay preview and setup")
           }
           onPress={() => {
             hapticSelection();
@@ -209,7 +298,7 @@ export function DriveStageView({
             tintColor={snapshot.carPlayConnected ? "#86EFAC" : DRIVE_COLORS.goldBright}
           />
           <Text style={styles.connectionPillText}>
-            {snapshot.carPlayConnected ? gt("CarPlay Connected") : gt("Phone Drive Mode")}
+            {snapshot.carPlayConnected ? gt("CarPlay connected") : gt("Phone Drive mode")}
           </Text>
         </Pressable>
 
@@ -228,7 +317,7 @@ export function DriveStageView({
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={gt("Exit Drive Mode")}
+            accessibilityLabel={gt("Exit Drive mode")}
             onPress={handleExit}
             style={({ pressed }) => [styles.iconCircleBtn, pressed && styles.pressed]}
           >
@@ -264,7 +353,7 @@ export function DriveStageView({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={gt("Active voice {name}, tap to open Voice Studio", {
+          accessibilityLabel={gt("Active voice {name}, tap to open Voice studio", {
             name: snapshot.activeVoice.displayName,
           })}
           onPress={() => {
@@ -324,49 +413,17 @@ export function DriveStageView({
           >
             <Text style={[styles.stateTitle, { color: visual.badgeText }]}>{stateLabel}</Text>
           </View>
-          <Text style={styles.stateSublabel}>
-            {snapshot.reconnectAttempt > 0
-              ? gt("Reconnecting (attempt {attempt})", { attempt: snapshot.reconnectAttempt })
-              : m(visual.sublabel)}
-          </Text>
+          {stateSublabel ? <Text style={styles.stateSublabel}>{stateSublabel}</Text> : null}
         </View>
 
         {/* Proposed follow-up message: sends only when this exact card is tapped. */}
         {snapshot.pendingConfirmation ? (
-          <View testID="pending-confirmation-card" style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>
-              <T>Send this message?</T>
-            </Text>
-            <Text style={styles.confirmSummary}>{snapshot.pendingConfirmation.summary}</Text>
-            <View style={styles.confirmButtons}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={gt("Send pending message")}
-                onPress={() => {
-                  hapticHeavy();
-                  void onConfirmPendingAction(snapshot.pendingConfirmation!.id);
-                }}
-                style={({ pressed }) => [styles.confirmApproveBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.confirmApproveText}>
-                  <T>Send</T>
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={gt("Cancel pending message")}
-                onPress={() => {
-                  hapticTap();
-                  void onDismissPendingAction(snapshot.pendingConfirmation!.id);
-                }}
-                style={({ pressed }) => [styles.confirmDismissBtn, pressed && styles.pressed]}
-              >
-                <Text style={styles.confirmDismissText}>
-                  <T>Cancel</T>
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          <PendingConfirmationCard
+            key={snapshot.pendingConfirmation.id}
+            proposal={snapshot.pendingConfirmation}
+            onConfirm={onConfirmPendingAction}
+            onDismiss={onDismissPendingAction}
+          />
         ) : null}
 
         {/* Recoverable Error Banner */}
@@ -392,29 +449,28 @@ export function DriveStageView({
         ) : null}
 
         {/* Live 2-Line Spoken Caption Ticker */}
-        <Pressable
-          testID="caption-ticker"
-          accessibilityRole="button"
-          accessibilityLabel={gt("Live spoken caption, tap to open full transcript")}
-          onPress={() => {
-            hapticSelection();
-            setTranscriptOpen(true);
-          }}
-          style={({ pressed }) => [styles.captionCard, pressed && styles.pressed]}
-        >
-          <View style={styles.captionHeader}>
-            <Text style={styles.captionRole}>
-              {m(SPEAKER_ROLE_LABELS[snapshot.activeCaptionRole])}
+        {caption ? (
+          <Pressable
+            testID="caption-ticker"
+            accessibilityRole="button"
+            accessibilityLabel={gt("Live spoken caption, tap to open full transcript")}
+            onPress={() => {
+              hapticSelection();
+              setTranscriptOpen(true);
+            }}
+            style={({ pressed }) => [styles.captionCard, pressed && styles.pressed]}
+          >
+            <View style={styles.captionHeader}>
+              <Text style={styles.captionRole}>{m(SPEAKER_ROLE_LABELS[caption.role])}</Text>
+              <Text style={styles.captionExpandHint}>
+                {gt("Transcript ({count})", { count: snapshot.transcript.length })}
+              </Text>
+            </View>
+            <Text numberOfLines={2} style={styles.captionText}>
+              {caption.text}
             </Text>
-            <Text style={styles.captionExpandHint}>
-              {gt("Transcript ({count})", { count: snapshot.transcript.length })}
-            </Text>
-          </View>
-          <Text numberOfLines={2} style={styles.captionText}>
-            {snapshot.activeCaption ||
-              gt("Speak naturally once connected. Tap here anytime to view the full transcript.")}
-          </Text>
-        </Pressable>
+          </Pressable>
+        ) : null}
       </View>
 
       {/* Bottom Thumb-Zone Control Dock */}
@@ -442,7 +498,7 @@ export function DriveStageView({
                 size={26}
                 tintColor={snapshot.isMuted ? DRIVE_COLORS.textPrimary : DRIVE_COLORS.goldBright}
               />
-              <Text style={styles.dockTileLabel}>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.dockTileLabel}>
                 {snapshot.isMuted ? gt("Unmute") : gt("Mute")}
               </Text>
             </Pressable>
@@ -470,6 +526,8 @@ export function DriveStageView({
                 }
               />
               <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
                 style={[
                   styles.dockTileLabel,
                   snapshot.sessionState === "speaking" && styles.dockTileLabelDark,
@@ -481,7 +539,7 @@ export function DriveStageView({
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={gt("Switch Voice")}
+              accessibilityLabel={gt("Switch voice")}
               onPress={() => {
                 hapticSelection();
                 setVoiceStudioOpen(true);
@@ -489,14 +547,14 @@ export function DriveStageView({
               style={({ pressed }) => [styles.dockTile, pressed && styles.pressed]}
             >
               <SymbolView name="headphones" size={26} tintColor={DRIVE_COLORS.textPrimary} />
-              <Text style={styles.dockTileLabel}>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.dockTileLabel}>
                 <T>Voice</T>
               </Text>
             </Pressable>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={gt("End Call")}
+              accessibilityLabel={gt("End call")}
               onPress={() => {
                 hapticHeavy();
                 void onEndSession();
@@ -508,8 +566,8 @@ export function DriveStageView({
               ]}
             >
               <SymbolView name="stop.fill" size={24} tintColor="#FFFFFF" />
-              <Text style={styles.dockTileLabel}>
-                <T>End Call</T>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.dockTileLabel}>
+                <T>End call</T>
               </Text>
             </Pressable>
           </View>
@@ -517,7 +575,7 @@ export function DriveStageView({
           <View style={styles.idleDockWrap}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={gt("Start Hands-Free Chat")}
+              accessibilityLabel={gt("Start hands-free chat")}
               onPress={() => {
                 hapticHeavy();
                 void onStartSession();
@@ -526,14 +584,14 @@ export function DriveStageView({
             >
               <SymbolView name="mic" size={26} tintColor={DRIVE_COLORS.obsidian} />
               <Text style={styles.startCtaText}>
-                <T>Start Hands-Free Chat</T>
+                <T>Start hands-free chat</T>
               </Text>
             </Pressable>
 
             <View style={styles.idleSecondaryRow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={gt("Open Voice Studio")}
+                accessibilityLabel={gt("Open Voice studio")}
                 onPress={() => {
                   hapticSelection();
                   setVoiceStudioOpen(true);
@@ -548,7 +606,7 @@ export function DriveStageView({
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={gt("Choose Driving Mode")}
+                accessibilityLabel={gt("Choose driving mode")}
                 onPress={() => {
                   hapticSelection();
                   setPersonaDrawerOpen(true);
@@ -563,7 +621,7 @@ export function DriveStageView({
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={gt("Open CarPlay Preview and Setup")}
+                accessibilityLabel={gt("Open CarPlay preview and setup")}
                 onPress={() => {
                   hapticSelection();
                   setCarPlayPanelOpen(true);
@@ -642,11 +700,11 @@ export function DriveStageView({
         >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              <T>Driving Modes</T>
+              <T>Driving modes</T>
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={gt("Close Driving Modes")}
+              accessibilityLabel={gt("Close driving modes")}
               onPress={() => setPersonaDrawerOpen(false)}
               style={styles.iconCircleBtn}
             >
@@ -717,11 +775,11 @@ export function DriveStageView({
         >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              <T>Live Transcript</T>
+              <T>Live transcript</T>
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={gt("Close Transcript")}
+              accessibilityLabel={gt("Close transcript")}
               onPress={() => setTranscriptOpen(false)}
               style={styles.iconCircleBtn}
             >
@@ -1059,11 +1117,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   captionRole: {
-    fontSize: 12,
-    fontWeight: "800",
+    fontSize: 13,
+    fontWeight: "700",
     color: DRIVE_COLORS.goldPrimary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
   },
   captionExpandHint: {
     fontSize: 12,
@@ -1232,10 +1288,9 @@ const styles = StyleSheet.create({
     borderColor: DRIVE_COLORS.borderGold,
   },
   transcriptRoleLabel: {
-    fontSize: 12,
-    fontWeight: "800",
+    fontSize: 13,
+    fontWeight: "700",
     color: DRIVE_COLORS.goldPrimary,
-    textTransform: "uppercase",
   },
   transcriptBody: {
     fontSize: 16,

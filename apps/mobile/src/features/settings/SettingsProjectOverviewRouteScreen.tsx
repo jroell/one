@@ -3,6 +3,7 @@ import { T, useGT } from "gt-react-native";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { AppText as Text, AppTextInput } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
+import { SettingsNoEnvironments } from "./components/SettingsNoEnvironments";
 import { ProjectFavicon } from "../../components/ProjectFavicon";
 import * as Dialog from "../../components/ui/Dialog";
 import { AuthOrchestrationOperateScope } from "@t3tools/contracts";
@@ -97,7 +98,11 @@ export function SettingsProjectOverviewRouteScreen() {
         contentContainerClassName="gap-6 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
-        {selectedProjectKey === null ? (
+        {availableTargets.length === 0 ? (
+          <SettingsNoEnvironments
+            detail={gt("Projects live on an environment. Add one to manage its projects.")}
+          />
+        ) : selectedProjectKey === null ? (
           <Text className="px-2 text-base text-foreground-muted">
             <T>Choose a project with the filter above to manage its name, checkouts and removal.</T>
           </Text>

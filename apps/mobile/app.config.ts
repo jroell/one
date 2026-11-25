@@ -470,6 +470,9 @@ const config: ExpoConfig = {
       tracesToken: repoEnv.EXPO_PUBLIC_OTLP_TRACES_TOKEN ?? null,
     },
     eas: {
+      // expo-observe on Android throws while loading when this is missing, which stops the app at
+      // launch. The id only labels reports, and reports are sent only when a relay is configured.
+      projectId: repoEnv.EAS_PROJECT_ID ?? "00000000-0000-4000-8000-000000000001",
       observe: { endpointUrl: observeEndpointUrl },
     },
   },

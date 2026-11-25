@@ -263,7 +263,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       copy: { label: gt("Copy", { $context: "verb" }) },
       copyAsMarkdown: { label: gt("Copy as Markdown") },
       copyImageUrl: {
-        label: gt("Copy Image URL"),
+        label: gt("Copy image URL"),
         pluralLabels: { other: gt("Copy {count} Image URLs", { count: "{count}" }) },
       },
     }),

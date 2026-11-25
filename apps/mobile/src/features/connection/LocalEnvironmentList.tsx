@@ -1,10 +1,11 @@
-import { T } from "gt-react-native";
+import { T, useGT } from "gt-react-native";
 import type { EnvironmentId } from "@t3tools/contracts";
 import type { ComponentProps } from "react";
 import { View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
+import { Button } from "../../components/ui/Button";
 import { ConnectionEnvironmentRow } from "./ConnectionEnvironmentRow";
 
 type EnvironmentRowProps = ComponentProps<typeof ConnectionEnvironmentRow>;
@@ -13,6 +14,7 @@ export function LocalEnvironmentList({
   environments,
   expandedId,
   onToggle,
+  onAdd,
   ...rowActions
 }: Pick<
   EnvironmentRowProps,
@@ -21,7 +23,10 @@ export function LocalEnvironmentList({
   readonly environments: ReadonlyArray<EnvironmentRowProps["environment"]>;
   readonly expandedId: EnvironmentId | null;
   readonly onToggle: (environmentId: EnvironmentId) => void;
+  /** Adds the empty state's action, so the first environment is one tap away. */
+  readonly onAdd?: () => void;
 }) {
+  const gt = useGT();
   if (environments.length === 0) {
     return (
       <View
@@ -39,10 +44,13 @@ export function LocalEnvironmentList({
         <Text className="text-center text-sm leading-normal text-foreground-muted">
           <T>No environments connected yet.</T>
           {"\n"}
-          <T>
-            Tap <Text className="font-t3-bold text-foreground">+</Text> to add one.
-          </T>
+          <T>Add one to load projects and start coding sessions.</T>
         </Text>
+        {onAdd ? (
+          <View className="mt-2">
+            <Button tone="primary" label={gt("Add environment")} onPress={onAdd} />
+          </View>
+        ) : null}
       </View>
     );
   }

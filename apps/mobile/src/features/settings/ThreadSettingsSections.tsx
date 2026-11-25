@@ -27,6 +27,7 @@ import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { planAutoSettleSettingsSync, type AutoSettleSettings } from "./autoSettleSettingsSync";
+import { SettingsNoEnvironments } from "./components/SettingsNoEnvironments";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import {
   managedSettingReason,
@@ -37,6 +38,7 @@ import {
 export function SettingsLabsRouteScreen() {
   const gt = useGT();
   const insets = useSafeAreaInsets();
+  const { availableTargets } = useSettingsEnvironmentFilter();
 
   return (
     <SettingsScreen title={gt("Labs")}>
@@ -47,6 +49,11 @@ export function SettingsLabsRouteScreen() {
         contentContainerClassName="gap-6 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        {availableTargets.length === 0 ? (
+          <SettingsNoEnvironments
+            detail={gt("Labs settings belong to an environment. Add one to try them.")}
+          />
+        ) : null}
         <MachineBetaSection
           title={gt("Linked environments")}
           icon="link"

@@ -7,8 +7,8 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { Menu } from "../../components/ui/Menu";
 
 const ATTACHMENT_MENU_ACTIONS: MenuAction[] = [
-  { id: "photos", title: msg("Photo Library"), image: "photo" },
-  { id: "files", title: msg("Choose Files"), image: "folder" },
+  { id: "photos", title: msg("Photo library"), image: "photo" },
+  { id: "files", title: msg("Choose files"), image: "folder" },
 ];
 
 export function ComposerAttachmentButton(props: {

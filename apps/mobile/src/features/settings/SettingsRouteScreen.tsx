@@ -106,6 +106,7 @@ type SettingsListRow = ComponentProps<typeof SettingsRow> & { readonly id: strin
 
 interface SettingsListSection {
   readonly title?: string;
+  readonly footer?: string;
   readonly rows: readonly SettingsListRow[];
 }
 
@@ -179,10 +180,21 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
   const query = workspace?.state.tabs.settings.query ?? "";
   const overflowRows = useOverflowRows();
   const indexSections = useSettingsIndexSections();
-  const sections = filterSettingsSections(
+  const { selectedTargets } = useSettingsEnvironmentFilter();
+  const sections = filterSettingsSections<SettingsListRow, SettingsListSection>(
     [
       { rows: overflowRows },
-      { title: gt("Connections"), rows: props.connections },
+      {
+        title: gt("Connections"),
+        // The dimmed pages below read an environment; say why they are off.
+        footer:
+          selectedTargets.length === 0
+            ? gt(
+                "Providers, Threads, Source control, Worktrees and Maintenance turn on once an environment is connected.",
+              )
+            : undefined,
+        rows: props.connections,
+      },
       ...indexSections,
     ],
     query,
@@ -208,7 +220,11 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
       >
         {sections.length ? (
           sections.map((section, index) => (
-            <SettingsSection key={section.title ?? `untitled-${index}`} title={section.title}>
+            <SettingsSection
+              key={section.title ?? `untitled-${index}`}
+              title={section.title}
+              footer={section.footer}
+            >
               {section.rows.map(({ id, ...row }) => (
                 <SettingsRow key={id} {...row} />
               ))}

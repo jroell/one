@@ -49,6 +49,7 @@ import { AppState, Platform, Pressable, TextInput as RNTextInput, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "../../components/ui/Button";
+import { SettingsNoEnvironments } from "./components/SettingsNoEnvironments";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import {
@@ -513,11 +514,13 @@ export function SettingsScheduledTasksRouteScreen() {
               }}
             />
           ))
+        ) : availableTargets.length === 0 ? (
+          <SettingsNoEnvironments
+            detail={gt("Scheduled tasks run on an environment. Add one to view and create them.")}
+          />
         ) : (
           <Text className="px-2 text-base text-foreground-muted">
-            {availableTargets.length === 0
-              ? gt("Connect an environment to view and create scheduled tasks.")
-              : gt("No environments match these filters. Change the filter above.")}
+            {gt("No environments match these filters. Change the filter above.")}
           </Text>
         )}
       </ScrollView>

@@ -15,7 +15,7 @@ const AUTH: BridgeThreadSummary = {
   title: "Refactor OAuth retry queue",
   status: "needs_approval",
   pendingApprovalCount: 1,
-  lastActivityLabel: "Needs Approval",
+  lastActivityLabel: "Needs approval",
   branch: "fix/oauth-retry",
 };
 const UI: BridgeThreadSummary = {

@@ -32,7 +32,8 @@ export function FloatingActionButton(props: FloatingActionButtonProps) {
   const iconSize = props.variant === "large" ? Math.round(36 * scale) : standardIconSize;
   return (
     <View
-      accessible
+      // Not `accessible`: that makes the wrapper keyboard-focusable and Android draws its square focus highlight behind the rounded button. The Compose button inside takes keyboard focus.
+      importantForAccessibility="yes"
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityActions={[{ name: "activate" }]}

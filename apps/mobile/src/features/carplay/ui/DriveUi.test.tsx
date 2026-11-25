@@ -108,6 +108,7 @@ vi.mock("react-native", () => {
     ScrollView,
     Modal,
     Pressable,
+    StatusBar: () => null,
     TextInput,
   };
 });
@@ -216,9 +217,14 @@ vi.mock("../engine/index", () => ({
 }));
 
 import { CarPlayPreviewPanel } from "./CarPlayPreviewPanel";
-import { DriveStageView } from "./DriveStageScreen";
+import { DriveStageView, PROPOSAL_SEND_GUARD_MS } from "./DriveStageScreen";
 import { DASH_PRIMARY_CTA_HEIGHT, DASH_TOUCH_TARGET_MIN } from "./driveTheme";
-import type { DriveSnapshotView, DrivingPersonaView, VoiceProfileView } from "./driveUiTypes";
+import type {
+  DriveSnapshotView,
+  DrivingPersonaView,
+  PendingConfirmationView,
+  VoiceProfileView,
+} from "./driveUiTypes";
 import { OneVoiceOrb } from "./OneVoiceOrb";
 import { VoiceStudioSheet } from "./VoiceStudioSheet";
 
@@ -354,6 +360,24 @@ function makeSnapshot(overrides: Partial<DriveSnapshotView> = {}): DriveSnapshot
   };
 }
 
+const PROPOSAL_A: PendingConfirmationView = {
+  id: "confirm-1",
+  toolName: "send_message_to_thread",
+  summary: 'Send "Run the deploy check" to Fix CarPlay audio buffer',
+  environmentId: "env-1",
+  threadId: "thread-1",
+  threadTitle: "Fix CarPlay audio buffer",
+  message: "Run the deploy check",
+  expiresAt: 1_700_000_030_000,
+};
+
+const PROPOSAL_B: PendingConfirmationView = {
+  ...PROPOSAL_A,
+  id: "confirm-2",
+  summary: 'Send "Delete the staging branch" to Fix CarPlay audio buffer',
+  message: "Delete the staging branch",
+};
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -373,6 +397,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   container.remove();
 });
@@ -504,7 +529,7 @@ describe("CarPlayPreviewPanel", () => {
 
     // Talk tab start action
     act(() => {
-      buttonByLabel("CarPlay Start Talking").click();
+      buttonByLabel("CarPlay start talking").click();
     });
     expect(onStartSession).toHaveBeenCalledTimes(1);
 
@@ -530,7 +555,7 @@ describe("CarPlayPreviewPanel", () => {
     act(() => {
       buttonByLabel("CarPlay Threads tab").click();
     });
-    expect(container.textContent).toContain("Needs Approval");
+    expect(container.textContent).toContain("Needs approval");
     act(() => {
       buttonByLabel("CarPlay focus thread Fix CarPlay audio buffer").click();
     });
@@ -541,7 +566,7 @@ describe("CarPlayPreviewPanel", () => {
 
     // Toggle Barge-in & Spoken Speed
     act(() => {
-      buttonByLabel("Hands-Free Barge-in").click();
+      buttonByLabel("Hands-free barge-in").click();
       buttonByLabel("Spoken speed 1.25x").click();
     });
     expect(onUpdateSettings).toHaveBeenCalledWith({ bargeInEnabled: false });
@@ -549,7 +574,7 @@ describe("CarPlayPreviewPanel", () => {
 
     // Save Gemini API key & Clear OpenAI API key
     const geminiInput = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Gemini Live API Key"]',
+      'input[aria-label="Gemini Live API key"]',
     );
     expect(geminiInput).not.toBeNull();
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -561,8 +586,8 @@ describe("CarPlayPreviewPanel", () => {
       geminiInput!.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => {
-      buttonByLabel("Save Gemini Live API Key").click();
-      buttonByLabel("Clear OpenAI Realtime API Key").click();
+      buttonByLabel("Save Gemini Live API key").click();
+      buttonByLabel("Clear OpenAI Realtime API key").click();
     });
     expect(onSaveApiKey).toHaveBeenCalledWith("gemini", "AIza-test-key");
     expect(onClearApiKey).toHaveBeenCalledWith("openai");
@@ -591,6 +616,8 @@ describe("DriveStageView", () => {
       onDismissPendingAction: vi.fn(),
     };
 
+    vi.useFakeTimers();
+
     // Idle state shows Start CTA with >= 76px dash-safe height and does not lock keep-awake
     act(() => {
       root.render(
@@ -602,7 +629,7 @@ describe("DriveStageView", () => {
         />,
       );
     });
-    const startBtn = buttonByLabel("Start Hands-Free Chat");
+    const startBtn = buttonByLabel("Start hands-free chat");
     expect(Number.parseInt(startBtn.style.minHeight, 10)).toBeGreaterThanOrEqual(
       DASH_PRIMARY_CTA_HEIGHT,
     );
@@ -619,16 +646,7 @@ describe("DriveStageView", () => {
             outputLevel: 0.72,
             activeCaption: "Your tests are green on custom main.",
             activeCaptionRole: "assistant",
-            pendingConfirmation: {
-              id: "confirm-1",
-              toolName: "send_message_to_thread",
-              summary: 'Send "Run the deploy check" to Fix CarPlay audio buffer',
-              environmentId: "env-1",
-              threadId: "thread-1",
-              threadTitle: "Fix CarPlay audio buffer",
-              message: "Run the deploy check",
-              expiresAt: 1_700_000_030_000,
-            },
+            pendingConfirmation: PROPOSAL_A,
           })}
           voices={TEST_VOICES}
           personas={TEST_PERSONAS}
@@ -638,12 +656,12 @@ describe("DriveStageView", () => {
     });
 
     expect(mocks.activateKeepAwakeAsync).toHaveBeenCalledWith("one-drive-mode");
-    expect(container.textContent).toContain("CarPlay Connected");
+    expect(container.textContent).toContain("CarPlay connected");
     expect(container.textContent).toContain("Your tests are green on custom main.");
 
     const muteBtn = buttonByLabel("Mute microphone");
     const interruptBtn = buttonByLabel("Interrupt response");
-    const endBtn = buttonByLabel("End Call");
+    const endBtn = buttonByLabel("End call");
     expect(Number.parseInt(muteBtn.style.minHeight, 10)).toBeGreaterThanOrEqual(
       DASH_TOUCH_TARGET_MIN,
     );
@@ -655,15 +673,124 @@ describe("DriveStageView", () => {
     );
 
     act(() => {
-      muteBtn.click();
-      interruptBtn.click();
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    act(() => {
+      buttonByLabel("Mute microphone").click();
+      buttonByLabel("Interrupt response").click();
       buttonByLabel("Send pending message").click();
-      endBtn.click();
+      buttonByLabel("End call").click();
     });
     expect(callbacks.onToggleMute).toHaveBeenCalledTimes(1);
     expect(callbacks.onInterrupt).toHaveBeenCalledTimes(1);
     // The tap carries the id of the card the driver saw, so a replaced card cannot be confirmed.
     expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-1");
     expect(callbacks.onEndSession).toHaveBeenCalledTimes(1);
+  });
+
+  function makeCallbacks() {
+    return {
+      onClose: vi.fn(),
+      onStartSession: vi.fn(),
+      onEndSession: vi.fn(),
+      onToggleMute: vi.fn(),
+      onInterrupt: vi.fn(),
+      onSelectVoice: vi.fn(),
+      onSelectPersona: vi.fn(),
+      onSelectThread: vi.fn(),
+      onToggleFavoriteVoice: vi.fn(),
+      onPreviewVoice: vi.fn(),
+      onStopPreview: vi.fn(),
+      onUpdateSettings: vi.fn(),
+      onSaveApiKey: vi.fn(),
+      onClearApiKey: vi.fn(),
+      onSendTextPrompt: vi.fn(),
+      onConfirmPendingAction: vi.fn(),
+      onDismissPendingAction: vi.fn(),
+    };
+  }
+
+  function renderStage(
+    callbacks: ReturnType<typeof makeCallbacks>,
+    overrides: Partial<DriveSnapshotView>,
+  ) {
+    act(() => {
+      root.render(
+        <DriveStageView
+          snapshot={makeSnapshot({ isActive: true, sessionState: "listening", ...overrides })}
+          voices={TEST_VOICES}
+          personas={TEST_PERSONAS}
+          {...callbacks}
+        />,
+      );
+    });
+  }
+
+  it("cannot send a replacement proposal from a press aimed at the proposal it replaced", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    const sendOnA = buttonByLabel("Send pending message");
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    expect(sendOnA.disabled).toBe(false);
+
+    // The assistant replaces the proposal while the driver's finger is coming down.
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_B });
+    expect(container.textContent).toContain("Delete the staging branch");
+    expect(sendOnA.isConnected).toBe(false);
+    act(() => {
+      sendOnA.click();
+    });
+    expect(callbacks.onConfirmPendingAction).not.toHaveBeenCalled();
+
+    // A tap on the new card inside the guard is ignored and the button looks pending.
+    const sendOnB = buttonByLabel("Send pending message");
+    expect(sendOnB.disabled).toBe(true);
+    expect(Number.parseFloat(sendOnB.style.opacity)).toBeLessThan(1);
+    act(() => {
+      sendOnB.click();
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+      sendOnB.click();
+    });
+    expect(callbacks.onConfirmPendingAction).not.toHaveBeenCalled();
+
+    // Once the guard passes, Send confirms the proposal on this card and nothing else.
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+    act(() => {
+      buttonByLabel("Send pending message").click();
+    });
+    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledTimes(1);
+    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-2");
+  });
+
+  it("states an idle session once and keeps the caption card for speech", () => {
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, {
+      isActive: false,
+      sessionState: "idle",
+      activeCaption: "Ready for hands-free voice chat.",
+      activeCaptionRole: "system",
+    });
+    expect(container.textContent).toContain("Ready to drive");
+    expect(container.textContent).not.toContain("Ready for hands-free voice chat");
+    expect(container.textContent).not.toContain("Tap the ring");
+    expect(container.textContent).not.toMatch(/status/i);
+    expect(container.querySelector('[data-testid="caption-ticker"]')).toBeNull();
+
+    renderStage(callbacks, {
+      sessionState: "speaking",
+      activeCaption: "Your tests are green.",
+      activeCaptionRole: "assistant",
+    });
+    expect(container.querySelector('[data-testid="caption-ticker"]')?.textContent).toContain(
+      "Your tests are green.",
+    );
   });
 });

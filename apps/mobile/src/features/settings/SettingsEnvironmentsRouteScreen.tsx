@@ -134,6 +134,7 @@ export function SettingsEnvironmentsRouteScreen() {
           environments={localEnvironments}
           expandedId={null}
           onToggle={openEnvironment}
+          onAdd={() => navigation.navigate("SettingsEnvironmentNew")}
           opensDetails
           onReconnect={onReconnectEnvironment}
           onRemove={onRemoveEnvironmentPress}

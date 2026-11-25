@@ -163,7 +163,7 @@ describe("voiceCatalog and personas", () => {
         title: "Fix auth retry",
         status: "needs_approval",
         pendingApprovalCount: 1,
-        lastActivityLabel: "Needs Approval",
+        lastActivityLabel: "Needs approval",
       },
     });
     expect(instructions).toContain(CAR_SAFE_SPEECH_RULES);

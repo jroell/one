@@ -42,14 +42,14 @@ export const PROVIDER_FILTER_OPTIONS: ReadonlyArray<{
   { id: "openai-realtime", label: msg("OpenAI Realtime") },
   { id: "gemini-live", label: msg("Gemini Live") },
   { id: "elevenlabs", label: msg("ElevenLabs") },
-  { id: "on-device", label: msg("On-Device") },
+  { id: "on-device", label: msg("On-device") },
 ];
 
 export const VIBE_FILTER_OPTIONS: ReadonlyArray<{
   readonly id: "all" | VoiceVibe;
   readonly label: string;
 }> = [
-  { id: "all", label: msg("All Vibes") },
+  { id: "all", label: msg("All vibes") },
   { id: "warm", label: msg("Warm") },
   { id: "crisp", label: msg("Crisp") },
   { id: "deep", label: msg("Deep") },
@@ -62,7 +62,7 @@ const PROVIDER_LABELS: Readonly<Record<VoiceProvider, string>> = {
   "openai-realtime": msg("OpenAI Realtime"),
   "gemini-live": msg("Gemini Live"),
   elevenlabs: msg("ElevenLabs"),
-  "on-device": msg("On-Device"),
+  "on-device": msg("On-device"),
 };
 
 const VIBE_LABELS: Readonly<Record<VoiceVibe, string>> = {

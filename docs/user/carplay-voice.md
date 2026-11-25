@@ -1,144 +1,114 @@
-# One Drive and Apple CarPlay Voice Companion
+# One Drive and Apple CarPlay
 
-One Drive is a hands-free realtime voice companion built into the One mobile app for iOS and Android, with native Apple CarPlay support on iOS. Use it as a standalone conversational voice assistant on the road, or bridge it to your live One coding threads to hear status briefings, check pending approvals, and steer running agents without touching a screen.
+One Drive is hands-free voice chat in the One mobile app for iOS and Android. On iOS it also has an Apple CarPlay screen. You can use it as a plain voice assistant, or link it to your One coding threads to hear what the agents are doing and to line up a follow-up message.
 
-## Open Drive Mode
+Drive never approves, declines or sends anything by voice alone. See [What voice can and cannot do](#what-voice-can-and-cannot-do).
 
-You can open Drive Mode from any of these entry points in the mobile app:
+## Open Drive
 
 - **Settings -> Drive & CarPlay**
 - **Settings -> Voice -> Open Drive & CarPlay**
-- Search **carplay**, **drive**, **hands-free**, **realtime voice**, or **voice studio** in Settings
+- Search **carplay**, **drive**, **hands-free** or **voice studio** in Settings
 - Deep link to `drive`
 
-When your iPhone connects to an Apple CarPlay head unit and **Auto-Start on CarPlay Connect** is on (enabled by default), One can launch your voice session automatically.
+**Auto-Start on CarPlay Connect** is off by default. Turn it on in the Drive settings if you want a session to start when the phone connects to the car. If the phone cannot read its saved settings (for example while locked), Drive treats auto-start as off.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  subgraph Input["CarPlay or Phone Drive Mode"]
-    Mic["24 kHz PCM16 Mic + Hardware AEC"]
-    Controls["CarPlay Tabs & Steering-Wheel Controls"]
-  end
-
-  subgraph Engine["One Voice Engine"]
-    Ctrl["CarPlay Drive Controller"]
-    Transport["OpenAI Realtime / Gemini Live / ElevenLabs / On-Device"]
-    Bridge["Agent Bridge (2-Step Confirmation Guard)"]
-  end
-
-  subgraph Workspace["Linked One Workspaces"]
-    Threads["Live Coding Threads & Pending Approvals"]
-  end
-
-  Mic --> Ctrl
-  Controls --> Ctrl
-  Ctrl <--> Transport
-  Transport <--> Bridge
-  Bridge <--> Threads
+  Mic["Microphone"] --> Controller["Drive controller"]
+  Controls["Phone or CarPlay controls"] --> Controller
+  Controller <--> Provider["OpenAI Realtime, Gemini Live, ElevenLabs or On-Device"]
+  Provider -->|asks for a tool| Bridge["Agent Bridge"]
+  Bridge -->|reads| Threads["Linked One threads"]
+  Bridge -->|proposes a message| Card["Send card on the phone"]
+  Card -->|you tap Send| Threads
 ```
 
-## Supported voice providers and catalog
+## Voices
 
-One ships with **29 curated voices** across **4 providers** and **6 vibes** (`Warm`, `Crisp`, `Deep`, `Energetic`, `Calm`, `Narrative`).
+Drive has 29 voices from 4 providers, grouped by 6 vibes (`Warm`, `Crisp`, `Deep`, `Energetic`, `Calm`, `Narrative`).
 
-| Provider            | Voices                                                                                             | Default model / backend                                                                  | Transport                                                                                                                                                                | API key required   |
-| ------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| **OpenAI Realtime** | 10 (`Marin`, `Cedar`, `Coral`, `Ash`, `Ballad`, `Sage`, `Shimmer`, `Verse`, `Alloy`, `Echo`)       | `gpt-realtime` (`wss://api.openai.com/v1/realtime`)                                      | Full-duplex WebSocket, 24 kHz PCM16, `semantic_vad` or `server_vad`                                                                                                      | OpenAI API key     |
-| **Gemini Live**     | 10 (`Puck`, `Charon`, `Kore`, `Fenrir`, `Aoede`, `Leda`, `Orus`, `Zephyr`, `Enceladus`, `Umbriel`) | `models/gemini-2.5-flash-native-audio-preview-09-2025` (`BidiGenerateContent` WebSocket) | Full-duplex WebSocket, 16 kHz mic input (resampled from 24 kHz), 24 kHz audio output                                                                                     | Gemini API key     |
-| **ElevenLabs**      | 6 (`Rachel`, `Adam`, `Bella`, `Antoni`, `Elli`, `Josh`) plus optional custom voice ID              | `eleven_flash_v2_5` (`pcm_24000`)                                                        | Turn-based RMS VAD with ElevenLabs PCM playback; uses OpenAI (`gpt-4o-mini`) or Gemini (`gemini-2.5-flash`) for replies when configured, plus local Agent Bridge intents | ElevenLabs API key |
-| **On-Device**       | 3 (`On-Device Pilot`, `On-Device Calm`, `On-Device Brief`)                                         | Native iOS `AVSpeechSynthesizer` / Android `TextToSpeech`                                | Turn-based zero-key fallback with local Agent Bridge thread and approval checks                                                                                          | None               |
+| Provider            | Voices                    | Model or backend                                                      | How a turn works                                                                                                            | Key needed |
+| ------------------- | ------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| **OpenAI Realtime** | 10                        | `gpt-realtime` over WebSocket                                         | Two-way audio, 24 kHz                                                                                                       | OpenAI     |
+| **Gemini Live**     | 10                        | `models/gemini-2.5-flash-native-audio-preview-09-2025` over WebSocket | Two-way audio, 16 kHz in, 24 kHz out                                                                                        | Gemini     |
+| **ElevenLabs**      | 6, plus your own voice ID | `eleven_flash_v2_5` for speech                                        | One turn at a time. Replies come from OpenAI (`gpt-4o-mini`) or Gemini (`gemini-2.5-flash`) when one of those keys is saved | ElevenLabs |
+| **On-Device**       | 3                         | The speech built into iOS or Android                                  | One turn at a time. Makes no cloud calls                                                                                    | None       |
 
-### Voice Studio and auditions
+In **Voices** you can filter by provider or vibe, pin favorites with the star, tap **Play Sample** to hear a voice, and tap **Use Voice** to switch, including during a session. Samples for cloud voices need that provider's key. Without it the sample plays in on-device speech.
 
-Open **Voices** from Drive Mode to browse the full catalog:
+### Keys
 
-- Filter by provider (`All`, `OpenAI Realtime`, `Gemini Live`, `ElevenLabs`, `On-Device`), by vibe, or by **Pinned** favorites.
-- Tap the star on any voice to pin it to the top of your CarPlay **Voices** tab. Default favorites are `Marin`, `Cedar`, `Puck`, and `On-Device Pilot`.
-- Tap **Play Sample** to audition any voice before switching. OpenAI voices audition through `gpt-4o-mini-tts` and ElevenLabs voices audition through `eleven_flash_v2_5` when their keys are configured; if offline or unconfigured, auditions fall back automatically to native on-device speech.
-- Tap **Use Voice** to switch voices immediately, including in the middle of an active call. OpenAI updates the live session in place; Gemini Live reconnects cleanly with the new voice.
+Save your OpenAI, Gemini and ElevenLabs keys in the setup drawer in Drive.
 
-### API key storage and automatic fallback
+- Keys are stored with `expo-secure-store` (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`). The screen only tracks whether a key is saved.
+- Keys are not written to logs or error messages.
+- If you pick a cloud voice with no key saved, Drive uses **On-Device** instead of failing.
 
-Configure your OpenAI, Gemini, and ElevenLabs keys inside the **Voice & CarPlay Setup Drawer** (accessible from the setup button in Drive Mode).
+## Personas
 
-- Keys are stored strictly in `expo-secure-store` using `WHEN_UNLOCKED_THIS_DEVICE_ONLY`.
-- Inputs are masked with reveal, save, and clear actions, and UI state tracks only whether a key is configured, never the raw secret.
-- Raw keys are never written to logs or error messages.
-- If you select a cloud voice without its API key saved, One falls back to **On-Device** mode instead of blocking your session.
+A persona sets how the assistant talks and how long its answers are. There are 7.
 
-## CarPlay dashboard layout
+| Persona                   | Short name  | What it is for                                                           | Thread tools |
+| ------------------------- | ----------- | ------------------------------------------------------------------------ | ------------ |
+| **Road Co-Pilot**         | Co-Pilot    | General conversation, code or not                                        | On           |
+| **One Agent Commander**   | Commander   | Thread briefings and follow-ups                                          | On           |
+| **Architecture Sparring** | Architect   | Systems, APIs and trade-offs                                             | On           |
+| **Creative Riff**         | Brainstorm  | Fast product and strategy ideas                                          | Off          |
+| **Executive Briefing**    | Briefing    | Short answers, conclusion first                                          | On           |
+| **Ring-Bearer**           | Ring-Bearer | Dry, brief company for late drives                                       | On           |
+| **Conqueror**             | Conqueror   | Every report delivered as a decree, in a commanding arena-emperor manner | On           |
 
-When connected to Apple CarPlay, `OneCarPlaySceneDelegate` presents a 4-tab `CPTabBarTemplate` built for eyes-free driving:
+Conqueror is an original character. It sets the wording and manner, not the sound: pair it with a deep voice (the `Deep` vibe) for the full effect.
 
-1. **Talk (`CPInformationTemplate` + `CPNowPlayingTemplate`)**: Shows live status (`Ready`, `Connecting...`, `Listening`, `Thinking`, `Speaking`, `Muted`, `Reconnecting`), active voice and mode, active topic or thread, and the latest spoken caption. When idle, tap **Start Talking** or **Now Playing**. During an active call, tap **Mute** / **Unmute**, **Interrupt**, or **End**. The **Now Playing** screen renders the gold-on-obsidian One Ring artwork and 4 quick action buttons: Mute/Unmute, Interrupt, Switch Voice (cycles pinned voices first), and End Session.
-2. **Voices (`CPListTemplate`)**: Lists your pinned favorites first, followed by the remaining catalog grouped by vibe. Tapping a voice switches immediately and previews it aloud when idle.
-3. **Modes (`CPListTemplate`)**: Switches between the 6 driving personas in one tap.
-4. **Threads (`CPListTemplate`)**: Lists active One workspace threads with status badges (`Needs Approval`, `Running`, `Ready`, `Error`). Tapping a thread focuses it, pushes the Now Playing screen, and speaks a 2-sentence status briefing including any pending approvals.
+## What voice can and cannot do
 
-### Driving personas
+With **Agent Bridge Tools** on and a computer linked, the assistant has four tools.
 
-| Persona                   | Short name  | Focus                                                                | Default Agent Bridge tools | Target length     |
-| ------------------------- | ----------- | -------------------------------------------------------------------- | -------------------------- | ----------------- |
-| **Road Co-Pilot**         | Co-Pilot    | General hands-free conversation on code or non-code topics           | On                         | 2 to 4 sentences  |
-| **One Agent Commander**   | Commander   | Live thread briefings, pending approvals, and follow-up instructions | On                         | Up to 4 sentences |
-| **Architecture Sparring** | Architect   | Systems, APIs, latency, failure modes, and trade-offs                | On                         | Up to 4 sentences |
-| **Creative Riff**         | Brainstorm  | Fast product and strategy ideation with at most two options per turn | Off                        | Up to 3 sentences |
-| **Executive Briefing**    | Briefing    | Bottom-line answers first with zero filler                           | On                         | Up to 2 sentences |
-| **Ring-Bearer**           | Ring-Bearer | Dry, concise companion for late-night drives                         | On                         | Up to 3 sentences |
+| Tool                     | What it does                                                            |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `list_active_threads`    | Summarizes threads on linked computers, with running and waiting counts |
+| `get_thread_summary`     | Reads the latest update on one thread in plain speech                   |
+| `list_pending_approvals` | Says which threads are waiting on an approval                           |
+| `send_message_to_thread` | Proposes a follow-up message. It does not send it                       |
 
-### Steering-wheel controls
+Rules:
 
-One registers `MPRemoteCommandCenter` handlers so physical steering-wheel buttons work without looking at the dash:
+- **Approvals cannot be answered from Drive.** The assistant can tell you one is waiting. You answer it in the One app.
+- **A message is sent only when you tap Send.** The assistant reads the whole message back and a card shows it on the phone. Saying "yes" does not send it. The card expires after 90 seconds, and a new proposal replaces the old one.
+- **Messages are capped at 400 characters**, because the whole message has to be read back and shown.
+- Spoken summaries leave out code blocks, markdown and raw URLs.
+- With no computer linked, or with the tools off, Drive works as a plain voice chat and says so.
 
-- **Play / Pause**: Starts a voice session when idle, or toggles mute and unmute during an active call.
-- **Next Track**: Interrupts the assistant immediately (barge-in) and flushes queued speaker audio.
-- **Previous Track**: Repeats the last assistant reply aloud, or asks for a quick recap if no prior reply is cached.
+## CarPlay screen (iOS)
 
-### Audio engine, echo cancellation, and barge-in
+The CarPlay scene has four tabs:
 
-- **iOS (`OneCarPlayAudioEngine.swift`)**: Runs `AVAudioEngine` in `.playAndRecord` with `.voiceChat` mode so hardware Acoustic Echo Cancellation (AEC) prevents cabin speakers from triggering false interruptions. Supports Bluetooth HFP, Bluetooth A2DP, and speaker routing, captures 24 kHz mono PCM16 chunks with live RMS metering, and streams 24 kHz PCM16 playback through `AVAudioPlayerNode`.
-- **Android (`OneCarPlayAudioEngine.kt`)**: Runs `AudioRecord` with `VOICE_COMMUNICATION`, `AcousticEchoCanceler`, and `NoiseSuppressor`, paired with a low-latency streaming `AudioTrack` (`USAGE_VOICE_COMMUNICATION`) and audio focus management.
-- **Instant barge-in**: Speaking over the assistant (when **Hands-Free Barge-in** is enabled) or pressing Interrupt clears the native playback queue immediately and cancels the in-flight response.
-- **System interruptions**: Incoming phone calls, Siri, or turn-by-turn navigation prompts automatically mute capture and flush playback, then resume cleanly when the interruption ends.
-- **Automatic reconnect**: If a realtime WebSocket drops unexpectedly mid-drive, One retries up to 3 times with exponential backoff before surfacing a one-tap **Retry** banner.
+1. **Talk**: status, current voice and persona, the focused thread and the latest caption, with Start, Mute, Interrupt and End.
+2. **Voices**: pinned voices first, then the rest by vibe.
+3. **Modes**: the personas.
+4. **Threads**: linked threads with a status badge. Picking one focuses it and reads a short briefing.
 
-## Phone Drive Mode and CarPlay Preview
+Steering-wheel buttons: Play/Pause starts a session or toggles mute, Next interrupts the assistant, Previous repeats the last reply.
 
-You do not need a CarPlay head unit to use One Drive. Phone Drive Mode gives iOS and Android drivers the same realtime engine with dash-safe ergonomics:
+## Phone Drive
 
-- **Animated One Ring Voice Orb**: Pulses smoothly with live microphone and speaker RMS amplitude and changes color by state (`Listening`, `Thinking`, `Speaking`, `Muted`, `Connecting`), while respecting the system Reduced Motion setting.
-- **Large touch targets**: Every primary dock control meets or exceeds a 64 px hit target (76 px for the main **Start Hands-Free Chat** button) with tactile haptic feedback.
-- **Keep Awake**: Keeps the screen from dimming while a voice session is active, and releases the wake lock as soon as you end the call.
-- **Live caption ticker and Transcript Drawer**: Shows a 2-line live caption under the orb; tap it to open the scrollable transcript drawer or send a quick text turn.
-- **Interactive CarPlay Preview**: Inside the setup panel, a 16:9 widescreen simulator mirrors your live CarPlay **Talk**, **Voices**, **Modes**, and **Threads** tabs so you can test layouts, switch voices, and verify thread sync directly on your phone.
-- **Drive settings**: Toggle **Hands-Free Barge-in**, **Auto-Start on CarPlay Connect**, and **Agent Bridge Tools**, and adjust **Spoken Speed** (`0.85x`, `1.0x`, `1.15x`, `1.25x`, `1.4x`).
+You do not need a car screen. Phone Drive has the ring that moves with the microphone and speaker level (still under Reduced Motion), large buttons, a keep-awake lock that is released when the session ends, a live caption with a transcript drawer, and a **CarPlay Preview** that mirrors the four CarPlay tabs.
 
-## Voice Agent Bridge safety
+Drive settings: **Hands-Free Barge-in**, **Auto-Start on CarPlay Connect**, **Agent Bridge Tools** and **Spoken Speed**.
 
-When **Agent Bridge Tools** is enabled and a computer is linked to One, the voice assistant has access to 5 structured tools:
+If a realtime connection drops, Drive retries up to 3 times and then shows **Retry**.
 
-| Tool                     | Type                     | Behavior                                                                                       |
-| ------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------- |
-| `list_active_threads`    | Read-only                | Summarizes active threads across linked computers, running counts, and pending approval counts |
-| `get_thread_summary`     | Read-only                | Reads the latest assistant update and pending approval on a named thread in plain speech       |
-| `list_pending_approvals` | Read-only                | Lists pending permission or command requests waiting on your decision                          |
-| `send_message_to_thread` | Side-effectful (guarded) | Sends a follow-up prompt to a linked coding thread                                             |
-| `respond_to_approval`    | Side-effectful (guarded) | Submits `accept`, `acceptForSession`, `decline`, or `cancel` for a pending approval            |
+## Known limits
 
-### Two-step confirmation before any side effect
+These are not yet checked on a real car or device:
 
-`send_message_to_thread` and `respond_to_approval` never run on the first invocation:
-
-1. The first tool call creates a pending confirmation that expires after 90 seconds, speaks the exact proposed action aloud, and displays an **Approve** / **Cancel** card on the Drive Stage screen.
-2. The action only executes after you verbally confirm it (so the model retries with `confirmed: true` and the matching `confirmationId`) or tap **Approve** on screen.
-3. Saying cancel, tapping **Cancel**, or letting the 90-second window expire discards the pending action without touching your coding thread.
-
-### Spoken-friendly summaries and standalone fallback
-
-- All persona prompts and `sanitizeForSpeech` strip code fences, inline backticks, markdown headers, bullet symbols, and raw URLs so the assistant summarizes changes in plain English instead of reading diffs or file paths aloud.
-- If no computer is connected to One, or if you disable **Agent Bridge Tools**, the assistant tells you plainly and continues working as a standalone hands-free voice chat.
+- The CarPlay screen has not been run on a head unit or in the CarPlay Simulator from this fork. It needs Apple's CarPlay entitlement (below).
+- Echo cancellation depends on the phone and the car's audio route. With barge-in on, the car speakers can sometimes interrupt the assistant. Turn **Hands-Free Barge-in** off if that happens.
+- Recovery after a phone call, Siri or navigation prompt, and after switching between Bluetooth and the speaker, has not been tested on hardware.
+- If a thread changes on the computer between the proposal and your tap, Drive sends the message you saw to the thread you saw. It does not re-check what the agent did in between.
 
 ## Building and enabling Apple CarPlay
 
@@ -148,7 +118,7 @@ The Expo config plugin (`apps/mobile/plugins/withOneCarPlay.cjs`) wires the nati
 
 By default, and whenever `T3CODE_IOS_PERSONAL_TEAM=1` is set, the config plugin **omits** Apple's restricted CarPlay entitlements so local Xcode signing succeeds without an approved CarPlay provisioning profile.
 
-Phone Drive Mode, the full 29-voice catalog, Voice Studio, Agent Bridge, and the interactive CarPlay Preview all work in standard local and Personal Team builds.
+Phone Drive Mode, the 29 voices, Voice Studio, Agent Bridge and the CarPlay Preview all work in standard local and Personal Team builds.
 
 ```bash
 cd apps/mobile
