@@ -15,9 +15,7 @@ export function OneVoiceChatSettings() {
       <SettingsRow
         {...searchableSetting("setting-voice-chat-conqueror")}
         devicePreference
-        description={gt(
-          "Voice chat reads replies in the deepest voice this device has, lowered and slowed. Off uses the normal system voice.",
-        )}
+        description={gt("Reads replies aloud in a deeper, slower voice.")}
         control={
           <Switch
             checked={style === "conqueror"}

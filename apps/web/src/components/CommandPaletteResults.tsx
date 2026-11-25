@@ -3,6 +3,7 @@ import { useLegendListRef } from "~/hooks/useLegendListRef";
 import { type ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
 import { ChevronRightIcon } from "lucide-react";
+import { SharedThreadContext } from "./ThreadCommandSubtitle";
 import { type ReactNode, type RefObject, useState } from "react";
 import { T } from "gt-react";
 import { cn } from "~/lib/utils";
@@ -59,22 +60,31 @@ export function CommandPaletteResults(props: CommandPaletteResultsProps) {
     <CommandList>
       {props.groups.map((group) => (
         <CommandGroup items={group.items} key={group.value}>
-          {group.label ? <CommandGroupLabel>{group.label}</CommandGroupLabel> : null}
-          <CommandCollection>
-            {(item) =>
-              item.disabled ? (
-                <DisabledCommandPaletteResultRow item={item} key={item.value} />
-              ) : (
-                <CommandPaletteResultRow
-                  item={item}
-                  key={item.value}
-                  keybindings={props.keybindings}
-                  isActive={props.highlightedItemValue === item.value}
-                  onExecuteItem={props.onExecuteItem}
-                />
-              )
-            }
-          </CommandCollection>
+          {group.label ? (
+            <CommandGroupLabel>
+              {group.label}
+              {group.caption ? (
+                <span className="ms-2 font-normal text-muted-foreground/80">{group.caption}</span>
+              ) : null}
+            </CommandGroupLabel>
+          ) : null}
+          <SharedThreadContext value={group.caption ?? null}>
+            <CommandCollection>
+              {(item) =>
+                item.disabled ? (
+                  <DisabledCommandPaletteResultRow item={item} key={item.value} />
+                ) : (
+                  <CommandPaletteResultRow
+                    item={item}
+                    key={item.value}
+                    keybindings={props.keybindings}
+                    isActive={props.highlightedItemValue === item.value}
+                    onExecuteItem={props.onExecuteItem}
+                  />
+                )
+              }
+            </CommandCollection>
+          </SharedThreadContext>
         </CommandGroup>
       ))}
     </CommandList>
@@ -134,18 +144,25 @@ export function CommandPaletteVirtualizedResults(props: CommandPaletteVirtualize
         renderItem={({ item: row }) =>
           row.kind === "label" ? (
             <div className={row.first ? undefined : "pt-1.5"}>
-              <CommandListHeading>{row.label}</CommandListHeading>
+              <CommandListHeading>
+                {row.label}
+                {row.caption ? (
+                  <span className="ms-2 font-normal text-muted-foreground/80">{row.caption}</span>
+                ) : null}
+              </CommandListHeading>
             </div>
           ) : row.itemIndex === null ? (
             <DisabledCommandPaletteResultRow item={row.item} />
           ) : (
-            <CommandPaletteResultRow
-              index={row.itemIndex}
-              item={row.item}
-              keybindings={props.keybindings}
-              isActive={props.highlightedItemValue === row.item.value}
-              onExecuteItem={props.onExecuteItem}
-            />
+            <SharedThreadContext value={row.sharedContext ?? null}>
+              <CommandPaletteResultRow
+                index={row.itemIndex}
+                item={row.item}
+                keybindings={props.keybindings}
+                isActive={props.highlightedItemValue === row.item.value}
+                onExecuteItem={props.onExecuteItem}
+              />
+            </SharedThreadContext>
           )
         }
         estimatedItemSize={40}

@@ -90,23 +90,23 @@ describe("LimitMeter", () => {
     await expect.element(meter).toHaveAttribute("aria-valuetext", "17% left");
   });
 
-  it("brackets the stretch between the fill and the marker only while spending is ahead of the window", async () => {
+  it("hatches the stretch between the fill and the marker only while spending is ahead of the window", async () => {
     await using screen = await render(
       <LimitMeter remaining={17} timeLeft={50} pace="ahead" color="red" label="Weekly" />,
       { router: false },
     );
-    const gap = screen.container.querySelector<HTMLElement>(".usage-meter-bracket");
+    const gap = screen.container.querySelector<HTMLElement>(".usage-meter-gap");
     expect(gap?.style.left).toBe("17%");
     expect(gap?.style.width).toBe("33%");
 
     await screen.rerender(
       <LimitMeter remaining={48} timeLeft={50} pace="on" color="red" label="Weekly" />,
     );
-    expect(screen.container.querySelector(".usage-meter-bracket")).toBeNull();
+    expect(screen.container.querySelector(".usage-meter-gap")).toBeNull();
     await screen.rerender(
       <LimitMeter remaining={63} timeLeft={30} pace="under" color="red" label="Weekly" />,
     );
-    expect(screen.container.querySelector(".usage-meter-bracket")).toBeNull();
+    expect(screen.container.querySelector(".usage-meter-gap")).toBeNull();
   });
 
   it("draws the breathing glow only at 10% left or less and turns its animation off for reduced motion", async () => {
@@ -143,16 +143,16 @@ describe("UsageLimitsPooled meters", () => {
     expect(state()).toBe("critical");
   });
 
-  it("shows the behind-pace bracket on a card that has spent faster than the week", async () => {
+  it("shows the behind-pace hatching on a card that has spent faster than the week", async () => {
     // Half the week is left, so 83% used leaves 17% against an even-pace marker at 50%.
     await using screen = await render(
       <UsageLimitsPooled presentations={presentationsFor(83)} now={now} />,
       { router: false },
     );
-    expect(screen.container.querySelector(".usage-meter-bracket")).not.toBeNull();
+    expect(screen.container.querySelector(".usage-meter-gap")).not.toBeNull();
 
     await screen.rerender(<UsageLimitsPooled presentations={presentationsFor(50)} now={now} />);
-    expect(screen.container.querySelector(".usage-meter-bracket")).toBeNull();
+    expect(screen.container.querySelector(".usage-meter-gap")).toBeNull();
   });
 
   it("gives each account in a pool its own meter and press target", async () => {
@@ -191,7 +191,7 @@ describe("UsageLimitsPooled meters", () => {
       .toBeVisible();
     await expect.element(screen.getByText("1 limit across 1 provider")).toBeVisible();
 
-    await screen.rerender(<UsageLimitsPooled presentations={presentationsFor(74)} now={now} />);
+    await screen.rerender(<UsageLimitsPooled presentations={presentationsFor(40)} now={now} />);
     await expect.element(screen.getByText("All limits are comfortable.")).toBeVisible();
   });
 });

@@ -386,7 +386,7 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
           yield* checkpointStore.diffCheckpoints(input),
         );
         const expectedFiles = [
-          { path: "binary.bin", additions: 0, deletions: 0 },
+          { path: "binary.bin", additions: 0, deletions: 0, binary: true },
           { path: "copied.txt", previousPath: "copy-source.txt", additions: 0, deletions: 0 },
           { path: "copy-source.txt", additions: 1, deletions: 0 },
           { path: "deleted.txt", additions: 0, deletions: 1 },

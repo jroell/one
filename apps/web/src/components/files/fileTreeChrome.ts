@@ -26,9 +26,15 @@ const FILE_TREE_CHROME_CSS = `
       background-color: color-mix(in srgb, currentColor 11%, transparent);
     }
   }
-  @media (pointer: coarse) {
-    button[data-type='item'] { min-height: 44px !important; }
-  }
 `;
 
 export const FILE_TREE_UNSAFE_CSS = `${PIERRE_TREE_UNSAFE_CSS}\n${FILE_TREE_CHROME_CSS}`;
+
+/** The row height on touch. Pierre sizes its scroll model from `itemHeight`, so a CSS height would drift from it. */
+const TOUCH_FILE_TREE_ITEM_HEIGHT = 44;
+
+export function fileTreeItemHeightOption(
+  coarsePointer = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches,
+): { itemHeight?: number } {
+  return coarsePointer ? { itemHeight: TOUCH_FILE_TREE_ITEM_HEIGHT } : {};
+}

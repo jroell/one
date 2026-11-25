@@ -1450,7 +1450,10 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       indicator.dataset.placed = "true";
     };
     place();
-    return observeResize(strip, place);
+    // A tab before the selected one can widen (a side chat gets its title) and move it while the
+    // strip keeps its width, so every tab box is observed along with the strip.
+    const tabs = Array.from(strip.querySelectorAll<HTMLElement>("[data-active-tab]"));
+    return observeResize([strip, ...tabs], place);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the active tab and the tab list are read from the DOM, so a change to either must re-measure
   }, [props.activeSurfaceId, props.surfaces]);
 

@@ -38,6 +38,7 @@ import { resolvePastedPath } from "@t3tools/shared/path";
 import * as Equal from "effect/Equal";
 import * as Schema from "effect/Schema";
 import { APP_VERSION, HOSTED_APP_CHANNEL, HOSTED_APP_CHANNEL_LABEL } from "../../branding";
+import { AboutHero } from "./AboutHero";
 import { AboutVersionTitle } from "./AboutVersionTitle";
 import { CliCommandSettingsRow } from "./CliCommandSettingsRow";
 import { MobileAppSettingsRow } from "./MobileAppSettingsRow";
@@ -1242,6 +1243,13 @@ export function GeneralSettingsPanel() {
   );
 }
 
+/** Saved links from before the Chat sections merged: each old fragment now lands on its row. */
+const CHAT_LEGACY_SECTION_FRAGMENTS = {
+  "follow-ups": "follow-up-behavior",
+  "side-threads": "side-thread-open-target",
+  activity: "tool-call-visibility",
+} as const;
+
 export function ChatSettingsPanel() {
   const setting = useSearchableSetting();
   const gt = useGT();
@@ -1258,7 +1266,7 @@ export function ChatSettingsPanel() {
   const updateSettings = useUpdateScopedSettings();
 
   return (
-    <SettingsPageContainer>
+    <SettingsPageContainer searchTargetFallbacks={CHAT_LEGACY_SECTION_FRAGMENTS}>
       <SettingsSection id="composer" title={gt("Composer")}>
         <SettingsRow
           {...setting("composer-rich-text")}
@@ -1507,7 +1515,7 @@ function ToolCallVisibilityRow() {
     <SettingsRow
       {...setting("tool-call-visibility")}
       description={gt(
-        "Hide the commands, edits, and searches agents run. Hide successful keeps failures. Zen shows only final answers. Approvals, questions, and errors always show.",
+        "Hide the commands, edits, and searches agents run. Hide successful calls and keep failures. Zen shows only final answers. Approvals, questions, and errors always show.",
       )}
       resetAction={
         settings.toolCallVisibility !== DEFAULT_UNIFIED_SETTINGS.toolCallVisibility ? (
@@ -2467,7 +2475,7 @@ export function MaintenanceSettingsPanel() {
         />
       </SettingsSection>
 
-      <SettingsSection id="background" title={gt("Background activity")}>
+      <SettingsSection id="background" title={gt("Resources")}>
         <BackgroundActivitySettingsRow />
         <SettingsRow
           serverScoped
@@ -2539,6 +2547,7 @@ export function AboutSettingsPanel() {
   const telemetryOff = managedTelemetryOffMessage(primaryPolicy, messages);
   return (
     <SettingsPageContainer>
+      <AboutHero />
       <SettingsSection id="about" title={gt("App")}>
         {primaryPolicy ? (
           <SettingsRow

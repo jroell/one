@@ -1,4 +1,11 @@
-import { MessageId, RunId, RuntimeRequestId, TurnItemId } from "@t3tools/contracts";
+import {
+  MessageId,
+  ProviderDriverKind,
+  ProviderTurnId,
+  RunId,
+  RuntimeRequestId,
+  TurnItemId,
+} from "@t3tools/contracts";
 import { type LegendListRef } from "@legendapp/list/react";
 import { createRef, type ComponentProps } from "react";
 import { expect, it, vi } from "vite-plus/test";
@@ -9,7 +16,7 @@ import "~/index.css";
 import { MessagesTimeline } from "~/components/chat/MessagesTimeline";
 import { deriveTimelineEntriesFromVisibleTurnItems, type PendingApproval } from "~/session-logic";
 import { makeStreamingTimelineFixture } from "~/test-fixtures";
-import { act, render } from "../../test/render";
+import { act, fakeTimers, render } from "../../test/render";
 import { ComposerHandleContext } from "~/composerHandleContext";
 import { setWorkspaceMode } from "./workspaceMode";
 
@@ -303,6 +310,62 @@ it("Chat mode shows no outline for two turns, a narrow timeline or a short one, 
   }
 });
 
+/** The row positions the outline reads from the list while the view scrolls, as row indexes. */
+async function outlinePositionReadsWhileScrolling(listRef: TimelineProps["listRef"]) {
+  const list = listRef.current!;
+  const reads: number[] = [];
+  const getState = list.getState.bind(list);
+  list.getState = () => {
+    const state = getState();
+    return {
+      ...state,
+      positionAtIndex: (index) => {
+        // Other scroll work reads positions too; only the outline's own reads count here.
+        if (new Error().stack?.includes("resolveOutlineCurrentIndex")) reads.push(index);
+        return state.positionAtIndex(index);
+      },
+    };
+  };
+  using _timers = fakeTimers();
+  const scroller = list.getScrollableNode() as HTMLElement;
+  scroller.scrollTop = 1500;
+  scroller.dispatchEvent(new Event("scroll"));
+  await act(() => vi.advanceTimersByTime(50));
+  list.getState = getState;
+  return reads;
+}
+
+it.each([
+  ["shown", { width: 1184, height: 700 }],
+  ["hidden", { width: 900, height: 700 }],
+] as const)(
+  "Chat mode finds the turn being read from a few row positions while the outline is %s in a 60 turn thread",
+  async (name, size) => {
+    using _motion = motion(true);
+    using _mode = inMode("chat");
+    await using _viewport = await wideViewport(1440);
+    const props = baseProps();
+    const container = document.createElement("div");
+    container.style.cssText = `height: ${size.height}px; width: ${size.width}px; display: flex; flex-direction: column;`;
+    await using screen = await render(<MessagesTimeline {...props} timelineEntries={turns(60)} />, {
+      container,
+    });
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector('[data-testid="timeline-minimap"]')).not.toBeNull(),
+    );
+    expect(screen.container.querySelector(".one-chat-outline") !== null).toBe(name === "shown");
+    // The list has measured once the minimap marks the turns in view.
+    await vi.waitFor(() => expect(screen.container.querySelector("[data-in-view]")).not.toBeNull());
+    const reads = await outlinePositionReadsWhileScrolling(props.listRef);
+    if (name === "hidden") {
+      expect(reads).toEqual([]);
+    } else {
+      expect(reads.length).toBeGreaterThan(0);
+      expect(reads.length).toBeLessThan(60);
+    }
+  },
+);
+
 it("Code mode never mounts the outline", async () => {
   using _motion = motion(true);
   using _mode = inMode("code");
@@ -375,6 +438,18 @@ it("Chat mode's outline mark does not carry across a thread switch", async () =>
   );
 });
 
+/** The provider turn and native item an approval and its file change share. */
+function codexItem(nativeId: string) {
+  return {
+    providerTurnId: ProviderTurnId.make("turn-1"),
+    nativeItemRef: {
+      driver: ProviderDriverKind.make("codex"),
+      nativeId,
+      strength: "strong" as const,
+    },
+  };
+}
+
 /** A file change the agent asks to apply, with its approval pending. */
 function fileChangeApprovalFixture() {
   const fixture = makeStreamingTimelineFixture();
@@ -390,6 +465,7 @@ function fileChangeApprovalFixture() {
     item: {
       ...work.item,
       id: TurnItemId.make("change-0"),
+      ...codexItem("change-native"),
       type: "file_change" as const,
       status: "completed" as const,
       fileName: "server/src/math.ts",
@@ -404,6 +480,7 @@ function fileChangeApprovalFixture() {
     item: {
       ...work.item,
       id: TurnItemId.make("approval-file"),
+      ...codexItem("change-native"),
       type: "approval_request" as const,
       status: "waiting" as const,
       requestId,
@@ -515,15 +592,16 @@ function composerStandIn(initial: string) {
   return { state, ref: { current: handle } };
 }
 
+/** The embedded chat's setup: the ancestor's composer context is cleared, the timeline gets its own. */
 function followUpScene(composer: ReturnType<typeof composerStandIn>, props: TimelineProps) {
   return (
-    <ComposerHandleContext value={composer.ref}>
-      <MessagesTimeline {...props} />
+    <ComposerHandleContext value={null}>
+      <MessagesTimeline {...props} composerRef={composer.ref} />
     </ComposerHandleContext>
   );
 }
 
-it("Chat mode offers follow-ups under the last finished answer only, and a pick fills the composer", async () => {
+it("Chat mode offers follow-ups under the last finished answer only, and a pick fills the timeline composer when the ancestor composer context is cleared", async () => {
   using _mode = inMode("chat");
   using _motion = motion(true);
   const composer = composerStandIn("");
@@ -614,6 +692,21 @@ it("Chat mode shows no follow-ups while a turn runs, while a request waits, or i
     );
     expect(readyIn(code)).toBeNull();
   }
+});
+
+it("Chat mode offers no follow-ups when the timeline has no composer to write to", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  const container = document.createElement("div");
+  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+  await using screen = await render(
+    <MessagesTimeline {...baseProps()} timelineEntries={turns(2)} />,
+    { container },
+  );
+  await vi.waitFor(() =>
+    expect(screen.container.querySelector('[data-message-id="answer-1"]')).not.toBeNull(),
+  );
+  expect(screen.container.querySelector('[role="group"][aria-label="Follow up"]')).toBeNull();
 });
 
 it("a follow-up does nothing when the composer refuses the text", async () => {

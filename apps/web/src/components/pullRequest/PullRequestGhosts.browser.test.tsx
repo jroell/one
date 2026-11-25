@@ -1,8 +1,8 @@
 import type { IssueListEntry } from "@t3tools/contracts";
 import type { EnvironmentIssueEntry } from "@t3tools/client-runtime/issue-list";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { render } from "../../../test/render";
+import { act, fakeTimers, render } from "../../../test/render";
 import { IssueRow } from "../issue/IssueRow";
 import { PullRequestListGhost } from "./PullRequestGhosts";
 
@@ -74,5 +74,27 @@ describe("list skeleton", () => {
     expect(screen.container.querySelector("[data-one-ghost-caption]")?.textContent).toBe(
       "Loading issues…",
     );
+  });
+
+  it("says the load is slow and offers Retry after eight seconds, not before", async () => {
+    using _timers = fakeTimers();
+    const retries: number[] = [];
+    await using screen = await render(
+      <PullRequestListGhost
+        rows={1}
+        caption="Loading pull requests…"
+        slowCaption="Still waiting for the host…"
+        onRetry={() => retries.push(1)}
+      />,
+      { router: false },
+    );
+    const caption = () => screen.container.querySelector("[data-one-ghost-caption]")?.textContent;
+    await act(() => vi.advanceTimersByTimeAsync(7_000));
+    expect(caption()).toBe("Loading pull requests…");
+    expect(screen.container.querySelector("button")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(1_500));
+    expect(caption()).toBe("Still waiting for the host…");
+    screen.container.querySelector("button")!.click();
+    expect(retries).toEqual([1]);
   });
 });

@@ -137,6 +137,15 @@ export function useCommandPaletteThreadItems(input: {
           <ThreadRowTrailingStatus thread={thread} />
         </>
       ),
+      contextOf: (thread, { projectTitle }) =>
+        [
+          projectTitle,
+          projectEnvironmentLocationById.get(thread.environmentId)?.label ??
+            gt("Remote", { $context: "machine location" }),
+          thread.branch,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       renderDescription: (thread, { projectTitle }) => {
         const modelInstanceId =
           thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
@@ -153,6 +162,14 @@ export function useCommandPaletteThreadItems(input: {
               gt("Remote", { $context: "machine location" })
             }
             branch={thread.branch}
+            contextLabel={[
+              projectTitle,
+              projectEnvironmentLocationById.get(thread.environmentId)?.label ??
+                gt("Remote", { $context: "machine location" }),
+              thread.branch,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             worktreePath={thread.worktreePath}
             isCurrent={
               thread.id === activeThread?.id && thread.environmentId === activeThread.environmentId

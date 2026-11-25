@@ -20,6 +20,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
 
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import { formatEnvironmentQueryError } from "./query";
 import { terminalEnvironment } from "./terminal";
 import { environmentAtomList, environmentIdsKey } from "./environmentAtomList";
@@ -201,6 +202,29 @@ export function attachedTerminalSessionAtom(
 ): Atom.Atom<TerminalSessionState> {
   if (environmentId === null || terminal === null) return EMPTY_TERMINAL_SESSION_ATOM;
   return attachedTerminalSessionFamily(JSON.stringify([environmentId, terminal]));
+}
+
+/**
+ * Re-subscribes to the attach (or read-only observe) stream a session cached as failed. The
+ * derived session atom only recomputes from that cached failure, so the stream atom under it is
+ * what has to refresh.
+ */
+export function retryTerminalSessionAttach(
+  environmentId: EnvironmentId,
+  terminal: TerminalAttachInput,
+): void {
+  const canOperate = sessionHasScope(
+    appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId)),
+    AuthTerminalOperateScope,
+  );
+  appAtomRegistry.refresh(
+    canOperate
+      ? terminalEnvironment.attach({ environmentId, input: terminal })
+      : terminalEnvironment.observe({
+          environmentId,
+          input: { threadId: terminal.threadId, terminalId: terminal.terminalId },
+        }),
+  );
 }
 
 const NO_KNOWN_TERMINAL_SESSIONS_ATOM = Atom.make<ReadonlyArray<KnownTerminalSession> | null>(null);

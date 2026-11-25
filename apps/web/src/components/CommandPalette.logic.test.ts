@@ -1011,12 +1011,42 @@ describe("buildRootGroups", () => {
     const groups = buildRootGroups({ actionItems: actions, recentThreadItems: recent });
 
     expect(groups.map((group) => [group.label, group.items.map((item) => item.title)])).toEqual([
-      ["Recent Threads", ["Fix the build"]],
+      ["Recent threads", ["Fix the build"]],
       ["Thread", ["New thread in t3code"]],
       ["View", ["Toggle diff panel"]],
       ["Git", ["Switch branch"]],
       ["Navigate", ["Open usage"]],
     ]);
+  });
+
+  it("names the place once beside Recent threads when every recent row shares it, and not when rows differ", () => {
+    const row = (value: string, contextLabel: string) => ({
+      ...action(value, value),
+      contextLabel,
+    });
+    const same = buildRootGroups({
+      actionItems: [],
+      recentThreadItems: [
+        row("thread:env:1", "server · Local · custom/main"),
+        row("thread:env:2", "server · Local · custom/main"),
+      ],
+    });
+    expect(same[0]?.caption).toBe("server · Local · custom/main");
+
+    const mixed = buildRootGroups({
+      actionItems: [],
+      recentThreadItems: [
+        row("thread:env:1", "server · Local · custom/main"),
+        row("thread:env:2", "server · Local · other"),
+      ],
+    });
+    expect(mixed[0]?.caption).toBeUndefined();
+
+    const single = buildRootGroups({
+      actionItems: [],
+      recentThreadItems: [row("thread:env:1", "server · Local · custom/main")],
+    });
+    expect(single[0]?.caption).toBeUndefined();
   });
 
   it("keeps every action heading when the list is narrowed to actions with >", () => {

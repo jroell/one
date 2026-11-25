@@ -92,6 +92,37 @@ describe("the opening on a fresh session", () => {
     expect(keysTheAppSaw).toEqual(["d"]);
   });
 
+  it("keeps the name, rule and skip button invisible when a key skips the opening before they arrive", async () => {
+    window.sessionStorage.removeItem(OPENING_SEEN_KEY);
+    setOpeningPreferences({ animation: true, sound: false });
+    onTestFinished(() => setOpeningPreferences({ sound: true }));
+    using _motion = motionAllowed();
+    mountAppRoot();
+    await using _opening = await render(<OneOpening />, { router: false });
+    const cover = await findCover();
+
+    await userEvent.keyboard("d");
+    await expect.element(cover).toHaveAttribute("data-phase", "leaving");
+
+    // Freeze every animation at its first instant: the arrivals are still waiting out their delays.
+    const opacities = [".one-opening-name", ".one-opening-rule", ".one-opening-skip"].map(
+      (selector) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Expected ${selector} while the cover fades`);
+        for (const animation of element.getAnimations()) {
+          animation.pause();
+          animation.currentTime = 0;
+        }
+        return [selector, getComputedStyle(element).opacity];
+      },
+    );
+    expect(opacities).toEqual([
+      [".one-opening-name", "0"],
+      [".one-opening-rule", "0"],
+      [".one-opening-skip", "0"],
+    ]);
+  });
+
   it("does not play again in a session that has seen it", async () => {
     window.sessionStorage.setItem(OPENING_SEEN_KEY, "1");
     const app = mountAppRoot();

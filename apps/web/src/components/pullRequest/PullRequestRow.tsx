@@ -139,6 +139,7 @@ function PullRequestRowImpl({
           className="mt-0.75 self-start"
         />
         <PullRequestRowLines
+          clipWords
           number={
             <span
               data-one-row-number=""

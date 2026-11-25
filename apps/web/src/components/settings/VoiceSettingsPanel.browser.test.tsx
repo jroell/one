@@ -338,7 +338,6 @@ it("tests the selected model after download and preserves its transcript across 
           },
           startWithResult: async () => "declined",
           submitAfterDictation: () => {},
-          watchSubmission: (_listener, run) => run(),
           stop: async () => {},
           cancel: () => {},
           skipPostProcessing: () => {},

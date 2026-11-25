@@ -20,8 +20,9 @@ import {
   createSilenceDetector,
   dispatchVoiceSession,
   getVoiceSession,
-  hasPendingUserRequest,
+  hasPendingBlockingRequest,
   ownsMicrophone,
+  pendingFeedbackCardIds,
   replyAnchor,
   selectReply,
   settleMicrophone,
@@ -127,6 +128,7 @@ function ActiveVoiceStage({
               {
                 id: item.id,
                 role: "user",
+                messageId: item.messageId,
                 text: item.text,
                 streaming: false,
                 runId: item.runId,
@@ -185,7 +187,7 @@ function ActiveVoiceStage({
   const answer =
     (stage === "sending" || stage === "thinking") && session.sentAfter !== null
       ? selectReply(messages, session.sentAfter, {
-          question: session.question,
+          messageId: session.messageId,
           readIds: session.readIds,
           readRuns: session.readRuns,
         })
@@ -212,7 +214,7 @@ function ActiveVoiceStage({
       return;
     }
     dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages) });
-    current.bridge.submit((text) => dispatchVoiceSession({ type: "transcribed", text }));
+    current.bridge.submit();
   };
   const submitRef = useRef(submit);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the frame loop calling the committed submit
@@ -223,8 +225,11 @@ function ActiveVoiceStage({
   // The conversation ends when its thread, its composer or chat mode goes away,
   // and steps aside when the turn needs an approval or an answer from the page behind.
   const orphaned = bridge === null || mode !== "chat" || conversationHidden;
-  // A secret, feedback or link card in the thread waits for the person just as an approval does.
-  const blockedOnUser = needsUser || hasPendingUserRequest(turnItems);
+  // A secret or link card waits for the person just as an approval does. A feedback card is optional:
+  // one left from before voice chat started is ignored, one that arrives during it ends it.
+  const [feedbackAtStart] = useState(() => new Set(pendingFeedbackCardIds(turnItems)));
+  const feedbackArrived = pendingFeedbackCardIds(turnItems).some((id) => !feedbackAtStart.has(id));
+  const blockedOnUser = needsUser || hasPendingBlockingRequest(turnItems) || feedbackArrived;
   // Something typed or attached since the last turn would ride along with the next spoken question.
   const draftInTheWay = stage === "listening" && bridge?.phase === "idle" && !bridge.draftEmpty;
   // A layout effect, so the conversation is over in the commit that removed its thread or mode,
@@ -496,9 +501,14 @@ function ActiveVoiceStage({
         if (synthesis.speaking) begin();
         else if (!synthesis.pending) finish();
       }, SPEECH_START_MS);
-      // An engine that keeps the utterance queued and never starts it gets one more try.
+      // An engine that keeps the utterance queued and never starts it gets one more try. One that
+      // started since the first check is speaking it, only its start event is late.
       startDeadline = window.setTimeout(() => {
         if (began) return;
+        if (synthesis.speaking) {
+          begin();
+          return;
+        }
         if (retried) {
           finish();
           return;

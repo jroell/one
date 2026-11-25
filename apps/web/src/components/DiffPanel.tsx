@@ -75,7 +75,8 @@ import { useClientSettings, updateClientSettings } from "../hooks/useSettings";
 import { formatRelativeTimeLabel, formatShortTimestamp } from "../timestampFormat";
 import { DiffFilePathCopyButton } from "./DiffFilePathCopyButton";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
-import { DiffStatLabel, isLikelyBinaryDiffFile } from "./chat/DiffStatLabel";
+import { DiffStatLabel } from "./chat/DiffStatLabel";
+import { binaryPatchPaths } from "./diffs/binaryPatchPaths";
 import { AnnotatableCodeView, type AnnotatableCodeViewHandle } from "./diffs/AnnotatableCodeView";
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { FileExplorerPane } from "./files/FileExplorerPane";
@@ -628,6 +629,17 @@ export default function DiffPanel({
       ? Math.max(0, recordedToolCallFileCount - renderablePatch.files.length)
       : 0;
   const fileStats = new Map(lazySource?.files?.map((file) => [file.path, file]));
+  const patchBinaryPaths = new Set(
+    lazySource
+      ? []
+      : shownSections.length > 0
+        ? shownSections.flatMap((section) =>
+            binaryPatchPaths(section.diff).map((path) =>
+              section.relativePath === "" ? path : `${section.relativePath}/${path}`,
+            ),
+          )
+        : binaryPatchPaths(selectedPatch ?? ""),
+  );
   const sourceLineStat =
     isGitSelection && selectedGitSource?.files
       ? selectedGitSource.files.reduce(
@@ -1743,21 +1755,20 @@ export default function DiffPanel({
                     unsafeCSSExtra="[data-additions-count], [data-deletions-count] { display: none; }"
                     renderHeaderMetadata={(fileDiff: FileDiffMetadata) => {
                       const path = resolveFileDiffPath(fileDiff);
-                      const stat = fileStats.get(path) ?? {
-                        additions: fileDiff.hunks.reduce(
-                          (sum, hunk) => sum + hunk.additionLines,
-                          0,
-                        ),
-                        deletions: fileDiff.hunks.reduce(
-                          (sum, hunk) => sum + hunk.deletionLines,
-                          0,
-                        ),
-                      };
+                      const stat = fileStats.get(path);
+                      // The server's numstat says which files Git counts as binary; an eager
+                      // patch carries the same answer in its own "Binary files differ" lines.
                       return (
                         <DiffStatLabel
-                          additions={stat.additions}
-                          deletions={stat.deletions}
-                          binary={isLikelyBinaryDiffFile(path, stat.additions, stat.deletions)}
+                          additions={
+                            stat?.additions ??
+                            fileDiff.hunks.reduce((sum, hunk) => sum + hunk.additionLines, 0)
+                          }
+                          deletions={
+                            stat?.deletions ??
+                            fileDiff.hunks.reduce((sum, hunk) => sum + hunk.deletionLines, 0)
+                          }
+                          binary={stat ? stat.binary === true : patchBinaryPaths.has(path)}
                         />
                       );
                     }}

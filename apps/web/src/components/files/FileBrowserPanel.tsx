@@ -28,7 +28,7 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { useFileContextMenu, type FileContextMenuAction } from "~/fileContextMenu";
 import { readLocalApi } from "~/localApi";
 import { T3_PIERRE_ICONS } from "~/pierre-icons";
-import { FILE_TREE_UNSAFE_CSS } from "./fileTreeChrome";
+import { FILE_TREE_UNSAFE_CSS, fileTreeItemHeightOption } from "./fileTreeChrome";
 import { pierreTreeStyle, titleClippedPierreTreeRow } from "~/pierre-tree-theme";
 
 import { joinHostPath } from "./filePath";
@@ -311,6 +311,7 @@ export default function FileBrowserPanel({
     },
     dragAndDrop: { canDrop: () => false },
     density: "compact",
+    ...fileTreeItemHeightOption(),
     fileTreeSearchMode: "hide-non-matches",
     flattenEmptyDirectories: true,
     initialExpansion: "closed",

@@ -51,8 +51,8 @@ async function activate(locator: Locator, action: "click" | "focus") {
   (locator.element() as HTMLElement)[action]();
 }
 
-const existingField = page.getByRole("textbox", { name: "Keybinding for Sidebar: Toggle" });
-const existingPill = page.getByRole("button", { name: /^Edit shortcut for Sidebar: Toggle:/ });
+const existingField = page.getByRole("textbox", { name: "Keybinding for Sidebar: toggle" });
+const existingPill = page.getByRole("button", { name: /^Edit shortcut for Sidebar: toggle:/ });
 const newField = page.getByRole("textbox", { name: "Keybinding for new keybinding" });
 
 describe("Esc in a shortcut recorder", () => {
@@ -148,7 +148,7 @@ it("unassigns a default shortcut and restores its condition when one is assigned
     async () => {
       await using screen = await render(<KeybindingsSettingsPanel />);
 
-      await screen.getByRole("button", { name: "Actions for Sidebar: Toggle" }).click();
+      await screen.getByRole("button", { name: "Actions for Sidebar: toggle" }).click();
       await screen.getByRole("menuitem", { name: "Unassign" }).click();
       expect(mutate).toHaveBeenLastCalledWith({
         environmentId: "env",
@@ -161,7 +161,7 @@ it("unassigns a default shortcut and restores its condition when one is assigned
       });
 
       const unassigned = screen.getByRole("button", {
-        name: "Edit shortcut for Composer: Start in Background: Unassigned",
+        name: "Edit shortcut for Composer: start in background: Unassigned",
       });
       const save = screen.getByRole("button", { name: "Save" });
       await unassigned.click();
@@ -249,7 +249,7 @@ it("re-enables Save when a When editor closes on an expression it could not pars
       <KeybindingsSettingsPanel />
     </RegistryProvider>,
   );
-  const whenTrigger = screen.getByRole("button", { name: "Edit when clause for Terminal: Toggle" });
+  const whenTrigger = screen.getByRole("button", { name: "Edit when clause for Terminal: toggle" });
   const expression = screen.getByRole("textbox", { name: "When expression" });
 
   await whenTrigger.click();
@@ -271,49 +271,61 @@ it("filters actions and allows additional shortcuts for assigned commands", asyn
   const search = dialog.getByRole("combobox", { name: "Search", exact: true });
   await expect.element(search).toHaveFocus();
   await userEvent.keyboard("sidebar.toggle");
-  const assigned = page.getByRole("option", { name: /Sidebar: Toggle/ });
+  const assigned = page.getByRole("option", { name: /Sidebar: toggle/ });
   await expect.element(assigned).not.toHaveAttribute("aria-disabled", "true");
   await expect.element(assigned.element().querySelector("kbd")!).toBeVisible();
   await vi.waitFor(() => expect(page.getByRole("option").elements()).toHaveLength(1));
   await assigned.click();
   const command = screen.getByRole("combobox", { name: "Command", exact: true });
-  await expect.element(command).toHaveTextContent("Sidebar: Toggle");
+  await expect.element(command).toHaveTextContent("Sidebar: toggle");
   await command.click();
   await search.fill("Opposite Queue");
   await expect
-    .element(page.getByRole("option", { name: /Composer: Opposite Queue or Steer Action/ }))
+    .element(page.getByRole("option", { name: /Composer: opposite queue or steer action/ }))
     .toBeVisible();
   await vi.waitFor(() => expect(page.getByRole("option").elements()).toHaveLength(1));
   await search.fill("no-such-action");
   await expect.element(page.getByText("No results found.")).toBeVisible();
   await search.fill("composer.cycleHost");
-  const available = page.getByRole("option", { name: "Composer: Cycle Host" });
+  const available = page.getByRole("option", { name: "Composer: cycle host" });
   await expect.element(available).not.toHaveAttribute("aria-disabled", "true");
   await available.click();
   await expect
     .element(screen.getByRole("combobox", { name: "Command", exact: true }))
-    .toHaveTextContent("Composer: Cycle Host");
+    .toHaveTextContent("Composer: cycle host");
 });
 
 it("shows a command's alternate keys on one row, as glyphs, with its condition in words", async () => {
   using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
   await using screen = await render(<KeybindingsSettingsPanel />);
 
-  const chatNewKeys = page.getByRole("button", { name: /^Edit shortcut for Chat: New: / });
+  const chatNewKeys = page.getByRole("button", { name: /^Edit shortcut for Chat: new: / });
   await vi.waitFor(() => expect(chatNewKeys.elements()).toHaveLength(2));
-  expect(page.getByText("Chat: New", { exact: true }).elements()).toHaveLength(1);
+  expect(page.getByText("Chat: new", { exact: true }).elements()).toHaveLength(1);
   await expect
     .element(
       screen
-        .getByRole("button", { name: /^Edit shortcut for Focus Next Workspace Area: / })
+        .getByRole("button", { name: /^Edit shortcut for Focus next workspace area: / })
         .first(),
     )
     .toHaveTextContent("F6");
   await expect
     .element(
-      screen.getByRole("button", { name: /^Edit shortcut for Queue: Edit Last Queued Message: / }),
+      screen.getByRole("button", { name: /^Edit shortcut for Queue: edit last queued message: / }),
     )
-    .toHaveTextContent("AltUp");
-  const condition = screen.getByRole("button", { name: "Edit when clause for Chat: New" });
+    .toHaveTextContent("Alt↑");
+  const condition = screen.getByRole("button", { name: "Edit when clause for Chat: new" });
   await expect.element(condition).toHaveTextContent("not in the terminal");
+});
+
+it("says in words, not behind an icon, that a browser may claim some shortcuts", async () => {
+  await using _screen = await render(<KeybindingsSettingsPanel />);
+
+  await expect
+    .element(
+      page.getByText(
+        "The browser may claim some shortcuts first. The desktop app receives them all.",
+      ),
+    )
+    .toBeVisible();
 });

@@ -1,7 +1,7 @@
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import type { UsageProviderKind } from "@t3tools/contracts";
 import { T, useGT, useLocale, useMessages } from "gt-react";
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import type { DailyTotals, HourlyTotals } from "@t3tools/shared/usageMerge";
 import {
@@ -152,8 +152,25 @@ function curvePath(segments: readonly CurveSegment[]): string {
   return path;
 }
 
-function areaPath(line: string) {
-  return line === "" ? "" : `${line} L${VIEW_WIDTH},${VIEW_HEIGHT} L0,${VIEW_HEIGHT} Z`;
+const point = (p: Point) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+
+/** The band between a stacked series' top curve and the curve of the series below it. */
+function areaBetween(top: readonly CurveSegment[], lower: readonly CurveSegment[] | null): string {
+  const first = top[0];
+  const last = top[top.length - 1];
+  if (first === undefined || last === undefined) return "";
+  let path = `M${point(first.from)}`;
+  for (const segment of top)
+    path += ` C${point(segment.c1)} ${point(segment.c2)} ${point(segment.to)}`;
+  const lowerLast = lower?.[lower.length - 1];
+  if (lower === null || lowerLast === undefined) {
+    return `${path} L${last.to.x.toFixed(2)},${VIEW_HEIGHT} L${first.from.x.toFixed(2)},${VIEW_HEIGHT} Z`;
+  }
+  path += ` L${point(lowerLast.to)}`;
+  for (const segment of lower.toReversed()) {
+    path += ` C${point(segment.c2)} ${point(segment.c1)} ${point(segment.from)}`;
+  }
+  return `${path} Z`;
 }
 
 function niceScale(peak: number, count: number): { max: number; ticks: readonly number[] } {
@@ -176,11 +193,8 @@ function chartScale(
   columns: readonly DayColumn[],
   loadingProviders: ReadonlySet<UsageProviderKind>,
 ) {
-  // Layered series each start at zero; summing peaks would waste plot height.
-  const peak = columns.reduce(
-    (max, column) => column.bands.reduce((inner, band) => Math.max(inner, band.value), max),
-    0,
-  );
+  // Series are stacked, so the tallest column is the sum of its bands.
+  const peak = columns.reduce((max, column) => Math.max(max, column.total), 0);
   return peak === 0 && loadingProviders.size > 0
     ? { max: TICK_COUNT, ticks: PLACEHOLDER_TICKS, labeled: false }
     : { ...niceScale(peak, TICK_COUNT), labeled: true };
@@ -188,6 +202,74 @@ function chartScale(
 
 function valueToY(value: number, max: number) {
   return max === 0 ? VIEW_HEIGHT : VIEW_HEIGHT - (value / max) * (VIEW_HEIGHT - PLOT_TOP);
+}
+
+/** Providers under this share of the window's total fold into one "Others" band. */
+const MINOR_PROVIDER_SHARE = 0.01;
+const OTHERS_COLOR = "color-mix(in oklab, var(--contrast-foreground) 45%, var(--background))";
+
+export interface ChartSeries {
+  readonly key: string;
+  /** The provider this band is, or `null` for the folded "Others" band. */
+  readonly provider: UsageProviderKind | null;
+  readonly providers: readonly UsageProviderKind[];
+  readonly color: string;
+  readonly loading: boolean;
+  readonly total: number;
+}
+
+function bandValue(column: DayColumn, provider: UsageProviderKind) {
+  return column.bands[PROVIDER_ORDER.indexOf(provider)]?.value ?? 0;
+}
+
+/**
+ * The bands of the stacked chart, biggest first. Providers with under 1% of the total fold into
+ * one "Others" band on top, but only when at least two do: a lone minor provider keeps its name.
+ */
+export function chartSeries(
+  providers: readonly UsageProviderKind[],
+  columns: readonly DayColumn[],
+  loadingProviders: ReadonlySet<UsageProviderKind>,
+): readonly ChartSeries[] {
+  const totalOf = (provider: UsageProviderKind) =>
+    columns.reduce((sum, column) => sum + bandValue(column, provider), 0);
+  const entries = providers.map((provider) => ({ provider, total: totalOf(provider) }));
+  const grand = entries.reduce((sum, entry) => sum + entry.total, 0);
+  const minor = entries.filter(
+    (entry) => entry.total > 0 && grand > 0 && entry.total / grand < MINOR_PROVIDER_SHARE,
+  );
+  const fold = minor.length >= 2;
+  const single = (entry: (typeof entries)[number]): ChartSeries => ({
+    key: entry.provider,
+    provider: entry.provider,
+    providers: [entry.provider],
+    color: PROVIDER_PRESENTATION[entry.provider].color,
+    loading: loadingProviders.has(entry.provider),
+    total: entry.total,
+  });
+  const major = entries
+    .filter((entry) => !fold || !minor.includes(entry))
+    .toSorted((left, right) => right.total - left.total)
+    .map(single);
+  return fold
+    ? [
+        ...major,
+        {
+          key: "others",
+          provider: null,
+          providers: minor.map((entry) => entry.provider),
+          color: OTHERS_COLOR,
+          loading: minor.some((entry) => loadingProviders.has(entry.provider)),
+          total: minor.reduce((sum, entry) => sum + entry.total, 0),
+        },
+      ]
+    : major;
+}
+
+function seriesValue(series: ChartSeries, column: DayColumn | undefined) {
+  return column === undefined
+    ? 0
+    : series.providers.reduce((sum, provider) => sum + bandValue(column, provider), 0);
 }
 
 function buildChart(
@@ -200,44 +282,39 @@ function buildChart(
   const columns = buildPeriodColumns(periods, byPeriod, metric);
   const scale = chartScale(columns, loadingProviders);
   const stepX = periods.length < 2 ? 0 : VIEW_WIDTH / (periods.length - 1);
-  const paths = providers.map((provider) => {
-    const slot = PROVIDER_ORDER.indexOf(provider);
-    const line = curvePath(
-      smoothCurve(
-        columns.map((column, periodIndex) => ({
-          x: periodIndex * stepX,
-          y: valueToY(column.bands[slot]?.value ?? 0, scale.max),
-        })),
-      ),
+  let lower: readonly CurveSegment[] | null = null;
+  let stacked = columns.map(() => 0);
+  const series = chartSeries(providers, columns, loadingProviders).map((band) => {
+    stacked = stacked.map((height, index) => height + seriesValue(band, columns[index]));
+    const top = smoothCurve(
+      stacked.map((height, index) => ({
+        x: index * stepX,
+        y: valueToY(height, scale.max),
+      })),
     );
-    return {
-      provider,
-      loading: loadingProviders.has(provider),
-      total: columns.reduce((sum, column) => sum + (column.bands[slot]?.value ?? 0), 0),
-      line,
-      area: areaPath(line),
-    };
+    const drawn = { ...band, line: curvePath(top), area: areaBetween(top, lower) };
+    lower = top;
+    return drawn;
   });
 
-  return { columns, scale, stepX, paths: paths.toSorted((a, b) => b.total - a.total) };
+  return { columns, scale, stepX, series };
 }
 
 function UsageChartTooltip({
   tooltipRef,
   label,
   column,
-  providers,
-  loadingProviders,
+  series,
   format,
 }: {
   readonly tooltipRef: React.Ref<HTMLDivElement>;
   readonly label: string;
   readonly column: DayColumn | undefined;
-  readonly providers: readonly UsageProviderKind[];
-  readonly loadingProviders: ReadonlySet<UsageProviderKind>;
+  readonly series: readonly ChartSeries[];
   readonly format: (value: number) => string;
 }) {
-  const partial = providers.some((provider) => loadingProviders.has(provider));
+  const gt = useGT();
+  const partial = series.some((band) => band.loading);
   return (
     <div
       ref={tooltipRef}
@@ -248,25 +325,34 @@ function UsageChartTooltip({
       }}
     >
       <div className="mb-1 text-muted-foreground">{label}</div>
-      {providers.map((provider) => {
-        const { label: providerLabel, driverKind } = PROVIDER_PRESENTATION[provider];
+      {series.map((band) => {
+        const presentation = band.provider === null ? null : PROVIDER_PRESENTATION[band.provider];
+        const bandLabel = presentation === null ? gt("Others") : presentation.label;
         return (
-          <div key={provider} className="flex items-center justify-between gap-3">
+          <div key={band.key} className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-1.5 text-muted-foreground">
-              <ProviderInstanceIcon
-                driverKind={driverKind}
-                displayName={providerLabel}
-                iconClassName="size-3"
-              />
-              {providerLabel}
+              {presentation === null ? (
+                <span
+                  aria-hidden
+                  className="size-3 rounded-full"
+                  style={{ background: band.color }}
+                />
+              ) : (
+                <ProviderInstanceIcon
+                  driverKind={presentation.driverKind}
+                  displayName={bandLabel}
+                  iconClassName="size-3"
+                />
+              )}
+              {bandLabel}
             </span>
             <span
               className={cn(
                 "tabular-nums",
-                loadingProviders.has(provider) ? "text-muted-foreground" : "text-foreground",
+                band.loading ? "text-muted-foreground" : "text-foreground",
               )}
             >
-              {format(column?.bands.find((band) => band.provider === provider)?.value ?? 0)}
+              {format(seriesValue(band, column))}
             </span>
           </div>
         );
@@ -287,8 +373,7 @@ function UsageChartPlot({
   periods,
   columns,
   stepX,
-  providers,
-  loadingProviders,
+  series,
   format,
   formatTooltipPeriod,
   children,
@@ -296,8 +381,7 @@ function UsageChartPlot({
   readonly periods: readonly string[];
   readonly columns: readonly DayColumn[];
   readonly stepX: number;
-  readonly providers: readonly UsageProviderKind[];
-  readonly loadingProviders: ReadonlySet<UsageProviderKind>;
+  readonly series: readonly ChartSeries[];
   readonly format: (value: number) => string;
   readonly formatTooltipPeriod: (period: string) => string;
   readonly children: React.ReactNode;
@@ -397,8 +481,7 @@ function UsageChartPlot({
           tooltipRef={tooltipRef}
           label={formatTooltipPeriod(hoveredPeriod)}
           column={columns[hoverIndex]}
-          providers={providers}
-          loadingProviders={loadingProviders}
+          series={series}
           format={format}
         />
       )}
@@ -422,13 +505,12 @@ export function UsageProviderChart({
   const gt = useGT();
   const locale = useLocale();
   const m = useMessages();
-  const gradientId = useId().replace(/\W/g, "");
   const periods = resolution === "hour" ? hours : days;
   const totals: readonly (DailyTotals | HourlyTotals)[] = resolution === "hour" ? hourly : daily;
   const byPeriod = new Map(
     totals.map((entry) => ["hourStart" in entry ? entry.hourStart : entry.day, entry]),
   );
-  const { columns, scale, paths, stepX } = buildChart(
+  const { columns, scale, series, stepX } = buildChart(
     periods,
     byPeriod,
     metric,
@@ -470,8 +552,7 @@ export function UsageProviderChart({
           periods={periods}
           columns={columns}
           stepX={stepX}
-          providers={providers}
-          loadingProviders={loadingProviders}
+          series={series}
           format={format}
           formatTooltipPeriod={formatTooltipPeriod}
         >
@@ -494,45 +575,23 @@ export function UsageProviderChart({
             );
           })}
 
-          <defs>
-            {paths.map(({ provider }) => (
-              <linearGradient
-                key={provider}
-                id={`${gradientId}-${provider}`}
-                x1="0"
-                x2="0"
-                y1="0"
-                y2="1"
-              >
-                <stop
-                  offset="0"
-                  stopColor={PROVIDER_PRESENTATION[provider].color}
-                  stopOpacity={0.3}
-                />
-                <stop
-                  offset="1"
-                  stopColor={PROVIDER_PRESENTATION[provider].color}
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            ))}
-          </defs>
-          {paths.map(({ provider, loading, area }) => (
+          {series.map(({ key, color, loading, area }) => (
             <path
-              key={provider}
+              key={key}
               d={area}
               className={seriesClassName(loading)}
-              fill={`url(#${gradientId}-${provider})`}
+              fill={color}
+              fillOpacity={0.5}
             />
           ))}
-          {paths.map(({ provider, loading, line }) => (
+          {series.map(({ key, color, loading, line }) => (
             <path
-              key={provider}
+              key={key}
               d={line}
               className={seriesClassName(loading)}
               fill="none"
-              stroke={PROVIDER_PRESENTATION[provider].color}
-              strokeWidth={2}
+              stroke={color}
+              strokeWidth={1.5}
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"

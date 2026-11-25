@@ -9,7 +9,6 @@ import {
   FileJsonIcon,
   MinusIcon,
   PlusIcon,
-  SearchIcon,
   TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
@@ -55,6 +54,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Kbd, KbdGroup } from "../ui/kbd";
+import { SearchField } from "../ui/search-field";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
@@ -125,12 +125,8 @@ function KeybindingsSearchInput({
 }) {
   const gt = useGT();
   return (
-    <InputGroup className="min-w-0 basis-full **:[input]:h-9 sm:basis-0 sm:flex-1 sm:**:[input]:h-8">
-      <InputGroupAddon>
-        <SearchIcon aria-hidden className="size-3.5" />
-      </InputGroupAddon>
-      {/* Native search inputs clear on Escape even during IME composition. */}
-      <InputGroupInput
+    <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+      <SearchField
         ref={inputRef}
         type="text"
         role="searchbox"
@@ -148,9 +144,8 @@ function KeybindingsSearchInput({
         }}
         placeholder={gt("Search keybindings")}
         aria-label={gt("Search keybindings")}
-        size="sm"
       />
-    </InputGroup>
+    </div>
   );
 }
 
@@ -1509,23 +1504,11 @@ function KeybindingsGroups(props: KeybindingsGroupsProps) {
 
 function BrowserKeybindingNotice() {
   const gt = useGT();
-  const message = gt(
-    "The browser may claim some shortcuts first. The desktop app receives them all.",
-  );
   return (
-    <Tooltip>
-      <TooltipTrigger
-        delay={200}
-        render={
-          <Button size="icon-micro" variant="ghost-muted" aria-label={message}>
-            <TriangleAlertIcon className="size-3.5 text-warning" />
-          </Button>
-        }
-      />
-      <TooltipPopup side="top" className="max-w-72">
-        {message}
-      </TooltipPopup>
-    </Tooltip>
+    <p className="flex basis-full items-center gap-1.5 text-xs text-(--settings-description)">
+      <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+      {gt("The browser may claim some shortcuts first. The desktop app receives them all.")}
+    </p>
   );
 }
 
@@ -1721,10 +1704,11 @@ export function KeybindingsSettingsPanel() {
       <SettingsSection
         {...searchableSetting("keybindings")}
         hideTitle
+        variant="plain"
         data-settings-sticky=""
         className="sticky top-0 z-20"
       >
-        <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-2 py-1">
           <KeybindingsSearchInput query={query} onChange={setQuery} inputRef={searchInputRef} />
           <Button
             type="button"

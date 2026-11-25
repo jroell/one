@@ -73,9 +73,14 @@ export function projectLimit(input: {
   return projectedUsed <= PLENTY_PROJECTED_USED_PERCENT ? { kind: "plenty" } : { kind: "on-track" };
 }
 
+/** Accounts whose resets are within a minute of each other share one reset model. */
+const SAME_RESET_MARGIN_MS = 60_000;
+
 /**
- * The window clock of a card. A pool of accounts takes the mean share elapsed, as the pool's own
- * pace does, and the first window's length.
+ * The window clock of a card. One account has its own. A pool of accounts has a clock only when
+ * every account is timed, all windows are the same length and all reset within a minute of each
+ * other; otherwise no single clock describes the pool, and averaging them would invent a reset
+ * that belongs to no account.
  */
 export function limitClock(
   windows: readonly ServerProviderUsageWindow[],
@@ -85,10 +90,15 @@ export function limitClock(
     const elapsed = elapsedShare(window, now);
     return elapsed === null || window.windowDurationMins === undefined
       ? []
-      : [{ elapsed, windowMs: window.windowDurationMins * 60_000 }];
+      : [{ windowMs: window.windowDurationMins * 60_000, elapsed }];
   });
   const first = timed[0];
-  if (first === undefined) return null;
-  const meanElapsed = timed.reduce((sum, entry) => sum + entry.elapsed, 0) / timed.length;
-  return { windowMs: first.windowMs, msToReset: (1 - meanElapsed) * first.windowMs };
+  if (first === undefined || timed.length !== windows.length) return null;
+  if (timed.some((entry) => entry.windowMs !== first.windowMs)) return null;
+  const toReset = timed.map((entry) => (1 - entry.elapsed) * entry.windowMs);
+  if (Math.max(...toReset) - Math.min(...toReset) > SAME_RESET_MARGIN_MS) return null;
+  return {
+    windowMs: first.windowMs,
+    msToReset: toReset.reduce((sum, ms) => sum + ms, 0) / toReset.length,
+  };
 }

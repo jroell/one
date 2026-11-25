@@ -1,3 +1,4 @@
+import "~/index.css";
 import {
   applyTerminalAttachStreamEvent,
   EMPTY_TERMINAL_SESSION_STATE,
@@ -36,9 +37,13 @@ const fixture = vi.hoisted(() => ({
     _generation?: number,
   ) => {},
   sessionEvent: (_thread: ScopedThreadRef, _type: "snapshot" | "restarted", _pid = 123) => {},
+  failSession: (_thread: ScopedThreadRef, _error: string | null) => {},
   surfaceOptions: [] as GhosttyTerminalSurfaceOptions[],
   reportedSize: null as { cols: number; rows: number } | null,
   resizeCommand: {},
+  openCommand: {},
+  retries: [] as Array<{ environmentId: string; threadId: string; terminalId: string }>,
+  opens: [] as Array<{ threadId: string; terminalId: string; cwd: string }>,
   runWrite: (): Promise<{ _tag: "Success" }> => Promise.resolve({ _tag: "Success" }),
   runResize: (_input: unknown): Promise<AsyncResult.AsyncResult<unknown, unknown>> =>
     Promise.resolve(AsyncResult.success(undefined)),
@@ -120,6 +125,14 @@ vi.mock("../state/terminalSessions", async () => {
         : { output: { ...EMPTY_TERMINAL_SESSION_STATE.output, generation } }),
     });
   };
+  fixture.failSession = (thread, error) => {
+    appAtomRegistry.set(session(thread.environmentId, thread.threadId), {
+      ...EMPTY_TERMINAL_SESSION_STATE,
+      status: "error",
+      error,
+      version: 0,
+    });
+  };
   fixture.sessionEvent = (thread, type, pid = 123) => {
     const atom = session(thread.environmentId, thread.threadId);
     const current = appAtomRegistry.get(atom);
@@ -149,6 +162,16 @@ vi.mock("../state/terminalSessions", async () => {
   return {
     attachedTerminalSessionAtom: (environmentId: EnvironmentId, terminal: { threadId: ThreadId }) =>
       session(environmentId, terminal.threadId),
+    retryTerminalSessionAttach: (
+      environmentId: EnvironmentId,
+      terminal: { threadId: string; terminalId: string },
+    ) => {
+      fixture.retries.push({
+        environmentId,
+        threadId: terminal.threadId,
+        terminalId: terminal.terminalId,
+      });
+    },
   };
 });
 vi.mock("../state/session", () => ({
@@ -157,8 +180,19 @@ vi.mock("../state/session", () => ({
 }));
 vi.mock("../state/use-atom-command", () => ({
   useAtomCommand:
-    (command: object) => async (args: { input: { threadId: string; data?: string } }) => {
+    (command: object) =>
+    async (args: {
+      input: { threadId: string; terminalId: string; cwd?: string; data?: string };
+    }) => {
       if (command === fixture.resizeCommand) return fixture.runResize(args);
+      if (command === fixture.openCommand) {
+        fixture.opens.push({
+          threadId: args.input.threadId,
+          terminalId: args.input.terminalId,
+          cwd: args.input.cwd ?? "",
+        });
+        return { _tag: "Success" };
+      }
       if (args.input.data !== undefined) {
         fixture.writes.push({ threadId: args.input.threadId, data: args.input.data });
         return fixture.runWrite();
@@ -173,7 +207,7 @@ vi.mock("../state/server", async () => {
   return { serverEnvironment: { configValueAtom: () => config } };
 });
 vi.mock("../state/terminal", () => ({
-  terminalEnvironment: { write: {}, resize: fixture.resizeCommand },
+  terminalEnvironment: { write: {}, resize: fixture.resizeCommand, open: fixture.openCommand },
 }));
 vi.mock("../state/preview", () => ({ previewEnvironment: { open: {} } }));
 vi.mock("../state/projects", async () => {
@@ -264,6 +298,8 @@ function setup(originalStatus: "starting" | "exited" = "exited") {
   fixture.reportedSize = null;
   fixture.runResize = () => Promise.resolve(AsyncResult.success(undefined));
   fixture.runWrite = () => Promise.resolve({ _tag: "Success" });
+  fixture.retries = [];
+  fixture.opens = [];
   fixture.metadata.clear();
   useRightPanelStore.setState(useRightPanelStore.getInitialState());
   useTerminalUiStateStore.setState(useTerminalUiStateStore.getInitialState());
@@ -319,6 +355,40 @@ it("names every toolbar button and says the shell is starting until it runs", as
   await expect
     .element(screen.getByText("Starting shell in …/apps/server…"))
     .not.toBeInTheDocument();
+});
+
+it("keeps the drawer's top edge on the resize grip instead of under the header", async () => {
+  const { original } = setup("starting");
+  fixture.setSession(original, "running", 1);
+  await using screen = await render(<Drawer threadRef={original} onCloseTerminal={() => {}} />);
+  const drawer = screen.container.querySelector("[data-thread-terminal-drawer]")!;
+  const handle = drawer.querySelector("[data-one-resize-handle]")!;
+  await expect.element(screen.getByRole("button", { name: /^New Terminal/ })).toBeVisible();
+  const rect = drawer.getBoundingClientRect();
+  const atTopEdge = document.elementFromPoint(rect.left + rect.width / 2, rect.top + 3);
+  expect(atTopEdge).toBe(handle);
+});
+
+it("Retry re-subscribes to the attach after a stream failure and reopens a shell that failed", async () => {
+  const { original } = setup("starting");
+  fixture.failSession(original, "Connection lost");
+  await using screen = await render(<Drawer threadRef={original} onCloseTerminal={() => {}} />);
+  await screen.getByRole("button", { name: "Retry" }).click();
+  expect(fixture.retries).toEqual([
+    {
+      environmentId: original.environmentId,
+      threadId: original.threadId,
+      terminalId: "term-1",
+    },
+  ]);
+  expect(fixture.opens).toEqual([]);
+
+  await act(() => fixture.failSession(original, null));
+  await screen.getByRole("button", { name: "Retry" }).click();
+  expect(fixture.retries).toHaveLength(1);
+  expect(fixture.opens).toEqual([
+    { threadId: original.threadId, terminalId: "term-1", cwd: "/repo" },
+  ]);
 });
 
 it("closes an exited terminal on its own thread after navigating to one reusing its ID", async () => {

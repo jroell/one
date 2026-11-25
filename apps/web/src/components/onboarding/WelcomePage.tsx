@@ -82,6 +82,7 @@ import {
   welcomeImportSelectionKey,
 } from "../../onboarding/welcomeState";
 import { newProjectId, randomUUID } from "../../lib/utils";
+import { OneMark } from "../../one/OneMark";
 import { agentSessionImport } from "../../state/agentSessions";
 import { readProjects, useProjects, waitForProject } from "../../state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
@@ -278,11 +279,18 @@ export function WelcomePage({
         {/* The desktop window only moves where CSS opts in, so keep a titlebar strip. */}
         {isElectron ? <WorkspacePageHeader electron /> : null}
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
-          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6 pt-12 pb-8 sm:pt-20">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <div
+            data-one-welcome=""
+            className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6 pt-12 pb-8 sm:pt-20"
+          >
+            <OneMark className="mb-5 size-10" />
+            <h1
+              data-one-welcome-title=""
+              className="text-2xl font-semibold tracking-tight text-foreground"
+            >
               <T>Welcome to One</T>
             </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p data-one-welcome-lead="" className="mt-1.5 text-sm text-muted-foreground">
               <T>
                 Setting up{" "}
                 <span className="text-foreground">
@@ -291,7 +299,7 @@ export function WelcomePage({
                 .
               </T>
             </p>
-            <div className="mt-10 border-t border-border/60">
+            <div data-one-welcome-panel="" className="mt-10 border-t border-border/60">
               <AgentsSection
                 environmentId={environmentId}
                 label={label}
@@ -391,7 +399,10 @@ function WelcomeSection({
   readonly children: ReactNode;
 }) {
   return (
-    <section className="grid gap-x-10 border-b border-border/60 py-4 sm:grid-cols-[6rem_minmax(0,1fr)]">
+    <section
+      data-one-welcome-section=""
+      className="grid gap-x-10 border-b border-border/60 py-4 sm:grid-cols-[6rem_minmax(0,1fr)]"
+    >
       <h2 className="text-sm leading-10 text-muted-foreground">{title}</h2>
       <div className="min-w-0">{children}</div>
     </section>

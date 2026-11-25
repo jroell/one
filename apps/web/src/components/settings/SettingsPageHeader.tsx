@@ -104,15 +104,26 @@ export const SETTINGS_PAGE_INTROS: Readonly<Record<string, SettingsPageIntro>> =
   },
 };
 
-export function SettingsPageHeader() {
+/** True for a settings page that exists. An unknown address under /settings opens General. */
+export function isKnownSettingsPathname(pathname: string): boolean {
+  return SETTINGS_PAGE_INTROS[pathname.replace(/\/+$/, "") || "/"] !== undefined;
+}
+
+/** The current page's intro, or null for an address that has none. */
+export function useSettingsPageIntro() {
   const m = useMessages();
   const pathname = useLocation({ select: (location) => location.pathname });
   const intro = SETTINGS_PAGE_INTROS[pathname.replace(/\/+$/, "") || "/"];
+  return intro ? { title: m(intro.title), purpose: m(intro.purpose) } : null;
+}
+
+export function SettingsPageHeader() {
+  const intro = useSettingsPageIntro();
   if (!intro) return null;
   return (
     <header data-settings-page-header="" className="flex flex-col gap-1 px-3 sm:px-4">
-      <h1 data-settings-page-title="">{m(intro.title)}</h1>
-      <p data-settings-page-purpose="">{m(intro.purpose)}</p>
+      <h1 data-settings-page-title="">{intro.title}</h1>
+      <p data-settings-page-purpose="">{intro.purpose}</p>
     </header>
   );
 }

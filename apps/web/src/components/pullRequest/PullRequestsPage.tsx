@@ -1254,14 +1254,23 @@ export function PullRequestsPage() {
   const listBody = (
     <>
       {!capabilityKnown ? (
-        <PullRequestListGhost rows={7} caption={gt("Loading pull requests…")} />
+        <PullRequestListGhost
+          rows={7}
+          caption={gt("Loading pull requests…")}
+          slowCaption={gt("Still waiting for your server to answer…")}
+        />
       ) : !pullRequestsSupported ? (
         <PullRequestsUnavailableState
           title={gt("Pull requests unavailable")}
           error={gt("Update your One servers to browse pull requests.")}
         />
       ) : firstLoad ? (
-        <PullRequestListGhost rows={7} caption={gt("Loading pull requests…")} />
+        <PullRequestListGhost
+          rows={7}
+          caption={gt("Loading pull requests…")}
+          slowCaption={gt("Still waiting for the host to list pull requests…")}
+          onRetry={listQuery.retry}
+        />
       ) : listError && shownCount === 0 ? (
         <PullRequestsUnavailableState
           error={listError}

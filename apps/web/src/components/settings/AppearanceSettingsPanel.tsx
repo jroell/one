@@ -93,6 +93,22 @@ const EFFORT_DISPLAY_LABELS: Record<EffortDisplay, string> = {
   bars: msg("Bars", { $context: "show effort as bars" }),
 };
 
+/** The two ends of a slider's range, so a thumb's place on the track can be read. */
+function SliderRange({ min, max, unit }: { min: number; max: number; unit: string }) {
+  return (
+    <span aria-hidden className="settings-slider-range">
+      <span>
+        {min}
+        {unit}
+      </span>
+      <span>
+        {max}
+        {unit}
+      </span>
+    </span>
+  );
+}
+
 export function AppearanceSettingsPanel() {
   const searchableSetting = useSearchableSetting();
   const {
@@ -193,27 +209,30 @@ export function AppearanceSettingsPanel() {
           }
           control={
             <div className="settings-slider-control">
-              <input
-                aria-label={gt("Contrast")}
-                className="settings-slider min-w-0 flex-1"
-                id="appearance-contrast"
-                max={MAX_APPEARANCE_CONTRAST}
-                min={MIN_APPEARANCE_CONTRAST}
-                onChange={(event) => {
-                  const appearanceContrast = Number(event.currentTarget.value);
-                  if (
-                    Number.isInteger(appearanceContrast) &&
-                    appearanceContrast >= MIN_APPEARANCE_CONTRAST &&
-                    appearanceContrast <= MAX_APPEARANCE_CONTRAST
-                  ) {
-                    updateSettings({ appearanceContrast });
-                  }
-                }}
-                step={5}
-                style={appearanceContrastSliderStyle}
-                type="range"
-                value={settings.appearanceContrast}
-              />
+              <div className="settings-slider-track">
+                <input
+                  aria-label={gt("Contrast")}
+                  className="settings-slider min-w-0 flex-1"
+                  id="appearance-contrast"
+                  max={MAX_APPEARANCE_CONTRAST}
+                  min={MIN_APPEARANCE_CONTRAST}
+                  onChange={(event) => {
+                    const appearanceContrast = Number(event.currentTarget.value);
+                    if (
+                      Number.isInteger(appearanceContrast) &&
+                      appearanceContrast >= MIN_APPEARANCE_CONTRAST &&
+                      appearanceContrast <= MAX_APPEARANCE_CONTRAST
+                    ) {
+                      updateSettings({ appearanceContrast });
+                    }
+                  }}
+                  step={5}
+                  style={appearanceContrastSliderStyle}
+                  type="range"
+                  value={settings.appearanceContrast}
+                />
+                <SliderRange min={MIN_APPEARANCE_CONTRAST} max={MAX_APPEARANCE_CONTRAST} unit="%" />
+              </div>
               <output className="settings-slider-readout" htmlFor="appearance-contrast">
                 {settings.appearanceContrast}%
               </output>
@@ -236,27 +255,30 @@ export function AppearanceSettingsPanel() {
           }
           control={
             <div className="settings-slider-control">
-              <input
-                aria-label={gt("Glass opacity")}
-                className="settings-slider min-w-0 flex-1"
-                id="glass-opacity"
-                max={MAX_GLASS_OPACITY}
-                min={MIN_GLASS_OPACITY}
-                onChange={(event) => {
-                  const glassOpacity = Number(event.currentTarget.value);
-                  if (
-                    Number.isInteger(glassOpacity) &&
-                    glassOpacity >= MIN_GLASS_OPACITY &&
-                    glassOpacity <= MAX_GLASS_OPACITY
-                  ) {
-                    updateSettings({ glassOpacity });
-                  }
-                }}
-                step={5}
-                style={glassOpacitySliderStyle}
-                type="range"
-                value={settings.glassOpacity}
-              />
+              <div className="settings-slider-track">
+                <input
+                  aria-label={gt("Glass opacity")}
+                  className="settings-slider min-w-0 flex-1"
+                  id="glass-opacity"
+                  max={MAX_GLASS_OPACITY}
+                  min={MIN_GLASS_OPACITY}
+                  onChange={(event) => {
+                    const glassOpacity = Number(event.currentTarget.value);
+                    if (
+                      Number.isInteger(glassOpacity) &&
+                      glassOpacity >= MIN_GLASS_OPACITY &&
+                      glassOpacity <= MAX_GLASS_OPACITY
+                    ) {
+                      updateSettings({ glassOpacity });
+                    }
+                  }}
+                  step={5}
+                  style={glassOpacitySliderStyle}
+                  type="range"
+                  value={settings.glassOpacity}
+                />
+                <SliderRange min={MIN_GLASS_OPACITY} max={MAX_GLASS_OPACITY} unit="%" />
+              </div>
               <output className="settings-slider-readout" htmlFor="glass-opacity">
                 {settings.glassOpacity}%
               </output>
@@ -422,27 +444,34 @@ export function AppearanceSettingsPanel() {
               <div className="grid w-full grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 sm:w-auto sm:grid-cols-[7rem_13rem] sm:gap-4">
                 <PanelAnimationsPreview durationMs={settings.panelAnimationDurationMs} />
                 <div className="settings-slider-control">
-                  <input
-                    aria-label={gt("Panel animation duration")}
-                    className="settings-slider min-w-0 flex-1"
-                    id="panel-animation-duration"
-                    max={MAX_PANEL_ANIMATION_DURATION_MS}
-                    min={MIN_PANEL_ANIMATION_DURATION_MS}
-                    onChange={(event) => {
-                      const panelAnimationDurationMs = Number(event.currentTarget.value);
-                      if (
-                        Number.isInteger(panelAnimationDurationMs) &&
-                        panelAnimationDurationMs >= MIN_PANEL_ANIMATION_DURATION_MS &&
-                        panelAnimationDurationMs <= MAX_PANEL_ANIMATION_DURATION_MS
-                      ) {
-                        updateSettings({ panelAnimationDurationMs });
-                      }
-                    }}
-                    step={25}
-                    style={panelAnimationDurationSliderStyle}
-                    type="range"
-                    value={settings.panelAnimationDurationMs}
-                  />
+                  <div className="settings-slider-track">
+                    <input
+                      aria-label={gt("Panel animation duration")}
+                      className="settings-slider min-w-0 flex-1"
+                      id="panel-animation-duration"
+                      max={MAX_PANEL_ANIMATION_DURATION_MS}
+                      min={MIN_PANEL_ANIMATION_DURATION_MS}
+                      onChange={(event) => {
+                        const panelAnimationDurationMs = Number(event.currentTarget.value);
+                        if (
+                          Number.isInteger(panelAnimationDurationMs) &&
+                          panelAnimationDurationMs >= MIN_PANEL_ANIMATION_DURATION_MS &&
+                          panelAnimationDurationMs <= MAX_PANEL_ANIMATION_DURATION_MS
+                        ) {
+                          updateSettings({ panelAnimationDurationMs });
+                        }
+                      }}
+                      step={25}
+                      style={panelAnimationDurationSliderStyle}
+                      type="range"
+                      value={settings.panelAnimationDurationMs}
+                    />
+                    <SliderRange
+                      min={MIN_PANEL_ANIMATION_DURATION_MS}
+                      max={MAX_PANEL_ANIMATION_DURATION_MS}
+                      unit=" ms"
+                    />
+                  </div>
                   <output className="settings-slider-readout" htmlFor="panel-animation-duration">
                     {settings.panelAnimationDurationMs} ms
                   </output>

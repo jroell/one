@@ -13,6 +13,7 @@ import {
   remainingPercent,
   type ResetCreditChoice,
 } from "@t3tools/shared/usageLimits";
+import type { ServerProviderUsageWindow } from "@t3tools/contracts";
 import { T, Var, useGT, useMessages } from "gt-react";
 import type { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { normalizeProviderAccentColor } from "@t3tools/client-runtime/state/provider-instance-display";
@@ -42,8 +43,9 @@ import { Alert, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { PaceIcon, ResetCreditDialog, barColor, useResetCredit } from "./UsageLimits";
+import { ResetCreditDialog, barColor, useResetCredit } from "./UsageLimits";
 import { LimitMeter } from "./UsageMeter";
+import { inlineWindowName, type LimitCandidate, tightestLimit } from "./usageHeadline";
 import { type LimitProjection, limitClock, meterState, projectLimit } from "./usageMeterState";
 import {
   collectExternalUsageLinks,
@@ -161,6 +163,7 @@ function SegmentPopover({
   const remaining = remainingPercent(window);
   const timeLeft = paceRemainingPercent(window, now);
   const resetsIn = formatResetsIn(window, now, m, "in");
+  const accountProjection = projectWindow(window, now);
   const where =
     account.environments.length > 0
       ? account.environments.map((environment) => environment.label).join(", ")
@@ -220,6 +223,7 @@ function SegmentPopover({
             {gt("+{percent}% of pool", { percent: reset.restoresPercent })}
           </Row>
         ) : null}
+        <ProjectionLine projection={accountProjection} />
       </div>
       {choices.length > 0 && redeem ? (
         <div className="flex flex-col gap-1.5 border-t border-border/60 pt-2.5 text-muted-foreground">
@@ -420,9 +424,11 @@ function SegmentTriggers({
                 {credits ? (
                   <>
                     {resetsIn ? <span aria-hidden>·</span> : null}
-                    <span aria-hidden className="inline-flex items-center gap-0.5 font-semibold">
+                    <span aria-hidden className="inline-flex items-center gap-1 font-semibold">
                       <TicketIcon className="size-3" aria-hidden />
-                      {credits}
+                      {gt("{count, plural, one {{count} credit} other {{count} credits}}", {
+                        count: credits,
+                      })}
                     </span>
                   </>
                 ) : null}
@@ -482,10 +488,12 @@ function LegendRow({
             {resetsIn ? <span aria-hidden>·</span> : null}
             <span
               aria-hidden
-              className="inline-flex items-center gap-0.5 font-semibold text-foreground"
+              className="inline-flex items-center gap-1 font-semibold text-foreground"
             >
               <TicketIcon className="size-3" aria-hidden />
-              {credits}
+              {gt("{count, plural, one {{count} credit} other {{count} credits}}", {
+                count: credits,
+              })}
             </span>
             <span className="sr-only">
               {gt(
@@ -500,6 +508,46 @@ function LegendRow({
   );
 }
 
+/** A $0 spend cap has no percentage, so no fill: an empty channel with its account and its cap. */
+function ZeroCapSegment({
+  account,
+  color,
+  index,
+}: {
+  readonly account: LimitAccount;
+  readonly color: string;
+  readonly index: number;
+}) {
+  const gt = useGT();
+  return (
+    <>
+      <div className="usage-seg" data-named style={{ gridColumn: index, gridRow: 1 }}>
+        <div aria-hidden className="usage-seg-empty" />
+        <div className="usage-seg-caption">
+          <span aria-hidden className="usage-seg-index">
+            {index}
+          </span>
+          <span className="usage-seg-name">
+            <AccountName account={account} className="min-w-0 truncate font-medium" />
+            <span className="usage-seg-percent">{gt("$0 cap")}</span>
+          </span>
+        </div>
+      </div>
+      <div
+        className="usage-legend usage-legend-static"
+        style={{ gridColumn: "1 / -1", gridRow: index + 1 }}
+      >
+        <span className="usage-legend-badge" style={{ "--usage-accent": color } as CSSProperties}>
+          <span className="sr-only">{`${gt("Segment")} `}</span>
+          <span>{index}</span>
+        </span>
+        <AccountName account={account} className="min-w-0 truncate font-medium text-foreground" />
+        <span className="shrink-0 font-semibold text-foreground">{gt("$0 cap")}</span>
+      </div>
+    </>
+  );
+}
+
 function PoolBar({
   pool,
   color,
@@ -510,7 +558,6 @@ function PoolBar({
   readonly now: number;
 }) {
   const restores = new Map(pool.resets.map((reset) => [reset.member.account.key, reset]));
-  const gt = useGT();
   return (
     <div className="usage-bar">
       <div
@@ -530,19 +577,51 @@ function PoolBar({
               showAccountName={pool.columns.length > 1}
             />
           ) : pool.kind === "monthly" && member.account.limits.zeroSpendCap ? (
-            <div
+            <ZeroCapSegment
               key={member.account.key}
-              style={{ gridColumn: position + 1, gridRow: 1 }}
-              className="usage-seg-empty"
-            >
-              <AccountName account={member.account} className="usage-seg-empty-name" />
-              {gt("$0 cap")}
-            </div>
+              account={member.account}
+              color={normalizeProviderAccentColor(member.account.accentColor) ?? color}
+              index={position + 1}
+            />
           ) : null,
         )}
       </div>
     </div>
   );
+}
+
+/** Where one account's window is heading at its own pace, on its own clock. */
+function projectWindow(window: ServerProviderUsageWindow, now: number): LimitProjection {
+  const clock = limitClock([window], now);
+  return projectLimit({
+    usedPercent: window.usedPercent,
+    windowMs: clock?.windowMs ?? null,
+    msToReset: clock?.msToReset ?? null,
+  });
+}
+
+/**
+ * A pool's forecast exists only when its accounts share one reset model (`limitClock`); otherwise
+ * each account's own forecast stands in its segment and no pooled sentence is made up.
+ */
+function projectPool(pool: LimitPoolWindow, now: number): LimitProjection {
+  const clock = limitClock(
+    pool.members.map((member) => member.window),
+    now,
+  );
+  return projectLimit({
+    usedPercent: pool.usedPercent,
+    windowMs: clock?.windowMs ?? null,
+    msToReset: clock?.msToReset ?? null,
+  });
+}
+
+/** Time to the next real reset: the first refill that restores something, else the first reset. */
+function nextResetMs(pool: LimitPoolWindow, now: number): number | null {
+  const next =
+    pool.resets.find((reset) => reset.at > now && reset.restoresPercent > 0) ??
+    pool.resets.find((reset) => reset.at > now);
+  return next === undefined ? null : next.at - now;
 }
 
 function ProjectionLine({ projection }: { readonly projection: LimitProjection }) {
@@ -617,15 +696,10 @@ function PoolWindowCard({
     "{count, plural, one {{count} reset credit banked} other {{count} reset credits banked}}",
     { count: credits },
   );
-  const clock = limitClock(
-    pool.members.map((member) => member.window),
-    now,
-  );
-  const projection = projectLimit({
-    usedPercent: pool.usedPercent,
-    windowMs: clock?.windowMs ?? null,
-    msToReset: clock?.msToReset ?? null,
+  const creditsShort = gt("{count, plural, one {{count} credit} other {{count} credits}}", {
+    count: credits,
   });
+  const projection = projectPool(pool, now);
   const name = label === null ? null : (label ?? pool.label);
   return (
     <div
@@ -641,16 +715,19 @@ function PoolWindowCard({
             <span>
               <T context="remaining usage percentage">left</T>
             </span>
-            {pool.pace ? (
-              <PaceIcon
-                pace={pool.pace}
-                detail={gt("Compared with how much of the window has passed")}
-                className={pool.pace === "ahead" ? "usage-pace-ahead" : undefined}
-              />
-            ) : null}
             {name ? <span className="usage-limit-name">{name}</span> : null}
           </span>
         </span>
+        {pool.pace === "ahead" ? (
+          <Tooltip>
+            <TooltipTrigger render={<span className="usage-pace-chip" tabIndex={0} />}>
+              {gt("Ahead of pace")}
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {gt("Compared with how much of the window has passed")}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
         {nextRefill && pool.columns.length > 1 ? (
           <span className="usage-limit-refill">
             <T context="usage limit refill">
@@ -691,8 +768,7 @@ function PoolWindowCard({
                   <Tooltip>
                     <TooltipTrigger render={<span className="usage-meta-item" tabIndex={0} />}>
                       <TicketIcon aria-hidden />
-                      <span aria-hidden>{credits}</span>
-                      <span className="sr-only">{creditsLabel}</span>
+                      {creditsShort}
                     </TooltipTrigger>
                     <TooltipPopup side="top">{creditsLabel}</TooltipPopup>
                   </Tooltip>
@@ -780,54 +856,99 @@ function LimitsSkeleton() {
   );
 }
 
-/** The page's headline: the tightest limit across every provider, in words. Text, not a card. */
+interface WatchedLimit {
+  readonly provider: string;
+  readonly windowLabel: string;
+  readonly remainingPercent: number;
+  /** Time to the next real reset, when the limit reports one. */
+  readonly resetInMs: number | null;
+}
+
+type QuotaSources = ReturnType<typeof collectHttpQuotaSources>;
+
+/** Every limit the page shows, native pools and HTTP quota windows alike. */
+function watchableLimits(
+  pools: readonly LimitPool[],
+  quotaSources: QuotaSources,
+  now: number,
+): readonly LimitCandidate<WatchedLimit>[] {
+  const fromPools = pools.flatMap((pool) =>
+    displayLimitWindows(pool).map((window): LimitCandidate<WatchedLimit> => ({
+      subject: {
+        provider: providerClients.get(pool.driver)?.label ?? String(pool.driver),
+        windowLabel: window.label,
+        remainingPercent: window.remainingPercent,
+        resetInMs: nextResetMs(window, now),
+      },
+      remainingPercent: window.remainingPercent,
+      projection: projectPool(window, now),
+    })),
+  );
+  const fromQuotas = quotaSources.flatMap((source) =>
+    (source.quotaAccounts ?? []).flatMap((account) =>
+      account.windows.map((window): LimitCandidate<WatchedLimit> => {
+        const resetAt = window.resetsAt === undefined ? Number.NaN : Date.parse(window.resetsAt);
+        return {
+          subject: {
+            provider: source.label,
+            windowLabel: window.label,
+            remainingPercent: remainingPercent(window),
+            resetInMs: resetAt > now ? resetAt - now : null,
+          },
+          remainingPercent: remainingPercent(window),
+          projection: projectWindow(window as ServerProviderUsageWindow, now),
+        };
+      }),
+    ),
+  );
+  return [...fromPools, ...fromQuotas];
+}
+
+/** The page's headline: the limit to watch across everything shown, in words. Text, not a card. */
 function LimitsSummary({
   pools,
+  quotaSources,
   now,
 }: {
   readonly pools: readonly LimitPool[];
+  readonly quotaSources: QuotaSources;
   readonly now: number;
 }) {
   const gt = useGT();
   const m = useMessages();
-  const entries = pools.flatMap((pool) =>
-    displayLimitWindows(pool).map((window) => ({
-      window,
-      provider: providerClients.get(pool.driver)?.label ?? String(pool.driver),
-    })),
-  );
-  const tightest = entries.reduce<(typeof entries)[number] | undefined>(
-    (best, entry) =>
-      best === undefined || entry.window.remainingPercent < best.window.remainingPercent
-        ? entry
-        : best,
-    undefined,
-  );
+  const candidates = watchableLimits(pools, quotaSources, now);
+  const tightest = tightestLimit(candidates);
   if (tightest === undefined) return null;
-  const { window, provider } = tightest;
-  const clock = limitClock(
-    window.members.map((member) => member.window),
-    now,
-  );
-  const name = `${provider} ${window.label.toLocaleLowerCase()}`;
-  const remaining = window.remainingPercent;
-  const headline =
-    meterState(remaining) === "comfortable"
-      ? gt("All limits are comfortable.")
-      : clock
-        ? gt("{name} is the one to watch: {remaining}% left, {duration} to go.", {
-            name,
-            remaining,
-            duration: formatDuration(clock.msToReset, m),
-          })
-        : gt("{name} is the one to watch: {remaining}% left.", { name, remaining });
+  const { provider, windowLabel, resetInMs } = tightest.subject;
+  const watching =
+    tightest.projection.kind === "runs-out" ||
+    tightest.projection.kind === "exhausted" ||
+    meterState(tightest.remainingPercent) !== "comfortable";
+  const parts = {
+    provider,
+    window: inlineWindowName(windowLabel, m),
+    remaining: tightest.remainingPercent,
+  };
+  const headline = !watching
+    ? gt("All limits are comfortable.")
+    : resetInMs === null
+      ? gt("{provider} {window} is the one to watch: {remaining}% left.", parts)
+      : gt("{provider} {window} is the one to watch: {remaining}% left, {duration} to go.", {
+          ...parts,
+          duration: formatDuration(resetInMs, m),
+        });
+  const providers =
+    pools.length +
+    quotaSources.filter((source) =>
+      source.quotaAccounts?.some((account) => account.windows.length > 0),
+    ).length;
   return (
     <header className="usage-headline-block">
       <h2 className="usage-headline">{headline}</h2>
       <p className="usage-count">
         {gt(
           "{limits, plural, one {{limits} limit} other {{limits} limits}} across {providers, plural, one {{providers} provider} other {{providers} providers}}",
-          { limits: entries.length, providers: pools.length },
+          { limits: candidates.length, providers },
         )}
       </p>
     </header>
@@ -855,7 +976,7 @@ export function UsageLimitsPooled({
   const rowCounts = pools.map((pool) => displayLimitWindows(pool).length);
   return (
     <div className="usage-stack usage-limits" aria-busy={loading}>
-      <LimitsSummary pools={pools} now={now} />
+      <LimitsSummary pools={pools} quotaSources={quotaSources} now={now} />
       {pools.length === 0 &&
       notices.length === 0 &&
       externalLinks.length === 0 &&

@@ -4,30 +4,68 @@ import { chatOutlineFits, resolveOutlineCurrentIndex } from "./chatOutlineLayout
 
 describe("resolveOutlineCurrentIndex", () => {
   const tops = [0, 1000, 2000, 3000];
-  const long = { tops, viewportHeight: 800, scrollHeight: 3800 };
+  const long = { count: tops.length, topAt: (index: number) => tops[index]!, viewportHeight: 800 };
+  const reading = (scroll: number) => resolveOutlineCurrentIndex({ ...long, scroll, atEnd: false });
 
   it("marks the turn that holds the line a quarter of the way down the view", () => {
-    expect(resolveOutlineCurrentIndex({ ...long, scroll: 799 })).toBe(0);
-    expect(resolveOutlineCurrentIndex({ ...long, scroll: 800 })).toBe(1);
-    expect(resolveOutlineCurrentIndex({ ...long, scroll: 1799 })).toBe(1);
-    expect(resolveOutlineCurrentIndex({ ...long, scroll: 1800 })).toBe(2);
+    expect(reading(799)).toBe(0);
+    expect(reading(800)).toBe(1);
+    expect(reading(1799)).toBe(1);
+    expect(reading(1800)).toBe(2);
   });
 
   it("marks the first turn when the view starts above every turn", () => {
-    expect(resolveOutlineCurrentIndex({ ...long, tops: [400, 1400], scroll: 0 })).toBe(0);
+    const later = [400, 1400];
+    expect(
+      resolveOutlineCurrentIndex({
+        ...long,
+        count: 2,
+        topAt: (index) => later[index]!,
+        scroll: 0,
+        atEnd: false,
+      }),
+    ).toBe(0);
   });
 
-  it("marks the last turn when the whole thread fits or the view is at its end", () => {
-    expect(
-      resolveOutlineCurrentIndex({ tops, scroll: 0, viewportHeight: 900, scrollHeight: 900 }),
-    ).toBe(3);
-    expect(resolveOutlineCurrentIndex({ ...long, scroll: 3000 })).toBe(3);
+  it("marks the last turn when the caller reports the view at its physical end", () => {
+    expect(resolveOutlineCurrentIndex({ ...long, scroll: 0, atEnd: true })).toBe(3);
+  });
+
+  it("marks the last turn at the physical end of a thread with a short final turn, though the reading line sits above it", () => {
+    // 3,800 px of content, an 800 px view and a 16 px header put the header-relative scroll at 2,984.
+    const shortLast = [0, 1000, 2000, 3500];
+    const input = { count: 4, topAt: (index: number) => shortLast[index]!, viewportHeight: 800 };
+    expect(resolveOutlineCurrentIndex({ ...input, scroll: 2984, atEnd: false })).toBe(2);
+    expect(resolveOutlineCurrentIndex({ ...input, scroll: 2984, atEnd: true })).toBe(3);
   });
 
   it("marks nothing when there are no turns", () => {
     expect(
-      resolveOutlineCurrentIndex({ tops: [], scroll: 0, viewportHeight: 800, scrollHeight: 800 }),
+      resolveOutlineCurrentIndex({
+        count: 0,
+        topAt: () => 0,
+        scroll: 0,
+        viewportHeight: 800,
+        atEnd: true,
+      }),
     ).toBeNull();
+  });
+
+  it("reads a handful of turn tops, not every turn, to find the turn in a long thread", () => {
+    const count = 5000;
+    const reads: number[] = [];
+    const index = resolveOutlineCurrentIndex({
+      count,
+      topAt: (at) => {
+        reads.push(at);
+        return at * 1000;
+      },
+      scroll: 2_500_000,
+      viewportHeight: 800,
+      atEnd: false,
+    });
+    expect(index).toBe(2500);
+    expect(reads.length).toBeLessThanOrEqual(14);
   });
 });
 

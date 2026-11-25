@@ -18,6 +18,7 @@ import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { PullRequestCompactFilterMenu } from "./PullRequestCompactFilterMenu";
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import { INVOLVEMENT_TABS, resolveFilterOptions, STATE_TABS } from "./pullRequestListOptions";
+import { ListPageTitle, useSlashFocusesSearch } from "./ListPageChrome";
 
 function ExpandableSearch({
   searchInput,
@@ -120,6 +121,8 @@ export function PullRequestsColumn({
   const gt = useGT();
   const resolve = useMessages();
   const contentArea = workspaceAreaProps("pull-requests", 1, gt("Pull requests"));
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  useSlashFocusesSearch(pageRef);
   const markerRef = useRef<HTMLDivElement | null>(null);
   const [condensed, setCondensed] = useState(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- IntersectionObserver on the scroll marker condenses the topbar
@@ -172,6 +175,7 @@ export function PullRequestsColumn({
   return (
     <div
       {...contentArea}
+      ref={pageRef}
       data-one-page=""
       inert={maximizedAway}
       className={cn(
@@ -188,9 +192,9 @@ export function PullRequestsColumn({
         {condensed ? (
           <WorkspaceBreadcrumb ariaLabel={gt("Pull request scope")} className="overflow-hidden">
             <WorkspaceBreadcrumbItem current className={cn(searchExpanded && "sr-only")}>
-              <h1 className="truncate">
+              <ListPageTitle condensed>
                 <T>Pull requests</T>
-              </h1>
+              </ListPageTitle>
             </WorkspaceBreadcrumbItem>
             {searchExpanded ? null : <WorkspaceBreadcrumbSeparator />}
             <WorkspaceBreadcrumbItem className="shrink gap-1.5">
@@ -220,9 +224,9 @@ export function PullRequestsColumn({
         ) : (
           <WorkspaceBreadcrumb ariaLabel={gt("Pull requests breadcrumb")}>
             <WorkspaceBreadcrumbItem current>
-              <h1 className="truncate">
+              <ListPageTitle>
                 <T>Pull requests</T>
-              </h1>
+              </ListPageTitle>
             </WorkspaceBreadcrumbItem>
           </WorkspaceBreadcrumb>
         )}
@@ -246,6 +250,7 @@ export function PullRequestsColumn({
 
       <div
         ref={scrollRef}
+        data-one-scroll=""
         className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto"
       >
         <WorkspacePageContainer width="expanded" className="min-h-full gap-4">
@@ -262,7 +267,10 @@ export function PullRequestsColumn({
                 outlined
                 iconOnly={host !== undefined}
                 triggerIcon={<Plug2Icon aria-hidden className="size-4" />}
-                triggerLabel={gt("All", { $context: "all providers" })}
+                triggerLabel={gt("All providers", {
+                  $context: "filter for every source control host",
+                })}
+                className={cn(host === undefined && "min-w-32")}
                 value={host ?? ""}
                 options={hostMenuOptions}
                 onChange={(next) => onHost(next === "" ? undefined : next)}

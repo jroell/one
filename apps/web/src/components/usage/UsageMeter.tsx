@@ -7,7 +7,7 @@ import { behindPaceGap, meterState } from "./usageMeterState";
 
 /**
  * A recessed channel with a glossy capsule for the share still left, and a notch where even
- * spending would be. When spending is ahead of the window, a bracket under the channel spans
+ * spending would be. When spending is ahead of the window, a quiet hatched stretch inside the channel spans
  * the fill's end to the notch. The fill slides in once on mount and eases to a new value on refresh.
  */
 export function LimitMeter({
@@ -44,15 +44,15 @@ export function LimitMeter({
       style={style}
     >
       <div className="usage-meter-channel">
+        {gap ? (
+          <span
+            aria-hidden
+            className="usage-meter-gap"
+            style={{ left: `${gap.from}%`, width: `${gap.to - gap.from}%` }}
+          />
+        ) : null}
         {remaining > 0 ? <span aria-hidden className="usage-meter-fill" /> : null}
       </div>
-      {gap ? (
-        <span
-          aria-hidden
-          className="usage-meter-bracket"
-          style={{ left: `${gap.from}%`, width: `${gap.to - gap.from}%` }}
-        />
-      ) : null}
       {state === "critical" && remaining > 0 ? (
         <span aria-hidden className="usage-meter-halo">
           <span className="usage-meter-glow" style={{ width: `${remaining}%` }} />

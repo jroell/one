@@ -352,6 +352,57 @@ it("says a turn diff cut off at the server's size limit is incomplete", async ()
     .toBeVisible();
 });
 
+async function renderTurnPatch(patchLines: string[]) {
+  const context = setup("origin/orphan");
+  state.checkpoints = [
+    {
+      runId: "run",
+      checkpointTurnCount: 1,
+      checkpointRef: "ref",
+      status: "ready",
+      files: [],
+      assistantMessageId: null,
+      completedAt: "2026-01-01T00:00:00Z",
+    },
+  ];
+  state.checkpointDiff = { diff: patchLines.join("\n") };
+  useDiffPanelStore.getState().selectTurn(context.threadRef, RunId.make("run"));
+  const screen = await render(
+    <RegistryContext.Provider value={context.registry}>
+      <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
+        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+      </div>
+    </RegistryContext.Provider>,
+  );
+  return { context, screen };
+}
+
+it("labels an extensionless file Binary because the patch marks it binary", async () => {
+  const { context, screen } = await renderTurnPatch([
+    "diff --git a/firmware b/firmware",
+    "index 1..2 100755",
+    "Binary files a/firmware and b/firmware differ",
+    "",
+  ]);
+  using _context = context;
+  await using _screen = screen;
+  await expect.element(screen.getByText("firmware", { exact: true }).first()).toBeVisible();
+  await expect.element(screen.getByText("Binary", { exact: true })).toBeVisible();
+});
+
+it("does not label a mode-only change to notes.db Binary", async () => {
+  const { context, screen } = await renderTurnPatch([
+    "diff --git a/notes.db b/notes.db",
+    "old mode 100644",
+    "new mode 100755",
+    "",
+  ]);
+  using _context = context;
+  await using _screen = screen;
+  await expect.element(screen.getByText("notes.db", { exact: true }).first()).toBeVisible();
+  await expect.element(screen.getByText("Binary", { exact: true })).not.toBeInTheDocument();
+});
+
 it("shows a turn's repositories in a folder that is not a Git repository", async () => {
   using context = setup("origin/orphan");
   state.status = Atom.make(

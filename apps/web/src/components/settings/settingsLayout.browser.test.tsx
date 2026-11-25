@@ -4,6 +4,7 @@ import { page } from "vite-plus/test/browser";
 
 import "../../index.css";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 
@@ -32,23 +33,71 @@ function wideContainer() {
   return container;
 }
 
+function inputRow(title: string) {
+  return (
+    <SettingsRow
+      title={title}
+      control={
+        <div className="flex w-full min-w-0 items-center justify-end gap-2 @min-[32rem]/settings-row:w-auto">
+          <Input
+            nativeInput
+            size="sm"
+            aria-label={title}
+            defaultValue="~/.codex"
+            className="w-56"
+          />
+        </div>
+      }
+    />
+  );
+}
+
+function chipRow(title: string) {
+  return (
+    <SettingsRow
+      title={title}
+      control={
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+          <Button variant="outline" size="sm" aria-label={`${title} model`}>
+            <span data-composer-control-label>6 Astra</span>
+          </Button>
+          <Button variant="outline" size="sm" aria-label={`${title} effort`}>
+            <span data-composer-control-label>Medium</span>
+          </Button>
+        </div>
+      }
+    />
+  );
+}
+
 describe("settings layout", () => {
-  it("draws select controls at one width and one right edge down a section", async () => {
+  it("draws selects, text inputs and chip pickers at one width, height and right edge", async () => {
     await using screen = await render(
       <SettingsSection title="Behavior">
         {selectRow("Short", "On")}
         {selectRow("Medium length", "Last user message")}
         {selectRow("Long", "Repository conventions and more")}
+        {inputRow("Binary path")}
+        {chipRow("Model")}
       </SettingsSection>,
       { container: wideContainer(), router: false },
     );
 
-    const rects = ["Short", "Medium length", "Long"].map((name) =>
-      page.getByRole("combobox", { name }).element().getBoundingClientRect(),
-    );
-    expect(new Set(rects.map((rect) => Math.round(rect.width))).size).toBe(1);
-    expect(new Set(rects.map((rect) => Math.round(rect.right))).size).toBe(1);
-    expect(screen.container.querySelectorAll("[data-settings-control]")).toHaveLength(3);
+    const controls = [
+      ...["Short", "Medium length", "Long"].map((name) =>
+        page.getByRole("combobox", { name }).element(),
+      ),
+      page
+        .getByRole("textbox", { name: "Binary path" })
+        .element()
+        .closest("[data-slot=input-control]")!,
+      // The two chips of a picker are measured together, as one control.
+      page.getByRole("button", { name: "Model model" }).element().parentElement!,
+    ].map((element) => element.getBoundingClientRect());
+    expect(new Set(controls.map((rect) => Math.round(rect.width)))).toEqual(new Set([240]));
+    expect(new Set(controls.map((rect) => Math.round(rect.right))).size).toBe(1);
+    expect(new Set(controls.map((rect) => Math.round(rect.height))).size).toBe(1);
+    expect(screen.container.querySelectorAll("[data-settings-control]")).toHaveLength(5);
   });
 
   it("sorts a danger row after the primary action of its section whatever the source order", async () => {
@@ -85,5 +134,33 @@ describe("settings layout", () => {
     await expect
       .element(page.getByText("How the composer, follow-ups and tool calls behave."))
       .toBeVisible();
+  });
+
+  it("leaves a section title that only repeats the page title to screen readers", async () => {
+    await using screen = await render(
+      <SettingsPageContainer>
+        <SettingsSection title="Chat">
+          <SettingsRow title="Rich text composer" />
+        </SettingsSection>
+        <SettingsSection title="Composer">
+          <SettingsRow title="Send shortcut" />
+        </SettingsSection>
+        <SettingsSection title="Chat" titleAction={<Button aria-label="Add">+</Button>}>
+          <SettingsRow title="Another" />
+        </SettingsSection>
+      </SettingsPageContainer>,
+      { router: "/settings/chat" },
+    );
+
+    const heading = (name: string) =>
+      [...screen.container.querySelectorAll<HTMLElement>("h2")].find(
+        (candidate) => candidate.textContent === name,
+      )!;
+    const repeats = [...screen.container.querySelectorAll<HTMLElement>("h2")].filter(
+      (candidate) => candidate.textContent === "Chat",
+    );
+    // The repeat is hidden; the same title stays when an action sits beside it.
+    expect(repeats.map((h) => h.getBoundingClientRect().width > 1)).toEqual([false, true]);
+    expect(heading("Composer").getBoundingClientRect().width).toBeGreaterThan(1);
   });
 });

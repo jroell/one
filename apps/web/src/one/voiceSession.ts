@@ -17,6 +17,8 @@ export type VoiceMessage = Readonly<{
   commentary?: boolean;
   /** The run this message belongs to; a steer shares the run it redirects. Absent in a draft. */
   runId?: string | null;
+  /** The id the composer gave a user message when it sent it. Where absent, `id` is that id. */
+  messageId?: string;
   /** The person redirected a run that was already going, so this is not a new question. */
   steer?: boolean;
 }>;
@@ -35,8 +37,8 @@ export type VoiceSessionState = Readonly<{
   startedAsDraft: boolean;
   /** The conversation as it stood when the current question was sent; only what follows can be its answer. */
   sentAfter: ReplyAnchor | null;
-  /** What the sent question said once transcribed, so its row can be told from another client's prompt. */
-  question: string | null;
+  /** The id the composer gave the sent question, so its row can be told from another client's prompt. */
+  messageId: string | null;
   /** The reply being read aloud. */
   reply: SpokenReply | null;
   /** Replies and runs already read in this conversation; none is read twice. */
@@ -52,8 +54,8 @@ export type VoiceSessionEvent =
   | { readonly type: "promoted"; readonly threadKey: string }
   | { readonly type: "stop" }
   | { readonly type: "sent"; readonly after: ReplyAnchor }
-  /** The transcript that was sent as the question, known once dictation hands it to the composer. */
-  | { readonly type: "transcribed"; readonly text: string }
+  /** The id the composer gave the question, known once it sends the transcript. */
+  | { readonly type: "identified"; readonly messageId: string }
   | { readonly type: "working" }
   /** The turn is over. `reply` is its finished answer, or null when it ended with nothing to read. */
   | { readonly type: "replied"; readonly reply: SpokenReply | null }
@@ -68,7 +70,7 @@ export const VOICE_SESSION_OFF: VoiceSessionState = {
   threadKey: null,
   startedAsDraft: false,
   sentAfter: null,
-  question: null,
+  messageId: null,
   reply: null,
   readIds: [],
   readRuns: [],
@@ -102,13 +104,15 @@ export function reduceVoiceSession(
             ...state,
             stage: "sending",
             sentAfter: event.after,
-            question: null,
+            messageId: null,
             reply: null,
             error: null,
           }
         : state;
-    case "transcribed":
-      return state.stage === "sending" ? { ...state, question: event.text } : state;
+    case "identified":
+      return (state.stage === "sending" || state.stage === "thinking") && state.messageId === null
+        ? { ...state, messageId: event.messageId }
+        : state;
     case "working":
       return state.stage === "sending" ? { ...state, stage: "thinking" } : state;
     case "replied":
@@ -116,7 +120,7 @@ export function reduceVoiceSession(
       if (state.stage === "thinking") {
         // A turn that ends with nothing to read goes straight back to listening.
         return event.reply === null
-          ? { ...state, stage: "listening", sentAfter: null, question: null, reply: null }
+          ? { ...state, stage: "listening", sentAfter: null, messageId: null, reply: null }
           : { ...state, stage: "speaking", reply: event.reply, ...markRead(state, event.reply) };
       }
       return state.stage === "sending" && event.reply !== null
@@ -126,7 +130,7 @@ export function reduceVoiceSession(
       if (state.stage !== "speaking") return state;
       // A late end event of an earlier reading must not finish this one.
       if (event.replyId !== undefined && event.replyId !== state.reply?.id) return state;
-      return { ...state, stage: "listening", sentAfter: null, question: null, reply: null };
+      return { ...state, stage: "listening", sentAfter: null, messageId: null, reply: null };
     case "failed":
       // Nothing was heard or the send was refused: listen again rather than hang.
       return state.stage === "sending"
@@ -134,7 +138,7 @@ export function reduceVoiceSession(
             ...state,
             stage: "listening",
             sentAfter: null,
-            question: null,
+            messageId: null,
             error: event.message ?? null,
           }
         : state;
@@ -163,14 +167,9 @@ export function replyAnchor(messages: ReadonlyArray<VoiceMessage>): ReplyAnchor 
   return { afterId: messages.at(-1)?.id ?? null, count: messages.length };
 }
 
-/** What the reply is matched against: the same words, whatever the spacing. */
-function sameWords(left: string, right: string): boolean {
-  return left.replace(/\s+/g, " ").trim() === right.replace(/\s+/g, " ").trim();
-}
-
 export type ReplySelection = Readonly<{
-  /** The transcript that was sent. Without it, the first new question after the anchor is taken. */
-  question?: string | null;
+  /** The id the composer gave the question that was sent. Until it is known, nothing is selected. */
+  messageId?: string | null;
   /** Replies and runs already read in this conversation. */
   readIds?: ReadonlyArray<string>;
   readRuns?: ReadonlyArray<string>;
@@ -178,8 +177,8 @@ export type ReplySelection = Readonly<{
 
 /**
  * The answer to the question voice chat sent after `anchor`: the last answer in the run of the
- * first new user message that has the words sent, so another client's prompt, a steer or a late
- * message of another run does not count. A message without a run (a draft) is bounded by the
+ * new user message with the id the composer gave the question, so another client's prompt, a steer
+ * or a late message of another run does not count. A message without a run (a draft) is bounded by the
  * next question. Replies already read are skipped. The answer may still be streaming.
  */
 export function selectReply(
@@ -191,11 +190,10 @@ export function selectReply(
     anchor.afterId === null ? -1 : messages.findIndex((m) => m.id === anchor.afterId);
   const start = anchored >= 0 ? anchored + 1 : Math.min(anchor.count, messages.length);
   const after = messages.slice(start);
-  const heard = selection.question ?? null;
+  const sentId = selection.messageId ?? null;
+  if (sentId === null) return null;
   const questionIndex = after.findIndex(
-    (message) =>
-      message.role === "user" &&
-      (heard === null ? message.steer !== true : sameWords(message.text, heard)),
+    (message) => message.role === "user" && (message.messageId ?? message.id) === sentId,
   );
   if (questionIndex === -1) return null;
   const question = after[questionIndex];
@@ -218,11 +216,11 @@ export function selectReply(
 }
 
 /**
- * Whether the thread shows a card that only the person can answer, one that sits behind voice
- * chat's dialog: a secret, feedback or link request that is still pending. Cards inherited
- * from the thread this one was forked from are not answered here.
+ * Whether the thread shows a secret or link request that is still pending: the agent waits on it,
+ * and its card sits behind voice chat's dialog. Cards inherited from the thread this one was
+ * forked from are not answered here.
  */
-export function hasPendingUserRequest(
+export function hasPendingBlockingRequest(
   rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
 ): boolean {
   return rows.some(({ item, visibility }) => {
@@ -230,14 +228,27 @@ export function hasPendingUserRequest(
     switch (item.type) {
       case "secret_request":
         return item.secretStatus === "pending";
-      case "feedback_request":
-        return item.feedbackStatus === "pending";
       case "link_request":
         return item.linkStatus === "pending";
       default:
         return false;
     }
   });
+}
+
+/**
+ * The feedback cards still pending. They are optional: the agent finishes without an answer, so
+ * one left over from an earlier turn must not stop voice chat from starting. Only a card that was
+ * not there when voice chat started ends it, so the person can see it.
+ */
+export function pendingFeedbackCardIds(
+  rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
+): ReadonlyArray<string> {
+  return rows.flatMap(({ item, visibility }) =>
+    visibility === "local" && item.type === "feedback_request" && item.feedbackStatus === "pending"
+      ? [item.id]
+      : [],
+  );
 }
 
 /** How long reading may take before voice chat moves on, in case the speech engine never reports its end. */
@@ -375,6 +386,15 @@ export function dispatchVoiceSession(event: VoiceSessionEvent): void {
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
   }
   for (const listener of listeners) listener();
+}
+
+/**
+ * The composer calls this with the id it gave a message it is about to send. The question voice
+ * chat is waiting on takes it, if the message comes from the composer of this conversation's thread.
+ */
+export function claimVoiceMessage(threadKey: string, messageId: string): void {
+  if (session.threadKey !== threadKey) return;
+  dispatchVoiceSession({ type: "identified", messageId });
 }
 
 export function getVoiceSession(): VoiceSessionState {

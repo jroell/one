@@ -2226,7 +2226,7 @@ const FleetScene = memo(function FleetScene({
                   }
                 }}
                 className={cn(
-                  "absolute flex size-4.5 cursor-crosshair touch-none items-center justify-center rounded-full bg-primary text-primary-foreground outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-inset motion-safe:transition-transform motion-safe:duration-150 forced-colors:border",
+                  "absolute flex size-4.5 cursor-crosshair touch-none items-center justify-center rounded-full bg-(--ui-fill) text-(--ui-on-fill) outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-inset motion-safe:transition-transform motion-safe:duration-150 forced-colors:border",
                   fade(nodeDimmed(node.id)),
                 )}
                 {...handleProps(node.id)}
@@ -2252,7 +2252,7 @@ const FleetScene = memo(function FleetScene({
             }}
             className="pointer-events-none absolute rounded-xl border-2 border-primary bg-primary/6"
           >
-            <span className="absolute -top-2 -left-2 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground forced-colors:border">
+            <span className="absolute -top-2 -left-2 flex size-4 items-center justify-center rounded-full bg-(--ui-fill) text-(--ui-on-fill) forced-colors:border">
               <CheckIcon className="size-2.5" strokeWidth={3} />
             </span>
           </span>

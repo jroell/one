@@ -31,7 +31,7 @@ import { T, useGT, useMessages } from "gt-react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { Kbd } from "../ui/kbd";
+import { SearchField } from "../ui/search-field";
 import {
   SidebarContent,
   SidebarFooter,
@@ -39,7 +39,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarInput,
 } from "../ui/sidebar";
 import { useSettingsSearchState } from "./SettingsSearchContext";
 import { scrollToSettingsTarget } from "./settingsLayout";
@@ -56,6 +55,7 @@ import {
   useAvailableSettingsSearchItems,
   useHasSecretProvidersEnvironment,
 } from "./useAvailableSettingsSearchItems";
+import { SETTINGS_DETAIL_PAGE_PARENTS } from "./settingsDetailPages";
 import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
@@ -108,12 +108,6 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/labs": FlaskConicalIcon,
   "/settings/about": InfoIcon,
   "/settings/archived": ArchiveIcon,
-};
-
-// Detail pages without a nav entry highlight the page that links to them.
-const SETTINGS_DETAIL_PAGE_PARENTS: Readonly<Record<string, SettingsPath>> = {
-  "/settings/diagnostics": "/settings/maintenance",
-  "/settings/open-source-licenses": "/settings/about",
 };
 
 // Attached only to the highlighted result, so it runs whenever the highlight lands on a row.
@@ -187,6 +181,13 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchInputRef]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- brings the active section into the rail's visible box when Settings opens or the page changes
+  useEffect(() => {
+    document
+      .querySelector<HTMLElement>(`[data-settings-nav] [data-settings-section="${activePath}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activePath]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focuses the search input DOM node after the compact search opens
   useEffect(() => {
@@ -270,39 +271,35 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               !compactSearchOpen && "max-md:hidden",
             )}
           >
-            <div
-              data-settings-search=""
-              className="flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
-            >
-              <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
-              {/* Native search inputs clear on Escape even during IME composition. */}
-              <SidebarInput
-                ref={searchInputRef}
-                nativeInput
-                type="text"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.currentTarget.value);
-                  setActiveResultIndex(0);
-                }}
-                onKeyDown={handleSearchKeyDown}
-                onFocus={() => setCompactSearchOpen(true)}
-                onBlur={() => {
-                  if (!isSearching) setCompactSearchOpen(false);
-                }}
-                placeholder={gt("Search")}
-                aria-label={gt("Search settings")}
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={isSearching && hasResults}
-                aria-controls={isSearching && hasResults ? "settings-search-results" : undefined}
-                aria-activedescendant={
-                  isSearching && results[activeResultIndex]
-                    ? `settings-search-result-${results[activeResultIndex].id}`
-                    : undefined
-                }
-                className="min-w-0 flex-1"
-              />
+            <div data-settings-search="" className="flex items-center gap-1.5">
+              <div className="min-w-0 flex-1">
+                <SearchField
+                  ref={searchInputRef}
+                  type="text"
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.currentTarget.value);
+                    setActiveResultIndex(0);
+                  }}
+                  onKeyDown={handleSearchKeyDown}
+                  onFocus={() => setCompactSearchOpen(true)}
+                  onBlur={() => {
+                    if (!isSearching) setCompactSearchOpen(false);
+                  }}
+                  placeholder={gt("Search")}
+                  aria-label={gt("Search settings")}
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={isSearching && hasResults}
+                  aria-controls={isSearching && hasResults ? "settings-search-results" : undefined}
+                  aria-activedescendant={
+                    isSearching && results[activeResultIndex]
+                      ? `settings-search-result-${results[activeResultIndex].id}`
+                      : undefined
+                  }
+                  {...(isSearching ? {} : { shortcut: "/" })}
+                />
+              </div>
               {isSearching ? (
                 <Button
                   type="button"
@@ -317,9 +314,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 >
                   <XIcon className="size-3" />
                 </Button>
-              ) : (
-                <Kbd>/</Kbd>
-              )}
+              ) : null}
             </div>
           </div>
         }

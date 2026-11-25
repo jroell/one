@@ -387,9 +387,9 @@ export const getWorkspaceFocusRequestVersion = () => focusRequestVersion;
 
 /**
  * Starts workspace focus for the app: F6 area moves, focus requests, focus-loss recovery,
- * focus into a panel the user opens, and focus into the Pull Requests page on entry.
+ * and focus into a panel the user opens.
  */
-export function startWorkspaceFocus(router: AnyRouter): () => void {
+export function startWorkspaceFocus(_router: AnyRouter): () => void {
   const active = createWorkspaceFocusController(document);
   controller = active;
   const stopPanels = useRightPanelStore.subscribe((state, previous) => {
@@ -402,13 +402,10 @@ export function startWorkspaceFocus(router: AnyRouter): () => void {
         requestWorkspaceFocus({ area: "panel" });
     }
   });
-  const stopRoute = router.subscribe("onResolved", ({ fromLocation, toLocation }) => {
-    if (toLocation.pathname === "/pull-requests" && fromLocation?.pathname !== "/pull-requests")
-      requestWorkspaceFocus({ area: "pull-requests" });
-  });
+  // The pull requests and issues pages take no focus on arrival: a ring on an empty search field
+  // reads as an error before anyone has typed. "/" focuses the field, and F6 reaches the page.
   return () => {
     stopPanels();
-    stopRoute();
     active.dispose();
     if (controller === active) controller = undefined;
   };

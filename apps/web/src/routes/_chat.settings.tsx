@@ -22,6 +22,7 @@ import {
   useSettingsSearchHasNoResults,
 } from "../components/settings/SettingsSearchContext";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
+import { isKnownSettingsPathname } from "../components/settings/SettingsPageHeader";
 import { SettingsPageContainer } from "../components/settings/settingsLayout";
 import {
   retainSettingsScope,
@@ -40,6 +41,7 @@ function RestoreDeviceDefaultsButton({ onRestored }: { onRestored: () => void })
     <Button
       size="xs"
       variant="ghost"
+      data-settings-restore=""
       disabled={changedSettingLabels.length === 0}
       onClick={() => void restoreDefaults()}
     >
@@ -235,6 +237,10 @@ export const Route = createFileRoute("/_chat/settings")({
     }
     const moved = movedSettingsPath(location.pathname, location.hash);
     if (moved) throw redirect({ to: moved, search: true, hash: true, replace: true });
+    // An address that is no page would open an empty window.
+    if (!isKnownSettingsPathname(location.pathname)) {
+      throw redirect({ to: "/settings/general", search: true, replace: true });
+    }
   },
   component: SettingsRouteLayout,
 });

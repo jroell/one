@@ -1,12 +1,11 @@
 import { useAtomValue } from "@effect/atom-react";
 import { T, useGT, useMessages } from "gt-react";
-import { SearchIcon } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 
 import { useClientSettings } from "../../hooks/useSettings";
 import { primaryServerKeybindingsAtom } from "../../state/server";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
+import { SearchField } from "../ui/search-field";
 import { Kbd, KbdGroup } from "../ui/kbd";
 import { buildShortcutSections } from "./ShortcutsDialog.logic";
 import { SHORTCUTS_SHEET_ATTRIBUTE } from "../../shortcuts/shortcutsSheet";
@@ -41,21 +40,15 @@ function ShortcutsDialogPopup() {
         <DialogTitle>
           <T>Keyboard shortcuts</T>
         </DialogTitle>
-        <InputGroup>
-          <InputGroupAddon>
-            <SearchIcon aria-hidden className="size-3.5" />
-          </InputGroupAddon>
-          <InputGroupInput
-            ref={searchRef}
-            type="text"
-            role="searchbox"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder={gt("Filter shortcuts")}
-            aria-label={gt("Filter shortcuts")}
-            size="sm"
-          />
-        </InputGroup>
+        <SearchField
+          ref={searchRef}
+          type="text"
+          role="searchbox"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          placeholder={gt("Filter shortcuts")}
+          aria-label={gt("Filter shortcuts")}
+        />
       </DialogHeader>
       <DialogPanel>
         {sections.length === 0 ? (

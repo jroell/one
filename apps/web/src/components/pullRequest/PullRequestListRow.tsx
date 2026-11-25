@@ -9,6 +9,7 @@ import { cn } from "~/lib/utils";
 import { RelativeTime } from "~/components/RelativeTime";
 
 import { MiddleTruncate } from "../ui/middle-truncate";
+import { useWordEllipsis } from "./titleEllipsis";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   PullRequestActorAvatar,
@@ -57,6 +58,30 @@ export function PullRequestRowGlyph({
   );
 }
 
+/** A long title ends in an ellipsis and its full text is the tooltip. */
+function RowTitle({ title, clipWords }: { title: ReactNode; clipWords: boolean }) {
+  const text = typeof title === "string" ? title : "";
+  const { ref, clipped } = useWordEllipsis(text, clipWords && typeof title === "string");
+  return (
+    <span
+      ref={ref}
+      data-one-row-title
+      className="min-w-0 truncate text-sm"
+      {...(typeof title === "string" ? { title } : {})}
+    >
+      {clipped ? (
+        <>
+          {clipped.head}
+          <span aria-hidden>{"\u2026"}</span>
+          <span className="sr-only">{clipped.rest}</span>
+        </>
+      ) : (
+        title
+      )}
+    </span>
+  );
+}
+
 export function PullRequestRowLines({
   number,
   title,
@@ -65,7 +90,10 @@ export function PullRequestRowLines({
   meta,
   metaClassName,
   updatedAt,
+  clipWords = false,
 }: {
+  /** Ends a string title that does not fit at a whole word, with the ellipsis after it. */
+  clipWords?: boolean;
   number: ReactNode;
   title: ReactNode;
   status?: ReactNode;
@@ -78,14 +106,7 @@ export function PullRequestRowLines({
     <span className="min-w-0 flex-1">
       <span className="flex min-w-0 items-center gap-1.5">
         {number}
-        {/* A long title ends in an ellipsis; the full text is the tooltip. */}
-        <span
-          data-one-row-title
-          className="min-w-0 truncate text-sm"
-          {...(typeof title === "string" ? { title } : {})}
-        >
-          {title}
-        </span>
+        <RowTitle title={title} clipWords={clipWords} />
         {signals ? (
           <span className="flex shrink-0 items-center gap-1 text-2xs">{signals}</span>
         ) : null}

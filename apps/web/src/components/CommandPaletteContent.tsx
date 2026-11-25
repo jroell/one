@@ -1,5 +1,4 @@
 import { T } from "gt-react";
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import { type ComponentProps, type ReactNode, type RefObject } from "react";
 
 import { Command, CommandFooter, CommandInput, CommandPanel } from "./ui/command";
@@ -95,10 +94,10 @@ export function CommandPaletteContent({
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
             <KbdGroup>
               <Kbd>
-                <ArrowUpIcon />
+                ↑<span className="sr-only">Up arrow</span>
               </Kbd>
               <Kbd>
-                <ArrowDownIcon />
+                ↓<span className="sr-only">Down arrow</span>
               </Kbd>
               <span>
                 <T>Navigate</T>
@@ -106,13 +105,17 @@ export function CommandPaletteContent({
             </KbdGroup>
             {footerActionLabel !== undefined ? (
               <KbdGroup>
-                <Kbd>Enter</Kbd>
+                <Kbd>
+                  ↵<span className="sr-only">Enter</span>
+                </Kbd>
                 <span>{footerActionLabel}</span>
               </KbdGroup>
             ) : null}
             {showBackHint ? (
               <KbdGroup>
-                <Kbd>Backspace</Kbd>
+                <Kbd>
+                  ⌫<span className="sr-only">Backspace</span>
+                </Kbd>
                 <span>
                   <T>Back</T>
                 </span>

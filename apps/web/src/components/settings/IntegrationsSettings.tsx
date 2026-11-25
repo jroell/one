@@ -884,7 +884,7 @@ function DeviceIntegrationSettings() {
 
   return (
     <>
-      <SettingsSection id="devices" title={gt("Devices")} hideTitle>
+      <SettingsSection id="devices" title={gt("Device access")}>
         <DeviceIntegrationControls
           key={`${environmentId}:${JSON.stringify(search)}`}
           environmentId={environmentId}
@@ -1472,6 +1472,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
         {listedProfiles.map((profile, index) => {
           const builtIn = isBuiltInBrowserProfileId(profile.id);
           const isDefault = profile.id === resolvedDefaultId;
+          const defaultBadgeLabel = gt("Default", { $context: "default browser profile badge" });
           return (
             <div
               key={profile.id}
@@ -1502,9 +1503,10 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
                     onCommit={(next) => renameProfile(profile.id, next)}
                   />
                 )}
-                {isDefault ? (
+                {isDefault &&
+                profile.name.trim().toLowerCase() !== defaultBadgeLabel.toLowerCase() ? (
                   <span className={cn("flex", profileWritesDisabled && "opacity-64")}>
-                    <Badge>{gt("Default", { $context: "default browser profile badge" })}</Badge>
+                    <Badge>{defaultBadgeLabel}</Badge>
                   </span>
                 ) : null}
               </span>
@@ -1697,6 +1699,32 @@ export function BrowserSettingsPanel() {
   const gt = useGT();
   const desktopOnly = !isElectron;
   const desktopOnlyMessage = desktopOnly ? gt("Only available in the desktop app.") : undefined;
+
+  if (desktopOnly) {
+    // Without the desktop app only two rows work. The rest sit together, dimmed, with one reason.
+    return (
+      <SettingsPageContainer>
+        <SettingsSection id="browser-agent-access" title={gt("Agent access")}>
+          <AgentBrowserAccessSetting />
+        </SettingsSection>
+        <SettingsSection id="browser" title={gt("Browsing")}>
+          <BrowserSearchEngineSetting />
+        </SettingsSection>
+        <SettingsSection id="browser-recordings" title={gt("Desktop app")}>
+          <SettingsUnavailableGroup message={desktopOnlyMessage}>
+            <BrowserProfilesSetting disabled />
+            <BrowserLinkTargetSetting disabled />
+            <BrowserAutoShowFloatingPreviewSetting disabled />
+            <BrowserViewportSetting disabled />
+            <BrowserZoomSetting disabled />
+            <BrowserAppearanceSetting disabled />
+            <BrowserRecordingFrameRateSetting disabled />
+            <BrowserRecordingInputSettings disabled />
+          </SettingsUnavailableGroup>
+        </SettingsSection>
+      </SettingsPageContainer>
+    );
+  }
 
   return (
     <SettingsPageContainer>

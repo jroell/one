@@ -1,5 +1,6 @@
 import {
   MessageId,
+  ProviderDriverKind,
   ProviderTurnId,
   RunId,
   RuntimeRequestId,
@@ -51,9 +52,21 @@ function entriesOf(items: ReadonlyArray<OrchestrationV2TurnItem>) {
   });
 }
 
-const request = (kind: "file-change" | "command", id: RuntimeRequestId, ordinal: number) =>
+const nativeRef = (nativeId: string) => ({
+  driver: ProviderDriverKind.make("codex"),
+  nativeId,
+  strength: "strong" as const,
+});
+
+const request = (
+  kind: "file-change" | "command",
+  id: RuntimeRequestId,
+  ordinal: number,
+  nativeId: string | null = "change",
+) =>
   ({
     ...base(`approval-${ordinal}`, ordinal),
+    nativeItemRef: nativeId === null ? null : nativeRef(nativeId),
     status: "waiting",
     type: "approval_request",
     requestId: id,
@@ -75,6 +88,7 @@ describe("deriveApprovalSubjects", () => {
   } satisfies OrchestrationV2TurnItem;
   const change = {
     ...base("change", 1),
+    nativeItemRef: nativeRef("change"),
     type: "file_change",
     fileName: "server/src/math.ts",
     additions: 12,
@@ -85,7 +99,7 @@ describe("deriveApprovalSubjects", () => {
     ],
   } satisfies OrchestrationV2TurnItem;
 
-  it("names the file change that precedes a pending file change request, with its counts", () => {
+  it("names the file change with the same native item id as a pending file change request, with its counts", () => {
     const subjects = deriveApprovalSubjects(
       entriesOf([user, change, request("file-change", pending, 2)]),
       new Set([pending]),
@@ -96,6 +110,40 @@ describe("deriveApprovalSubjects", () => {
       additions: 12,
       deletions: 3,
     });
+  });
+
+  it("shows no subject for a second approval whose own file change has not arrived, instead of the earlier edit", () => {
+    const second = RuntimeRequestId.make("second");
+    const subjects = deriveApprovalSubjects(
+      entriesOf([user, change, request("file-change", second, 2, "second-change")]),
+      new Set([second]),
+    );
+    expect(subjects.has(second)).toBe(false);
+  });
+
+  it("matches each approval to its own file change when two file changes wait in one turn", () => {
+    const second = RuntimeRequestId.make("second");
+    const secondChange = {
+      ...base("change-2", 3),
+      nativeItemRef: nativeRef("second-change"),
+      type: "file_change",
+      fileName: "server/src/other.ts",
+      additions: 1,
+      deletions: 0,
+      changes: [{ operation: "update", path: "server/src/other.ts" }],
+    } satisfies OrchestrationV2TurnItem;
+    const subjects = deriveApprovalSubjects(
+      entriesOf([
+        user,
+        change,
+        request("file-change", pending, 2),
+        request("file-change", second, 4, "second-change"),
+        secondChange,
+      ]),
+      new Set([pending, second]),
+    );
+    expect(subjects.get(pending)?.path).toBe("server/src/math.ts");
+    expect(subjects.get(second)?.path).toBe("server/src/other.ts");
   });
 
   it("gives a command request, a settled request, and a request with no file change before it no subject", () => {

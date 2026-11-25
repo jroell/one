@@ -323,7 +323,7 @@ function ModelCard(props: ModelCardProps) {
                 className="h-1 overflow-hidden rounded-full bg-muted"
               >
                 <div
-                  className="h-full bg-primary transition-[width] duration-200"
+                  className="h-full bg-(--ui-fill) transition-[width] duration-200"
                   style={{ width: `${progress}%` }}
                 />
               </div>

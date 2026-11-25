@@ -112,14 +112,34 @@ export function useChatArrival(
     ),
   );
   const fresh = current?.fresh ?? NONE;
+  // One expiry per message, started when it first shows as fresh, so a later arrival never moves it.
+  const [expiries] = useState(() => new Map<string, ReturnType<typeof setTimeout>>());
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a mark whose row never mounted gets no animationend, so a timer retires it
   useEffect(() => {
-    if (fresh.size === 0) return;
-    const timers = [...fresh].map((id) => setTimeout(() => settle(id), CHAT_ARRIVAL_EXPIRY_MS));
-    return () => {
-      for (const timer of timers) clearTimeout(timer);
-    };
-  }, [fresh, settle]);
+    for (const [id, timer] of expiries) {
+      if (fresh.has(id)) continue;
+      clearTimeout(timer);
+      expiries.delete(id);
+    }
+    for (const id of fresh) {
+      if (expiries.has(id)) continue;
+      expiries.set(
+        id,
+        setTimeout(() => {
+          expiries.delete(id);
+          settle(id);
+        }, CHAT_ARRIVAL_EXPIRY_MS),
+      );
+    }
+  }, [fresh, settle, expiries]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears the pending expiries when the thread's timeline unmounts
+  useEffect(
+    () => () => {
+      for (const timer of expiries.values()) clearTimeout(timer);
+      expiries.clear();
+    },
+    [expiries],
+  );
   return { fresh, settle };
 }
 

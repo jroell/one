@@ -36,8 +36,11 @@ export function SettingsScopeNotice({
   targetId,
   eligibleEnvironmentIds,
   inline = false,
+  quiet = false,
 }: {
   children: string;
+  /** Keeps the message for assistive tech only, when the page already says it on screen. */
+  quiet?: boolean;
   /** Renders inside a section instead of as its own page. */
   inline?: boolean;
   target: "environment" | "all" | "project" | "checkout";
@@ -168,7 +171,10 @@ export function SettingsScopeNotice({
   };
   const notice = (
     <div className="space-y-3">
-      <p role="status" className="px-3 text-sm text-muted-foreground sm:px-4">
+      <p
+        role="status"
+        className={cn("px-3 text-sm text-muted-foreground sm:px-4", quiet && "sr-only")}
+      >
         {children}
       </p>
       <div className="space-y-4">

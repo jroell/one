@@ -3,6 +3,8 @@ export interface TurnDiffFileSummary {
   readonly previousPath?: string;
   readonly additions: number;
   readonly deletions: number;
+  /** Git printed `-` for both counts: it treats the file as binary. */
+  readonly binary?: true;
 }
 
 export function parseTurnDiffFilesFromNumstat(numstat: string): ReadonlyArray<TurnDiffFileSummary> {
@@ -28,6 +30,7 @@ export function parseTurnDiffFilesFromNumstat(numstat: string): ReadonlyArray<Tu
       ...(previousPath === undefined ? {} : { previousPath }),
       additions: counts[1] === "-" ? 0 : Number(counts[1]),
       deletions: counts[2] === "-" ? 0 : Number(counts[2]),
+      ...(counts[1] === "-" && counts[2] === "-" ? { binary: true as const } : {}),
     });
   }
 

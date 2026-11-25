@@ -55,6 +55,7 @@ function IssueRowImpl({
       >
         <IssueStateGlyph state={entry.state} />
         <PullRequestRowLines
+          clipWords
           number={
             <span data-one-row-number="" className={PULL_REQUEST_ROW_NUMBER_CLASS}>
               {entry.displayKey}

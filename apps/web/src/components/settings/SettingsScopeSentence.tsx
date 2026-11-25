@@ -86,6 +86,24 @@ export function SettingsScopeSentence() {
   const environment = <EnvironmentScopeMenu {...props} />;
   const checkout = <CheckoutScopeMenu {...props} />;
   const onEnvironment = scope.search.machine || scope.scope.kind === "checkout";
+  // The project list is the choice, so a bar that also asks which project would contradict it.
+  // Only the machine filter stays, and only when there is more than one machine to filter by.
+  if (pathname === "/settings/projects" && !scope.search.project) {
+    if (environments.length < 2) return null;
+    return (
+      <p
+        data-settings-scope=""
+        className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-sm text-muted-foreground sm:px-4"
+      >
+        <T context="settings scope sentence; the variable is a menu">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0">Showing projects on</span>
+            <Var>{environment}</Var>
+          </span>
+        </T>
+      </p>
+    );
+  }
   return (
     <p
       data-settings-scope=""

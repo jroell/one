@@ -10,6 +10,7 @@ import {
   useClearNoMatchSearchOnEscape,
   useSettingsSearchHasNoResults,
 } from "./SettingsSearchContext";
+import { SettingsBreadcrumb } from "./SettingsBreadcrumb";
 import { SettingsSidebarNav } from "./SettingsSidebarNav";
 import { settingsNavGroups, SETTINGS_SECTION_LABELS } from "./settingsSearch";
 
@@ -280,4 +281,30 @@ it("Esc on Clear settings search clears the search and keeps Settings open until
 
   await userEvent.keyboard("{Escape}");
   await expect.element(settings).not.toBeInTheDocument();
+});
+
+it("highlights the section a detail page lives under and names it in the breadcrumb", async () => {
+  await using _screen = await render(
+    <SidebarProvider defaultOpen>
+      <SettingsBreadcrumb pathname="/settings/diagnostics" />
+      <SettingsSidebarNav pathname="/settings/diagnostics" />
+    </SidebarProvider>,
+    { router: "/settings/diagnostics" },
+  );
+
+  await expect
+    .element(page.getByRole("button", { name: "Maintenance" }))
+    .toHaveAttribute("aria-current", "page");
+  const crumbs = page
+    .getByRole("navigation", { name: "Settings breadcrumb" })
+    .getByRole("listitem")
+    .elements()
+    .filter((item) => item.getAttribute("aria-hidden") !== "true")
+    .map((item) => item.textContent);
+  expect(crumbs).toEqual(["Settings", "Maintenance", "Diagnostics"]);
+});
+
+it("spells the snapshots section in one case in the rail", async () => {
+  await using _screen = await renderNav();
+  await expect.element(page.getByRole("button", { name: "Snapshots", exact: true })).toBeVisible();
 });

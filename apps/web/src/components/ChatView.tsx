@@ -3781,6 +3781,7 @@ export default function ChatView(props: ChatViewProps) {
                     {...(threadHistoryControls === undefined
                       ? {}
                       : { historyControls: threadHistoryControls })}
+                    composerRef={composerMounted ? composerRef : null}
                   />
                 </MainConversationContext>
               </WorkspaceMutationIdContext>

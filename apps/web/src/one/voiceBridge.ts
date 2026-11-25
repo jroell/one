@@ -29,11 +29,8 @@ export type VoiceBridge = Readonly<{
    * Resolves when this attempt has either begun recording or ended without recording.
    */
   start: (signal?: AbortSignal) => Promise<VoiceStartResult>;
-  /**
-   * Stops recording, waits for the transcript, and sends it. `onTranscript` receives the words
-   * that were sent as the message, before they are sent.
-   */
-  submit: (onTranscript?: (text: string) => void) => void;
+  /** Stops recording, waits for the transcript, and sends it. */
+  submit: () => void;
   cancel: () => void;
 }>;
 

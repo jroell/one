@@ -297,21 +297,13 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     else if (session?.ownerKey === input.ownerKey) session.cancel();
   }, [input.ownerKey, input.disabled, session]);
 
-  const submissionWatcherRef = useRef<((text: string) => void) | null>(null);
   const submitAfterDictation = useStableCallback((submit: (text: string) => void) => {
-    // A watcher hears the words of the one submission it wraps, however they arrive.
-    const watcher = submissionWatcherRef.current;
-    submissionWatcherRef.current = null;
     if (latestRef.current.input.disabled || state.phase === "preparing") return;
-    const deliver = (text: string) => {
-      watcher?.(text);
-      submit(text);
-    };
     if (!session || !voiceInputBlocksSubmission(state)) {
-      deliver(latestRef.current.input.readDraft().text);
+      submit(latestRef.current.input.readDraft().text);
       return;
     }
-    session.queueSubmission(latestRef.current.input.ownerKey, deliver);
+    session.queueSubmission(latestRef.current.input.ownerKey, submit);
   });
 
   const createTarget = useStableCallback((): VoiceInputTarget => {
@@ -599,9 +591,6 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     /** Starts like `start` and reports whether this attempt recorded, failed or did nothing. */
     startWithResult,
     submitAfterDictation,
-    /** Runs `run`; a submission that waits for dictation inside it reports its words to `listener`. */
-    watchSubmission: <T>(listener: (text: string) => void, run: () => T): T =>
-      runWatched(submissionWatcherRef, listener, run),
     stop: useStableCallback(() => (owns && session ? session.stop() : Promise.resolve())),
     cancel: useStableCallback(() => {
       startRequestRef.current += 1;
@@ -619,18 +608,4 @@ export function useEnvironmentSpeechInput(input: HookInput) {
       if (owns) session?.skipPostProcessing();
     }),
   };
-}
-
-/** Outside the hook because React Compiler does not compile `try`/`finally`. */
-function runWatched<T>(
-  watcher: { current: ((text: string) => void) | null },
-  listener: (text: string) => void,
-  run: () => T,
-): T {
-  watcher.current = listener;
-  try {
-    return run();
-  } finally {
-    watcher.current = null;
-  }
 }

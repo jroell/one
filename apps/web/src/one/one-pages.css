@@ -27,16 +27,6 @@
 
 /* -------------------------------------------------------------- list pages */
 
-/* A still wash of the brand color at the top of a list page: one gradient, painted once. */
-[data-one-page] {
-  background-image: radial-gradient(
-    44rem 15rem at 24% 0,
-    color-mix(in oklch, var(--one-brand) 7%, transparent),
-    transparent 72%
-  );
-  background-repeat: no-repeat;
-}
-
 /* A list is one quiet glass panel with a lit top edge, not a stack of boxes. */
 [data-one-panel] {
   position: relative;
@@ -164,6 +154,9 @@
 
 [data-one-row] [data-one-row-number] {
   font-size: 0.6875rem;
+  /* Both texts are centered in the line, which leaves the smaller number 2px above the title's
+     baseline; the offset puts them on one baseline. */
+  translate: 0 0.14rem;
   color: var(--one-text-quiet);
   letter-spacing: 0.01em;
 }
@@ -385,16 +378,7 @@
 
 /* ---------------------------------------------------------- detail panels */
 
-/* The open pull request or issue: a lit header block over the same still wash as its list. */
-[data-one-detail] {
-  background-image: radial-gradient(
-    36rem 11rem at 30% 0,
-    color-mix(in oklch, var(--one-brand) 6%, transparent),
-    transparent 74%
-  );
-  background-repeat: no-repeat;
-}
-
+/* The open pull request or issue: a lit header block. */
 [data-one-detail-header] {
   background-image: var(--one-glass-sheen);
   border-color: var(--one-hairline);
@@ -457,4 +441,236 @@
   [data-one-archive-actions] {
     transition: opacity var(--one-hover-ms) var(--one-ease-hover);
   }
+}
+
+/* ------------------------------------------------------------ code welcome */
+
+/* The empty code thread uses the chat welcome's parts at a quieter scale: a smaller ring, the
+   same serif greeting at regular weight, the project beneath it, and chips with their keycaps. */
+[data-one-code-welcome] .one-chat-welcome-orb {
+  width: 5.5rem;
+}
+
+[data-one-code-welcome] .one-chat-welcome-title {
+  margin-top: 0.75rem;
+  font-size: clamp(2rem, 1.7rem + 0.9vw, 2.5rem);
+  font-weight: 400;
+}
+
+[data-one-code-welcome] .one-chat-welcome-lead {
+  margin-top: 0.375rem;
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--one-text-quiet);
+}
+
+/* Two by two reads as a set; four in a row wraps into three and one. */
+[data-one-code-welcome] .one-chat-starters {
+  max-width: 31rem;
+  margin-top: 1.75rem;
+}
+
+/* A still warm glow behind the ring, painted once. */
+[data-one-code-welcome]::before {
+  content: "";
+  position: absolute;
+  inset: -10rem -16rem -10rem;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    22rem 16rem at 50% 34%,
+    color-mix(in oklch, var(--one-brand) 11%, transparent),
+    transparent 72%
+  );
+}
+
+.one-chip kbd {
+  margin-inline-end: -0.25rem;
+  margin-inline-start: 0.125rem;
+}
+
+/* ------------------------------------------------------------- list headers */
+
+/* Pull requests and issues share one title: the opening's serif, regular weight. */
+[data-one-page-title] {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.002em;
+  color: var(--foreground);
+}
+
+[data-one-page-title="condensed"] {
+  font-size: 1.0625rem;
+}
+
+/* The page fades at both edges of its scroll area, so a row is never sliced at the bottom. */
+[data-one-scroll] {
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      black var(--workspace-titlebar-scroll-fade-height),
+      black calc(100% - 2.25rem),
+      transparent 100%
+    ),
+    linear-gradient(black, black);
+  -webkit-mask-position:
+    0 0,
+    right;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size:
+    100% 100%,
+    var(--app-scrollbar-width) 100%;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      black var(--workspace-titlebar-scroll-fade-height),
+      black calc(100% - 2.25rem),
+      transparent 100%
+    ),
+    linear-gradient(black, black);
+  mask-position:
+    0 0,
+    right;
+  mask-repeat: no-repeat;
+  mask-size:
+    100% 100%,
+    var(--app-scrollbar-width) 100%;
+}
+
+/* The last row stops short of the fade when the list is scrolled to its end. */
+[data-one-scroll] > * {
+  padding-bottom: 2.75rem;
+}
+
+/* A slow load says so in the caption's own place, in the label color instead of the quiet one. */
+[data-one-ghost-caption][data-slow] {
+  color: var(--foreground);
+}
+
+/* ------------------------------------------------------------------ welcome */
+
+/* First-run setup: the mark, a serif headline, and the steps in one glass panel. */
+[data-one-welcome-title] {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: clamp(2rem, 1.7rem + 0.9vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.002em;
+}
+
+[data-one-welcome-lead] {
+  color: var(--one-text-quiet);
+}
+
+[data-one-welcome-panel] {
+  position: relative;
+  border-top: 0;
+  border-radius: var(--one-panel-radius);
+  padding: 0.25rem 1.25rem;
+  background-color: var(--one-panel-fill);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    0 0 0 1px var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    var(--one-glass-shadow);
+}
+
+[data-one-welcome-section] {
+  border-bottom-color: var(--one-hairline);
+}
+
+[data-one-welcome-section]:last-child {
+  border-bottom: 0;
+}
+
+[data-one-welcome-section] > h2 {
+  color: var(--one-text-quiet);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-welcome] > * {
+    animation: one-card-in 380ms var(--one-ease-out) both;
+  }
+
+  [data-one-welcome] > :nth-child(2) {
+    animation-delay: 50ms;
+  }
+
+  [data-one-welcome] > :nth-child(3) {
+    animation-delay: 90ms;
+  }
+
+  [data-one-welcome] > :nth-child(4) {
+    animation-delay: 130ms;
+  }
+}
+
+/* ------------------------------------------------------------------ welcome */
+
+/* First-run setup: the mark, a serif headline, and the steps in one glass panel. */
+[data-one-welcome-title] {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: clamp(2rem, 1.7rem + 0.9vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.002em;
+}
+
+[data-one-welcome-lead] {
+  color: var(--one-text-quiet);
+}
+
+[data-one-welcome-panel] {
+  position: relative;
+  border-top: 0;
+  border-radius: var(--one-panel-radius);
+  padding: 0.25rem 1.25rem;
+  background-color: var(--one-panel-fill);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    0 0 0 1px var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    var(--one-glass-shadow);
+}
+
+[data-one-welcome-section] {
+  border-bottom-color: var(--one-hairline);
+}
+
+[data-one-welcome-section]:last-child {
+  border-bottom: 0;
+}
+
+[data-one-welcome-section] > h2 {
+  color: var(--one-text-quiet);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-welcome] > * {
+    animation: one-card-in 380ms var(--one-ease-out) both;
+  }
+
+  [data-one-welcome] > :nth-child(2) {
+    animation-delay: 50ms;
+  }
+
+  [data-one-welcome] > :nth-child(3) {
+    animation-delay: 90ms;
+  }
+
+  [data-one-welcome] > :nth-child(4) {
+    animation-delay: 130ms;
+  }
+}
+
+/* Where the panel toggle sits matches the pull requests page, whose controls float at this edge. */
+[data-one-issues-header] {
+  padding-inline-end: calc(var(--workspace-controls-right) + 1px);
 }

@@ -2,8 +2,12 @@ import type { OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  claimVoiceMessage,
   createSilenceDetector,
-  hasPendingUserRequest,
+  dispatchVoiceSession,
+  getVoiceSession,
+  hasPendingBlockingRequest,
+  pendingFeedbackCardIds,
   reduceVoiceSession,
   replyAnchor,
   selectReply,
@@ -179,13 +183,30 @@ describe("which message answers the spoken question", () => {
   const before = [message("u1", "user"), message("a1", "assistant")];
   const anchor = replyAnchor(before);
 
+  const asked = { messageId: "u2" };
+
   it("ignores everything that was there when the question was sent", () => {
-    expect(selectReply(before, anchor)).toBeNull();
+    expect(selectReply(before, anchor, asked)).toBeNull();
   });
 
   it("selects the answer that follows the spoken question", () => {
     const messages = [...before, message("u2", "user"), message("a2", "assistant")];
-    expect(selectReply(messages, anchor)?.id).toBe("a2");
+    expect(selectReply(messages, anchor, asked)?.id).toBe("a2");
+  });
+
+  it("selects nothing until the composer has said which message it sent", () => {
+    const messages = [...before, message("u2", "user"), message("a2", "assistant")];
+    expect(selectReply(messages, anchor)).toBeNull();
+    expect(selectReply(messages, anchor, { messageId: null })).toBeNull();
+  });
+
+  it("finds the question by the id the composer gave it, not by its item id or its words", () => {
+    const messages = [
+      ...before,
+      message("item-7", "user", { messageId: "u2", text: "Ultrathink:\nwhy is the sky blue" }),
+      message("a2", "assistant"),
+    ];
+    expect(selectReply(messages, anchor, asked)?.id).toBe("a2");
   });
 
   it("does not move to the answer of a follow-up that was queued behind the question", () => {
@@ -196,7 +217,7 @@ describe("which message answers the spoken question", () => {
       message("u3", "user"),
       message("a3", "assistant"),
     ];
-    expect(selectReply(messages, anchor)?.id).toBe("a2");
+    expect(selectReply(messages, anchor, asked)?.id).toBe("a2");
   });
 
   it("skips narration the agent sent mid-turn and reads its answer", () => {
@@ -206,7 +227,7 @@ describe("which message answers the spoken question", () => {
       message("a2", "assistant"),
       message("n1", "assistant", { commentary: true }),
     ];
-    expect(selectReply(messages, anchor)?.id).toBe("a2");
+    expect(selectReply(messages, anchor, asked)?.id).toBe("a2");
   });
 
   it("reports a reply that is still streaming so the caller can wait for it", () => {
@@ -215,7 +236,7 @@ describe("which message answers the spoken question", () => {
       message("u2", "user"),
       message("a2", "assistant", { streaming: true }),
     ];
-    expect(selectReply(messages, anchor)).toMatchObject({ id: "a2", streaming: true });
+    expect(selectReply(messages, anchor, asked)).toMatchObject({ id: "a2", streaming: true });
   });
 
   it("falls back to the message count when the anchor message is gone from the list", () => {
@@ -224,16 +245,18 @@ describe("which message answers the spoken question", () => {
       message("u2", "user"),
       message("a2", "assistant"),
     ];
-    expect(selectReply(messages, { afterId: "missing", count: 1 })?.id).toBe("a2");
+    expect(selectReply(messages, { afterId: "missing", count: 1 }, asked)?.id).toBe("a2");
   });
 
   it("selects the first answer of a conversation that was empty when the question was sent", () => {
     const messages = [message("u1", "user"), message("a1", "assistant")];
-    expect(selectReply(messages, NOTHING_BEFORE)?.id).toBe("a1");
+    expect(selectReply(messages, NOTHING_BEFORE, { messageId: "u1" })?.id).toBe("a1");
   });
 
   it("waits for the question's own row instead of taking an answer that has none before it", () => {
-    expect(selectReply([message("a1", "assistant")], NOTHING_BEFORE)).toBeNull();
+    expect(
+      selectReply([message("a1", "assistant")], NOTHING_BEFORE, { messageId: "u1" }),
+    ).toBeNull();
   });
 });
 
@@ -242,15 +265,15 @@ describe("which answer belongs to the question voice chat sent", () => {
   const spoken = (id: string, runId: string | null, extra: Partial<VoiceMessage> = {}) =>
     message(id, "user", { text: "why is the sky blue", runId, ...extra });
 
-  it("skips another client's prompt that arrived first, and its answer", () => {
+  it("skips another client's prompt with the same words that arrived first, and its answer", () => {
     const messages = [
       message("u1", "user", { runId: "r1" }),
-      message("u9", "user", { text: "what time is it", runId: "r9" }),
+      message("u9", "user", { text: "why is the sky blue", runId: "r9" }),
       message("a9", "assistant", { runId: "r9" }),
       spoken("u2", "r2"),
       message("a2", "assistant", { runId: "r2" }),
     ];
-    const selection = { question: "why is the sky   blue " };
+    const selection = { messageId: "u2" };
     expect(selectReply(messages.slice(0, 3), anchor, selection)).toBeNull();
     expect(selectReply(messages, anchor, selection)?.id).toBe("a2");
   });
@@ -263,7 +286,7 @@ describe("which answer belongs to the question voice chat sent", () => {
       message("s1", "user", { runId: "r2", steer: true, text: "also add the sunset" }),
       message("a2b", "assistant", { runId: "r2" }),
     ];
-    expect(selectReply(messages, anchor, { question: "why is the sky blue" })?.id).toBe("a2b");
+    expect(selectReply(messages, anchor, { messageId: "u2" })?.id).toBe("a2b");
   });
 
   it("does not take a late answer of another run that lands after the question's own", () => {
@@ -273,7 +296,7 @@ describe("which answer belongs to the question voice chat sent", () => {
       message("a2", "assistant", { runId: "r2" }),
       message("a1b", "assistant", { runId: "r1" }),
     ];
-    expect(selectReply(messages, anchor, { question: "why is the sky blue" })?.id).toBe("a2");
+    expect(selectReply(messages, anchor, { messageId: "u2" })?.id).toBe("a2");
   });
 
   it("never selects a reply or a run that was already read in this conversation", () => {
@@ -284,10 +307,13 @@ describe("which answer belongs to the question voice chat sent", () => {
       message("a1c", "assistant"),
     ];
     const first = replyAnchor([]);
-    expect(selectReply(messages, first, {})?.id).toBe("a1c");
-    expect(selectReply(messages, first, { readIds: ["a1c"] })?.id).toBe("a1b");
-    expect(selectReply(messages, first, { readIds: ["a1c"], readRuns: ["r1"] })).toBeNull();
-    expect(selectReply(messages.slice(0, 3), first, { readRuns: ["r1"] })).toBeNull();
+    const asked = { messageId: "u1" };
+    expect(selectReply(messages, first, asked)?.id).toBe("a1c");
+    expect(selectReply(messages, first, { ...asked, readIds: ["a1c"] })?.id).toBe("a1b");
+    expect(
+      selectReply(messages, first, { ...asked, readIds: ["a1c"], readRuns: ["r1"] }),
+    ).toBeNull();
+    expect(selectReply(messages.slice(0, 3), first, { ...asked, readRuns: ["r1"] })).toBeNull();
   });
 
   it("remembers each reply and run it began reading", () => {
@@ -297,13 +323,13 @@ describe("which answer belongs to the question voice chat sent", () => {
       { type: "replied", reply: { id: "a2", text: "Light bends.", runId: "r2" } },
       { type: "spoken" },
       { type: "sent", after: NOTHING_BEFORE },
-      { type: "transcribed", text: "and the sunset?" },
+      { type: "identified", messageId: "m3" },
     ]);
     expect(state).toMatchObject({
       stage: "sending",
       readIds: ["a2"],
       readRuns: ["r2"],
-      question: "and the sunset?",
+      messageId: "m3",
     });
   });
 });
@@ -315,20 +341,17 @@ describe("cards that wait for the person", () => {
   ): OrchestrationV2ProjectedTurnItem =>
     ({ position: 0, visibility, item }) as unknown as OrchestrationV2ProjectedTurnItem;
 
-  it("counts a pending secret, feedback or link request, and nothing already answered", () => {
-    expect(hasPendingUserRequest([row({ type: "secret_request", secretStatus: "pending" })])).toBe(
-      true,
-    );
+  it("counts a pending secret or link request, and nothing already answered or optional", () => {
     expect(
-      hasPendingUserRequest([row({ type: "feedback_request", feedbackStatus: "pending" })]),
+      hasPendingBlockingRequest([row({ type: "secret_request", secretStatus: "pending" })]),
     ).toBe(true);
-    expect(hasPendingUserRequest([row({ type: "link_request", linkStatus: "pending" })])).toBe(
+    expect(hasPendingBlockingRequest([row({ type: "link_request", linkStatus: "pending" })])).toBe(
       true,
     );
     expect(
-      hasPendingUserRequest([
+      hasPendingBlockingRequest([
         row({ type: "secret_request", secretStatus: "saved" }),
-        row({ type: "feedback_request", feedbackStatus: "declined" }),
+        row({ type: "feedback_request", feedbackStatus: "pending" }),
         row({ type: "link_request", linkStatus: "failed" }),
         row({ type: "assistant_message", status: "pending" }),
       ]),
@@ -337,10 +360,50 @@ describe("cards that wait for the person", () => {
 
   it("ignores a pending card inherited from the thread this one was forked from", () => {
     expect(
-      hasPendingUserRequest([
+      hasPendingBlockingRequest([
         row({ type: "secret_request", secretStatus: "pending" }, "inherited"),
       ]),
     ).toBe(false);
+    expect(
+      pendingFeedbackCardIds([
+        row({ id: "f1", type: "feedback_request", feedbackStatus: "pending" }, "inherited"),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("lists the pending feedback cards by id, and not the answered ones", () => {
+    expect(
+      pendingFeedbackCardIds([
+        row({ id: "f1", type: "feedback_request", feedbackStatus: "pending" }),
+        row({ id: "f2", type: "feedback_request", feedbackStatus: "declined" }),
+        row({ id: "s1", type: "secret_request", secretStatus: "pending" }),
+      ]),
+    ).toEqual(["f1"]);
+  });
+});
+
+describe("the composer's message id reaches the conversation that is waiting for it", () => {
+  const sending = () => {
+    dispatchVoiceSession({ type: "stop" });
+    dispatchVoiceSession({ type: "start", threadKey: "t1" });
+    dispatchVoiceSession({ type: "sent", after: NOTHING_BEFORE });
+  };
+
+  it("is taken by the question of the thread it was sent from, once", () => {
+    sending();
+    claimVoiceMessage("t1", "m1");
+    claimVoiceMessage("t1", "m2");
+    expect(getVoiceSession().messageId).toBe("m1");
+    dispatchVoiceSession({ type: "stop" });
+  });
+
+  it("is ignored when another thread's composer sent it, or when no question is waiting", () => {
+    sending();
+    claimVoiceMessage("t2", "m1");
+    expect(getVoiceSession().messageId).toBeNull();
+    dispatchVoiceSession({ type: "stop" });
+    claimVoiceMessage("t1", "m1");
+    expect(getVoiceSession().messageId).toBeNull();
   });
 });
 

@@ -22,7 +22,6 @@ import { msg, T, useGT, useMessages } from "gt-react";
 import { Fragment, useLayoutEffect, useState } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
-import { cn } from "../../lib/utils";
 import { observeResize } from "../../lib/observeResize";
 import { environmentPresentations } from "../../state/presentation";
 import { useEnvironmentScope, readEnvironmentScope } from "../../state/session";
@@ -63,16 +62,7 @@ export function barColor(driver: ServerProvider["driver"]): string {
   return presentation?.color ?? "var(--foreground)";
 }
 
-export function PaceIcon({
-  pace,
-  detail,
-  className,
-}: {
-  readonly pace: LimitPace;
-  /** What the arrow is compared with, shown under the label. */
-  readonly detail?: string | undefined;
-  readonly className?: string | undefined;
-}) {
+function PaceIcon({ pace }: { readonly pace: LimitPace }) {
   const Icon = PACE[pace].icon;
   const m = useMessages();
   return (
@@ -82,22 +72,13 @@ export function PaceIcon({
           <span
             role="img"
             aria-label={m(PACE[pace].label)}
-            className={cn("inline-flex text-muted-foreground", className)}
+            className="inline-flex text-muted-foreground"
           />
         }
       >
         <Icon className="size-3.5" aria-hidden />
       </TooltipTrigger>
-      <TooltipPopup side="top">
-        {detail ? (
-          <div className="flex flex-col gap-0.5">
-            <span className="text-foreground">{m(PACE[pace].label)}</span>
-            <span className="text-muted-foreground">{detail}</span>
-          </div>
-        ) : (
-          m(PACE[pace].label)
-        )}
-      </TooltipPopup>
+      <TooltipPopup side="top">{m(PACE[pace].label)}</TooltipPopup>
     </Tooltip>
   );
 }

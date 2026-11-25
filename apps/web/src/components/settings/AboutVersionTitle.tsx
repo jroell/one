@@ -30,7 +30,7 @@ export function AboutVersionTitle() {
       <span>
         <T>Version</T>
       </span>
-      <code className="text-2xs font-medium">
+      <code className="font-sans text-xs font-medium tabular-nums">
         <Tooltip>
           <TooltipTrigger
             render={

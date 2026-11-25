@@ -2,7 +2,7 @@ import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { ChevronDownIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   SourceControlDiscoveryResult,
   SourceControlProviderAuth,
@@ -378,15 +378,41 @@ function DiscoveryItemRow({
   );
 }
 
+/** True once `active` has lasted `ms`; false again as soon as it ends. */
+function useWaitedLongerThan(active: boolean, ms: number): boolean {
+  const [waited, setWaited] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- timer that flags a wait that outlasts `ms`
+  useEffect(() => {
+    if (!active) return;
+    const timer = setTimeout(() => setWaited(true), ms);
+    return () => {
+      clearTimeout(timer);
+      setWaited(false);
+    };
+  }, [active, ms]);
+  return active && waited;
+}
+
 function SourceControlSectionSkeleton({
   title,
   headerAction,
+  waiting,
 }: {
   readonly title: string;
   readonly headerAction?: ReactNode;
+  /** Says what the page is waiting for, and what to do when it takes too long. */
+  readonly waiting?: ReactNode;
 }) {
   return (
     <SettingsSection title={title} headerAction={headerAction}>
+      {waiting ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 text-xs text-(--settings-description) sm:px-4"
+        >
+          {waiting}
+        </div>
+      ) : null}
       {SOURCE_CONTROL_SKELETON_ROWS.map((row) => (
         <div key={row} className="first:rounded-t-xl last:rounded-b-xl px-3 py-3 sm:px-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -450,7 +476,7 @@ function EmptySourceControlDiscovery({
         <EmptyContent>
           <Button size="sm" variant="outline" onClick={onScan} disabled={isPending}>
             <RefreshIcon size="sm" refreshing={isPending} />
-            <T>Scan</T>
+            {hasError ? <T>Retry</T> : <T>Scan</T>}
           </Button>
         </EmptyContent>
       </Empty>
@@ -480,6 +506,7 @@ export function SourceControlSettingsPanel() {
   const hasVersionControlSystems = result.versionControlSystems.length > 0;
   const hasDiscoveryItems = hasVersionControlSystems || result.sourceControlProviders.length > 0;
   const isInitialScanPending = discovery.isPending && discovery.data === null;
+  const scanIsSlow = useWaitedLongerThan(isInitialScanPending, 8000);
   const handleScan = () => {
     discovery.refresh();
   };
@@ -597,8 +624,24 @@ export function SourceControlSettingsPanel() {
       ) : isInitialScanPending ? (
         <>
           <SourceControlSectionSkeleton
-            title={`${gt("Version Control")}${environmentSuffix}`}
+            title={`${gt("Version control")}${environmentSuffix}`}
             headerAction={scanButton}
+            waiting={
+              scanIsSlow ? (
+                <>
+                  <span>
+                    <T>Still checking. A hosting tool on this machine is slow to answer.</T>
+                  </span>
+                  <Button size="xs" variant="outline" onClick={handleScan}>
+                    <T>Retry</T>
+                  </Button>
+                </>
+              ) : (
+                <span>
+                  <T>Checking Git and the hosting tools installed on this machine…</T>
+                </span>
+              )
+            }
           />
           <SourceControlSectionSkeleton title={gt("Source control providers")} />
         </>
@@ -607,7 +650,7 @@ export function SourceControlSettingsPanel() {
           {hasVersionControlSystems ? (
             <SettingsSection
               id={searchableSetting("source-control").id}
-              title={`${gt("Version Control")}${environmentSuffix}`}
+              title={`${gt("Version control")}${environmentSuffix}`}
               headerAction={scanButton}
             >
               {result.versionControlSystems.map((item) => (

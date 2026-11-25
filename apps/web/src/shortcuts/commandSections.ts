@@ -4,6 +4,7 @@ import { msg } from "gt-react";
 /** Headings shared by the command palette and the keyboard shortcuts sheet, in display order. */
 export const COMMAND_SECTIONS = [
   { id: "thread", title: msg("Thread", { $context: "command group heading" }) },
+  { id: "composer", title: msg("Composer", { $context: "command group heading" }) },
   { id: "view", title: msg("View", { $context: "command group heading" }) },
   { id: "git", title: msg("Git", { $context: "command group heading" }) },
   { id: "project", title: msg("Project", { $context: "command group heading" }) },
@@ -17,9 +18,9 @@ export type CommandSectionId = (typeof COMMAND_SECTIONS)[number]["id"];
 const SECTION_BY_PREFIX: Readonly<Record<string, CommandSectionId>> = {
   thread: "thread",
   chat: "thread",
-  composer: "thread",
-  modelPicker: "thread",
-  voiceChat: "thread",
+  composer: "composer",
+  modelPicker: "composer",
+  voiceChat: "composer",
   terminal: "view",
   rightPanel: "view",
   threadPanel: "view",
@@ -44,6 +45,9 @@ const SECTION_BY_PREFIX: Readonly<Record<string, CommandSectionId>> = {
 };
 
 const SECTION_BY_COMMAND: Partial<Record<KeybindingCommand, CommandSectionId>> = {
+  "thread.steerQueuedMessage": "composer",
+  "thread.editQueuedMessage": "composer",
+  "thread.copyReference": "git",
   "composer.branch": "git",
   "composer.workspace": "git",
   "composer.previousWorktree": "git",

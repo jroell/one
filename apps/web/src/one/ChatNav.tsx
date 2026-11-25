@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type ReactNode } from "react";
 
 import type { TimelineMinimapItem } from "~/components/chat/timelineMinimapItems";
 import { useClientSettings } from "~/hooks/useSettings";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { observeResize } from "~/lib/observeResize";
 
 import { CHAT_OUTLINE_MIN_TURNS, ChatOutline } from "./ChatOutline";
@@ -18,6 +19,7 @@ export function ChatNav({
   threadKey,
   onSelect,
   onWheel,
+  onShownChange,
   children,
 }: {
   readonly items: ReadonlyArray<TimelineMinimapItem>;
@@ -25,6 +27,8 @@ export function ChatNav({
   readonly threadKey: string;
   readonly onSelect: (item: TimelineMinimapItem) => void;
   readonly onWheel: (event: WheelEvent) => void;
+  /** Whether the outline is mounted, so the timeline measures the current turn only then. */
+  readonly onShownChange: (shown: boolean) => void;
   /** The timeline minimap, which the outline replaces when it shows. */
   readonly children: ReactNode;
 }) {
@@ -41,6 +45,12 @@ export function ChatNav({
   };
   const showsOutline =
     fits && items.length >= CHAT_OUTLINE_MIN_TURNS && chatWidth !== "wide" && chatWidth !== "full";
+  const reportShown = useStableCallback(onShownChange);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the timeline's scroll loop, which holds no render state, whether it must measure turns
+  useLayoutEffect(() => {
+    reportShown(showsOutline);
+    return () => reportShown(false);
+  }, [showsOutline, reportShown]);
   return (
     <div className="one-chat-nav" ref={hostRef}>
       {showsOutline ? (

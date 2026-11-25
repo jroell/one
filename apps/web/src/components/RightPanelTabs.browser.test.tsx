@@ -225,6 +225,56 @@ function releaseThumbButton(
 
 const STAYS_PUT = { focusMoved: false, routerMoved: false };
 
+describe("selected tab indicator", () => {
+  it("follows the selected tab when a tab before it widens and the strip keeps its width", async () => {
+    const base = panel(DIFF_SURFACE).props as RightPanelTabsProps;
+    const tabs: RightPanelSurface[] = [0, 1].map((index) => ({
+      id: `terminal:${index}`,
+      kind: "terminal",
+      resourceId: `${index}`,
+      terminalIds: [`${index}`],
+      activeTerminalId: `${index}`,
+    }));
+    const tabsWith = (firstLabel: string) => (
+      <div style={{ width: 900 }}>
+        <RightPanelTabs
+          {...base}
+          surfaces={tabs}
+          activeSurfaceId="terminal:1"
+          terminalLabelsById={
+            new Map([
+              ["0", firstLabel],
+              ["1", "Second"],
+            ])
+          }
+        />
+      </div>
+    );
+    await using screen = await render(tabsWith("A"));
+    const indicator = screen.container.querySelector<HTMLElement>("[data-one-tab-indicator]")!;
+    const selected = screen.container.querySelector<HTMLElement>("[data-active-tab='true']")!;
+    const strip = indicator.parentElement!;
+    const stripWidth = strip.clientWidth;
+    const placedAt = () => Number.parseFloat(indicator.style.getPropertyValue("--one-tab-x"));
+    await vi.waitFor(() => expect(placedAt()).toBe(selected.offsetLeft));
+    // The component's observers were created first, so their first delivery precedes this one.
+    await new Promise<void>((resolve) => {
+      const probe = new ResizeObserver(() => {
+        probe.disconnect();
+        resolve();
+      });
+      probe.observe(strip);
+    });
+    const before = selected.offsetLeft;
+
+    await screen.rerender(tabsWith("Side chat"));
+
+    await vi.waitFor(() => expect(selected.offsetLeft).toBeGreaterThan(before));
+    expect(strip.clientWidth).toBe(stripWidth);
+    await vi.waitFor(() => expect(placedAt()).toBe(selected.offsetLeft));
+  });
+});
+
 describe("right panel thumb buttons", () => {
   it("keep the app router still over a surface that is not a browser", async () => {
     await using screen = await render(panel(DIFF_SURFACE));

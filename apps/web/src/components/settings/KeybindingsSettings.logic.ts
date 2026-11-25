@@ -592,69 +592,69 @@ export function buildKeybindingCommandOptions(
 }
 
 const COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
-  "workspace.focusNext": msg("Focus Next Workspace Area"),
-  "workspace.focusPrevious": msg("Focus Previous Workspace Area"),
-  "composer.sendAlternate": msg("Composer: Opposite Queue or Steer Action"),
-  "composer.sendBackground": msg("Composer: Start in Background"),
-  "composer.sendAndNewThread": msg("Composer: Send and Start New Thread"),
-  "composer.dictation": msg("Composer: Start or Finish Dictation"),
-  "thread.steerQueuedMessage": msg("Queue: Send First Queued Message"),
-  "thread.editQueuedMessage": msg("Queue: Edit Last Queued Message"),
-  "thread.copyReference": msg("Pull Request: Copy Link or Thread"),
-  "sidebar.toggle": msg("Sidebar: Toggle"),
-  "navigation.back": msg("Navigation: Back"),
-  "navigation.forward": msg("Navigation: Forward"),
-  "terminal.toggle": msg("Terminal: Toggle"),
-  "terminal.split": msg("Terminal: Split"),
-  "terminal.splitVertical": msg("Terminal: Split Vertical"),
-  "terminal.new": msg("Terminal: New"),
-  "terminal.close": msg("Terminal: Close"),
-  "rightPanel.toggle": msg("Right Panel: Toggle"),
-  "rightPanel.new": msg("Right Panel: New"),
-  "threadPanel.toggle": msg("Thread Panel: Toggle"),
-  "rightPanel.toggleMaximized": msg("Right Panel: Toggle Maximized"),
-  "rightPanel.close": msg("Right Panel: Close"),
-  "pullRequest.copyNumber": msg("Pull Request: Copy Number"),
-  "diff.toggle": msg("Diff: Toggle"),
-  "preview.toggle": msg("Preview: Toggle"),
-  "preview.refresh": msg("Preview: Refresh"),
-  "preview.zoomIn": msg("Preview: Zoom In"),
-  "preview.zoomOut": msg("Preview: Zoom Out"),
-  "preview.resetZoom": msg("Preview: Reset Zoom"),
-  "commandPalette.toggle": msg("Command Palette: Toggle"),
-  "filePicker.toggle": msg("File Picker: Toggle"),
-  "projectSearch.toggle": msg("Project Search: Toggle"),
-  "usage.open": msg("Usage: Toggle"),
-  "theme.select": msg("Theme: Select"),
-  "appearance.cycle": msg("Appearance: Cycle"),
-  "themeEditor.toggle": msg("Theme Editor: Toggle"),
-  "workspaceMode.toggle": msg("Workspace: Switch between Code and Chat"),
-  "voiceChat.toggle": msg("Voice chat: Start or end"),
-  "composer.stash": msg("Composer: Stash"),
-  "composer.host": msg("Composer: Host"),
-  "composer.cycleHost": msg("Composer: Cycle Host"),
-  "composer.effort": msg("Composer: Effort"),
-  "composer.increaseEffort": msg("Composer: Increase Effort"),
-  "composer.decreaseEffort": msg("Composer: Decrease Effort"),
-  "composer.mode": msg("Composer: Mode"),
-  "composer.workspace": msg("Composer: Workspace"),
-  "composer.previousWorktree": msg("Composer: Previous Worktree"),
-  "composer.branch": msg("Composer: Branch"),
-  "chat.new": msg("Chat: New"),
-  "chat.newLocal": msg("Chat: New Local"),
-  "chat.newWithoutProject": msg("Chat: New Without Project"),
-  "chat.find": msg("Chat: Find"),
-  "editor.openFavorite": msg("Editor: Open Favorite"),
-  "modelPicker.toggle": msg("Model Picker: Toggle"),
-  "modelPicker.previousProvider": msg("Model Picker: Previous Provider"),
-  "modelPicker.nextProvider": msg("Model Picker: Next Provider"),
-  "thread.stop": msg("Thread: Stop"),
-  "thread.previous": msg("Thread: Previous"),
-  "thread.next": msg("Thread: Next"),
-  "thread.settle": msg("Thread: Settle"),
-  "thread.pin": msg("Thread: Pin"),
-  "thread.regenerateTitle": msg("Thread: Regenerate Title"),
-  "thread.undo": msg("Thread: Undo"),
+  "workspace.focusNext": msg("Focus next workspace area"),
+  "workspace.focusPrevious": msg("Focus previous workspace area"),
+  "composer.sendAlternate": msg("Composer: opposite queue or steer action"),
+  "composer.sendBackground": msg("Composer: start in background"),
+  "composer.sendAndNewThread": msg("Composer: send and start new thread"),
+  "composer.dictation": msg("Composer: start or finish dictation"),
+  "thread.steerQueuedMessage": msg("Queue: send first queued message"),
+  "thread.editQueuedMessage": msg("Queue: edit last queued message"),
+  "thread.copyReference": msg("Pull request: copy link or thread"),
+  "sidebar.toggle": msg("Sidebar: toggle"),
+  "navigation.back": msg("Navigation: back"),
+  "navigation.forward": msg("Navigation: forward"),
+  "terminal.toggle": msg("Terminal: toggle"),
+  "terminal.split": msg("Terminal: split"),
+  "terminal.splitVertical": msg("Terminal: split vertical"),
+  "terminal.new": msg("Terminal: new"),
+  "terminal.close": msg("Terminal: close"),
+  "rightPanel.toggle": msg("Right panel: toggle"),
+  "rightPanel.new": msg("Right panel: new"),
+  "threadPanel.toggle": msg("Thread panel: toggle"),
+  "rightPanel.toggleMaximized": msg("Right panel: toggle maximized"),
+  "rightPanel.close": msg("Right panel: close"),
+  "pullRequest.copyNumber": msg("Pull request: copy number"),
+  "diff.toggle": msg("Diff: toggle"),
+  "preview.toggle": msg("Preview: toggle"),
+  "preview.refresh": msg("Preview: refresh"),
+  "preview.zoomIn": msg("Preview: zoom in"),
+  "preview.zoomOut": msg("Preview: zoom out"),
+  "preview.resetZoom": msg("Preview: reset zoom"),
+  "commandPalette.toggle": msg("Command palette: toggle"),
+  "filePicker.toggle": msg("File picker: toggle"),
+  "projectSearch.toggle": msg("Project search: toggle"),
+  "usage.open": msg("Usage: toggle"),
+  "theme.select": msg("Theme: select"),
+  "appearance.cycle": msg("Appearance: cycle"),
+  "themeEditor.toggle": msg("Theme editor: toggle"),
+  "workspaceMode.toggle": msg("Workspace: switch between Code and Chat"),
+  "voiceChat.toggle": msg("Voice chat: start or end"),
+  "composer.stash": msg("Composer: stash"),
+  "composer.host": msg("Composer: host"),
+  "composer.cycleHost": msg("Composer: cycle host"),
+  "composer.effort": msg("Composer: effort"),
+  "composer.increaseEffort": msg("Composer: increase effort"),
+  "composer.decreaseEffort": msg("Composer: decrease effort"),
+  "composer.mode": msg("Composer: mode"),
+  "composer.workspace": msg("Composer: workspace"),
+  "composer.previousWorktree": msg("Composer: previous worktree"),
+  "composer.branch": msg("Composer: branch"),
+  "chat.new": msg("Chat: new"),
+  "chat.newLocal": msg("Chat: new local"),
+  "chat.newWithoutProject": msg("Chat: new without project"),
+  "chat.find": msg("Chat: find"),
+  "editor.openFavorite": msg("Editor: open favorite"),
+  "modelPicker.toggle": msg("Model picker: toggle"),
+  "modelPicker.previousProvider": msg("Model picker: previous provider"),
+  "modelPicker.nextProvider": msg("Model picker: next provider"),
+  "thread.stop": msg("Thread: stop"),
+  "thread.previous": msg("Thread: previous"),
+  "thread.next": msg("Thread: next"),
+  "thread.settle": msg("Thread: settle"),
+  "thread.pin": msg("Thread: pin"),
+  "thread.regenerateTitle": msg("Thread: regenerate title"),
+  "thread.undo": msg("Thread: undo"),
 };
 
 // Whole labels: search titles keep the encoded message, which cannot nest another one.
@@ -662,20 +662,20 @@ const USAGE_COMMAND_LABELS: Record<
   (typeof METRIC_OPTIONS)[number]["command"] | (typeof WINDOW_OPTIONS)[number]["command"],
   string
 > = {
-  "usage.cost": msg("Usage: Cost"),
-  "usage.tokens": msg("Usage: Tokens"),
-  "usage.limits": msg("Usage: Limits"),
-  "usage.period.day": msg("Usage: Period: Past 24h"),
-  "usage.period.week": msg("Usage: Period: 7 days"),
-  "usage.period.month": msg("Usage: Period: 30 days"),
-  "usage.period.quarter": msg("Usage: Period: 90 days"),
+  "usage.cost": msg("Usage: cost"),
+  "usage.tokens": msg("Usage: tokens"),
+  "usage.limits": msg("Usage: limits"),
+  "usage.period.day": msg("Usage: period: past 24h"),
+  "usage.period.week": msg("Usage: period: 7 days"),
+  "usage.period.month": msg("Usage: period: 30 days"),
+  "usage.period.quarter": msg("Usage: period: 90 days"),
 };
 
 const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
-  "view.reopenClosed": msg("Reopen Closed Tab"),
-  "preview.focusUrl": msg("Preview: Focus URL"),
-  "preview.find": msg("Preview: Find on Page"),
-  "shortcuts.show": msg("Keyboard Shortcuts: Show"),
+  "view.reopenClosed": msg("Reopen closed tab"),
+  "preview.focusUrl": msg("Preview: focus URL"),
+  "preview.find": msg("Preview: find on page"),
+  "shortcuts.show": msg("Keyboard shortcuts: show"),
 };
 
 export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {
@@ -687,29 +687,34 @@ export function commandLabel(command: KeybindingCommand, resolve: MessageResolve
   if (lateLabel) return resolve(lateLabel);
   const raw = String(command);
   if (raw.startsWith("thread.jump.")) {
-    return resolve(msg("Thread: Jump: {n}", { n: raw.slice("thread.jump.".length) }));
+    return resolve(msg("Thread: jump to {n}", { n: raw.slice("thread.jump.".length) }));
   }
   if (raw.startsWith("modelPicker.jump.")) {
-    return resolve(msg("Model Picker: Jump: {n}", { n: raw.slice("modelPicker.jump.".length) }));
+    return resolve(
+      msg("Model picker: jump to model {n}", { n: raw.slice("modelPicker.jump.".length) }),
+    );
   }
   if (raw.startsWith("script.") && raw.endsWith(".run")) {
     return resolve(
-      msg("Run Script: {name}", {
-        name: titleCaseCommandSegment(raw.slice("script.".length, -".run".length)),
+      msg("Run script: {name}", {
+        name: sentenceCaseCommandSegment(raw.slice("script.".length, -".run".length), true),
       }),
     );
   }
-  return raw.split(".").map(titleCaseCommandSegment).join(": ");
+  return raw
+    .split(".")
+    .map((segment, index) => sentenceCaseCommandSegment(segment, index === 0))
+    .join(": ");
 }
 
-function titleCaseCommandSegment(segment: string): string {
-  const words: Array<string> = [];
-  for (const part of segment.replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[-_\s]+/)) {
-    if (part.length > 0) {
-      words.push(part.slice(0, 1).toUpperCase() + part.slice(1));
-    }
-  }
-  return words.join(" ");
+function sentenceCaseCommandSegment(segment: string, capitalize: boolean): string {
+  const words = segment
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[-_\s]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.toLowerCase());
+  const text = words.join(" ");
+  return capitalize ? text.slice(0, 1).toUpperCase() + text.slice(1) : text;
 }
 
 function recordedLayoutShortcutKey(

@@ -5,6 +5,7 @@ import {
   WorkspaceBreadcrumbItem,
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
+import { SETTINGS_DETAIL_PAGE_PARENTS } from "./settingsDetailPages";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
 
 const SETTINGS_LABEL = msg("Settings");
@@ -24,6 +25,7 @@ export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
   const gt = useGT();
   const m = useMessages();
   const sectionLabel = settingsBreadcrumbLabel(pathname);
+  const parentPath = SETTINGS_DETAIL_PAGE_PARENTS[pathname.replace(/\/+$/, "") || "/"];
 
   return (
     <WorkspaceBreadcrumb ariaLabel={gt("Settings breadcrumb")}>
@@ -31,6 +33,14 @@ export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
         <>
           <WorkspaceBreadcrumbItem>{m(SETTINGS_LABEL)}</WorkspaceBreadcrumbItem>
           <WorkspaceBreadcrumbSeparator />
+          {parentPath ? (
+            <>
+              <WorkspaceBreadcrumbItem>
+                {m(SETTINGS_SECTION_LABELS[parentPath])}
+              </WorkspaceBreadcrumbItem>
+              <WorkspaceBreadcrumbSeparator />
+            </>
+          ) : null}
         </>
       ) : null}
       <WorkspaceBreadcrumbItem current className="truncate">

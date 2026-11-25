@@ -484,7 +484,7 @@ function SelectableTile({
       <span
         className={cn(
           "grid size-4 shrink-0 place-items-center rounded-full border",
-          selected ? "border-primary bg-primary text-primary-foreground" : "border-input",
+          selected ? "border-primary bg-(--ui-fill) text-(--ui-on-fill)" : "border-input",
         )}
       >
         {selected ? <CheckIcon className="size-2.5" /> : null}

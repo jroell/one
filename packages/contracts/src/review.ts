@@ -73,6 +73,8 @@ export const ReviewDiffFileStat = Schema.Struct({
   changeType: Schema.optionalKey(ReviewDiffChangeType),
   additions: Schema.Number,
   deletions: Schema.Number,
+  // Git counted the file as binary (numstat printed `-`); older servers omit it.
+  binary: Schema.optionalKey(Schema.Boolean),
 });
 export type ReviewDiffFileStat = typeof ReviewDiffFileStat.Type;
 

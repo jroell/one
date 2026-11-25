@@ -11,6 +11,7 @@ import { resolveShortcutCommand } from "../../keybindings";
 import {
   buildKeybindingRows,
   collapseAlternateRows,
+  commandLabel,
   describeWhen,
   buildWhenVariableOptions,
   keybindingConflictLabels,
@@ -89,7 +90,7 @@ describe("KeybindingsSettings.logic", () => {
       { command: "terminal.toggle", key: "mod+j", when: "terminalFocus" },
     ]);
     expect(new Set(rows.map((row) => row.id)).size).toBe(4);
-    expect(rows.find((row) => row.command === "chat.new")?.conflicts).toEqual(["Terminal: Toggle"]);
+    expect(rows.find((row) => row.command === "chat.new")?.conflicts).toEqual(["Terminal: toggle"]);
     expect(buildKeybindingRows(bindings.slice(1)).map((row) => row.id)).toEqual(
       rows.map((row) => row.id),
     );
@@ -130,9 +131,9 @@ describe("KeybindingsSettings.logic", () => {
       const binding = compileResolvedKeybindingsConfig([{ command, key: "mod+enter" }]);
       const labels = (mode: "enter" | "mod-enter" | "mod-enter-multiline") =>
         buildKeybindingRows(binding, "Win32", mode)[0]?.previewLabels;
-      expect(labels("enter")).toEqual(["Ctrl+Enter"]);
-      expect(labels("mod-enter")).toEqual(["Ctrl+Shift+Enter"]);
-      expect(labels("mod-enter-multiline")).toEqual(["Ctrl+Enter", "Ctrl+Shift+Enter"]);
+      expect(labels("enter")).toEqual(["Ctrl+↵"]);
+      expect(labels("mod-enter")).toEqual(["Ctrl+Shift+↵"]);
+      expect(labels("mod-enter-multiline")).toEqual(["Ctrl+↵", "Ctrl+Shift+↵"]);
     }
     const shiftedBindings = compileResolvedKeybindingsConfig([
       { command: "chat.new", key: "mod+shift+enter" },
@@ -387,7 +388,7 @@ describe("KeybindingsSettings.logic", () => {
       },
     ] satisfies ResolvedKeybindingsConfig);
 
-    expect(rows[0]?.conflicts).toEqual(["Chat: New Local"]);
+    expect(rows[0]?.conflicts).toEqual(["Chat: new local"]);
     const disabledRows = buildKeybindingRows([
       rows[0]!.binding,
       { ...rows[1]!.binding, whenAst: { type: "identifier", name: "false" } },
@@ -401,13 +402,13 @@ describe("KeybindingsSettings.logic", () => {
         key: "mod+n",
         when: "",
       }),
-    ).toEqual(["Chat: New Local"]);
+    ).toEqual(["Chat: new local"]);
   });
 
   it.each([
-    { platform: "Linux x86_64", ctrl: ["Chat: New"], meta: [] },
-    { platform: "Win32", ctrl: ["Chat: New"], meta: [] },
-    { platform: "MacIntel", ctrl: [], meta: ["Chat: New"] },
+    { platform: "Linux x86_64", ctrl: ["Chat: new"], meta: [] },
+    { platform: "Win32", ctrl: ["Chat: new"], meta: [] },
+    { platform: "MacIntel", ctrl: [], meta: ["Chat: new"] },
   ])("resolves mod to the $platform modifier when reporting conflicts", (expected) => {
     const rows = buildKeybindingRows(
       compileResolvedKeybindingsConfig([
@@ -423,7 +424,7 @@ describe("KeybindingsSettings.logic", () => {
     expect(conflictsFor("meta+k")).toEqual(expected.meta);
     expect(
       keybindingConflictLabels(rows, { rowId: "new", key: "ctrl+k", when: "" }, expected.platform),
-    ).toEqual(["Chat: New Local", ...expected.ctrl].toSorted());
+    ).toEqual(["Chat: new local", ...expected.ctrl].toSorted());
   });
 
   it("keeps mod and ctrl shortcuts apart when their when contexts differ", () => {
@@ -537,5 +538,18 @@ describe("describeWhen", () => {
     expect(words("composerFocus && (turnRunning || customFlag)")).toBe(
       "in the composer and (while the agent works or customFlag)",
     );
+  });
+});
+
+describe("commandLabel", () => {
+  it("writes command names in sentence case, with the section first and proper nouns kept", () => {
+    expect(commandLabel("pullRequest.copyNumber")).toBe("Pull request: copy number");
+    expect(commandLabel("workspaceMode.toggle")).toBe("Workspace: switch between Code and Chat");
+    expect(commandLabel("thread.jump.3" as never)).toBe("Thread: jump to 3");
+    // Commands without a written label fall back to their id, split into words.
+    expect(commandLabel("someNewPanel.openFirstTab" as never)).toBe(
+      "Some new panel: open first tab",
+    );
+    expect(commandLabel("script.dev-server.run" as never)).toBe("Run script: Dev server");
   });
 });

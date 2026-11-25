@@ -204,6 +204,8 @@ export interface CommandPaletteItem {
   /** Thread rows rank by this, with use history, instead of by `searchTerms`. */
   readonly threadSearch?: ThreadSearchSubject;
   readonly threadRef?: ScopedThreadRef;
+  /** Where a thread row lives (project, machine, branch), so a list can name it once when every row shares it. */
+  readonly contextLabel?: string;
   /** Shown in place of the description when the match is not in the title. */
   readonly matchHint?: SearchMatchHint;
   readonly icon: ReactNode;
@@ -242,6 +244,8 @@ export interface CommandPaletteSubmenuItem extends CommandPaletteItem {
 export interface CommandPaletteGroup {
   readonly value: string;
   readonly label: string;
+  /** What every row in the group has in common, said once beside the heading instead of per row. */
+  readonly caption?: string;
   readonly items: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
 }
 
@@ -299,6 +303,7 @@ export type CommandPaletteRow =
       readonly kind: "label";
       readonly key: string;
       readonly label: string;
+      readonly caption?: string;
       readonly first: boolean;
     }
   | {
@@ -306,6 +311,8 @@ export type CommandPaletteRow =
       readonly key: string;
       readonly item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
       readonly itemIndex: number | null;
+      /** The group's shared caption, so a row can leave out what the heading already says. */
+      readonly sharedContext?: string;
     };
 
 export function buildCommandPaletteRows(groups: ReadonlyArray<CommandPaletteGroup>) {
@@ -318,6 +325,7 @@ export function buildCommandPaletteRows(groups: ReadonlyArray<CommandPaletteGrou
         kind: "label",
         key: `group:${group.value}`,
         label: group.label,
+        ...(group.caption !== undefined ? { caption: group.caption } : {}),
         first: rows.length === 0,
       });
     }
@@ -327,7 +335,13 @@ export function buildCommandPaletteRows(groups: ReadonlyArray<CommandPaletteGrou
         itemValues.push(item.value);
         rowIndexByItemIndex.push(rows.length);
       }
-      rows.push({ kind: "item", key: `${group.value}:${item.value}`, item, itemIndex });
+      rows.push({
+        kind: "item",
+        key: `${group.value}:${item.value}`,
+        item,
+        itemIndex,
+        ...(group.caption !== undefined ? { sharedContext: group.caption } : {}),
+      });
     }
   }
   return { rows, itemValues, rowIndexByItemIndex };
@@ -448,6 +462,7 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
     renderLeadingContent?: (thread: TThread) => ReactNode;
     renderTrailingContent?: (thread: TThread) => ReactNode;
     renderDescription?: (thread: TThread, meta: { projectTitle: string | undefined }) => ReactNode;
+    contextOf?: (thread: TThread, meta: { projectTitle: string | undefined }) => string | null;
     runThread: (thread: TThread) => Promise<void>;
     /** Makes the environment searchable; pass it only with two or more environments. */
     environmentLabelOf?: (thread: TThread) => string | null;
@@ -487,6 +502,7 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
       descriptionParts.push(resolve(msg("Current thread")));
     }
 
+    const contextLabel = input.contextOf?.(thread, { projectTitle });
     const leadingContent = input.renderLeadingContent?.(thread);
     const trailingContent = input.renderTrailingContent?.(thread);
     const description = input.renderDescription
@@ -517,6 +533,7 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
         ),
         icon: input.icon,
       },
+      contextLabel ? { contextLabel } : {},
       leadingContent ? { titleLeadingContent: leadingContent } : {},
       trailingContent ? { titleTrailingContent: trailingContent } : {},
       // Last in its group: picking the thread already open does nothing.
@@ -861,9 +878,17 @@ export function buildRootGroups(
 ): CommandPaletteGroup[] {
   const groups: CommandPaletteGroup[] = [];
   if (input.recentThreadItems.length > 0) {
+    const [first, ...rest] = input.recentThreadItems;
+    const sharedContext =
+      first?.contextLabel !== undefined &&
+      rest.length > 0 &&
+      rest.every((item) => item.contextLabel === first.contextLabel)
+        ? first.contextLabel
+        : undefined;
     groups.push({
       value: "recent-threads",
-      label: resolve(msg("Recent Threads")),
+      label: resolve(msg("Recent threads")),
+      ...(sharedContext !== undefined ? { caption: sharedContext } : {}),
       items: input.recentThreadItems,
     });
   }

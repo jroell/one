@@ -89,9 +89,32 @@ describe("limitClock", () => {
     });
   });
 
-  it("averages the share elapsed across a pool of accounts", () => {
-    const clock = limitClock([window(24 * HOUR), window(3 * 24 * HOUR)], NOW);
-    expect(clock?.msToReset).toBeCloseTo(2 * 24 * HOUR, 0);
+  it("gives a pool whose accounts reset together the clock they share", () => {
+    const clock = limitClock([window(24 * HOUR), window(24 * HOUR + 30_000)], NOW);
+    expect(clock?.windowMs).toBe(WEEK);
+    expect(clock?.msToReset).toBeCloseTo(24 * HOUR + 15_000, 0);
+  });
+
+  it("gives no clock to a pool whose accounts reset at different times", () => {
+    // A Plus account about to reset beside a Pro account hours from its own reset: the mean of
+    // the two is a time at which nothing resets.
+    const fiveHours = 300 * 60_000;
+    const short = (resetsInMs: number): ServerProviderUsageWindow => ({
+      ...window(resetsInMs),
+      windowDurationMins: 300,
+    });
+    expect(limitClock([short(30 * 60_000), short(fiveHours - 30 * 60_000)], NOW)).toBeNull();
+  });
+
+  it("gives no clock to a pool whose windows differ in length", () => {
+    expect(
+      limitClock([window(2 * HOUR), { ...window(2 * HOUR), windowDurationMins: 300 }], NOW),
+    ).toBeNull();
+  });
+
+  it("gives no clock to a pool with an untimed account", () => {
+    const { windowDurationMins: _length, ...untimed } = window(2 * HOUR);
+    expect(limitClock([window(2 * HOUR), untimed], NOW)).toBeNull();
   });
 
   it("returns null when no window has a clock", () => {

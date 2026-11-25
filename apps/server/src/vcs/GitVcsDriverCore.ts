@@ -255,7 +255,7 @@ function rawChangeType(status: string): ReviewDiffChangeType {
 }
 
 // Parses `--numstat -z`, optionally preceded by `--raw` records that carry each file's change type.
-function parseReviewNumstat(stdout: string): ReviewDiffFileStat[] {
+export function parseReviewNumstat(stdout: string): ReviewDiffFileStat[] {
   const fields = stdout.split("\0");
   const changeTypes = new Map<string, ReviewDiffChangeType>();
   const files: ReviewDiffFileStat[] = [];
@@ -278,6 +278,7 @@ function parseReviewNumstat(stdout: string): ReviewDiffFileStat[] {
       ...(changeType === undefined ? {} : { changeType }),
       additions: match[1] === "-" ? 0 : Number(match[1]),
       deletions: match[2] === "-" ? 0 : Number(match[2]),
+      ...(match[1] === "-" && match[2] === "-" ? { binary: true } : {}),
     });
   }
   return files;

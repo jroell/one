@@ -3229,8 +3229,10 @@ function OpenCommandPaletteDialog(props: {
     </CommandFooterAction>
   ) : highlightedShortcutCommand !== null && !isBrowsing ? (
     <KbdGroup>
-      <Kbd>Shift</Kbd>
-      <Kbd>Enter</Kbd>
+      <Kbd>⇧</Kbd>
+      <Kbd>
+        ↵<span className="sr-only">Enter</span>
+      </Kbd>
       <span>
         <T>Edit shortcut</T>
       </span>

@@ -3,7 +3,7 @@ import { createContext } from "react";
 
 import type { TimelineEntry } from "~/session-logic";
 
-/** What a file change approval asks to change, read from the file change that precedes it. */
+/** What a file change approval asks to change, read from the file change item it names. */
 export interface ApprovalSubject {
   readonly path: string;
   /** Further files in the same change. */
@@ -17,42 +17,53 @@ const NO_SUBJECTS: ReadonlyMap<RuntimeRequestId, ApprovalSubject> = new Map();
 export const ApprovalSubjectContext = createContext(NO_SUBJECTS);
 
 /**
- * The file each pending file change approval is about. A provider's own prompt is often generic
- * ("Changed files"); the file change entry just before the request carries the path and counts.
- * Reads every entry, including the ones a mode keeps off the screen.
+ * The file each pending file change approval is about: the file change item with the same
+ * provider, turn and native item id. Without that exact item the approval gets no subject, so the
+ * row shows its own details rather than an earlier edit.
  */
 export function deriveApprovalSubjects(
   entries: ReadonlyArray<TimelineEntry>,
   pendingApprovals: ReadonlySet<RuntimeRequestId>,
 ): ReadonlyMap<RuntimeRequestId, ApprovalSubject> {
   if (pendingApprovals.size === 0) return NO_SUBJECTS;
-  const subjects = new Map<RuntimeRequestId, ApprovalSubject>();
-  for (const [index, entry] of entries.entries()) {
+  const changes = new Map<string, ApprovalSubject>();
+  const requests: Array<{ requestId: RuntimeRequestId; key: string }> = [];
+  for (const entry of entries) {
     if (entry.kind !== "work") continue;
-    const request = entry.entry.projectedItem?.item;
-    if (
-      request?.type !== "approval_request" ||
-      request.requestKind !== "file-change" ||
-      !pendingApprovals.has(request.requestId)
-    ) {
-      continue;
-    }
-    for (let back = index - 1; back >= 0; back -= 1) {
-      const candidate = entries[back]!;
-      if (candidate.kind !== "work") break;
-      const item = candidate.entry.projectedItem?.item ?? candidate.entry.structuredPayload;
-      if (item?.type !== "file_change") continue;
+    const item = entry.entry.projectedItem?.item ?? entry.entry.structuredPayload;
+    const key = item ? nativeItemKey(item) : null;
+    if (item === undefined || key === null) continue;
+    if (item.type === "file_change") {
       const files = item.changes?.length ?? 0;
-      subjects.set(request.requestId, {
+      changes.set(key, {
         path: item.fileName,
         moreFiles: Math.max(0, files - 1),
         additions: item.additions ?? null,
         deletions: item.deletions ?? null,
       });
-      break;
+    } else if (
+      item.type === "approval_request" &&
+      item.requestKind === "file-change" &&
+      pendingApprovals.has(item.requestId)
+    ) {
+      requests.push({ requestId: item.requestId, key });
     }
   }
+  const subjects = new Map<RuntimeRequestId, ApprovalSubject>();
+  for (const { requestId, key } of requests) {
+    const subject = changes.get(key);
+    if (subject) subjects.set(requestId, subject);
+  }
   return subjects.size === 0 ? NO_SUBJECTS : subjects;
+}
+
+function nativeItemKey(item: {
+  readonly providerTurnId: string | null;
+  readonly nativeItemRef: { readonly driver: string; readonly nativeId: string | null } | null;
+}): string | null {
+  const ref = item.nativeItemRef;
+  if (item.providerTurnId === null || ref === null || ref.nativeId === null) return null;
+  return JSON.stringify([ref.driver, item.providerTurnId, ref.nativeId]);
 }
 
 /** Splits a path so its directory can shrink with an ellipsis while the file name always shows. */

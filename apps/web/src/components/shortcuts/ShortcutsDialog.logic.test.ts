@@ -30,8 +30,44 @@ describe("buildShortcutSections", () => {
     expect(
       sections.map((section) => [section.title, section.rows.map((row) => [row.label, row.keys])]),
     ).toEqual([
-      ["View", [["Terminal: Toggle", [["Ctrl", "Alt", "9"]]]]],
-      ["Navigate", [["Command Palette: Toggle", [["Ctrl", "K"]]]]],
+      ["View", [["Terminal: toggle", [["Ctrl", "Alt", "9"]]]]],
+      ["Navigate", [["Command palette: toggle", [["Ctrl", "K"]]]]],
+    ]);
+  });
+
+  it("groups composer, model picker and queue commands under Composer, and pull request commands under Git, not all under Thread", () => {
+    const sections = build([
+      { command: "thread.previous", key: "mod+[" },
+      { command: "modelPicker.toggle", key: "mod+shift+m" },
+      { command: "composer.mode", key: "shift+tab" },
+      { command: "thread.steerQueuedMessage", key: "mod+shift+enter" },
+      { command: "thread.copyReference", key: "mod+shift+c" },
+      { command: "voiceChat.toggle", key: "mod+shift+v" },
+    ]);
+
+    expect(
+      sections.map((section) => [section.title, section.rows.map((row) => row.command).toSorted()]),
+    ).toEqual([
+      ["Thread", ["thread.previous"]],
+      [
+        "Composer",
+        ["composer.mode", "modelPicker.toggle", "thread.steerQueuedMessage", "voiceChat.toggle"],
+      ],
+      ["Git", ["thread.copyReference"]],
+    ]);
+  });
+
+  it("draws arrow and Enter keys as glyph keycaps", () => {
+    const sections = build([
+      { command: "thread.next", key: "mod+arrowdown" },
+      { command: "thread.previous", key: "mod+arrowup" },
+      { command: "composer.sendAndNewThread", key: "mod+enter" },
+    ]);
+
+    expect(sections.flatMap((section) => section.rows.map((row) => row.keys))).toEqual([
+      [["Ctrl", "\u2193"]],
+      [["Ctrl", "\u2191"]],
+      [["Ctrl", "\u21b5"]],
     ]);
   });
 
@@ -54,7 +90,7 @@ describe("buildShortcutSections", () => {
         "Thread",
         [
           [
-            "Chat: New",
+            "Chat: new",
             null,
             [
               ["Ctrl", "N"],
@@ -63,7 +99,7 @@ describe("buildShortcutSections", () => {
           ],
         ],
       ],
-      ["View", [["Terminal: Next", "in the terminal", [["Ctrl", "Alt", "]"]]]]],
+      ["View", [["Terminal: next", "in the terminal", [["Ctrl", "Alt", "]"]]]]],
     ]);
   });
 
@@ -127,8 +163,8 @@ describe("buildShortcutSections", () => {
       .filter((row) => /jump/i.test(row.label));
     expect(jumpRows.map((row) => [row.label, row.qualifier, row.keys, row.keysJoiner])).toEqual([
       [
-        "Model picker: jump to model 1 to 9",
-        "with the model picker open",
+        "Thread: jump to thread 1 to 9",
+        "in the terminal",
         [
           ["Ctrl", "1"],
           ["Ctrl", "9"],
@@ -136,8 +172,8 @@ describe("buildShortcutSections", () => {
         "to",
       ],
       [
-        "Thread: jump to thread 1 to 9",
-        "in the terminal",
+        "Model picker: jump to model 1 to 9",
+        "with the model picker open",
         [
           ["Ctrl", "1"],
           ["Ctrl", "9"],
@@ -151,7 +187,7 @@ describe("buildShortcutSections", () => {
     const sections = build([{ command: "thread.jump.3", key: "mod+3" }]);
 
     expect(sections.flatMap((section) => section.rows.map((row) => row.label))).toEqual([
-      "Thread: Jump: 3",
+      "Thread: jump to 3",
     ]);
   });
 
@@ -219,8 +255,8 @@ describe("buildShortcutSections", () => {
         .map((row) => row.keys);
 
     expect(keysOf("enter")).toEqual([]);
-    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
-    expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
+    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Shift", "↵"]]]);
+    expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "↵"]]]);
   });
 
   it("lists a send-alternate chord only in the send modes where its condition can hold", () => {
@@ -237,8 +273,8 @@ describe("buildShortcutSections", () => {
         .map((row) => row.keys);
 
     expect(keysOf("enter")).toEqual([]);
-    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
-    expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
+    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Shift", "↵"]]]);
+    expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "↵"]]]);
   });
 
   it("keeps a chord outside the composer that is conditioned on the send shortcut not needing a modifier", () => {

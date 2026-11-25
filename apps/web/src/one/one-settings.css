@@ -10,13 +10,16 @@
 :root {
   --settings-inset: 0.75rem;
   --settings-hairline: color-mix(in oklab, var(--foreground) 9%, transparent);
-  --settings-control-w: 13rem;
+  /* The one control column: selects, text inputs and chip pickers share its width and height. */
+  --settings-control-w: 15rem;
+  --settings-control-h: 2rem;
   --settings-nav-text: color-mix(in oklab, var(--foreground) 74%, var(--background));
   --settings-nav-label: color-mix(in oklab, var(--foreground) 62%, var(--background));
   /* Row text: the description keeps 4.5:1 or better on the page and on the panel. */
   --settings-description: color-mix(in oklab, var(--foreground) 66%, var(--background));
-  --settings-page-bg: color-mix(in oklab, var(--foreground) 3%, var(--background));
-  --settings-panel-bg: var(--background);
+  /* The pane sits on the base surface and a panel on the raised one: the shared surface tokens. */
+  --settings-page-bg: var(--ui-surface-base);
+  --settings-panel-bg: var(--ui-surface-raised);
   --settings-panel-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 6%, transparent);
 
   @variant dark {
@@ -24,8 +27,6 @@
     --settings-nav-text: color-mix(in oklab, var(--foreground) 66%, var(--background));
     --settings-nav-label: color-mix(in oklab, var(--foreground) 70%, var(--background));
     --settings-description: color-mix(in oklab, var(--foreground) 64%, var(--background));
-    --settings-page-bg: var(--background);
-    --settings-panel-bg: color-mix(in oklab, var(--foreground) 4.5%, var(--background));
     --settings-panel-shadow: 0 1px 1px color-mix(in oklab, var(--background) 60%, transparent);
   }
 }
@@ -69,26 +70,10 @@
   border-inline-end-color: var(--settings-hairline);
 }
 
-/* Pinned search: a recessed field that takes the brand ring when it has focus. */
-[data-settings-search] {
-  height: 2rem;
-  border-radius: 0.625rem;
-  background: color-mix(in oklab, var(--foreground) 5%, transparent);
-  box-shadow: inset 0 0 0 1px var(--settings-hairline);
-  transition:
-    background-color var(--one-hover-ms) var(--one-ease-hover),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover);
-}
-
-[data-settings-search]:hover {
-  background: color-mix(in oklab, var(--foreground) 7%, transparent);
-}
-
-[data-settings-search]:focus-within {
-  background: color-mix(in oklab, var(--foreground) 4%, transparent);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--one-brand) 55%, transparent),
-    0 0 0 3px color-mix(in oklab, var(--one-brand) 14%, transparent);
+/* The rail fades where it overflows, and a section scrolled into view stays clear of the fade. */
+[data-settings-nav] [data-slot="scroll-area-viewport"] {
+  --fade-size: 1.75rem;
+  scroll-padding-block: 1.75rem;
 }
 
 /* Group labels: small, even, and readable on the rail. */
@@ -110,8 +95,7 @@
   transition:
     background-color var(--one-hover-ms) var(--one-ease-hover),
     color var(--one-hover-ms) var(--one-ease-hover),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover),
-    scale var(--one-move-ms) var(--one-ease-spring);
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
 }
 
 [data-settings-nav] [data-slot="sidebar-menu-button"]:not([data-active="true"]) {
@@ -126,13 +110,29 @@
   transition: color var(--one-hover-ms) var(--one-ease-hover);
 }
 
-[data-settings-nav] [data-slot="sidebar-menu-button"]:active {
-  scale: 0.985;
+/* A press answers with color under every setting; the scale only when motion is allowed. */
+[data-settings-nav] [data-slot="sidebar-menu-button"]:not([data-active="true"]):active {
+  background: color-mix(in oklab, var(--foreground) 7%, transparent);
   transition-duration: var(--one-press-ms);
-  transition-timing-function: ease-out;
 }
 
-/* Selected: a brand tint, a lit top edge, a short bar on the leading edge, and a brand icon. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-settings-nav] [data-slot="sidebar-menu-button"] {
+    transition:
+      background-color var(--one-hover-ms) var(--one-ease-hover),
+      color var(--one-hover-ms) var(--one-ease-hover),
+      box-shadow var(--one-hover-ms) var(--one-ease-hover),
+      scale var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  [data-settings-nav] [data-slot="sidebar-menu-button"]:active {
+    scale: 0.985;
+    transition-duration: var(--one-press-ms);
+    transition-timing-function: ease-out;
+  }
+}
+
+/* Selected: a brand tint, a lit top edge and a brand icon. One treatment, a pill. */
 [data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"] {
   background: color-mix(in oklab, var(--one-brand) 9%, transparent);
   box-shadow:
@@ -144,45 +144,10 @@
   color: var(--one-brand);
 }
 
-[data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"]::before {
-  content: "";
-  position: absolute;
-  inset-block: 0.5rem;
-  inset-inline-start: 0;
-  width: 0.1875rem;
-  border-radius: 0 999px 999px 0;
-  background: var(--one-brand);
-}
-
-[data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"]:dir(rtl)::before {
-  border-radius: 999px 0 0 999px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"]::before {
-    animation: one-settings-nav-bar var(--one-move-ms) var(--one-ease-spring) both;
-  }
-}
-
-@keyframes one-settings-nav-bar {
-  from {
-    transform: scaleY(0.4);
-    opacity: 0;
-  }
-  to {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-}
-
 @media (pointer: coarse) {
   [data-settings-nav] [data-slot="sidebar-menu-button"] {
     height: 2.75rem;
     min-width: 2.75rem;
-  }
-
-  [data-settings-search] {
-    height: 2.75rem;
   }
 }
 
@@ -193,10 +158,11 @@
 }
 
 [data-settings-page-title] {
-  font-size: 1.5rem;
-  line-height: 2rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  font-family: var(--one-serif);
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   color: var(--foreground);
   text-wrap: balance;
 }
@@ -215,7 +181,6 @@
 [data-settings-scope] {
   align-self: flex-start;
   max-width: 100%;
-  margin-inline-start: calc(var(--settings-inset) - 0.75rem);
   padding: 0.1875rem 0.25rem 0.1875rem 0.75rem;
   border-radius: 1rem;
   font-size: 0.75rem;
@@ -302,7 +267,7 @@
   background: var(--settings-page-bg);
 }
 
-[data-settings-sticky] [data-slot="settings-group"] {
+[data-settings-sticky] [data-slot="settings-group"][data-variant="grouped"] {
   box-shadow:
     inset 0 1px 0 0 var(--one-glass-rim-top),
     0 14px 22px -14px var(--settings-page-bg),
@@ -324,6 +289,11 @@
   color: var(--foreground);
 }
 
+[data-settings-row-title] code {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
 [data-settings-row-description] {
   max-width: 34rem;
   font-size: 0.78125rem;
@@ -331,23 +301,74 @@
   color: var(--settings-description);
 }
 
-/* Select-style controls share one width, so they line up down the page. */
+/* One control column. A row whose control is a select, a text input or a chip picker gets a
+   fixed-width column, and the control fills it, so right edges, widths and heights line up. */
 @container settings-row (min-width: 32rem) {
-  [data-settings-control] > :has(> [data-slot="select-trigger"]) {
-    inline-size: auto;
+  [data-settings-control]:is(
+    :has(> [data-slot="select-trigger"]),
+    :has(> :is(div, span) > [data-slot="select-trigger"]:only-child),
+    :has([data-slot="input-control"]):not(:has([type="number"], [data-slot="number-field-input"])),
+    :has([data-chat-provider-model-picker-label], [data-composer-control-label])
+  ) {
+    inline-size: var(--settings-control-w);
+
+    > * {
+      inline-size: 100%;
+      min-inline-size: 0;
+    }
+
+    :is([data-slot="select-trigger"], [data-slot="input-control"]) {
+      inline-size: 100%;
+      max-inline-size: none;
+    }
   }
 
-  [data-settings-control] [data-slot="select-trigger"] {
-    inline-size: var(--settings-control-w);
-    min-inline-size: 0;
+  /* Chip pickers (model and effort) split the column between their buttons. */
+  [data-settings-control]:has(
+      [data-chat-provider-model-picker-label],
+      [data-composer-control-label]
+    )
+    > div {
+    flex-wrap: nowrap;
+    justify-content: stretch;
+
+    > button {
+      flex: 1 1 0;
+      min-inline-size: 0;
+      max-inline-size: none;
+      justify-content: space-between;
+    }
   }
+}
+
+[data-settings-control] :is([data-slot="select-trigger"], [data-slot="input-control"]),
+[data-settings-control]
+  :is([data-chat-provider-model-picker-label], [data-composer-control-label]) {
+  min-inline-size: 0;
+}
+
+[data-settings-control]
+  :is([data-chat-provider-model-picker-label], [data-composer-control-label]) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-settings-control] :is([data-slot="select-trigger"], [data-slot="input-control"]),
+[data-settings-control]:has([data-chat-provider-model-picker-label], [data-composer-control-label])
+  button {
+  block-size: var(--settings-control-h);
+}
+
+[data-settings-control] [data-slot="input-control"] > input {
+  block-size: 100%;
 }
 
 /* Sliders: the track fills to the thumb, and every readout ends in one right-aligned column. */
 .settings-slider-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 3.25rem;
-  align-items: center;
+  align-items: start;
   column-gap: 0.75rem;
   inline-size: 100%;
 }
@@ -361,11 +382,28 @@
 .settings-slider-readout {
   min-inline-size: 3.25rem;
   text-align: end;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.75rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.75rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--foreground);
+}
+
+/* The two ends of the range sit under the track, so a thumb's place on it can be read. */
+.settings-slider-track {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.settings-slider-range {
+  display: flex;
+  justify-content: space-between;
+  margin-block-start: -0.125rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--settings-description);
 }
 
 .settings-slider {
@@ -461,13 +499,28 @@
     inset 0 1px 0 0 var(--one-glass-rim-top);
   transition:
     background-color var(--one-hover-ms) var(--one-ease-hover),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover),
-    translate var(--one-move-ms) var(--one-ease-spring),
-    scale var(--one-move-ms) var(--one-ease-spring);
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-settings-card] {
+    transition:
+      background-color var(--one-hover-ms) var(--one-ease-hover),
+      box-shadow var(--one-hover-ms) var(--one-ease-hover),
+      translate var(--one-move-ms) var(--one-ease-spring),
+      scale var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  [data-settings-card]:active:not(:has(button:active, [role="button"]:active)) {
+    scale: 0.99;
+    translate: 0 0;
+    transition-duration: var(--one-press-ms);
+    transition-timing-function: ease-out;
+  }
 }
 
 @media (hover: hover) {
-  [data-settings-card]:hover {
+  [data-settings-card]:not([data-selected]):hover {
     background-color: color-mix(in oklab, var(--foreground) 3.5%, var(--settings-panel-bg));
     box-shadow:
       inset 0 0 0 1px color-mix(in oklab, var(--foreground) 18%, transparent),
@@ -475,25 +528,13 @@
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    [data-settings-card]:hover {
+    [data-settings-card]:not([data-selected]):hover {
       translate: 0 -1px;
     }
   }
 }
 
-[data-settings-card]:active:not(:has(button:active, [role="button"]:active)) {
-  scale: 0.99;
-  translate: 0 0;
-  transition-duration: var(--one-press-ms);
-  transition-timing-function: ease-out;
-}
-
-[data-settings-card][data-selected] {
-  background-color: color-mix(in oklab, var(--one-brand) 7%, var(--settings-panel-bg));
-  box-shadow:
-    inset 0 0 0 2px var(--one-brand),
-    0 12px 28px -16px var(--one-brand-glow);
-}
+/* A selected tile or card takes the shared selected style: data-ui-tile in one-ui.css. */
 
 /* ---------------------------------------------------------- search landing */
 
@@ -546,9 +587,15 @@
 }
 
 [data-settings-choice] > svg:last-child {
-  transition:
-    translate var(--one-move-ms) var(--one-ease-spring),
-    color var(--one-hover-ms) var(--one-ease-hover);
+  transition: color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-settings-choice] > svg:last-child {
+    transition:
+      translate var(--one-move-ms) var(--one-ease-spring),
+      color var(--one-hover-ms) var(--one-ease-hover);
+  }
 }
 
 @media (hover: hover) {
@@ -576,12 +623,65 @@
   transition-duration: var(--one-press-ms);
 }
 
+/* ----------------------------------------------------------- header, About */
+
+/* Restore device defaults keeps 4.5:1 or better in both states; a disabled one dims its icon. The
+   selectors are long so they win over the shared button's own muted and disabled colors. */
+[data-settings-header] button[data-settings-restore][data-slot][data-variant] {
+  color: var(--settings-description);
+}
+
+[data-settings-header] button[data-settings-restore][data-slot][data-variant]:disabled {
+  opacity: 1;
+  color: var(--settings-description);
+  cursor: default;
+}
+
+[data-settings-header] button[data-settings-restore][data-slot][data-variant]:disabled svg {
+  opacity: 0.55;
+}
+
+@media (hover: hover) {
+  [data-settings-header]
+    button[data-settings-restore][data-slot][data-variant]:hover:not(:disabled) {
+    color: var(--foreground);
+  }
+}
+
+[data-settings-about-name] {
+  font-family: var(--one-serif);
+  font-size: 2.5rem;
+  line-height: 1;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  color: var(--foreground);
+}
+
+[data-settings-about-version] {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--settings-description);
+}
+
+/* Long pages fade out at the bottom edge instead of being cut. */
+[data-settings-page-scroll]::after {
+  content: "";
+  position: sticky;
+  inset-block-end: 0;
+  display: block;
+  block-size: 2rem;
+  margin-block-start: -2rem;
+  background: linear-gradient(to top, var(--settings-page-bg), transparent);
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------------- phones */
 
 @media (max-width: 40rem) {
   [data-settings-page-title] {
-    font-size: 1.3125rem;
-    line-height: 1.75rem;
+    font-size: 1.625rem;
+    line-height: 2rem;
   }
 }
 

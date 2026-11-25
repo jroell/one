@@ -10,13 +10,15 @@ function Probe({
   messages,
   animate,
   read,
+  identity = "thread",
 }: {
   messages: ReadonlyArray<ArrivalMessage>;
   animate: boolean;
   read?: () => void;
+  identity?: string;
 }) {
   const arrival = useChatArrival(
-    "thread",
+    identity,
     () => {
       read?.();
       return messages;
@@ -63,4 +65,34 @@ it("turning animation off mid-arrival drops the mark, and turning it on again do
   expect(fresh(screen.container)).toBe("");
   await screen.rerender(<Probe messages={arrived} animate />);
   expect(fresh(screen.container)).toBe("");
+});
+
+it("a later arrival leaves an earlier answer's expiry where it was", async () => {
+  await using screen = await render(<Probe messages={opening} animate />, { router: false });
+  using _timers = fakeTimers();
+  await screen.rerender(<Probe messages={arrived} animate />);
+  await act(() => vi.advanceTimersByTime(900));
+  await screen.rerender(<Probe messages={[...arrived, user("q3"), assistant("a3")]} animate />);
+  expect(fresh(screen.container)).toBe("a2,a3");
+
+  await act(() => vi.advanceTimersByTime(CHAT_ARRIVAL_EXPIRY_MS - 900));
+  expect(fresh(screen.container)).toBe("a3");
+  await act(() => vi.advanceTimersByTime(900));
+  expect(fresh(screen.container)).toBe("");
+});
+
+it("opening another thread and unmounting leave no arrival expiry pending", async () => {
+  await using screen = await render(<Probe messages={opening} animate />, { router: false });
+  using _timers = fakeTimers();
+  await screen.rerender(<Probe messages={arrived} animate />);
+  expect(vi.getTimerCount()).toBe(1);
+
+  await screen.rerender(<Probe messages={opening} animate identity="other-thread" />);
+  expect(fresh(screen.container)).toBe("");
+  expect(vi.getTimerCount()).toBe(0);
+
+  await screen.rerender(<Probe messages={arrived} animate identity="other-thread" />);
+  expect(vi.getTimerCount()).toBe(1);
+  await screen.unmount();
+  expect(vi.getTimerCount()).toBe(0);
 });

@@ -70,25 +70,24 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { AppRouteModal, AppRouteModalClose } from "../AppRouteModal";
 import { Skeleton } from "../ui/skeleton";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import {
-  WorkspaceBreadcrumb,
-  WorkspaceBreadcrumbItem,
-  WorkspaceBreadcrumbSeparator,
-  WorkspaceBreadcrumbText,
-} from "../WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { UsageLimitsSection } from "./UsageLimits";
 import { UsagePriceOverrides } from "./UsagePriceOverrides";
 import { UsageProviderChart } from "./UsageProviderChart";
 import { SpeedPremium, UsageModelDialog } from "./UsageModelDialog";
 import { UsageShareBar } from "./UsageShareBar";
+import { UsageOverviewHeadline } from "./UsageOverviewHeadline";
+import { recalledProviderCount, rememberProviderCount, selectionKey } from "./usageSkeletonMemory";
 import { UsageSwitch } from "./UsageSwitch";
+import { useLatestRequestBusy } from "./useLatestRequestBusy";
 import {
   costTypeSegments,
+  leadingProvider,
   modelShare,
   sortModelsByTokens,
   speedCostSegments,
   tokenTypeSegments,
+  wholePercent,
 } from "./usageBreakdown";
 import {
   METRIC_OPTIONS,
@@ -204,7 +203,7 @@ export function UsagePage() {
   const showingLimits = metric === "limits";
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Shown on the page and the refresh icon only; the automatic refresh never disables the button.
-  const [autoRefreshing, setAutoRefreshing] = useState(false);
+  const [autoRefreshing, trackAutoRefresh] = useLatestRequestBusy();
   const [limitsNow, setLimitsNow] = useState(() => Date.now());
   const refreshingRef = useRef(false);
   const modalActionsRef = useRef<DialogPrimitive.Root.Actions | null>(null);
@@ -347,12 +346,10 @@ export function UsagePage() {
     .sort()
     .join(",");
   const autoRefreshLimits = useEffectEvent(() => {
-    setAutoRefreshing(true);
-    void refreshLimits(true).finally(() => setAutoRefreshing(false));
+    void trackAutoRefresh(refreshLimits(true));
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- refreshes provider limits from the server when the connected environment set changes
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- the flag only mirrors that server request being in flight
     if (showingLimits && connectedLimitsEnvironments) autoRefreshLimits();
   }, [showingLimits, connectedLimitsEnvironments]);
 
@@ -383,14 +380,11 @@ export function UsagePage() {
   const metricOptionLabel = METRIC_OPTIONS.find((option) => option.value === metric)?.label;
   const topbarContent = (
     <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 @4xl/usage-header:flex">
-      <WorkspaceBreadcrumb ariaLabel={gt("Usage breadcrumb")} className="min-w-0">
-        <WorkspaceBreadcrumbItem>
-          <h1>
-            <T>Usage</T>
-          </h1>
-        </WorkspaceBreadcrumbItem>
-        <WorkspaceBreadcrumbSeparator />
-        <WorkspaceBreadcrumbItem className="min-w-10 shrink">
+      <div role="group" aria-label={gt("Usage breadcrumb")} className="usage-title-row">
+        <h1 className="usage-title">
+          <T>Usage</T>
+        </h1>
+        <div className="usage-chips">
           <UsageEnvironmentFilter
             environments={environments}
             selectedEnvironments={selectedEnvironments}
@@ -403,24 +397,27 @@ export function UsagePage() {
             contractMismatches={merged.contractMismatches}
             onOpenModelPrices={() => setPriceDialog({})}
           />
-        </WorkspaceBreadcrumbItem>
-        <WorkspaceBreadcrumbSeparator />
-        <WorkspaceBreadcrumbItem current className="min-w-10">
           <UsageProviderFilter
             hiddenProviders={hiddenProviders}
             onChange={(next) => updatePreferences({ hiddenProviders: next })}
           />
-        </WorkspaceBreadcrumbItem>
-      </WorkspaceBreadcrumb>
-      {!showingLimits ? (
-        <span className="hidden min-w-0 truncate text-xs text-muted-foreground @7xl/usage-header:block">
-          {windowLabel}
-        </span>
-      ) : null}
+        </div>
+      </div>
+      <span
+        aria-hidden={showingLimits}
+        className="usage-window-label hidden min-w-0 truncate text-xs text-muted-foreground @7xl/usage-header:block"
+        data-idle={showingLimits ? "" : undefined}
+      >
+        {windowLabel}
+      </span>
       <div className="ms-auto hidden shrink-0 items-center justify-end gap-2 @4xl/usage-header:flex">
-        {/* Limits are always current, so they have no period. The period sits before the metric
-            tabs so dropping it never moves them. */}
-        {showingLimits ? null : (
+        {/* Limits are always current, so they have no period. Its space stays reserved (and the
+            control inert) so the header does not jump between tabs. */}
+        <div
+          className="usage-period-slot"
+          data-idle={showingLimits ? "" : undefined}
+          inert={showingLimits}
+        >
           <UsageSwitch
             label={gt("Usage period")}
             value={String(windowDays)}
@@ -431,7 +428,7 @@ export function UsagePage() {
             }))}
             onChange={(value) => selectWindow(Number(value))}
           />
-        )}
+        </div>
         <UsageSwitch
           label={gt("Usage metric")}
           value={metric}
@@ -461,7 +458,11 @@ export function UsagePage() {
         </span>
       </div>
       <div className="ms-auto flex shrink-0 items-center justify-end gap-1 @4xl/usage-header:hidden">
-        {showingLimits ? null : (
+        <div
+          className="usage-period-slot usage-select"
+          data-idle={showingLimits ? "" : undefined}
+          inert={showingLimits}
+        >
           <Select value={String(windowDays)} onValueChange={(value) => selectWindow(Number(value))}>
             <SelectTrigger
               aria-label={gt("Usage period")}
@@ -483,29 +484,31 @@ export function UsagePage() {
               ))}
             </SelectPopup>
           </Select>
-        )}
-        <Select
-          value={metric}
-          onValueChange={(value) => {
-            if (isUsageMetric(value)) selectMetric(value);
-          }}
-        >
-          <SelectTrigger
-            aria-label={gt("Usage metric")}
-            size="compact"
-            variant="ghost"
-            className="w-auto min-w-0"
+        </div>
+        <div className="usage-select">
+          <Select
+            value={metric}
+            onValueChange={(value) => {
+              if (isUsageMetric(value)) selectMetric(value);
+            }}
           >
-            <SelectValue>{metricOptionLabel && m(metricOptionLabel)}</SelectValue>
-          </SelectTrigger>
-          <SelectPopup align="end" alignItemWithTrigger={false}>
-            {METRIC_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value} title={shortcutTitle(option)}>
-                {m(option.label)}
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
+            <SelectTrigger
+              aria-label={gt("Usage metric")}
+              size="compact"
+              variant="ghost"
+              className="w-auto min-w-0"
+            >
+              <SelectValue>{metricOptionLabel && m(metricOptionLabel)}</SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              {METRIC_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} title={shortcutTitle(option)}>
+                  {m(option.label)}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </div>
         <span
           className="usage-refresh"
           data-refreshing={isRefreshing || autoRefreshing ? "" : undefined}
@@ -553,7 +556,10 @@ export function UsagePage() {
                 refreshing={isRefreshing || autoRefreshing}
               />
             ) : shown === null ? (
-              <UsageSkeleton />
+              <UsageSkeleton
+                metric={metric === "tokens" ? "tokens" : "cost"}
+                providerCount={recalledProviderCount(selectionKey(selectedEnvironmentIds), 4)}
+              />
             ) : !canReadDiagnostics ? (
               <div className="space-y-2 py-12 text-center text-sm text-muted-foreground">
                 {selectedEnvironments.map((environment) => (
@@ -580,9 +586,11 @@ export function UsagePage() {
                 hiddenProviders={hiddenProviders}
                 refreshingUsage={refreshingUsage}
                 showChatGptSharing={showChatGptSharing}
+                selectionKey={selectionKey(selectedEnvironmentIds)}
                 onSelectModel={selectUsageModel}
               />
             )}
+            <div aria-hidden className="usage-fade" />
           </WorkspacePageContainer>
         </ScrollArea>
       </div>
@@ -628,6 +636,7 @@ function UsageOverview({
   hiddenProviders,
   refreshingUsage,
   showChatGptSharing,
+  selectionKey: selection,
   onSelectModel,
 }: {
   readonly merged: MergedUsage;
@@ -641,6 +650,7 @@ function UsageOverview({
   readonly hiddenProviders: ReadonlySet<UsageProviderKind>;
   readonly refreshingUsage: boolean;
   readonly showChatGptSharing: boolean;
+  readonly selectionKey: string;
   readonly onSelectModel: (key: string) => void;
 }) {
   const gt = useGT();
@@ -685,6 +695,12 @@ function UsageOverview({
     0,
   );
   const rankedProviders = rankProvidersByMetric(activeProviders, merged.providers, metric);
+  const leader = leadingProvider(merged.providers, metric);
+  const settledProviderCount = loadingPartial ? 0 : providersWithData.size;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- remembers the settled provider count in a module cache for the next skeleton
+  useEffect(() => {
+    rememberProviderCount(selection, settledProviderCount);
+  }, [selection, settledProviderCount]);
 
   return (
     <div aria-busy={loadingPartial} className="usage-stack">
@@ -693,6 +709,17 @@ function UsageOverview({
           {message}
         </p>
       ))}
+      {leader === null ? null : (
+        <UsageOverviewHeadline
+          metric={metric}
+          provider={PROVIDER_PRESENTATION[leader.provider].label}
+          share={wholePercent(leader.share)}
+          total={
+            metric === "cost" ? formatUsd(merged.costUsd, locale) : formatTokens(merged.totalTokens)
+          }
+          days={shownHourly ? 1 : days.length}
+        />
+      )}
       <section className="usage-panel usage-summary">
         <div className="usage-summary-side">
           <div className="flex flex-col gap-1">
@@ -856,12 +883,18 @@ function UsageOverview({
         <h2 className="usage-heading">
           <T>Totals</T>
         </h2>
-        <dl className="usage-panel usage-metrics">
-          <Metric
-            loading={loadingPartial}
-            label={gt("Processed tokens")}
-            value={formatTokens(merged.totalTokens)}
-          />
+        <dl
+          className="usage-panel usage-metrics"
+          style={{ "--usage-metrics": metric === "cost" ? 5 : 4 } as CSSProperties}
+        >
+          {/* On Tokens the hero already says this number. */}
+          {metric === "cost" ? (
+            <Metric
+              loading={loadingPartial}
+              label={gt("Processed tokens")}
+              value={formatTokens(merged.totalTokens)}
+            />
+          ) : null}
           <Metric
             loading={loadingPartial}
             label={gt("Cached input")}
@@ -1228,8 +1261,8 @@ function UsageEnvironmentFilter({
 
   return (
     <Menu>
-      <MenuTrigger render={<InlineButton />} className="group/usage-environment min-w-0 max-w-full">
-        <WorkspaceBreadcrumbText>{label}</WorkspaceBreadcrumbText>
+      <MenuTrigger render={<button type="button" className="usage-chip" />}>
+        <span className="min-w-0 truncate">{label}</span>
         <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground">
           {showUsageStatus && hasIssue ? (
             <CircleAlertIcon
@@ -1237,10 +1270,7 @@ function UsageEnvironmentFilter({
               aria-label={gt("Some environments could not report usage")}
             />
           ) : (
-            <ChevronDownIcon
-              className="size-3.5 opacity-60 transition-opacity group-hover/usage-environment:opacity-100 group-focus-visible/usage-environment:opacity-100 group-data-popup-open/usage-environment:opacity-100"
-              aria-hidden
-            />
+            <ChevronDownIcon className="size-3.5" aria-hidden />
           )}
         </span>
       </MenuTrigger>
@@ -1353,12 +1383,9 @@ function UsageProviderFilter({
 
   return (
     <Menu>
-      <MenuTrigger render={<InlineButton />} className="group/usage-provider min-w-0 max-w-full">
+      <MenuTrigger render={<button type="button" className="usage-chip" />}>
         <span className="min-w-0 truncate">{label}</span>
-        <ChevronDownIcon
-          className="size-3.5 shrink-0 text-muted-foreground opacity-60 transition-opacity group-hover/usage-provider:opacity-100 group-focus-visible/usage-provider:opacity-100 group-data-popup-open/usage-provider:opacity-100"
-          aria-hidden
-        />
+        <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
       </MenuTrigger>
       <MenuPopup align="start">
         <MenuCheckboxItem
@@ -1395,12 +1422,23 @@ function UsageProviderFilter({
 
 /**
  * Built from the same panels, rows and heights as the loaded page, so data arriving fills the
- * layout in place. The one thing it cannot know is how many providers have usage.
+ * layout in place. The provider count is the last one shown for this selection.
  */
-function UsageSkeleton() {
+function UsageSkeleton({
+  metric,
+  providerCount,
+}: {
+  readonly metric: "tokens" | "cost";
+  readonly providerCount: number;
+}) {
   const gt = useGT();
   return (
     <div className="usage-stack">
+      <header className="usage-headline-block" aria-hidden>
+        <div className="usage-headline-skeleton">
+          <Skeleton className="h-full w-full max-w-xl" />
+        </div>
+      </header>
       <section className="usage-panel usage-summary">
         <p role="status" className="usage-skeleton-note">
           {gt("Reading usage…")}
@@ -1412,22 +1450,24 @@ function UsageSkeleton() {
             </div>
             <Skeleton className="h-4 w-36" />
           </div>
-          {PROVIDER_ORDER.slice(0, 5).map((provider) => (
-            <div key={provider} className="usage-provider">
-              <div className="flex min-h-5 items-center justify-between gap-4">
-                <span className="flex items-center gap-2">
-                  <Skeleton shape="pill" className="size-2 shrink-0" />
-                  <Skeleton shape="pill" className="size-4 shrink-0" />
-                  <Skeleton className="h-3.5 w-20" />
-                </span>
-                <Skeleton className="h-3.5 w-14" />
+          {PROVIDER_ORDER.slice(0, Math.min(providerCount, PROVIDER_ORDER.length)).map(
+            (provider) => (
+              <div key={provider} className="usage-provider">
+                <div className="flex min-h-5 items-center justify-between gap-4">
+                  <span className="flex items-center gap-2">
+                    <Skeleton shape="pill" className="size-2 shrink-0" />
+                    <Skeleton shape="pill" className="size-4 shrink-0" />
+                    <Skeleton className="h-3.5 w-20" />
+                  </span>
+                  <Skeleton className="h-3.5 w-14" />
+                </div>
+                <div className="usage-share-mini-skeleton">
+                  <Skeleton shape="pill" className="h-full w-full" />
+                </div>
+                <Skeleton className="h-4 w-36" />
               </div>
-              <div className="usage-share-mini-skeleton">
-                <Skeleton shape="pill" className="h-full w-full" />
-              </div>
-              <Skeleton className="h-4 w-36" />
-            </div>
-          ))}
+            ),
+          )}
         </div>
 
         <div className="usage-summary-chart" aria-hidden>
@@ -1444,6 +1484,7 @@ function UsageSkeleton() {
           <T>Totals</T>
         </h2>
         <MetricSkeletons
+          metric={metric}
           labels={[
             gt("Processed tokens"),
             gt("Cached input"),
@@ -1457,10 +1498,16 @@ function UsageSkeleton() {
       <section className="usage-share-grid" aria-hidden>
         <div className="usage-panel usage-panel-plain usage-share">
           <Skeleton className="h-5 w-28" />
-          <div className="usage-share-track-skeleton">
-            <Skeleton shape="pill" className="h-full w-full" />
-          </div>
-          <Skeleton className="h-4 w-72 max-w-full" />
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="usage-share-row">
+              <Skeleton className="h-4 w-24" />
+              <div className="usage-share-track">
+                <Skeleton shape="pill" className="h-full w-full" />
+              </div>
+              <Skeleton className="h-4 w-14 justify-self-end" />
+              <Skeleton className="h-4 w-10 justify-self-end" />
+            </div>
+          ))}
         </div>
       </section>
 
@@ -1479,10 +1526,20 @@ function UsageSkeleton() {
   );
 }
 
-function MetricSkeletons({ labels }: { readonly labels: readonly string[] }) {
+function MetricSkeletons({
+  labels,
+  metric,
+}: {
+  readonly labels: readonly string[];
+  readonly metric: "tokens" | "cost";
+}) {
+  const shown = metric === "cost" ? labels : labels.slice(1);
   return (
-    <div className="usage-panel usage-metrics">
-      {labels.map((label) => (
+    <div
+      className="usage-panel usage-metrics"
+      style={{ "--usage-metrics": shown.length } as CSSProperties}
+    >
+      {shown.map((label) => (
         <div key={label} className="usage-metric">
           <dt>{label}</dt>
           <Skeleton className="h-7 w-16" />

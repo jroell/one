@@ -49,6 +49,7 @@ import {
   isNonRepositoryGitStderr,
   makeGitVcsDriverCore,
   parseGitCheckoutProgressLine,
+  parseReviewNumstat,
   splitNullSeparatedGitStdoutPaths,
   windowsLongPathConfigEnv,
 } from "./GitVcsDriverCore.ts";
@@ -4674,6 +4675,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           changeType: "new",
           additions: 0,
           deletions: 0,
+          binary: true,
         });
         if ((yield* HostProcess.Platform) !== "win32") {
           assert.deepInclude(branch.files ?? [], {
@@ -11203,4 +11205,15 @@ it.layer(layerTest)("branch change totals after a failed read", (it) => {
       });
     }),
   );
+});
+
+describe("parseReviewNumstat", () => {
+  it("flags a file Git counts as binary and leaves a zero-line text file alone", () => {
+    const stdout = ["-\t-\tfirmware", "0\t0\tnotes.db", "3\t1\tsrc/a.ts", ""].join("\0");
+    assert.deepStrictEqual(parseReviewNumstat(stdout), [
+      { path: "firmware", previousPath: null, additions: 0, deletions: 0, binary: true },
+      { path: "notes.db", previousPath: null, additions: 0, deletions: 0 },
+      { path: "src/a.ts", previousPath: null, additions: 3, deletions: 1 },
+    ]);
+  });
 });

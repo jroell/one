@@ -55,10 +55,16 @@ export function useVoiceChatStyle(): VoiceChatStyle {
 /** A script has to make up this share of the letters; a quoted word in another script does not change the language. */
 const SCRIPT_SHARE = 0.3;
 
+/** Kana letters only: the middle dot, long-vowel and iteration marks are punctuation Chinese also uses. */
+const KANA = /[\u3041-\u3096\u30a1-\u30fa\uff66-\uff9d]/g;
+/** Kana the Han text needs before it is Japanese: a quoted word or one stray letter is not enough. */
+const KANA_MIN_LETTERS = 2;
+const KANA_MIN_SHARE = 0.04;
+
 /** Scripts whose text identifies its language, and the languages written in them. */
 const SCRIPT_LANGUAGES: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>, number]> = [
   // Japanese text is mostly kanji with some kana, so a little kana is enough.
-  [/[\u3040-\u30ff]/g, ["ja"], 0.1],
+  [KANA, ["ja"], 0.1],
   [/[\uac00-\ud7af]/g, ["ko"], SCRIPT_SHARE],
   [/[\u0400-\u04ff]/g, ["ru", "uk", "bg", "sr", "be", "mk"], SCRIPT_SHARE],
   [/[\u0600-\u06ff]/g, ["ar", "fa", "ur"], SCRIPT_SHARE],
@@ -82,12 +88,13 @@ export function replyLanguage(text: string, pageLanguage: string): string {
     if (inScript / letters < minShare) continue;
     return languages.includes(page) ? pageLanguage : (languages[0] ?? pageLanguage);
   }
-  // Han characters are written in Chinese, Japanese and Korean. Kana or hangul anywhere in the
-  // text names its language (the table above caught the plain cases); Han-only text keeps a
-  // Japanese or Korean page's language and is Chinese on any other page.
+  // Han characters are written in Chinese, Japanese and Korean. Enough kana, or any hangul, names
+  // its language (the table above caught the plain cases); other Han text keeps a Japanese,
+  // Korean or Chinese page's language and is Chinese on any other page.
   const han = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0;
   if (han / letters >= SCRIPT_SHARE) {
-    if (/[\u3040-\u30ff]/.test(text)) return "ja";
+    const kana = text.match(KANA)?.length ?? 0;
+    if (kana >= KANA_MIN_LETTERS && kana / letters >= KANA_MIN_SHARE) return "ja";
     if (/[\uac00-\ud7af]/.test(text)) return "ko";
     return page === "ja" || page === "ko" || page === "zh" ? pageLanguage : "zh";
   }

@@ -15,6 +15,7 @@ import {
 } from "./voiceBridge";
 import { getVoiceChatStyle, setVoiceChatStyle, useVoiceChatStyle } from "./voiceChatPreferences";
 import {
+  claimVoiceMessage,
   dispatchVoiceSession,
   getVoiceSession,
   speechDeadlineMs,
@@ -86,9 +87,6 @@ function setup() {
     signals: [] as Array<AbortSignal | undefined>,
     /** Starts end straight back in the error they were retried from. */
     failStarts: false,
-    /** The words the composer sends once dictation has finished. */
-    transcript: "why is the sky blue",
-    onTranscript: null as ((text: string) => void) | null,
   };
   const waiting = () => new Promise<VoiceStartResult>(() => undefined);
   const continues = (draftKey: string) => microphone.promotedFrom === draftKey;
@@ -130,9 +128,8 @@ function setup() {
         publish();
         return Promise.resolve("started");
       },
-      submit: (onTranscript) => {
+      submit: () => {
         microphone.submits += 1;
-        microphone.onTranscript = onTranscript ?? null;
         microphone.phase = "transcribing";
         publish();
       },
@@ -150,11 +147,10 @@ function setup() {
   return {
     microphone,
     spoken,
-    /** The transcript arrived and the composer sent it, as the real composer does after dictation. */
-    finishTranscribing: () =>
+    /** The transcript arrived and the composer sent it under `messageId`, as it does after dictation. */
+    finishTranscribing: (messageId: string = QUESTION.id) =>
       act(() => {
-        microphone.onTranscript?.(microphone.transcript);
-        microphone.onTranscript = null;
+        claimVoiceMessage(microphone.threadKey, messageId);
         microphone.phase = "idle";
         publish();
       }),
@@ -798,6 +794,82 @@ it("voice chat does not read the answer to another prompt that landed first, and
   ]);
 });
 
+/** A saved thread's user message, whose item id differs from the id the composer gave it. */
+function savedQuestion(itemId: string, messageId: string, text: string, runId: string) {
+  return {
+    position: 0,
+    visibility: "local",
+    item: { id: itemId, type: "user_message", messageId, text, runId, inputIntent: "start" },
+  };
+}
+
+function savedReply(itemId: string, text: string, runId: string) {
+  return {
+    position: 0,
+    visibility: "local",
+    item: { id: itemId, type: "assistant_message", text, runId, streaming: false },
+  };
+}
+
+it("voice chat reads the reply to a question the composer sent with an effort prefix added to its words", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing("message-1");
+  const question = savedQuestion(
+    "item-1",
+    "message-1",
+    "Ultrathink:\nwhy is the sky blue",
+    "run-1",
+  );
+  saved.rows = [question];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  saved.rows = [question, savedReply("item-2", "Light bends inside each drop.", "run-1")];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
+    "Light bends inside each drop.",
+  ]);
+});
+
+it("voice chat does not read another client's answer to a prompt with the same words as its own question", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing("message-1");
+  // Another client sent the same words first, and its answer is already in.
+  const other = [
+    savedQuestion("item-9", "message-9", "why is the sky blue", "run-other"),
+    savedReply("item-10", "It is noon.", "run-other"),
+  ];
+  saved.rows = other;
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
+  expect(voice.spoken).toEqual([]);
+
+  const own = savedQuestion("item-1", "message-1", "why is the sky blue", "run-1");
+  saved.rows = [...other, own];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  saved.rows = [...other, own, savedReply("item-2", "Light bends inside each drop.", "run-1")];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
+    "Light bends inside each drop.",
+  ]);
+});
+
 it("voice chat does not read a later row from a run it already read, and listens again instead", async () => {
   using voice = setup();
   await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
@@ -817,7 +889,7 @@ it("voice chat does not read a later row from a run it already read, and listens
 
   // The next spoken question starts its own run; the first run publishes one more message.
   await press(screen.getByRole("button", { name: "Send what I said" }));
-  await voice.finishTranscribing();
+  await voice.finishTranscribing("u3");
   const secondQuestion = { ...QUESTION, id: "u3", runId: "run-2" };
   await screen.rerender(voice.stage(true, [...firstRun, secondQuestion]));
   const lateFromFirstRun = { ...NEW_REPLY, id: "a2b", text: "One more thing.", runId: "run-1" };
@@ -886,6 +958,39 @@ it("voice chat abandons a reply the speech engine keeps queued and never starts,
   expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 });
 });
 
+it("voice chat keeps reading a reply the engine began between the 4 and 6 second checks, without restarting it", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  // The engine holds the utterance queued at first, then begins it without sending a start event.
+  const engine = { speaking: false };
+  using _pending = vi.spyOn(window.speechSynthesis, "pending", "get").mockReturnValue(true);
+  using _speaking = vi
+    .spyOn(window.speechSynthesis, "speaking", "get")
+    .mockImplementation(() => engine.speaking);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
+  expect(voice.spoken).toHaveLength(1);
+
+  await act(() => vi.advanceTimersByTime(5_000));
+  engine.speaking = true;
+  // The checks read the page directly: waiting for it would also move the fake clock on.
+  await act(() => vi.advanceTimersByTime(1_000));
+  expect(voice.spoken).toHaveLength(1);
+  expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
+
+  // The length-based deadline now counts from the 6 second check that saw it speak.
+  await act(() => vi.advanceTimersByTime(speechDeadlineMs("Light bends inside each drop.")));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
+  expect(voice.spoken).toHaveLength(1);
+});
+
 it("voice chat steps aside when a secret request appears in the thread while the agent answers", async () => {
   using voice = setup();
   await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
@@ -905,6 +1010,28 @@ it("voice chat steps aside when a secret request appears in the thread while the
     },
   ];
   await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
+});
+
+function savedFeedbackCard(itemId: string) {
+  return {
+    position: 0,
+    visibility: "local",
+    item: { id: itemId, type: "feedback_request", feedbackStatus: "pending" },
+  };
+}
+
+it("voice chat starts beside an optional feedback card left pending earlier, and closes when a new one arrives", async () => {
+  using voice = setup();
+  saved.rows = [savedFeedbackCard("feedback-old")];
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+
+  await voice.start();
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).toBeVisible();
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Listening");
+
+  saved.rows = [savedFeedbackCard("feedback-old"), savedFeedbackCard("feedback-new")];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
   await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
 });
 

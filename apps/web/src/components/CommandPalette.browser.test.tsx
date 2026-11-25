@@ -472,9 +472,9 @@ describe("CommandPalette commands", () => {
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
     using _handlers = new DisposableStack();
     _handlers.defer(registerCommandHandlers({ "composer.stash": { run: stash } }));
-    openCommandPalette({ query: "Composer: Stash" });
+    openCommandPalette({ query: "Composer: stash" });
 
-    const row = page.getByRole("option", { name: /^Composer: Stash/ });
+    const row = page.getByRole("option", { name: /^Composer: stash/ });
     await expect.element(row).toMatchTextContent("Runs this command");
     await userEvent.keyboard("{Enter}");
 
@@ -575,24 +575,26 @@ describe("CommandPalette commands", () => {
   it("sends a keybinding result to its setting when no chat can run it", async () => {
     setup();
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
-    openCommandPalette({ query: "Composer: Stash" });
+    openCommandPalette({ query: "Composer: stash" });
 
     await expect
-      .element(page.getByRole("option", { name: /^Composer: Stash/ }))
-      .toMatchTextContent("Settings · Keybindings");
+      .element(page.getByRole("option", { name: /^Composer: stash/ }))
+      .toMatchTextContent("Settings · Keyboard shortcuts");
   });
 
   it("opens the shortcuts sheet from its row with the filter focused, and Escape closes it", async () => {
     setup(openThread());
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
     openCommandPalette({ query: "keyboard shortcuts" });
-    await expect.element(page.getByRole("option", { name: /^Keyboard shortcuts/ })).toBeVisible();
+    await expect
+      .element(page.getByRole("option", { name: /^Keyboard shortcuts/ }).first())
+      .toBeVisible();
     await userEvent.keyboard("{Enter}");
 
     const filter = page.getByRole("searchbox", { name: "Filter shortcuts" });
     await expect.element(filter).toHaveFocus();
     // A custom key for a command that ships with another one.
-    await expect.element(page.getByText("Terminal: Toggle")).toBeVisible();
+    await expect.element(page.getByText("Terminal: toggle")).toBeVisible();
     await userEvent.keyboard("{Escape}");
     await expect.element(filter).not.toBeInTheDocument();
   });

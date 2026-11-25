@@ -34,7 +34,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
-import { Fragment, useEffect, useEffectEvent, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { IssueDetailPanel } from "~/components/issue/IssueDetailPanel";
@@ -48,6 +48,7 @@ import { IssueGlyph, issueTrackerPresentation } from "~/components/issue/issuePr
 import { PullRequestDetailPanel } from "~/components/pullRequest/PullRequestDetailPanel";
 import { PullRequestMarkdownPanelContext } from "~/components/pullRequest/PullRequestMarkdown";
 import { PullRequestListGhost } from "~/components/pullRequest/PullRequestGhosts";
+import { ListPageTitle, useSlashFocusesSearch } from "~/components/pullRequest/ListPageChrome";
 import {
   PullRequestFilterOptionIcon,
   pullRequestProjectKey,
@@ -165,7 +166,11 @@ function hostOptionsFor(
       hosts.set(tracker.host, tracker);
   }
   return [
-    { value: "", label: resolve(msg("All", { $context: "issue filter" })), Icon: Plug2Icon },
+    {
+      value: "",
+      label: resolve(msg("All trackers", { $context: "issue filter, every tracker" })),
+      Icon: Plug2Icon,
+    },
     // A remembered host no project is on any more stays listed, so the filter can be taken off.
     ...(chosen !== undefined && !hosts.has(chosen)
       ? [{ value: chosen, label: chosen, Icon: Plug2Icon }]
@@ -193,6 +198,8 @@ export function IssuesPage() {
   const gt = useGT();
   const resolve = useMessages();
   const navigate = useNavigate({ from: "/issues" });
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  useSlashFocusesSearch(pageRef);
   const search = useSearch({ from: "/_chat/issues" });
   const { environments } = useEnvironments();
   const projects = useProjects();
@@ -513,7 +520,11 @@ export function IssuesPage() {
       error={gt("Update this environment's One server to browse issues.")}
     />
   ) : noneAnswered && list.isPending ? (
-    <PullRequestListGhost caption={gt("Loading issues…")} />
+    <PullRequestListGhost
+      caption={gt("Loading issues…")}
+      slowCaption={gt("Still waiting for the tracker to list issues…")}
+      onRetry={list.retry}
+    />
   ) : noneAnswered && list.error ? (
     <PullRequestsUnavailableState
       error={list.error}
@@ -669,18 +680,20 @@ export function IssuesPage() {
       <div className="relative flex min-h-0 flex-1">
         <div
           data-one-page=""
+          ref={pageRef}
           className="@container/issue-list flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background"
         >
           <WorkspacePageHeader
             electron={isElectron}
             reserveNativeControls={!rightPanelState.isOpen}
+            data-one-issues-header=""
             className="relative"
           >
             <WorkspaceBreadcrumb ariaLabel={gt("Issues breadcrumb")}>
               <WorkspaceBreadcrumbItem current>
-                <h1 className="truncate">
+                <ListPageTitle>
                   <T context="page title, list of issues">Issues</T>
-                </h1>
+                </ListPageTitle>
               </WorkspaceBreadcrumbItem>
             </WorkspaceBreadcrumb>
             <div className="min-w-0 flex-1" />
@@ -708,7 +721,10 @@ export function IssuesPage() {
             </div>
           </WorkspacePageHeader>
 
-          <div className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto">
+          <div
+            data-one-scroll=""
+            className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto"
+          >
             <WorkspacePageContainer width="expanded" className="min-h-full gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="min-w-0 basis-full @lg/issue-list:min-w-48 @lg/issue-list:basis-0 @lg/issue-list:flex-1">
@@ -920,7 +936,11 @@ function FilterMenu<Value extends string>({
   if (!current) return null;
   return (
     <Menu>
-      <MenuTrigger aria-label={`${label}: ${current.label}`} render={<Button variant="outline" />}>
+      <MenuTrigger
+        aria-label={`${label}: ${current.label}`}
+        render={<Button variant="outline" />}
+        className="min-w-32"
+      >
         <PullRequestFilterOptionIcon option={current} />
         <span className="truncate">{current.label}</span>
       </MenuTrigger>

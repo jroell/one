@@ -102,6 +102,9 @@ function MicrophoneRow(props: {
 }) {
   const gt = useGT();
   const { name } = props;
+  // One microphone has nothing to reorder, so its handle and arrows stay out of the way.
+  const reorderable = props.count > 1;
+  const hasActions = reorderable || props.onForget !== undefined;
   const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: props.id });
   return (
@@ -110,7 +113,12 @@ function MicrophoneRow(props: {
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         // Phones put the marker and controls on a second line so names stay readable.
-        "grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-x-2 py-1.5 ps-3 pe-1.5 @min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)_auto_auto]",
+        "grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-x-2 py-1.5 ps-3 pe-1.5",
+        reorderable
+          ? "@min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)_auto_auto]"
+          : hasActions
+            ? "@min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)_auto]"
+            : "@min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)]",
         isDragging && "relative z-10 rounded-lg bg-background shadow-md",
       )}
     >
@@ -129,49 +137,57 @@ function MicrophoneRow(props: {
           </span>
         ) : null}
       </span>
-      <span
-        ref={setActivatorNodeRef}
-        {...listeners}
-        aria-hidden
-        className="hidden size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/70 hover:text-foreground active:cursor-grabbing @min-[32rem]/settings-row:flex"
-      >
-        <GripVerticalIcon className="size-3.5" />
-      </span>
-      <span className="flex items-center gap-0.5">
-        <Button
-          type="button"
-          size="icon-xs"
-          variant="ghost-muted"
-          disabled={props.position === 1}
-          aria-label={gt("Move {name} up", { name })}
-          onClick={() => props.onMove(-1)}
+      {reorderable ? (
+        <span
+          ref={setActivatorNodeRef}
+          {...listeners}
+          aria-hidden
+          className="hidden size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/70 hover:text-foreground active:cursor-grabbing @min-[32rem]/settings-row:flex"
         >
-          <ArrowUpIcon />
-        </Button>
-        <Button
-          type="button"
-          size="icon-xs"
-          variant="ghost-muted"
-          disabled={props.position === props.count}
-          aria-label={gt("Move {name} down", { name })}
-          onClick={() => props.onMove(1)}
-        >
-          <ArrowDownIcon />
-        </Button>
-        {props.onForget ? (
-          <Button
-            type="button"
-            size="icon-xs"
-            variant="ghost-muted"
-            aria-label={gt("Forget {name}", { name })}
-            onClick={props.onForget}
-          >
-            <XIcon />
-          </Button>
-        ) : (
-          <span aria-hidden className="size-7 sm:size-6" />
-        )}
-      </span>
+          <GripVerticalIcon className="size-3.5" />
+        </span>
+      ) : null}
+      {hasActions ? (
+        <span className="flex items-center gap-0.5">
+          {reorderable ? (
+            <>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost-muted"
+                disabled={props.position === 1}
+                aria-label={gt("Move {name} up", { name })}
+                onClick={() => props.onMove(-1)}
+              >
+                <ArrowUpIcon />
+              </Button>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost-muted"
+                disabled={props.position === props.count}
+                aria-label={gt("Move {name} down", { name })}
+                onClick={() => props.onMove(1)}
+              >
+                <ArrowDownIcon />
+              </Button>
+            </>
+          ) : null}
+          {props.onForget ? (
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost-muted"
+              aria-label={gt("Forget {name}", { name })}
+              onClick={props.onForget}
+            >
+              <XIcon />
+            </Button>
+          ) : (
+            <span aria-hidden className="size-7 sm:size-6" />
+          )}
+        </span>
+      ) : null}
     </li>
   );
 }

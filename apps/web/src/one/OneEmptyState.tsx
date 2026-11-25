@@ -1,16 +1,31 @@
 import { T, useGT } from "gt-react";
+import { useAtomValue } from "@effect/atom-react";
+import { useParams } from "@tanstack/react-router";
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
+import type { KeybindingCommand } from "@t3tools/contracts";
 import { createContext, use } from "react";
 import {
   AudioLinesIcon,
+  AtSignIcon,
   CircleHelpIcon,
+  FileDiffIcon,
+  FileSearchIcon,
   GraduationCapIcon,
   LightbulbIcon,
   ScaleIcon,
+  SquareTerminalIcon,
   type LucideIcon,
 } from "lucide-react";
 
+import { dispatchCommandPalette } from "~/commandPaletteStore";
+import { Kbd } from "~/components/ui/kbd";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
+import { shortcutLabelForCommand } from "~/keybindings";
+import { useRightPanelStore } from "~/rightPanelStore";
+import { primaryServerKeybindingsAtom } from "~/state/server";
+import { useProject, useThreadShell } from "~/state/entities";
+import { resolveThreadRouteTarget } from "~/threadRoutes";
 import { OneMark } from "./OneMark";
 import { OneOrb } from "./OneOrb";
 import { useVoiceBridge } from "./voiceBridge";
@@ -38,6 +53,7 @@ export function OneEmptyState() {
   const mode = useWorkspaceMode();
   const mainConversation = use(MainConversationContext);
   if (mode === "chat" && mainConversation) return <ChatWelcome />;
+  if (mainConversation) return <CodeWelcome />;
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <OneMark className="size-12 opacity-90" />
@@ -48,13 +64,113 @@ export function OneEmptyState() {
   );
 }
 
+/** The ring the welcomes share. Voice chat draws its own over the screen; two live rings cost twice. */
+function WelcomeOrb() {
+  const voiceOpen = useVoiceSession().stage !== "off";
+  return voiceOpen ? (
+    <div className="one-chat-welcome-orb aspect-square" />
+  ) : (
+    <OneOrb className="one-chat-welcome-orb" />
+  );
+}
+
+interface CodeStarter {
+  readonly id: string;
+  readonly icon: LucideIcon;
+  readonly label: string;
+  /** The keybinding command whose shortcut is shown, when the action has one. */
+  readonly command: KeybindingCommand | null;
+  /** Shown when the action has no binding of its own. */
+  readonly keycap?: string;
+  readonly run: () => void;
+}
+
+/** The code mode welcome: a greeting, the project, and four things to do first. */
+export function CodeWelcome() {
+  const gt = useGT();
+  const composer = useComposerHandleContext();
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const params = useParams({ strict: false }) as Record<string, string | undefined>;
+  const target = resolveThreadRouteTarget(params);
+  const threadRef = target?.kind === "server" ? target.threadRef : null;
+  const shell = useThreadShell(threadRef);
+  const project = useProject(shell ? scopeProjectRef(shell.environmentId, shell.projectId) : null);
+
+  const starters: ReadonlyArray<CodeStarter> = [
+    {
+      id: "mention",
+      icon: AtSignIcon,
+      label: gt("Mention a file"),
+      command: null,
+      keycap: "@",
+      run: () => {
+        const handle = composer?.current;
+        if (!handle) return;
+        const empty = handle.readSnapshot().value.trim().length === 0;
+        if (empty) handle.insertTextAtEnd("@");
+        handle.focusAtEnd();
+      },
+    },
+    {
+      id: "search",
+      icon: FileSearchIcon,
+      label: gt("Search the project"),
+      command: "projectSearch.toggle",
+      run: () => dispatchCommandPalette({ _tag: "ToggleMode", mode: "content" }),
+    },
+    ...(threadRef
+      ? [
+          {
+            id: "changes",
+            icon: FileDiffIcon,
+            label: gt("Review changes"),
+            command: "diff.toggle",
+            run: () => useRightPanelStore.getState().open(threadRef, "diff"),
+          } satisfies CodeStarter,
+        ]
+      : []),
+    {
+      id: "palette",
+      icon: SquareTerminalIcon,
+      label: gt("Open the command palette"),
+      command: "commandPalette.toggle",
+      run: () => dispatchCommandPalette({ _tag: "SetOpen", open: true }),
+    },
+  ];
+
+  return (
+    <div className="one-chat-welcome" data-one-code-welcome="">
+      <WelcomeOrb />
+      <h1 className="one-chat-welcome-title">
+        <T>What are we building?</T>
+      </h1>
+      {project ? <p className="one-chat-welcome-lead">{project.title}</p> : null}
+      <ul className="one-chat-starters" aria-label={gt("Ways to start")}>
+        {starters.map((starter) => {
+          const keycap =
+            (starter.command ? shortcutLabelForCommand(keybindings, starter.command) : null) ??
+            starter.keycap;
+          return (
+            <li key={starter.id}>
+              <button type="button" className="one-chip" data-one-reflect="" onClick={starter.run}>
+                <starter.icon aria-hidden="true" className="size-4" />
+                {starter.label}
+                {keycap ? <Kbd>{keycap}</Kbd> : null}
+                <span aria-hidden="true" className="one-reflection" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /** The chat mode welcome: a greeting, ways to start, and the way into voice chat. */
 export function ChatWelcome({ compact = false }: { readonly compact?: boolean }) {
   const gt = useGT();
   const composer = useComposerHandleContext();
   const voice = useVoiceBridge();
-  // Voice chat draws its own ring over this screen; two live rings would cost twice.
-  const voiceOpen = useVoiceSession().stage !== "off";
   const hour = new Date(useNowMinute()).getHours();
   const starters: ReadonlyArray<{ icon: LucideIcon; label: string; stem: string }> = [
     { icon: GraduationCapIcon, label: gt("Learn something"), stem: gt("Teach me about ") },
@@ -86,11 +202,7 @@ export function ChatWelcome({ compact = false }: { readonly compact?: boolean })
 
   return (
     <div className="one-chat-welcome" data-compact={compact || undefined}>
-      {voiceOpen ? (
-        <div className="one-chat-welcome-orb aspect-square" />
-      ) : (
-        <OneOrb className="one-chat-welcome-orb" />
-      )}
+      <WelcomeOrb />
       <h1 className="one-chat-welcome-title">{greetingFor(hour, gt)}</h1>
       <p className="one-chat-welcome-lead">
         <T>Ask a question, or pick a way to start.</T>

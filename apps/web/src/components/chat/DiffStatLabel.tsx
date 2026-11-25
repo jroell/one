@@ -16,21 +16,6 @@ export function formatCompactDiffCount(value: number): string {
   return `${b < 10 ? b.toFixed(1).replace(/\.0$/, "") : Math.round(b)}b`;
 }
 
-const BINARY_DIFF_EXTENSION =
-  /\.(png|jpe?g|gif|webp|avif|ico|icns|bmp|tiff?|heic|psd|pdf|zip|gz|tgz|tar|7z|rar|jar|woff2?|ttf|otf|eot|mp[34]|mov|webm|wav|ogg|flac|wasm|sqlite3?|db|bin|exe|dll|dylib|so|node|class|pyc|lockb)$/i;
-
-/**
- * Git reports a binary file as zero added and zero removed lines, which reads as "no change".
- * A zero-line stat on a file type that cannot hold lines is a binary file.
- */
-export function isLikelyBinaryDiffFile(
-  path: string,
-  additions: number,
-  deletions: number,
-): boolean {
-  return additions === 0 && deletions === 0 && BINARY_DIFF_EXTENSION.test(path);
-}
-
 export const DiffStatLabel = memo(function DiffStatLabel(props: {
   additions: number;
   deletions: number;

@@ -2,23 +2,33 @@
 const READING_LINE_FRACTION = 0.25;
 
 /**
- * The turn being read. `tops` are the turns' row tops in the timeline's scroll coordinates.
- * A thread that fits, or one scrolled to its end, marks its last turn.
+ * The turn being read. `topAt` gives a turn's row top in the timeline's scroll coordinates and is
+ * read only along a binary search. `atEnd` is the caller's physical end check (the scroll node's
+ * own offsets), which also holds for a thread that fits: either marks the last turn.
  */
 export function resolveOutlineCurrentIndex(input: {
-  readonly tops: ReadonlyArray<number>;
+  readonly count: number;
+  readonly topAt: (index: number) => number;
   readonly scroll: number;
   readonly viewportHeight: number;
-  readonly scrollHeight: number;
+  readonly atEnd: boolean;
 }): number | null {
-  const { tops, scroll, viewportHeight, scrollHeight } = input;
-  if (tops.length === 0) return null;
-  const last = tops.length - 1;
-  if (scrollHeight - viewportHeight <= 1 || scroll + viewportHeight >= scrollHeight - 1) {
-    return last;
-  }
+  const { count, topAt, scroll, viewportHeight, atEnd } = input;
+  if (count === 0) return null;
+  if (atEnd) return count - 1;
   const line = scroll + viewportHeight * READING_LINE_FRACTION;
-  const containing = tops.findLastIndex((top) => top <= line);
+  let low = 0;
+  let high = count - 1;
+  let containing = -1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (topAt(middle) <= line) {
+      containing = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
   return containing === -1 ? 0 : containing;
 }
 

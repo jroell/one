@@ -87,7 +87,7 @@ import { useClientSettings } from "../hooks/useSettings";
 import { getFileMetadataQueryAtom } from "../hooks/useFileMetadata";
 import { FileMetadataThreadContext } from "../hooks/FileMetadataThreadProvider";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { attachedTerminalSessionAtom } from "../state/terminalSessions";
+import { attachedTerminalSessionAtom, retryTerminalSessionAttach } from "../state/terminalSessions";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
 import { previewEnvironment } from "../state/preview";
@@ -596,6 +596,9 @@ function TerminalSessionViewport({
   const runTerminalWrite = useAtomCommand(terminalEnvironment.write, {
     reportFailure: false,
   });
+  const runTerminalOpen = useAtomCommand(terminalEnvironment.open, {
+    reportFailure: false,
+  });
   // Recovery keeps the original registry-bound command after this viewport unmounts.
   const retainedTerminalWrite = useRef(runTerminalWrite);
   const runTerminalResize = useAtomCommand(terminalEnvironment.resize, {
@@ -629,14 +632,15 @@ function TerminalSessionViewport({
   );
   const terminalFontRef = useRef({ family: terminalFontFamily, size: terminalFontSize });
   // Keyed by the launch (see TerminalViewport), so the atom is fixed for this surface.
-  const terminalSessionAtom = attachedTerminalSessionAtom(environmentId, {
+  const attachInput = {
     threadId,
     terminalId,
     cwd,
     ...(worktreePath !== undefined ? { worktreePath } : {}),
     ...(runtimeEnv ? { env: runtimeEnv } : {}),
     ...(providerInstanceId ? { providerInstanceId } : {}),
-  });
+  };
+  const terminalSessionAtom = attachedTerminalSessionAtom(environmentId, attachInput);
   // Attaching starts with the viewport, while the WASM surface is still loading;
   // the surface reads the session itself, so output chunks never re-render here.
   useAtomMount(terminalSessionAtom);
@@ -1231,6 +1235,27 @@ function TerminalSessionViewport({
       containerRef.current = null;
     };
   };
+  // A failed stream re-subscribes to the attach. A shell that ran and failed restarts through
+  // the same permission-checked open the new terminal action uses.
+  const retryTerminal = () => {
+    const session = readTerminalSession();
+    if (session.error === null && session.status === "error") {
+      if (!hasTerminalWriteAccess()) return;
+      void runTerminalOpen({
+        environmentId,
+        input: {
+          threadId,
+          terminalId,
+          cwd,
+          ...(worktreePath ? { worktreePath } : {}),
+          ...(runtimeEnv ? { env: runtimeEnv } : {}),
+          ...(providerInstanceId ? { providerInstanceId } : {}),
+        },
+      });
+      return;
+    }
+    retryTerminalSessionAttach(environmentId, attachInput);
+  };
   return (
     <div className="relative h-full w-full overflow-hidden bg-(--terminal-background)">
       <div
@@ -1238,11 +1263,7 @@ function TerminalSessionViewport({
         tabIndex={-1}
         className="relative h-full w-full overflow-hidden bg-(--terminal-background)"
       />
-      <TerminalStateOverlay
-        atom={terminalSessionAtom}
-        cwd={cwd}
-        onRetry={() => appAtomRegistry.refresh(terminalSessionAtom)}
-      />
+      <TerminalStateOverlay atom={terminalSessionAtom} cwd={cwd} onRetry={retryTerminal} />
     </div>
   );
 }
@@ -1883,6 +1904,14 @@ export default function ThreadTerminalDrawer({
     >
       {resizeHandle}
 
+      {/* The drag handle sits over this strip, so the header below never covers it. */}
+      {resizeHandle && !hasTerminalSidebar ? (
+        <div
+          aria-hidden
+          data-one-terminal-grip-strip=""
+          className="h-1.5 shrink-0 any-pointer-coarse:h-4"
+        />
+      ) : null}
       {!hasTerminalSidebar && (
         <div
           data-one-terminal-header=""

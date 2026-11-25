@@ -1,4 +1,4 @@
-import type { UsageTokenTotals } from "@t3tools/contracts";
+import type { UsageProviderKind, UsageTokenTotals } from "@t3tools/contracts";
 import {
   isModelCostUnknown,
   type CategoryCost,
@@ -78,4 +78,29 @@ export function speedCostSegments(cost: SpeedCost): readonly ShareSegment[] {
     { label: msg("Fast"), value: cost.fast, color: ink(66) },
     { label: msg("Ultrafast"), value: cost.ultrafast, color: ink(100) },
   ];
+}
+
+/** The provider with the largest share of the metric, or null when nothing was used. */
+export function leadingProvider(
+  providers: readonly {
+    readonly provider: UsageProviderKind;
+    readonly costShare: number;
+    readonly tokenShare: number;
+  }[],
+  metric: "tokens" | "cost",
+): { readonly provider: UsageProviderKind; readonly share: number } | null {
+  const shareOf = (entry: (typeof providers)[number]) =>
+    metric === "tokens" ? entry.tokenShare : entry.costShare;
+  const best = providers.reduce<(typeof providers)[number] | undefined>(
+    (top, entry) => (top === undefined || shareOf(entry) > shareOf(top) ? entry : top),
+    undefined,
+  );
+  return best === undefined || shareOf(best) <= 0
+    ? null
+    : { provider: best.provider, share: shareOf(best) };
+}
+
+/** A share for a sentence: whole percent, with "<1%" for a sliver rather than a misleading 0%. */
+export function wholePercent(share: number): string {
+  return share > 0 && share < 0.005 ? "<1%" : `${Math.round(share * 100)}%`;
 }

@@ -776,7 +776,8 @@ html[data-one-opening-cover] .one-chat-welcome-orb {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: one-opening-name 1800ms var(--one-ease-out) 1900ms both;
+  --one-opening-enter: one-opening-name 1800ms var(--one-ease-out) 1900ms both;
+  animation: var(--one-opening-enter);
 }
 
 .one-opening-rule {
@@ -784,7 +785,8 @@ html[data-one-opening-cover] .one-chat-welcome-orb {
   height: 1px;
   margin-top: 1.1rem;
   background: linear-gradient(90deg, transparent, var(--one-ring-mid) 50%, transparent);
-  animation: one-opening-rule 1600ms var(--one-ease-out) 2300ms both;
+  --one-opening-enter: one-opening-rule 1600ms var(--one-ease-out) 2300ms both;
+  animation: var(--one-opening-enter);
 }
 
 @keyframes one-opening-name {
@@ -796,12 +798,14 @@ html[data-one-opening-cover] .one-chat-welcome-orb {
 }
 
 /* The name and its rule go first and fast, so no blurred word ever floats over the live app. */
-/* A keyframe, not a transition: these elements are still under their arrival animation, and
-   swapping that for a transition would cut them in one frame. */
+/* The arrival animation stays first in the list, so an element still waiting to arrive stays
+   hidden: the fade has no start keyframe and begins from whatever opacity the arrival gives it. */
 .one-opening[data-phase="leaving"] .one-opening-name,
 .one-opening[data-phase="leaving"] .one-opening-rule,
 .one-opening[data-phase="leaving"] .one-opening-skip {
-  animation: one-opening-out 140ms linear both;
+  animation:
+    var(--one-opening-enter),
+    one-opening-out 140ms linear both;
 }
 
 @keyframes one-opening-out {
@@ -1029,7 +1033,8 @@ html[data-one-opening-cover] .one-chat-welcome-orb {
   color: color-mix(in oklch, color-mix(in oklch, var(--one-brand) 34%, white) 82%, black);
   cursor: pointer;
   outline: none;
-  animation: one-opening-rule 1200ms var(--one-ease-out) 1600ms both;
+  --one-opening-enter: one-opening-rule 1200ms var(--one-ease-out) 1600ms both;
+  animation: var(--one-opening-enter);
 }
 
 .one-opening-skip:focus-visible {

@@ -1,11 +1,18 @@
 import type { ProviderDriverKind } from "@t3tools/contracts";
 import { T } from "gt-react";
+import { createContext, use } from "react";
 import { FolderGit2Icon, FolderIcon, GitBranchIcon } from "lucide-react";
 import { ProjectFavicon, type ProjectFaviconProject } from "./ProjectFavicon";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { cn } from "~/lib/utils";
 
 import { MiddleTruncate } from "./ui/middle-truncate";
+
+/**
+ * The context a list names once beside its heading. A row whose own context matches it leaves that
+ * part out, so a column of identical "project, machine, branch" lines does not repeat.
+ */
+export const SharedThreadContext = createContext<string | null>(null);
 
 export type ThreadCommandSubtitleVariant =
   | "favicon-workspace-harness"
@@ -42,15 +49,18 @@ export function ThreadCommandSubtitle(props: {
   acpRegistryAgentId?: string | undefined;
   acpRegistryIconUrl?: string | undefined;
   variant?: ThreadCommandSubtitleVariant;
+  contextLabel?: string;
   className?: string;
 }) {
+  const sharedContext = use(SharedThreadContext);
+  const contextShared = sharedContext !== null && sharedContext === props.contextLabel;
   const variant = props.variant ?? THREAD_COMMAND_SUBTITLE_VARIANT;
   const isWorktree = props.worktreePath != null && props.worktreePath.trim().length > 0;
   const showHarness =
     variant !== "favicon-workspace" && props.driverKind != null && props.providerDisplayName;
 
-  const projectLabel = props.projectTitle?.trim() || null;
-  const branchLabel = props.branch?.trim() || null;
+  const projectLabel = contextShared ? null : props.projectTitle?.trim() || null;
+  const branchLabel = contextShared ? null : props.branch?.trim() || null;
 
   if (!projectLabel && !branchLabel && !props.isCurrent && !showHarness) {
     return null;

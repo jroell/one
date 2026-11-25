@@ -107,6 +107,7 @@ import { useWorkspaceMode } from "~/one/workspaceMode";
 import { quietedLiveWorkIds } from "~/one/chatQuietWork";
 import { ChatArrivalContext, chatArrivalProps, useChatArrival } from "~/one/chatArrival";
 import { ApprovalSubjectContext, deriveApprovalSubjects } from "~/one/chatApprovalSubject";
+import type { ComposerHandleRef } from "~/composerHandleContext";
 import { ChatFollowUps } from "~/one/ChatFollowUps";
 import {
   ChatFollowUpContext,
@@ -357,6 +358,8 @@ interface MessagesTimelineProps {
   emptyPlaceholderInset: number;
   topFadeEnabled?: boolean;
   historyControls?: MessagesTimelineHistoryControls | undefined;
+  /** The composer under this timeline; without one, Chat mode offers no follow-up actions. */
+  composerRef?: ComposerHandleRef | null;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
@@ -455,6 +458,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   emptyPlaceholderInset,
   topFadeEnabled = false,
   historyControls,
+  composerRef = null,
 }: MessagesTimelineProps) {
   const gt = useGT();
   const canvas = useChatCanvas();
@@ -948,6 +952,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     readonly id: string;
   } | null>(null);
   const [minimapAtEnd, setMinimapAtEnd] = useState(false);
+  const outlineShownRef = useRef(false);
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
       onAnchorReady(anchorMessageId, info.anchorIndex);
@@ -1027,12 +1032,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setMinimapCurrentIndex((current) =>
       current === nextCurrentIndex ? current : nextCurrentIndex,
     );
-    if (chatMode) {
+    // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
+    const physicallyAtEnd =
+      viewport !== undefined &&
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+    if (chatMode && outlineShownRef.current) {
       const outlineIndex = resolveOutlineCurrentIndex({
-        tops: minimapItems.map((item) => state.positionAtIndex(item.rowIndex) ?? 0),
+        count: minimapItems.length,
+        topAt: (index) => state.positionAtIndex(minimapItems[index]!.rowIndex) ?? 0,
         scroll,
         viewportHeight: state.scrollLength,
-        scrollHeight: viewport?.scrollHeight ?? state.scrollLength,
+        atEnd: physicallyAtEnd,
       });
       const id = outlineIndex === null ? undefined : minimapItems[outlineIndex]?.id;
       setOutlineCurrent((current) =>
@@ -1043,11 +1053,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
             : { threadKey: listIdentityKey, id },
       );
     }
-    // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
-    setMinimapAtEnd(
-      viewport !== undefined &&
-        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
-    );
+    setMinimapAtEnd(physicallyAtEnd);
   });
 
   const minimapRefreshFrameRef = useRef<number | null>(null);
@@ -1065,10 +1071,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
     if (!restoringThreadPosition) scheduleMinimapRefresh();
   }, [restoringThreadPosition, scheduleMinimapRefresh]);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the Chat outline mark is measured from the list, so entering Chat mode needs a first measurement
-  useLayoutEffect(() => {
-    if (chatMode) scheduleMinimapRefresh();
-  }, [chatMode, scheduleMinimapRefresh]);
+  // The outline mark is measured only while the outline shows; showing it needs a first measurement.
+  const onOutlineShownChange = useStableCallback((shown: boolean) => {
+    outlineShownRef.current = shown;
+    if (shown) scheduleMinimapRefresh();
+  });
 
   // The measurement the last remember wrote, so a follow release can rewrite
   // it without reading render state from a listener.
@@ -1191,6 +1198,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     ? resolveChatFollowUpTarget(rows, {
         turnRunning: isWorking,
         awaitingPerson: awaitingUser !== null || pendingApprovalRequestIds.size > 0,
+        composerRef,
       })
     : NO_FOLLOW_UP;
   const sharedState: TimelineRowSharedState = {
@@ -1645,6 +1653,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 threadKey={listIdentityKey}
                 onSelect={selectMinimapItem}
                 onWheel={forwardMinimapWheel}
+                onShownChange={onOutlineShownChange}
               >
                 {minimap}
               </ChatNav>
@@ -1844,7 +1853,9 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "working" ? <WorkingStatusRow row={row} /> : null}
       {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
-      {followUp.rowId === row.id ? <ChatFollowUps ready={followUp.ready} /> : null}
+      {followUp.rowId === row.id && followUp.composerRef !== null ? (
+        <ChatFollowUps ready={followUp.ready} composer={followUp.composerRef} />
+      ) : null}
     </div>
   );
 });

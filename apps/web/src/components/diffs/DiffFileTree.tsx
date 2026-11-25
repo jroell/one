@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { useTheme } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
-import { FILE_TREE_UNSAFE_CSS } from "../files/fileTreeChrome";
+import { FILE_TREE_UNSAFE_CSS, fileTreeItemHeightOption } from "../files/fileTreeChrome";
 import { pierreTreeStyle, titleClippedPierreTreeRow } from "~/pierre-tree-theme";
 
 import {
@@ -88,6 +88,7 @@ export function DiffFileTree({
 
   const { model } = useFileTree({
     density: "compact",
+    ...fileTreeItemHeightOption(),
     flattenEmptyDirectories: true,
     initialExpansion: "open",
     icons,

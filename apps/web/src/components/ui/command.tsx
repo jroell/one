@@ -109,7 +109,10 @@ function CommandInput({
   ...props
 }: React.ComponentProps<typeof AutocompleteInput>) {
   return (
-    <div className="px-[var(--command-shell-inset)] py-1.5 [&_[data-slot=autocomplete-start-addon]]:ps-[calc(var(--command-shell-inset)+0.0625rem)]">
+    <div
+      className="px-[var(--command-shell-inset)] py-1.5 [&_[data-slot=autocomplete-start-addon]]:ps-[calc(var(--command-shell-inset)+0.0625rem)]"
+      data-slot="search-field"
+    >
       <AutocompleteInput
         autoFocus
         className={cn(
@@ -164,6 +167,7 @@ function CommandPanel({ className, ...props }: React.ComponentProps<"div">) {
         "relative min-h-0 overflow-hidden rounded-t-xl not-has-[+[data-slot=command-footer]]:rounded-b-2xl bg-transparent **:data-[slot=scroll-area-scrollbar]:mt-2 [touch-action:pan-y]",
         className,
       )}
+      data-slot="command-panel"
       {...props}
     />
   );

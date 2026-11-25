@@ -242,10 +242,11 @@ export function formatShortcutKeyLabel(key: string): string {
   if (key === " ") return "Space";
   if (key.length === 1) return key.toUpperCase();
   if (key === "escape") return "Esc";
-  if (key === "arrowup") return "Up";
-  if (key === "arrowdown") return "Down";
-  if (key === "arrowleft") return "Left";
-  if (key === "arrowright") return "Right";
+  if (key === "arrowup") return "\u2191";
+  if (key === "arrowdown") return "\u2193";
+  if (key === "arrowleft") return "\u2190";
+  if (key === "arrowright") return "\u2192";
+  if (key === "enter") return "\u21b5";
   if (key === "pageup") return "PageUp";
   if (key === "pagedown") return "PageDown";
   return key.slice(0, 1).toUpperCase() + key.slice(1);

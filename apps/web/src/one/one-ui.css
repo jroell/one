@@ -16,6 +16,28 @@
 /* ----------------------------------------------------------------- tokens */
 
 :root {
+  /* Filled shapes (a primary button, an on switch, a checked box) take the fill pair; text that
+     is the accent (links, labels) keeps --primary. In the standard light theme the fill is a clear
+     gold, 3.3:1 against the page, with the dark on-gold text at 5.4:1. Custom themes and dark
+     keep the theme's own action pair. */
+  --ui-fill: var(--primary);
+  --ui-on-fill: var(--primary-foreground);
+  --ui-switch-thumb-on: var(--ui-on-fill);
+
+  /* The serif of the opening and the usage headline, for titles that should read as One. */
+  --one-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
+  /* Three levels of surface. Base is the page. Raised is a panel or card on it. Overlay floats.
+     On dark each step is a few percent lighter, so depth reads without blur. */
+  --ui-surface-base: var(--background);
+  --ui-surface-raised: var(--card);
+  --ui-surface-overlay: var(--popover);
+
+  /* A selected card or tile: a brand ring and a faint brand tint. A selected list row: the tint. */
+  --ui-select-tint: color-mix(in oklch, var(--one-brand) 12%, transparent);
+  --ui-select-tint-faint: color-mix(in oklch, var(--one-brand) 7%, transparent);
+  --ui-select-ring: color-mix(in oklch, var(--one-brand) 72%, transparent);
+
   --ui-radius: var(--control-radius, 0.5rem);
   --ui-radius-float: 0.75rem;
   --ui-radius-item: 0.5rem;
@@ -46,6 +68,8 @@
   --ui-invalid-edge: color-mix(in oklch, var(--destructive) 70%, transparent);
 
   @variant dark {
+    --ui-surface-raised: color-mix(in srgb, var(--foreground) 5.5%, var(--background));
+    --ui-surface-overlay: color-mix(in srgb, var(--foreground) 8.5%, var(--background));
     --ui-focus: var(--ring);
     --ui-shade: rgb(0 0 0 / 55%);
     --ui-shade-deep: rgb(0 0 0 / 70%);
@@ -59,6 +83,13 @@
     --ui-field-edge-hover: color-mix(in srgb, var(--foreground) 28%, transparent);
     --ui-control-edge: color-mix(in srgb, var(--foreground) 44%, transparent);
   }
+}
+
+html:not([data-theme-id]):not(.dark),
+html[data-theme-id=""]:not(.dark) {
+  --ui-fill: #b0841a;
+  --ui-on-fill: #1a1304;
+  --ui-switch-thumb-on: var(--popover);
 }
 
 /* -------------------------------------------------------------- the focus */
@@ -131,15 +162,15 @@
 
 /* Primary: rare, filled, lit from above. */
 [data-button][data-variant="default"] {
-  border-color: color-mix(in oklch, var(--primary) 82%, black);
-  background-color: var(--primary);
+  border-color: color-mix(in oklch, var(--ui-fill) 82%, black);
+  background-color: var(--ui-fill);
   background-image: linear-gradient(to bottom, rgb(255 255 255 / 15%), transparent 62%);
-  color: var(--primary-foreground);
+  color: var(--ui-on-fill);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 26%),
     inset 0 -1px 0 rgb(0 0 0 / 14%),
-    0 1px 2px color-mix(in oklch, var(--primary) 38%, transparent),
-    0 5px 12px -6px color-mix(in oklch, var(--primary) 55%, transparent);
+    0 1px 2px color-mix(in oklch, var(--ui-fill) 38%, transparent),
+    0 5px 12px -6px color-mix(in oklch, var(--ui-fill) 55%, transparent);
 }
 
 [data-button][data-variant="destructive"] {
@@ -200,7 +231,7 @@
 
 @media (hover: hover) {
   [data-button][data-variant="default"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
-    background-color: color-mix(in oklch, var(--primary) 90%, white);
+    background-color: color-mix(in oklch, var(--ui-fill) 90%, white);
   }
 
   [data-button][data-variant="destructive"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
@@ -242,7 +273,7 @@
 
 /* A press goes in: darker, flatter, no lift. */
 [data-button][data-variant="default"]:is(:active, [data-pressed]):not(:disabled) {
-  background-color: color-mix(in oklch, var(--primary) 90%, black);
+  background-color: color-mix(in oklch, var(--ui-fill) 90%, black);
   background-image: none;
   box-shadow: inset 0 1px 3px rgb(0 0 0 / 28%);
 }
@@ -451,12 +482,15 @@
   padding-inline-end: 2rem;
 }
 
-/* Read only: flat, no recess, the text keeps full strength. Disabled: flat with a quiet edge. */
+/* Read only: flat, no recess, the text keeps full strength. Disabled: flat with a quiet edge. The
+   flat look ends while the field has keyboard focus, so the focus ring above always shows. */
 :is(
-  [data-slot="input-control"]:not([data-unstyled]),
-  [data-slot="textarea-control"]:not([data-unstyled]),
-  [data-slot="input-group"][data-variant="default"]
-):has(:is(input, textarea)[readonly]:not(:disabled)) {
+    [data-slot="input-control"]:not([data-unstyled]),
+    [data-slot="textarea-control"]:not([data-unstyled]),
+    [data-slot="input-group"][data-variant="default"]
+  ):has(:is(input, textarea)[readonly]:not(:disabled)):not(
+    :has(input:focus-visible, textarea:focus-visible)
+  ) {
   border-color: var(--ui-edge);
   background-color: transparent;
   box-shadow: none;
@@ -476,15 +510,15 @@
 
 /* A field's own text: a brand caret and selection. The placeholder keeps the muted text color,
    which is above 4.5:1 on the field in both themes. */
-:is([data-slot="input"], [data-slot="textarea"], [data-slot="number-field-input"]) {
+:is([data-slot="input"], [data-slot="textarea"], [data-slot$="-input"]) {
   caret-color: var(--one-brand);
 }
 
-:is([data-slot="input"], [data-slot="textarea"], [data-slot="number-field-input"])::selection {
+:is([data-slot="input"], [data-slot="textarea"], [data-slot$="-input"])::selection {
   background-color: color-mix(in oklch, var(--one-brand) 34%, transparent);
 }
 
-:is([data-slot="input"], [data-slot="textarea"], [data-slot="number-field-input"])::placeholder {
+:is([data-slot="input"], [data-slot="textarea"], [data-slot$="-input"])::placeholder {
   color: color-mix(in srgb, var(--placeholder) 88%, var(--foreground));
   opacity: 1;
 }
@@ -555,20 +589,20 @@
 }
 
 :is([data-slot="checkbox"], [data-slot="radio"]):is([data-checked], [data-indeterminate]) {
-  border-color: color-mix(in oklch, var(--primary) 80%, black);
+  border-color: color-mix(in oklch, var(--ui-fill) 80%, black);
   box-shadow: none;
 }
 
 /* The mark fills in and the stroke draws itself: 140ms. */
 :is([data-slot="checkbox-indicator"], [data-slot="radio-indicator"]) {
-  background-color: var(--primary);
+  background-color: var(--ui-fill);
   background-image: linear-gradient(to bottom, rgb(255 255 255 / 16%), transparent 70%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
   outline: none;
 }
 
 [data-slot="checkbox-indicator"][data-indeterminate] {
-  color: var(--primary-foreground);
+  color: var(--ui-on-fill);
 }
 
 :is([data-slot="checkbox"], [data-slot="radio"]):focus-visible
@@ -616,29 +650,37 @@
   }
 }
 
-/* Switch: the same firm spring as the mode switch. The thumb stretches a little under the finger. */
-[data-slot="switch"] {
+/* Switch: the same firm spring as the mode switch. The thumb stretches a little under the finger.
+   The switch inside a menu row draws the same way. An off track is above 3:1 against its surface,
+   and the thumb is above 3:1 against the track. */
+:root {
+  --ui-switch-off: color-mix(in srgb, var(--foreground) 50%, var(--background));
+
+  @variant dark {
+    --ui-switch-off: color-mix(in srgb, var(--foreground) 40%, var(--background));
+  }
+}
+
+:is([data-slot="switch"], [data-slot="menu-switch"]) {
   position: relative;
   transition:
     background-color var(--one-hover-ms) var(--one-ease-hover),
     box-shadow var(--one-hover-ms) var(--one-ease-hover);
 }
 
-[data-slot="switch"]:is([data-unchecked], [data-mixed]) {
-  background-color: color-mix(in srgb, var(--foreground) 16%, var(--background));
-  box-shadow:
-    inset 0 1px 2px var(--ui-shade),
-    inset 0 0 0 1px var(--ui-control-edge);
+:is([data-slot="switch"], [data-slot="menu-switch"]):is([data-unchecked], [data-mixed]) {
+  background-color: var(--ui-switch-off);
+  box-shadow: inset 0 1px 2px var(--ui-shade);
 }
 
-[data-slot="switch"][data-checked]:not([data-mixed]) {
-  background-color: var(--primary);
+:is([data-slot="switch"], [data-slot="menu-switch"])[data-checked]:not([data-mixed]) {
+  background-color: var(--ui-fill);
   box-shadow:
     inset 0 1px 2px rgb(0 0 0 / 22%),
-    inset 0 0 0 1px color-mix(in oklch, var(--primary) 78%, black);
+    inset 0 0 0 1px color-mix(in oklch, var(--ui-fill) 78%, black);
 }
 
-[data-slot="switch-thumb"] {
+:is([data-slot="switch-thumb"], [data-slot="menu-switch-thumb"]) {
   background-color: var(--popover);
   background-image: var(--one-glass-sheen);
   box-shadow:
@@ -652,31 +694,21 @@
     transform-origin var(--one-hover-ms) var(--one-ease-hover);
 }
 
-[data-slot="switch"]:is([data-unchecked], [data-mixed]) [data-slot="switch-thumb"] {
-  box-shadow:
-    inset 0 1px 0 var(--one-glass-rim-top),
-    0 1px 2px var(--ui-shade-deep),
-    0 0 0 0.5px var(--ui-control-edge);
-}
-
 @variant dark {
-  [data-slot="switch"][data-unchecked] [data-slot="switch-thumb"] {
+  :is([data-slot="switch"], [data-slot="menu-switch"]):is([data-unchecked], [data-mixed])
+    :is([data-slot="switch-thumb"], [data-slot="menu-switch-thumb"]) {
     background-color: color-mix(in srgb, var(--foreground) 80%, var(--background));
   }
 }
 
-[data-slot="switch"][data-checked]:not([data-mixed]) [data-slot="switch-thumb"] {
-  background-color: var(--primary-foreground);
+:is([data-slot="switch"], [data-slot="menu-switch"])[data-checked]:not([data-mixed])
+  :is([data-slot="switch-thumb"], [data-slot="menu-switch-thumb"]) {
+  background-color: var(--ui-switch-thumb-on);
   background-image: none;
 }
 
-[data-slot="switch"][data-disabled] {
-  opacity: 1;
-  filter: saturate(0.2) brightness(0.98);
-}
-
-[data-slot="switch"][data-disabled] [data-slot="switch-thumb"] {
-  box-shadow: 0 0 0 0.5px var(--ui-edge);
+:is([data-slot="switch"], [data-slot="menu-switch"])[data-disabled] {
+  opacity: 0.5;
 }
 
 /* A 44px target on touch, with no change to what is drawn. */
@@ -1031,9 +1063,13 @@
   color: var(--destructive-foreground);
 }
 
-:is([data-slot="select-item"], [data-slot="combobox-item"])[data-selected]:not([data-highlighted]),
+:is(
+    [data-slot="select-item"],
+    [data-slot="combobox-item"],
+    [data-slot="autocomplete-item"]
+  )[data-selected]:not([data-highlighted]),
 [data-slot="menu-radio-item"][data-checked]:not([data-highlighted]) {
-  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background-color: var(--ui-select-tint);
 }
 
 /* Icons sit in one column, a little quieter than the label. */
@@ -1128,7 +1164,7 @@
 }
 
 [data-slot="table-row"][data-state="selected"] {
-  background-color: color-mix(in oklch, var(--one-brand) 9%, var(--ui-hover));
+  background-color: var(--ui-select-tint);
 }
 
 [data-slot="badge"] {
@@ -1189,6 +1225,11 @@
 
 [data-slot="badge"]:is([data-variant="default"], [data-variant="destructive"]) {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%);
+}
+
+[data-slot="badge"][data-variant="default"] {
+  background-color: var(--ui-fill);
+  color: var(--ui-on-fill);
 }
 
 [data-slot="badge"][data-variant="destructive"] {
@@ -1274,6 +1315,8 @@
 }
 
 [data-slot="calendar"] td[data-selected]:not(.range-middle) > button {
+  background-color: var(--ui-fill);
+  color: var(--ui-on-fill);
   background-image: linear-gradient(to bottom, rgb(255 255 255 / 15%), transparent 62%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
 }
@@ -1292,6 +1335,7 @@
   [data-button],
   [data-slot="toggle"],
   [data-slot="switch-thumb"],
+  [data-slot="menu-switch-thumb"],
   [data-slot="menu-popup"],
   [data-slot="popover-popup"],
   [data-slot="tooltip-popup"],
@@ -1304,7 +1348,8 @@
 
   [data-button]:active,
   [data-slot="toggle"]:active,
-  [data-slot="switch"]:active [data-slot="switch-thumb"] {
+  [data-slot="switch"]:active [data-slot="switch-thumb"],
+  [data-slot="menu-checkbox-item"]:active [data-slot="menu-switch-thumb"] {
     scale: 1;
   }
 
@@ -1374,8 +1419,7 @@
     var(--one-glass-shadow);
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass::before {
-  content: "";
+[data-slot="toast-timer"] {
   position: absolute;
   inset-inline: 0.75rem;
   bottom: 0;
@@ -1388,8 +1432,15 @@
   animation: one-toast-timer calc(var(--toast-timeout-ms, 0) * 1ms) linear forwards;
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass:is(:hover, :focus-within)::before {
+/* Base UI pauses every dismissal timer while the viewport is hovered or has focus, and while the
+   window is in the background. The line stops on the same conditions, for every toast at once. */
+.dropdown-glass[data-expanded] > [data-slot="toast-timer"],
+[data-slot="toast-viewport"][data-window-inactive] [data-slot="toast-timer"] {
   animation-play-state: paused;
+}
+
+.dropdown-glass[data-limited] > [data-slot="toast-timer"] {
+  display: none;
 }
 
 @keyframes one-toast-timer {
@@ -1399,7 +1450,166 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-slot="toast-viewport"] > .dropdown-glass::before {
+  [data-slot="toast-timer"] {
     display: none;
   }
+}
+
+/* ------------------------------------------------------------ the surfaces */
+
+/* Dialogs and sheets sit one step above the page, menus and popovers two. The glass keeps its
+   opacity setting, so the steps show with the blur on or off. */
+.dialog-glass {
+  background-color: color-mix(in srgb, var(--ui-surface-raised) var(--glass-opacity), transparent);
+}
+
+.dropdown-glass {
+  background-color: color-mix(in srgb, var(--ui-surface-overlay) var(--glass-opacity), transparent);
+}
+
+[data-slot="sheet-popup"] {
+  background-color: var(--ui-surface-raised);
+}
+
+/* For page code that draws its own panel: one class per level, with the lit top edge. */
+.ui-raised {
+  background-color: var(--ui-surface-raised);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 0 0 1px var(--ui-edge);
+}
+
+.ui-overlay {
+  background-color: var(--ui-surface-overlay);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 0 0 1px var(--ui-edge),
+    var(--one-glass-shadow);
+}
+
+/* ------------------------------------------------------------ the selection */
+
+/* One rule for "this one is chosen". A list row takes the brand tint. A card or tile takes a brand
+   ring and a fainter tint: it opts in with data-ui-tile and whatever state it already carries. A
+   segmented switch raises its thumb instead (see the toggle group above). */
+[data-ui-tile] {
+  transition:
+    box-shadow var(--one-hover-ms) var(--one-ease-hover),
+    background-color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-ui-tile]:is(
+  [aria-checked="true"],
+  [aria-pressed="true"],
+  [aria-selected="true"],
+  [aria-current="true"],
+  [data-selected],
+  [data-checked],
+  [data-pressed]
+) {
+  background-color: var(--ui-select-tint-faint);
+  box-shadow:
+    0 0 0 1.5px var(--ui-select-ring),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-slot="collapsible-trigger"][aria-selected="true"],
+[data-slot="discovery-row"][aria-selected="true"],
+[data-slot="discovery-row"][aria-current="true"] {
+  background-color: var(--ui-select-tint);
+}
+
+/* ------------------------------------------------------------ search fields */
+
+/* One search field: a leading icon, an optional keycap at the end, a hairline underneath that
+   becomes the focus edge. Menus, comboboxes, the shortcut sheet and the command palette share it. */
+[data-slot="search-field"] {
+  border-bottom-color: var(--ui-edge);
+  transition:
+    border-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-slot="search-field"]:focus-within {
+  border-bottom-color: var(--ui-focus);
+  box-shadow: 0 1px 0 0 var(--ui-focus);
+}
+
+[data-slot="search-field"] > svg {
+  color: var(--ui-muted-text);
+  opacity: 1;
+  transition: color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-slot="search-field"]:focus-within > svg {
+  color: var(--foreground);
+}
+
+[data-slot="search-field"] [data-slot="kbd"] {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0.125rem;
+}
+
+/* ------------------------------------------------------------ the palette */
+
+/* The palette's field is the palette's own top row: bare, 17px, a hairline under it, a brand caret.
+   The glow and border the field styles draw would frame it a second time inside the dialog. */
+[data-slot="command-dialog-popup"] [data-slot="search-field"] {
+  border-bottom: 1px solid var(--ui-edge);
+}
+
+/* The palette's field always has focus, so its hairline stays quiet instead of glowing. */
+[data-slot="command-dialog-popup"] [data-slot="search-field"]:focus-within {
+  border-bottom-color: var(--ui-edge-strong);
+  box-shadow: none;
+}
+
+[data-slot="command-dialog-popup"]
+  [data-slot="input-control"]:not([data-unstyled]):not(:has(input:focus-visible)),
+[data-slot="command-dialog-popup"]
+  [data-slot="input-control"]:not([data-unstyled]):has(input:focus-visible) {
+  border-color: transparent;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+[data-slot="command-dialog-popup"] [data-slot="search-field"] input {
+  font-size: 1.0625rem;
+  caret-color: var(--one-brand);
+}
+
+[data-slot="command-dialog-popup"] [data-slot="search-field"] input::placeholder {
+  color: var(--ui-muted-text);
+}
+
+/* The last rows fade into the footer instead of being cut in half. */
+[data-slot="command-panel"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1.75rem;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--ui-surface-raised) 92%, transparent),
+    transparent
+  );
+}
+
+[data-slot="command-footer"] {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--ui-muted-text);
+}
+
+/* A title in the brand serif: the shortcut sheet, and any other page or sheet title. */
+.one-title,
+[data-shortcuts-sheet] [data-slot="dialog-title"] {
+  font-family: var(--one-serif);
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
 }

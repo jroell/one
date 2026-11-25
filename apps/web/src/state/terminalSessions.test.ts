@@ -5,13 +5,17 @@ import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import {
   attachedTerminalSessionAtom,
   knownTerminalSessionsAtom,
+  retryTerminalSessionAttach,
   selectKnownTerminalSessions,
 } from "./terminalSessions";
 
 const attachCalls = vi.hoisted(() => [] as unknown[]);
+// Like the real family, one attach atom per launch, so a refresh reaches the cached stream.
+const attachStream = vi.hoisted(() => ({ evaluations: 0, atom: null as unknown }));
 const metadataAtom = await vi.hoisted(async () => {
   const { AsyncResult, Atom } = await import("effect/reactivity");
   return Atom.make<AsyncResult.AsyncResult<ReadonlyArray<TerminalSummary>>>(
@@ -24,7 +28,11 @@ vi.mock("./terminal", async () => {
     terminalEnvironment: {
       attach: (request: unknown) => {
         attachCalls.push(request);
-        return Atom.make(AsyncResult.initial(true));
+        attachStream.atom ??= Atom.make(() => {
+          attachStream.evaluations += 1;
+          return AsyncResult.initial(true);
+        });
+        return attachStream.atom;
       },
       metadata: () => metadataAtom,
     },
@@ -158,5 +166,21 @@ describe("attachedTerminalSessionAtom", () => {
 
     AtomRegistry.make().get(atom);
     expect(attachCalls).toEqual([{ environmentId: environmentA, input }]);
+  });
+});
+
+describe("retryTerminalSessionAttach", () => {
+  it("re-runs the attach stream under a subscribed session, which refreshing the session atom does not", () => {
+    const input = { threadId: threadA, terminalId: "terminal-retry", cwd: "/repo" };
+    const atom = attachedTerminalSessionAtom(environmentA, input);
+    const unsubscribe = appAtomRegistry.subscribe(atom, () => {});
+    const attached = attachStream.evaluations;
+
+    appAtomRegistry.refresh(atom);
+    expect(attachStream.evaluations).toBe(attached);
+
+    retryTerminalSessionAttach(environmentA, input);
+    expect(attachStream.evaluations).toBeGreaterThan(attached);
+    unsubscribe();
   });
 });

@@ -24,7 +24,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { SettingsScopeSentence } from "./SettingsScopeSentence";
-import { SettingsPageHeader } from "./SettingsPageHeader";
+import { SettingsPageHeader, useSettingsPageIntro } from "./SettingsPageHeader";
 import {
   isProjectScopedSettingKey,
   listProjectOverrides,
@@ -53,6 +53,9 @@ interface SettingsSearchTargetContextValue {
   readonly highlightTarget: boolean;
   readonly onTargetHandled: () => void;
 }
+
+/** The page's title, so a section that only repeats it can leave the repeat to screen readers. */
+const SettingsPageTitleContext = createContext<string | null>(null);
 
 const noop = () => undefined;
 const SettingsSearchTargetContext = createContext<SettingsSearchTargetContextValue>({
@@ -231,6 +234,9 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   const targetRef = useSettingsSearchTarget<HTMLElement>(sectionProps.id);
+  // An action beside the title (Providers' add button) needs the title to stay in view.
+  const repeatsPageTitle =
+    title === useContext(SettingsPageTitleContext) && titleAction === undefined && !icon;
 
   return (
     <section
@@ -251,7 +257,10 @@ export function SettingsSection({
           <div className="flex min-w-0 items-center gap-1">
             <h2
               data-settings-block-title=""
-              className="flex min-h-7 items-center gap-2 text-base font-semibold text-foreground"
+              className={cn(
+                "flex min-h-7 items-center gap-2 text-base font-semibold text-foreground",
+                repeatsPageTitle && "sr-only",
+              )}
             >
               {icon}
               {title}
@@ -280,12 +289,14 @@ export function SettingsUnavailableGroup({
   if (message === undefined) return children;
 
   return (
-    <div className="border-border/60 bg-muted/20 py-1.5">
-      <div className="flex items-start gap-2 px-3 py-2 text-xs leading-relaxed text-muted-foreground sm:px-4">
-        <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
+    <div data-settings-unavailable="" className="border-border/60 bg-muted/20 py-1.5">
+      <div className="flex items-start gap-2 px-3 py-2 text-xs leading-relaxed text-(--settings-description) sm:px-4">
+        <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
         <p>{message}</p>
       </div>
-      <div className="[&_h3]:opacity-64 [&_p]:opacity-64">{children}</div>
+      <div className="border-t border-(--settings-hairline) *:not-first:border-t *:not-first:border-(--settings-hairline) [&_h3]:opacity-64 [&_p]:opacity-64">
+        {children}
+      </div>
     </div>
   );
 }
@@ -652,6 +663,7 @@ export function SettingsPageContainer({
   searchTargetFallbacks?: Readonly<Record<string, string | undefined>>;
 }) {
   const navigate = useNavigate();
+  const pageTitle = useSettingsPageIntro()?.title ?? null;
   const hash = useLocation({ select: (location) => location.hash });
   const highlightTarget = useLocation({
     select: (location) => location.state.settingsTargetHighlight !== false,
@@ -686,7 +698,7 @@ export function SettingsPageContainer({
             <SettingsPageHeader />
             <SettingsScopeSentence />
           </div>
-          {children}
+          <SettingsPageTitleContext value={pageTitle}>{children}</SettingsPageTitleContext>
         </WorkspacePageContainer>
       </div>
     </SettingsSearchTargetProvider>

@@ -10,7 +10,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   sourceControlClients,
   type ChangeRequestTerminology,
@@ -81,8 +81,33 @@ function PullRequestListGhostRow({ index }: { index: number }) {
   );
 }
 
-export function PullRequestListGhost({ rows = 7, caption }: { rows?: number; caption?: string }) {
+/** A list that is still empty after this long is slow, not about to arrive: say so. */
+const SLOW_LIST_MS = 8000;
+
+function useElapsed(afterMs: number): boolean {
+  const [elapsed, setElapsed] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- timer that flips once when a load has run long
+  useEffect(() => {
+    const timer = window.setTimeout(() => setElapsed(true), afterMs);
+    return () => window.clearTimeout(timer);
+  }, [afterMs]);
+  return elapsed;
+}
+
+export function PullRequestListGhost({
+  rows = 7,
+  caption,
+  slowCaption,
+  onRetry,
+}: {
+  rows?: number;
+  caption?: string;
+  /** Replaces the caption once the load has run long, with Retry when `onRetry` is given. */
+  slowCaption?: string;
+  onRetry?: () => void;
+}) {
   const gt = useGT();
+  const slow = useElapsed(SLOW_LIST_MS) && slowCaption !== undefined;
   return (
     <div
       role="status"
@@ -93,7 +118,16 @@ export function PullRequestListGhost({ rows = 7, caption }: { rows?: number; cap
       <div data-one-panel-head="" className="flex items-center gap-2 text-xs font-medium">
         <GhostBar className="h-3 w-16" />
         {/* The caption fades in only if the load is slow; a fast load never shows it. */}
-        {caption ? <span data-one-ghost-caption="">{caption}</span> : null}
+        {caption ? (
+          <span data-one-ghost-caption="" {...(slow ? { "data-slow": "" } : {})}>
+            {slow ? slowCaption : caption}
+          </span>
+        ) : null}
+        {slow && onRetry ? (
+          <Button size="xs" variant="outline" className="ml-auto" onClick={onRetry}>
+            <T>Retry</T>
+          </Button>
+        ) : null}
       </div>
       <div className="motion-safe:animate-skeleton">
         {Array.from({ length: rows }, (_, index) => (

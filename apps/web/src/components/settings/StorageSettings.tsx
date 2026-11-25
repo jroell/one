@@ -934,7 +934,7 @@ export function StorageCleanupSections() {
             status={artifactsStatus}
             managedPaths={["storageCleanup.browserArtifactsAfterDays"]}
             description={gt(
-              "Delete saved browser captures after this many days. Older capture links will no longer open.",
+              "Delete saved browser captures once they pass the age you choose. Older capture links will no longer open.",
             )}
             serverScoped
             control={
@@ -954,7 +954,7 @@ export function StorageCleanupSections() {
             status={logsStatus}
             managedPaths={["storageCleanup.logsAfterDays"]}
             description={gt(
-              "Delete inactive rotated log files after this many days. Current logs are kept.",
+              "Delete inactive rotated log files once they pass the age you choose. Current logs are kept.",
             )}
             serverScoped
             control={

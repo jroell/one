@@ -1,14 +1,19 @@
 import { useGT } from "gt-react";
 
-import { useComposerHandleContext } from "~/composerHandleContext";
+import type { ComposerHandleRef } from "~/composerHandleContext";
 
 /**
  * Three ways to carry an answer into the next thought. A pick puts a short stem in the composer
  * and focuses it. The row keeps its height while hidden, so the answer above never moves.
  */
-export function ChatFollowUps({ ready }: { readonly ready: boolean }) {
+export function ChatFollowUps({
+  ready,
+  composer,
+}: {
+  readonly ready: boolean;
+  readonly composer: ComposerHandleRef;
+}) {
   const gt = useGT();
-  const composer = useComposerHandleContext();
   const actions = [
     { label: gt("Go deeper"), stem: gt("Go deeper on ") },
     {
@@ -18,7 +23,7 @@ export function ChatFollowUps({ ready }: { readonly ready: boolean }) {
     { label: gt("Quiz me on this"), stem: gt("Quiz me on what you just explained.") },
   ];
   const follow = (stem: string) => {
-    const handle = composer?.current;
+    const handle = composer.current;
     if (!handle) return;
     // Text already in the composer is the person's own: only take them there.
     const empty = handle.readSnapshot().value.trim().length === 0;

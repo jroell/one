@@ -34,7 +34,15 @@ describe("parseTurnDiffFilesFromNumstat", () => {
     const numstat = ["-\t-\timage.png", "0\t0\tempty.txt", ""].join("\0");
     expect(parseTurnDiffFilesFromNumstat(numstat)).toEqual([
       { path: "empty.txt", additions: 0, deletions: 0 },
-      { path: "image.png", additions: 0, deletions: 0 },
+      { path: "image.png", additions: 0, deletions: 0, binary: true },
+    ]);
+  });
+
+  it("marks a binary file by Git's own dashes, not by its extension", () => {
+    const numstat = ["-	-	firmware", "0	0	notes.db", ""].join("\0");
+    expect(parseTurnDiffFilesFromNumstat(numstat)).toEqual([
+      { path: "firmware", additions: 0, deletions: 0, binary: true },
+      { path: "notes.db", additions: 0, deletions: 0 },
     ]);
   });
 

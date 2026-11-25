@@ -56,9 +56,18 @@ describe("language a reply is read in", () => {
   });
 
   it("reads Han text with a little kana or hangul in that language, whatever the page says", () => {
-    expect(replyLanguage("大気中の光散乱屈折現象青空天空物理原理", "en-US")).toBe("ja");
-    expect(replyLanguage("大気中の光散乱屈折現象青空天空物理原理", "zh-CN")).toBe("ja");
+    const withKana = "大気光学の光散乱屈折現象青空天空物理原理波長粒子大気中拡散反射透過のしくみ";
+    expect(replyLanguage(withKana, "en-US")).toBe("ja");
+    expect(replyLanguage(withKana, "zh-CN")).toBe("ja");
     expect(replyLanguage("大氣光散射屈折現象青空天空物理原理가", "en-US")).toBe("ko");
+  });
+
+  it("keeps a Chinese page's language when a middle dot or one stray kana letter sits in Chinese text", () => {
+    expect(replyLanguage("光在每一滴水中发生折射・反射或散射。", "zh-CN")).toBe("zh-CN");
+    expect(replyLanguage("光在每一滴水中发生折射・反射或散射。", "en-US")).toBe("zh");
+    expect(replyLanguage("光在每一滴水中发生折射，日语里把它写作の，意思相近。", "zh-CN")).toBe(
+      "zh-CN",
+    );
   });
 
   it("keeps the page language when it is one of the languages written in that script", () => {

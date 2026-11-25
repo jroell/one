@@ -87,7 +87,7 @@ function StatBlock({
 }) {
   return (
     <div className="min-w-0 border-border/60 px-4 py-3 sm:px-5">
-      <div className="flex min-w-0 items-center gap-1.5 text-2xs font-medium uppercase tracking-widest text-muted-foreground/70">
+      <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-(--settings-description)">
         <span className="min-w-0 truncate">{label}</span>
         {tooltip ? (
           <Tooltip>
@@ -95,7 +95,7 @@ function StatBlock({
               render={
                 <button
                   type="button"
-                  className="cursor-pointer inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm text-muted-foreground/60 hover:text-foreground"
+                  className="cursor-pointer inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm text-(--settings-description) hover:text-foreground"
                   aria-label={`${label} details`}
                 >
                   <InfoIcon className="size-3" />
@@ -176,7 +176,7 @@ function DiagnosticsTable({
             ))}
           </colgroup>
         ) : null}
-        <thead className="border-b border-border/60 text-2xs uppercase tracking-widest text-muted-foreground/70">
+        <thead className="border-b border-border/60 text-xs font-medium text-(--settings-description)">
           <tr>
             {headers.map((header, index) => (
               <th
@@ -377,7 +377,7 @@ function ProcessDiagnosticsTable({
             <col className="w-[11%]" />
             <col className="w-[6%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-2xs uppercase tracking-widest text-muted-foreground/70">
+          <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-xs font-medium text-(--settings-description)">
             <tr>
               <th className="px-4 py-2 font-semibold sm:pl-5">
                 <T>Name</T>
@@ -419,10 +419,10 @@ function ProcessDiagnosticsTable({
                     onToggle={toggleProcess}
                   />
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.cpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {formatBytes(process.rssBytes)}
                 </td>
                 <td className="px-3 py-2 align-middle text-muted-foreground">
@@ -435,7 +435,7 @@ function ProcessDiagnosticsTable({
                     </TooltipPopup>
                   </Tooltip>
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground">
+                <td className="px-3 py-2 text-right align-middle tabular-nums text-muted-foreground">
                   {process.pid}
                 </td>
                 <td className="truncate px-3 py-2 align-middle text-muted-foreground">
@@ -624,7 +624,7 @@ function ProcessResourceHistoryTable({
             <col className="w-[16%]" />
             <col className="w-[10%]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-2xs uppercase tracking-widest text-muted-foreground/70">
+          <thead className="sticky top-0 z-10 border-b border-border/60 bg-card text-xs font-medium text-(--settings-description)">
             <tr>
               <th className="px-4 py-2 font-semibold sm:pl-5">
                 <T>Process</T>
@@ -672,19 +672,19 @@ function ProcessResourceHistoryTable({
                     }
                   />
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {formatCpuTime(process.cpuSecondsApprox, m)}
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.currentCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.avgCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.maxCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {formatBytes(process.maxRssBytes)}
                 </td>
                 <td className="px-3 py-2 align-middle text-muted-foreground">
@@ -697,7 +697,7 @@ function ProcessResourceHistoryTable({
                     </TooltipPopup>
                   </Tooltip>
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground sm:pr-5">
+                <td className="px-3 py-2 text-right align-middle tabular-nums text-muted-foreground sm:pr-5">
                   {process.pid}
                 </td>
               </tr>
@@ -715,7 +715,7 @@ function DiagnosticsLastChecked({ checkedAt }: { checkedAt: DateTime.Utc | null 
 
   if (relative.status === "missing") {
     return (
-      <span className="text-2xs text-muted-foreground/50">
+      <span className="text-2xs text-(--settings-description)">
         <T>Checking</T>
       </span>
     );
@@ -723,18 +723,18 @@ function DiagnosticsLastChecked({ checkedAt }: { checkedAt: DateTime.Utc | null 
 
   if (relative.status === "invalid") {
     return (
-      <span className="text-2xs text-muted-foreground/50">
+      <span className="text-2xs text-(--settings-description)">
         <T>Checked unavailable</T>
       </span>
     );
   }
 
   return (
-    <span className="text-2xs text-muted-foreground/60">
+    <span className="text-2xs text-(--settings-description)">
       {relative.suffix ? (
         <T context="the time is an elapsed time such as 5m">
           Checked{" "}
-          <span className="font-mono tabular-nums">
+          <span className="tabular-nums">
             <Var>{relative.value}</Var>
           </span>{" "}
           ago
@@ -1004,7 +1004,7 @@ function DiagnosticsSettingsBody() {
   }
 
   return (
-    <SettingsPageContainer width="expanded" className="gap-10">
+    <SettingsPageContainer>
       <ResourceTelemetryDiagnostics environmentId={environmentId} />
 
       <SettingsSection
@@ -1254,10 +1254,10 @@ function DiagnosticsSettingsBody() {
                 <td className="max-w-[360px] px-4 py-3 align-top text-muted-foreground">
                   <ExpandableText text={failure.cause} />
                 </td>
-                <td className="px-4 py-3 align-top font-mono tabular-nums">
+                <td className="px-4 py-3 align-top tabular-nums">
                   {formatDiagnosticsDuration(failure.durationMs)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground last:sm:pr-5">
                   <RelativeTimeNoWrap value={failure.endedAt} />
                 </td>
               </tr>
@@ -1281,13 +1281,11 @@ function DiagnosticsSettingsBody() {
                 <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
                   {failure.name}
                 </td>
-                <td className="px-4 py-3 align-top font-mono tabular-nums">
-                  {formatCount(failure.count)}
-                </td>
+                <td className="px-4 py-3 align-top tabular-nums">{formatCount(failure.count)}</td>
                 <td className="max-w-[360px] px-4 py-3 align-top text-muted-foreground">
                   <ExpandableText text={failure.cause} />
                 </td>
-                <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                <td className="w-px whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground last:sm:pr-5">
                   <RelativeTimeNoWrap value={failure.lastSeenAt} />
                 </td>
               </tr>
@@ -1314,10 +1312,10 @@ function DiagnosticsSettingsBody() {
                 <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
                   {span.name}
                 </td>
-                <td className="px-4 py-3 align-top font-mono tabular-nums">
+                <td className="px-4 py-3 align-top tabular-nums">
                   {formatDiagnosticsDuration(span.durationMs)}
                 </td>
-                <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground">
+                <td className="w-px whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground">
                   <RelativeTimeNoWrap value={span.endedAt} />
                 </td>
                 <td className="min-w-0 whitespace-nowrap px-4 py-3 align-top text-muted-foreground last:sm:pr-5">
@@ -1350,7 +1348,7 @@ function DiagnosticsSettingsBody() {
                 <col className="w-[26%]" />
                 <col className="w-[30%]" />
               </colgroup>
-              <thead className="border-b border-border/60 text-2xs uppercase tracking-widest text-muted-foreground/70">
+              <thead className="border-b border-border/60 text-xs font-medium text-(--settings-description)">
                 <tr>
                   <th className="whitespace-nowrap px-4 py-2.5 font-semibold sm:pl-5">
                     <T>Time</T>
@@ -1375,7 +1373,7 @@ function DiagnosticsSettingsBody() {
                     key={`${event.traceId}:${event.spanId}:${DateTime.formatIso(event.seenAt)}:${event.message}`}
                     className="hover:bg-muted/15"
                   >
-                    <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground sm:pl-5">
+                    <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground sm:pl-5">
                       <RelativeTimeNoWrap value={event.seenAt} />
                     </td>
                     <td className="px-4 py-3 align-top">
@@ -1422,16 +1420,16 @@ function DiagnosticsSettingsBody() {
                 <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
                   {span.name}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums">
                   {formatCount(span.count)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums">
                   {formatCount(span.failureCount)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums">
                   {formatDiagnosticsDuration(span.averageDurationMs)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums last:sm:pr-5">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums last:sm:pr-5">
                   {formatDiagnosticsDuration(span.maxDurationMs)}
                 </td>
               </tr>
