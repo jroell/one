@@ -351,10 +351,9 @@ export interface KeybindingRowSet {
 }
 
 /**
- * Rows for the same command under the same condition become one row with several keys.
- * A default for another platform, such as the Windows keys for Terminal: Next on a Mac,
- * never fires here and is left out; platform-specific rows that remain compare without
- * their platform term.
+ * Rows for one command with the same written condition become one row with several keys;
+ * different conditions stay apart because the When control edits only the first binding.
+ * Defaults for another platform never fire here and are left out; user rules stay visible.
  */
 export function collapseAlternateRows(
   rows: ReadonlyArray<KeybindingRow>,
@@ -362,10 +361,10 @@ export function collapseAlternateRows(
 ): ReadonlyArray<KeybindingRowSet> {
   const sets = new Map<string, { row: KeybindingRow; alternates: KeybindingRow[] }>();
   for (const row of rows) {
-    const simplified = whenForPlatform(row.binding.whenAst, platform);
-    if (simplified === null) continue;
-    const condition = whenAstToExpression(simplified);
-    const id = `${row.command}\u0000${condition}`;
+    if (row.source === "Default" && whenForPlatform(row.binding.whenAst, platform) === null) {
+      continue;
+    }
+    const id = `${row.command}\u0000${row.when}`;
     const existing = sets.get(id);
     if (existing) existing.alternates.push(row);
     else sets.set(id, { row, alternates: [] });

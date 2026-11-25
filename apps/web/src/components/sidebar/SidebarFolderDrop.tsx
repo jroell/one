@@ -18,7 +18,7 @@ import { stackedThreadToast } from "../ui/toastHelpers";
 const isActivationPlatform = Schema.is(DesktopAppActivationPlatform);
 
 function isFileDrag(event: DragEvent) {
-  return event.dataTransfer.types.includes("Files");
+  return (event.dataTransfer as DataTransfer | null)?.types.includes("Files") === true;
 }
 
 /**
@@ -99,7 +99,6 @@ export function SidebarFolderDrop(props: { children: ReactNode }) {
       onDragEnter={onDragOver}
       onDragOver={onDragOver}
       onDragLeave={(event) => {
-        if (!isFileDrag(event)) return;
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         setActive(false);
       }}

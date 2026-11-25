@@ -1,4 +1,3 @@
-import { deadlineAfter } from "@t3tools/client-runtime/clock";
 import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
@@ -9,7 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SymbolView } from "../../../components/ui/AppSymbol";
 import { AppText as Text } from "../../../components/ui/AppText";
-import { useDeadlinePassed } from "../../../lib/clock";
 import { DRIVING_PERSONAS, VOICE_CATALOG, useDriveController } from "../engine/index";
 import { CarPlayPreviewPanel } from "./CarPlayPreviewPanel";
 import {
@@ -29,15 +27,10 @@ import {
   type VoiceProfileView,
 } from "./driveUiTypes";
 import { OneVoiceOrb } from "./OneVoiceOrb";
+import { useAppIsActive, useProposalSendGuard } from "./proposalSendGuard";
 import { VoiceStudioSheet } from "./VoiceStudioSheet";
 
 const KEEP_AWAKE_TAG = "one-drive-mode";
-
-/**
- * A new proposal cannot be sent for this long after it appears, so a tap aimed at the proposal
- * it replaced cannot confirm one the driver has not read.
- */
-export const PROPOSAL_SEND_GUARD_MS = 700;
 
 const SPEAKER_ROLE_LABELS: Readonly<Record<"user" | "assistant" | "system" | "tool", string>> = {
   user: msg("You"),
@@ -85,17 +78,19 @@ type PendingProposal = NonNullable<DriveSnapshotView["pendingConfirmation"]>;
 
 /**
  * Keyed by proposal id by its parent, so a replacement proposal mounts a fresh card (and a fresh
- * guard) instead of reusing the Send button the driver was about to press.
+ * guard) instead of reusing the Send button the driver was about to press. `covered` is true while
+ * a sheet hides the stage; the guard counts only time the driver can see the card.
  */
 function PendingConfirmationCard(props: {
   readonly proposal: PendingProposal;
+  readonly covered: boolean;
   readonly onConfirm: (proposalId: string) => void | Promise<unknown>;
   readonly onDismiss: (proposalId: string) => void | Promise<unknown>;
 }) {
   const { proposal } = props;
   const gt = useGT();
-  const [armsAt] = useState(() => deadlineAfter(PROPOSAL_SEND_GUARD_MS));
-  const armed = useDeadlinePassed(armsAt);
+  const appIsActive = useAppIsActive();
+  const armed = useProposalSendGuard(appIsActive && !props.covered);
 
   return (
     <View testID="pending-confirmation-card" style={styles.confirmCard}>
@@ -110,6 +105,7 @@ function PendingConfirmationCard(props: {
           accessibilityState={{ disabled: !armed }}
           disabled={!armed}
           onPress={() => {
+            if (!armed) return;
             hapticHeavy();
             void props.onConfirm(proposal.id);
           }}
@@ -175,6 +171,7 @@ export function DriveStageView({
   const [personaDrawerOpen, setPersonaDrawerOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
+  const stageCovered = voiceStudioOpen || carPlayPanelOpen || personaDrawerOpen || transcriptOpen;
 
   // Keep the display awake while a hands-free driving session is running.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- manages the native screen keep-awake lock tied to active driving sessions
@@ -421,6 +418,7 @@ export function DriveStageView({
           <PendingConfirmationCard
             key={snapshot.pendingConfirmation.id}
             proposal={snapshot.pendingConfirmation}
+            covered={stageCovered}
             onConfirm={onConfirmPendingAction}
             onDismiss={onDismissPendingAction}
           />

@@ -8,6 +8,7 @@ import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Kbd, KbdGroup } from "../ui/kbd";
 import { buildShortcutSections } from "./ShortcutsDialog.logic";
+import { SHORTCUTS_SHEET_ATTRIBUTE } from "../../shortcuts/shortcutsSheet";
 import { setShortcutsDialogOpen, useShortcutsDialogStore } from "./shortcutsDialogStore";
 
 /** Mounted once by the command palette; `shortcuts.show` and the palette row open it. */
@@ -29,7 +30,11 @@ function ShortcutsDialogPopup() {
   const sections = buildShortcutSections(keybindings, { query, resolve: m });
 
   return (
-    <DialogPopup className="sm:max-w-xl" initialFocus={searchRef}>
+    <DialogPopup
+      className="sm:max-w-xl"
+      initialFocus={searchRef}
+      {...{ [SHORTCUTS_SHEET_ATTRIBUTE]: "" }}
+    >
       <DialogHeader>
         <DialogTitle>
           <T>Keyboard shortcuts</T>
@@ -81,7 +86,13 @@ function ShortcutsDialogPopup() {
                           <Fragment key={caps.join("+")}>
                             {index > 0 ? (
                               <span className="text-muted-foreground/70 text-xs">
-                                <T context="between two keys that run the same command">or</T>
+                                {row.keysJoiner === "to" ? (
+                                  <T context="between the first and last key of a numbered shortcut family">
+                                    to
+                                  </T>
+                                ) : (
+                                  <T context="between two keys that run the same command">or</T>
+                                )}
                               </span>
                             ) : null}
                             <KbdGroup>

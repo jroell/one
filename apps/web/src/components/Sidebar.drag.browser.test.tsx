@@ -141,3 +141,32 @@ it("keeps focus in the search box when a click picks a search result", async () 
   // Picking clears the results; a focused result would drop focus, and its recovery scrolls the list.
   await expect.element(search).toHaveFocus();
 });
+
+it("marks the part of a search result title that matches the query", async () => {
+  await using _screen = await render(
+    <ul role="listbox">
+      <SidebarSearchResultRow
+        isSettled={false}
+        thread={makeThreadFixture({ title: "Invoice export" })}
+        project={null}
+        projectDisplayName={null}
+        environmentLabel={null}
+        environmentMachine="server"
+        providerEntryByInstanceId={new Map()}
+        isHighlighted={false}
+        isRouteActive={false}
+        resultId="result-0"
+        searchMatch={null}
+        searchQuery="invoice"
+        onHighlight={() => {}}
+        onSelect={() => {}}
+        onContextMenu={() => {}}
+        onFileDropThreads={() => {}}
+      />
+    </ul>,
+  );
+  const marked = page.getByText("Invoice", { exact: true });
+  await expect.element(marked).toBeInTheDocument();
+  expect(marked.element().tagName).toBe("MARK");
+  expect(document.querySelectorAll("mark")).toHaveLength(1);
+});

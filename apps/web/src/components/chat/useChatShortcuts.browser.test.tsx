@@ -7,6 +7,7 @@ import { compileResolvedKeybindingsConfig } from "@t3tools/shared/keybindings";
 import { isPreviewFocused } from "~/lib/previewFocus";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 import { render } from "../../../test/render";
+import { isCommandAvailable, runRegisteredCommand } from "../../shortcuts/commandRegistry";
 import type { ChatComposerHandle } from "./ChatComposer";
 import { useChatShortcuts } from "./useChatShortcuts";
 
@@ -428,4 +429,59 @@ it("leaves project-script shortcuts alone inside a keybinding capture field", as
   await userEvent.click(screen.getByRole("button", { name: "Outside" }));
   await userEvent.keyboard("{Control>}{Shift>}Y{/Shift}{/Control}");
   expect(scriptsRan).toEqual(["script.build.run"]);
+});
+
+it("runs a chat command by id through the handler its key calls, only while it can run", async () => {
+  const ran: string[] = [];
+  let diffAvailable = true;
+  function RegisteredChat() {
+    useChatShortcuts({
+      enabled: true,
+      keybindings: [ctrl("d", "diff.toggle"), ctrl("b", "composer.branch")],
+      scriptKeybindings: [],
+      getShortcutContext: () => shortcutContext,
+      threadFindActive: false,
+      composerRef: { current: null },
+      branchToolbarRef: { current: null },
+      closeThreadFind: () => {},
+      commands: {
+        "diff.toggle": {
+          run: ({ event, terminalFocusOwner }) =>
+            void ran.push(`diff repeat=${event.repeat} terminal=${terminalFocusOwner}`),
+          canRun: () => diffAvailable,
+        },
+      },
+      fallback: () => undefined,
+    });
+    return null;
+  }
+  await using _screen = await render(<RegisteredChat />, { router: false });
+
+  await userEvent.keyboard("{Control>}d{/Control}");
+  expect(runRegisteredCommand("diff.toggle")).toBe(true);
+  diffAvailable = false;
+  expect(isCommandAvailable("diff.toggle")).toBe(false);
+  expect(runRegisteredCommand("diff.toggle")).toBe(false);
+
+  expect(ran).toEqual(["diff repeat=false terminal=null", "diff repeat=false terminal=null"]);
+  // The branch toolbar is not mounted, so the composer's branch command is not offered.
+  expect(isCommandAvailable("composer.branch")).toBe(false);
+});
+
+it("runs a chat shortcut except while the keyboard shortcuts sheet is on screen", async () => {
+  const finds: string[] = [];
+  await using screen = await render(<Chat composerKeys={[]} finds={finds} />, options);
+
+  await userEvent.keyboard("{Control>}f{/Control}");
+  expect(finds).toEqual(["main"]);
+
+  await screen.rerender(
+    <>
+      <Chat composerKeys={[]} finds={finds} />
+      <div role="dialog" aria-label="Keyboard shortcuts" data-shortcuts-sheet="" />
+    </>,
+  );
+  await userEvent.keyboard("{Control>}f{/Control}");
+
+  expect(finds).toEqual(["main"]);
 });

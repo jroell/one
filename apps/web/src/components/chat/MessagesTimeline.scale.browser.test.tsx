@@ -169,6 +169,9 @@ describe("MessagesTimeline with a 600-message thread", () => {
           `${record.type} ${record.attributeName ?? ""} on ${(record.target as HTMLElement).tagName ?? "#text"}.${(record.target as HTMLElement).className ?? ""} +${record.addedNodes.length} -${record.removedNodes.length}`,
       ),
     ).toEqual([]);
+    // The same element is still the mounted row: a replaced row would leave this one detached.
+    expect(previousRow.isConnected).toBe(true);
+    expect(previousRow.textContent).toContain(`Marker-${last - 1}-end`);
     expect(mountedMarkers(thread.container)).toBeLessThan(60);
   });
 });

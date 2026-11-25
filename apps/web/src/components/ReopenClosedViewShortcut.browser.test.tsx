@@ -13,6 +13,7 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../test/render";
+import { isCommandAvailable, runRegisteredCommand } from "../shortcuts/commandRegistry";
 
 const state = vi.hoisted(() => ({
   keybindings: [] as ResolvedKeybindingsConfig,
@@ -193,6 +194,25 @@ describe("root reopen shortcut", () => {
       expect(history.location.pathname).toBe(expectedPath);
     },
   );
+
+  it("offers the reopen command by id only while a closed view is remembered", async () => {
+    setup();
+    state.openPreview.mockResolvedValue(AsyncResult.success({ tabId: "new-tab" }));
+    await using _view = await renderShortcut();
+
+    expect(isCommandAvailable("view.reopenClosed")).toBe(false);
+    expect(runRegisteredCommand("view.reopenClosed")).toBe(false);
+
+    await act(() => {
+      useClosedViewStore.getState().remember({ kind: "browser", threadRef: ref, snapshot });
+    });
+    expect(isCommandAvailable("view.reopenClosed")).toBe(true);
+    await act(() => {
+      expect(runRegisteredCommand("view.reopenClosed")).toBe(true);
+    });
+
+    expect(useClosedViewStore.getState().entries).toEqual([]);
+  });
 
   it("serializes deliberate presses while a browser restore waits for RPC", async () => {
     setup();

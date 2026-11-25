@@ -19,6 +19,13 @@ const runtimeVersionPolicy =
 const personalTeamBundleIdentifier = repoEnv.T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID?.trim();
 const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
+// expo-observe on Android throws at launch without extra.eas.projectId, so local builds get a
+// stand-in. EAS reads the same field as the project to build or publish to, so a run under EAS or
+// with an Expo token never gets it and fails clearly without a real id.
+const runsUnderEas = process.env.EAS_BUILD === "true" || Boolean(process.env.EXPO_TOKEN);
+const easProjectId =
+  repoEnv.EAS_PROJECT_ID ?? (runsUnderEas ? undefined : "00000000-0000-4000-8000-000000000001");
+
 // Compiled into the native project. Without a relay, Observe's native side could dispatch to
 // Expo's own ingest before observe.ts turns it off; `.invalid` never resolves (RFC 6761).
 const observeEndpointUrl = repoEnv.T3CODE_RELAY_URL?.trim()
@@ -470,9 +477,7 @@ const config: ExpoConfig = {
       tracesToken: repoEnv.EXPO_PUBLIC_OTLP_TRACES_TOKEN ?? null,
     },
     eas: {
-      // expo-observe on Android throws while loading when this is missing, which stops the app at
-      // launch. The id only labels reports, and reports are sent only when a relay is configured.
-      projectId: repoEnv.EAS_PROJECT_ID ?? "00000000-0000-4000-8000-000000000001",
+      ...(easProjectId ? { projectId: easProjectId } : {}),
       observe: { endpointUrl: observeEndpointUrl },
     },
   },

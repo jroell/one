@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     reducedMotion: false,
+    appState: "active" as string,
+    appStateListeners: new Set<() => void>(),
     activateKeepAwakeAsync: vi.fn(() => Promise.resolve()),
     deactivateKeepAwake: vi.fn(() => Promise.resolve()),
     impactAsync: vi.fn(() => Promise.resolve()),
@@ -100,6 +102,15 @@ vi.mock("react-native", () => {
 
   return {
     Platform: { OS: "ios" },
+    AppState: {
+      get currentState() {
+        return mocks.appState;
+      },
+      addEventListener: (_event: "change", listener: () => void) => {
+        mocks.appStateListeners.add(listener);
+        return { remove: () => mocks.appStateListeners.delete(listener) };
+      },
+    },
     StyleSheet: {
       create: <T,>(styles: T): T => styles,
       flatten,
@@ -217,7 +228,7 @@ vi.mock("../engine/index", () => ({
 }));
 
 import { CarPlayPreviewPanel } from "./CarPlayPreviewPanel";
-import { DriveStageView, PROPOSAL_SEND_GUARD_MS } from "./DriveStageScreen";
+import { DriveStageView } from "./DriveStageScreen";
 import { DASH_PRIMARY_CTA_HEIGHT, DASH_TOUCH_TARGET_MIN } from "./driveTheme";
 import type {
   DriveSnapshotView,
@@ -226,6 +237,7 @@ import type {
   VoiceProfileView,
 } from "./driveUiTypes";
 import { OneVoiceOrb } from "./OneVoiceOrb";
+import { PROPOSAL_SEND_GUARD_MS } from "./proposalSendGuard";
 import { VoiceStudioSheet } from "./VoiceStudioSheet";
 
 const TEST_VOICES: readonly VoiceProfileView[] = [
@@ -387,6 +399,8 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   mocks.reducedMotion = false;
+  mocks.appState = "active";
+  mocks.appStateListeners.clear();
   mocks.activateKeepAwakeAsync.mockClear();
   mocks.deactivateKeepAwake.mockClear();
   mocks.impactAsync.mockClear();
@@ -767,6 +781,134 @@ describe("DriveStageView", () => {
     });
     expect(callbacks.onConfirmPendingAction).toHaveBeenCalledTimes(1);
     expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-2");
+  });
+
+  function setAppState(state: string) {
+    act(() => {
+      mocks.appState = state;
+      for (const listener of mocks.appStateListeners) listener();
+    });
+  }
+
+  it("keeps Send inert until 700 ms after a sheet that was open when the proposal arrived closes", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: null });
+    act(() => {
+      buttonByLabel("Switch voice").click();
+    });
+    expect(container.querySelector('[aria-label="Close Voice studio"]')).not.toBeNull();
+
+    // The proposal arrives behind the sheet and the whole guard elapses while it is hidden.
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS * 3);
+    });
+    act(() => {
+      buttonByLabel("Close Voice studio").click();
+    });
+
+    // First frame the driver sees: Send is not armed.
+    const send = buttonByLabel("Send pending message");
+    expect(send.disabled).toBe(true);
+    act(() => {
+      send.click();
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+      send.click();
+    });
+    expect(callbacks.onConfirmPendingAction).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+    act(() => {
+      buttonByLabel("Send pending message").click();
+    });
+    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-1");
+  });
+
+  it("disarms Send when a sheet opens over an armed card and restarts the full guard after it closes", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+
+    act(() => {
+      buttonByLabel("Switch voice").click();
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      buttonByLabel("Close Voice studio").click();
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  it("keeps Send inert after the app returns from 5 s in the background until 700 ms after the return", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+
+    setAppState("background");
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    setAppState("active");
+
+    const send = buttonByLabel("Send pending message");
+    expect(send.disabled).toBe(true);
+    act(() => {
+      send.click();
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+      send.click();
+    });
+    expect(callbacks.onConfirmPendingAction).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    act(() => {
+      buttonByLabel("Send pending message").click();
+    });
+    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledTimes(1);
+    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-1");
+  });
+
+  it("does not arm a proposal that arrives while the app is in the background until 700 ms after it returns", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    setAppState("inactive");
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS * 2);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+
+    setAppState("active");
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
   });
 
   it("states an idle session once and keeps the caption card for speech", () => {

@@ -675,8 +675,6 @@ export function useSettingsRestore(onRestored?: () => void) {
       destructiveConfirm(gt("Restore defaults")),
     );
     if (!confirmed) return;
-    setOpeningPreferences({ animation: true, sound: true });
-    setVoiceChatStyle("natural");
 
     // Reset only dirty theme keys so storage failures cannot block other settings; re-read after confirmation
     // for safe rollback.
@@ -718,6 +716,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       notifyThemeRestoreFailure();
       return;
     }
+    // After the theme, which can fail and stop the restore, so nothing changes before an error.
+    setOpeningPreferences({ animation: true, sound: true });
+    setVoiceChatStyle("natural");
     updateSettings({
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,

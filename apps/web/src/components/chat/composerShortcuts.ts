@@ -3,20 +3,26 @@ import type { BranchToolbarHandle } from "../BranchToolbar";
 import type { ChatComposerHandle } from "./ChatComposer";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
 
-const openControl =
-  (composerRef: ComposerHandleRef, control: Parameters<ChatComposerHandle["openControl"]>[0]) =>
-  ({ event }: { readonly event: KeyboardEvent }) => {
-    if (!event.repeat) composerRef.current?.openControl(control);
-  };
-
 /** Chords that open or step the composer's controls and its branch toolbar. Held keys do not repeat them. */
 export function composerShortcutCommands(
   composerRef: ComposerHandleRef,
   branchToolbarRef: { readonly current: BranchToolbarHandle | null },
 ): ChatShortcutCommands {
+  // Without a mounted composer or branch toolbar the chord does nothing, so a row for it is unavailable.
+  const composerMounted = () => composerRef.current !== null;
+  const branchToolbarMounted = () => branchToolbarRef.current !== null;
+  const openControl = (control: Parameters<ChatComposerHandle["openControl"]>[0]) => ({
+    run: ({ event }: { readonly event: { readonly repeat: boolean } }) => {
+      if (!event.repeat) composerRef.current?.openControl(control);
+    },
+    canRun: composerMounted,
+  });
   return {
-    "modelPicker.toggle": ({ event }) => {
-      if (!event.repeat) composerRef.current?.toggleModelPicker();
+    "modelPicker.toggle": {
+      run: ({ event }) => {
+        if (!event.repeat) composerRef.current?.toggleModelPicker();
+      },
+      canRun: composerMounted,
     },
     "composer.increaseEffort": ({ event }) => {
       if (!event.repeat) composerRef.current?.stepReasoningEffort(1);
@@ -24,12 +30,15 @@ export function composerShortcutCommands(
     "composer.decreaseEffort": ({ event }) => {
       if (!event.repeat) composerRef.current?.stepReasoningEffort(-1);
     },
-    "composer.host": openControl(composerRef, "composer.host"),
-    "composer.effort": openControl(composerRef, "composer.effort"),
-    "composer.mode": openControl(composerRef, "composer.mode"),
-    "composer.workspace": openControl(composerRef, "composer.workspace"),
-    "composer.branch": ({ event }) => {
-      if (!event.repeat) branchToolbarRef.current?.openBranchPicker();
+    "composer.host": openControl("composer.host"),
+    "composer.effort": openControl("composer.effort"),
+    "composer.mode": openControl("composer.mode"),
+    "composer.workspace": openControl("composer.workspace"),
+    "composer.branch": {
+      run: ({ event }) => {
+        if (!event.repeat) branchToolbarRef.current?.openBranchPicker();
+      },
+      canRun: branchToolbarMounted,
     },
     "composer.previousWorktree": ({ event }) => {
       if (!event.repeat) branchToolbarRef.current?.usePreviousWorktree();

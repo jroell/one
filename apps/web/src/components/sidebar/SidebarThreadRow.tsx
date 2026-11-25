@@ -124,6 +124,7 @@ import { pickSnoozePreset, resolveSnoozePresets, type SnoozePreset } from "../Si
 import { useThreadShell } from "../../state/entities";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { ThreadSearchMatchExcerpt } from "../ThreadSearchMatch";
+import { findSearchTokenRanges, splitSearchText } from "@t3tools/shared/paletteSearch";
 import { makeWorkspaceFileDropHandlers } from "../chat/workspaceFileDrop";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { getTriggerDisplayModelName } from "../chat/providerIconUtils";
@@ -1764,6 +1765,21 @@ const scrollHighlightedResultIntoView = (node: HTMLLIElement | null) => {
   node?.scrollIntoView({ block: "nearest" });
 };
 
+/** A result title with the part the query matched in semibold foreground, as in `ThreadSearchMatch`. */
+function HighlightedResultTitle(props: { title: string; query: string }) {
+  const ranges = findSearchTokenRanges(props.title, props.query);
+  if (ranges.length === 0) return props.title;
+  return splitSearchText(props.title, ranges).map((part) =>
+    part.highlighted ? (
+      <mark className="bg-transparent font-semibold text-foreground" key={part.start}>
+        {part.text}
+      </mark>
+    ) : (
+      part.text
+    ),
+  );
+}
+
 export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
   isSettled: boolean;
   thread: SidebarThreadSummary;
@@ -1935,7 +1951,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                       : "text-foreground",
                 )}
               >
-                {thread.title}
+                <HighlightedResultTitle title={thread.title} query={props.searchQuery} />
                 {isRegeneratingTitle ? (
                   <ActivityShimmerOverlay className="truncate">
                     {thread.title}

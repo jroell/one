@@ -18,6 +18,7 @@ import { SettingsScopeNotice } from "../components/settings/SettingsScopeNotice"
 import {
   SettingsSearchEmptyState,
   SettingsSearchProvider,
+  useClearNoMatchSearchOnNavigation,
   useSettingsSearchHasNoResults,
 } from "../components/settings/SettingsSearchContext";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
@@ -156,6 +157,7 @@ function SettingsContentLayout() {
       : JSON.stringify(search);
   const [restoreSignal, setRestoreSignal] = useState(0);
   const searchHasNoResults = useSettingsSearchHasNoResults();
+  useClearNoMatchSearchOnNavigation(searchHasNoResults);
 
   return (
     <AppRouteModal label={gt("Settings")}>

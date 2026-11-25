@@ -480,6 +480,51 @@ describe("collapseAlternateRows", () => {
     expect(keys("MacIntel")).toEqual([["meta+shift+]", 0]]);
     expect(keys("Win32")).toEqual([["ctrl+alt+]", 0]]);
   });
+
+  it("keeps bindings with different conditions on separate rows, each with its own condition", () => {
+    const sets = collapseAlternateRows(
+      buildKeybindingRows(
+        mergeWithDefaultKeybindings(
+          compileResolvedKeybindingsConfig([
+            { command: "workspace.focusNext", key: "f6" },
+            { command: "workspace.focusNext", key: "f7", when: "isMac" },
+            { command: "workspace.focusNext", key: "f8", when: "isMac" },
+          ]),
+        ),
+        "MacIntel",
+      ),
+      "MacIntel",
+    );
+
+    expect(
+      sets
+        .filter((set) => set.row.command === "workspace.focusNext")
+        .map((set) => [set.row.when, [set.row.key, ...set.alternates.map((row) => row.key)]]),
+    ).toEqual([
+      ["", ["f6"]],
+      ["isMac", ["f7", "f8"]],
+    ]);
+  });
+
+  it("shows a rule the user wrote for the other platform", () => {
+    const sets = collapseAlternateRows(
+      buildKeybindingRows(
+        mergeWithDefaultKeybindings(
+          compileResolvedKeybindingsConfig([
+            { command: "terminal.next", key: "alt+j", when: "terminalFocus && !isMac" },
+          ]),
+        ),
+        "MacIntel",
+      ),
+      "MacIntel",
+    );
+
+    expect(
+      sets
+        .filter((set) => set.row.command === "terminal.next")
+        .map((set) => [set.row.key, set.row.source]),
+    ).toEqual([["alt+j", "Custom"]]);
+  });
 });
 
 describe("describeWhen", () => {

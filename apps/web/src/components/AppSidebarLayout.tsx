@@ -65,6 +65,7 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { appAtomRegistry } from "../rpc/atomRegistry";
+import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
 
@@ -150,17 +151,19 @@ function readRoutePanelsOpen(router: AnyRouter) {
 }
 
 export function registerNavigationHistoryCommands(router: AnyRouter): () => void {
-  return registerCommands(
+  const goBack = () => window.history.back();
+  const goForward = () => window.history.forward();
+  const disposeKeys = registerCommands(
     {
       "navigation.back": (event) => {
         event.preventDefault();
         event.stopPropagation();
-        window.history.back();
+        goBack();
       },
       "navigation.forward": (event) => {
         event.preventDefault();
         event.stopPropagation();
-        window.history.forward();
+        goForward();
       },
     },
     {
@@ -171,6 +174,14 @@ export function registerNavigationHistoryCommands(router: AnyRouter): () => void
       }),
     },
   );
+  const disposeRows = registerCommandHandlers({
+    "navigation.back": { run: goBack },
+    "navigation.forward": { run: goForward },
+  });
+  return () => {
+    disposeKeys();
+    disposeRows();
+  };
 }
 
 // Capture phase, so F6 also leaves widgets that swallow keys, such as the terminal.
@@ -370,9 +381,11 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     const unsubscribe = window.desktopBridge?.onMenuAction((action) => {
       if (action === "sidebar.toggle") toggleSidebar();
     });
+    const disposeRow = registerCommandHandlers({ "sidebar.toggle": { run: toggleSidebar } });
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       unsubscribe?.();
+      disposeRow();
     };
   }, [keybindings, router, showSidebar, toggleSidebar, usagePageOpen]);
 

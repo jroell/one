@@ -281,7 +281,6 @@ import {
   settingsForThisPlatform,
   SETTINGS_SECTION_LABELS,
 } from "./settings/settingsSearch";
-import { commandLabel } from "./settings/KeybindingsSettings.logic";
 import { ShortcutsDialogHost } from "./shortcuts/ShortcutsDialog";
 import {
   canRunFromPalette,
@@ -292,7 +291,10 @@ import {
   buildKeybindingCommandItems,
   buildThreadCommandItems,
 } from "./commandPalette/paletteCommandItems";
-import { runKeybindingCommand } from "../shortcuts/runCommand";
+import { PaletteClosedSignal } from "./commandPalette/PaletteClosedSignal";
+import { claimPaletteActivation } from "./commandPalette/paletteActivation";
+import { useCommandRegistryVersion } from "../shortcuts/commandRegistry";
+import { runCommandFromPalette } from "../shortcuts/runCommand";
 import { useThreadActionRunner } from "../hooks/useThreadActionMenu";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { resolveShortcutCommand, threadJumpIndexFromCommand } from "../keybindings";
@@ -434,6 +436,7 @@ function CommandPaletteDialog(props: {
         props.setOpen(false);
       }}
     >
+      <PaletteClosedSignal />
       {props.mode === "files" ? (
         <ProjectFilePicker setOpen={props.setOpen} />
       ) : props.mode === "content" ? (
@@ -790,7 +793,8 @@ function OpenCommandPaletteDialog(props: {
     currentProjectId,
   );
   const currentProjectCwd = currentProject?.workspaceRoot ?? null;
-  const hasOpenChat = paletteRouteTarget !== null;
+  // Rows for registered commands appear and disappear as scopes mount and unmount.
+  useCommandRegistryVersion();
   // The breadcrumb menu's own actions; rename and find stay with the header and the find row above.
   const threadActions = useThreadActionRunner({
     threadRef: activeThread ? scopeThreadRef(activeThread.environmentId, activeThread.id) : null,
@@ -1725,7 +1729,7 @@ function OpenCommandPaletteDialog(props: {
     );
   }
   actionItems.push(
-    ...buildKeybindingCommandItems({ keybindings, hasOpenChat, resolve: messages }),
+    ...buildKeybindingCommandItems({ resolve: messages }),
     buildKeyboardShortcutsItem(messages),
   );
 
@@ -1936,7 +1940,7 @@ function OpenCommandPaletteDialog(props: {
   ).flatMap((item): CommandPaletteActionItem[] => {
     const command = commandOfKeybindingSearchRow(item.id, STATIC_KEYBINDING_COMMANDS);
     if (command !== null && commandsWithRows.has(command)) return [];
-    const runnable = command !== null && canRunFromPalette(command, keybindings, hasOpenChat);
+    const runnable = command !== null && canRunFromPalette(command);
     return [
       {
         kind: "action",
@@ -1958,7 +1962,7 @@ function OpenCommandPaletteDialog(props: {
         icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
         run:
           runnable && command !== null
-            ? () => runKeybindingCommand(command, commandLabel(command, messages))
+            ? () => runCommandFromPalette(command, messages(item.title))
             : async () => {
                 await navigate({
                   to: item.to,
@@ -3005,6 +3009,7 @@ function OpenCommandPaletteDialog(props: {
     }
 
     if (!item.keepOpen) {
+      if (!claimPaletteActivation()) return;
       setOpen(false);
     }
 

@@ -7,6 +7,7 @@ import { isTerminalFocused } from "../lib/terminalFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { primaryServerKeybindingsAtom } from "../state/server";
+import { isShortcutsSheetOnScreen } from "./shortcutsSheet";
 
 /** Return `false` to let the next scope handle the event. */
 export type CommandHandler = (event: KeyboardEvent) => boolean | void;
@@ -32,6 +33,11 @@ export interface CommandScopeOptions {
    * scopes may also handle, such as scroll keys.
    */
   readonly observe?: (event: KeyboardEvent, consumed: boolean) => void;
+  /**
+   * Keep running while the keyboard shortcuts sheet is open. Every other scope stands down so
+   * only the sheet's own keys work; the key that closes the sheet sets this.
+   */
+  readonly whileShortcutsSheetOpen?: boolean;
 }
 
 interface CommandScope {
@@ -73,6 +79,7 @@ function scopeCommandHandler(scope: CommandScope, event: KeyboardEvent) {
 
 function runScope(scope: CommandScope, event: KeyboardEvent): boolean {
   const { options } = scope;
+  if (isShortcutsSheetOnScreen() && !options.whileShortcutsSheetOpen) return false;
   if (options.when && !options.when(event)) return false;
   if (options.onKeyDown && options.onKeyDown(event) !== false) return true;
   const handler = scopeCommandHandler(scope, event);
@@ -89,6 +96,7 @@ function runScope(scope: CommandScope, event: KeyboardEvent): boolean {
  * consume it. Capture scopes have already run (and declined) by the time a widget sees it.
  */
 export function hasCommandForKeyDown(event: KeyboardEvent): boolean {
+  if (isShortcutsSheetOnScreen()) return false;
   return globalScopes.some(
     (scope) =>
       (!scope.options.when || scope.options.when(event)) &&
@@ -112,6 +120,7 @@ function dispatchCaptureKeyDown(event: KeyboardEvent): void {
 
 function dispatchKeyDown(event: KeyboardEvent): void {
   const consumed = runScopes(globalScopes, event) || event.defaultPrevented;
+  if (isShortcutsSheetOnScreen()) return;
   for (const scope of observerScopes.slice()) scope.options.observe?.(event, consumed);
 }
 

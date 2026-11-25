@@ -13,6 +13,7 @@ import { useEffect, useEffectEvent, useRef } from "react";
 
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { useClosedViewStore } from "../closedViewStore";
+import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { environmentCatalog } from "../connection/catalog";
 import { effectiveShortcutsForCommand, resolveShortcutCommand } from "../keybindings";
@@ -212,6 +213,18 @@ export function ReopenClosedViewShortcut() {
         });
       });
   });
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the reopen command by id so its palette row runs what the key and the desktop menu run
+  useEffect(
+    () =>
+      registerCommandHandlers({
+        "view.reopenClosed": {
+          run: () => enqueueReopen(),
+          canRun: () => useClosedViewStore.getState().entries.length > 0,
+        },
+      }),
+    [],
+  );
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to window keydown and the desktop menu action for the reopen closed view shortcut
   useEffect(() => {

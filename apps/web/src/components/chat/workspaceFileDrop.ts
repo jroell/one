@@ -73,9 +73,9 @@ export function makeWorkspaceFileDropHandlers(host: WorkspaceFileDropHost) {
       host.setDragActive(true);
     },
     onDragLeave(event: WorkspaceFileDragEvent) {
-      if (fileTransferOf(event) === null) return;
-      event.preventDefault();
+      if (fileTransferOf(event) !== null) event.preventDefault();
       if (movedWithinDropTarget(event)) return;
+      // A real exit clears the highlight even when the event carries no transfer.
       host.setDragActive(false);
     },
     onDrop(event: WorkspaceFileDragEvent) {

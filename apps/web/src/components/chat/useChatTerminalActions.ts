@@ -416,16 +416,18 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
   const openTerminalIfClosed = () => {
     if (!terminalUiState.terminalOpen) setTerminalOpen(true);
   };
+  const canToggleTerminal = () =>
+    terminalUiState.terminalOpen ||
+    readEnvironmentScope(environmentId, AuthTerminalReadScope) ||
+    hasTerminalWriteAccess();
   // A focused right-panel terminal takes the split/new/close chords; otherwise they act on the drawer.
   const shortcuts = {
-    "terminal.toggle": () => {
-      if (
-        !terminalUiState.terminalOpen &&
-        !readEnvironmentScope(environmentId, AuthTerminalReadScope) &&
-        !hasTerminalWriteAccess()
-      )
-        return false;
-      toggleTerminalVisibility();
+    "terminal.toggle": {
+      run: () => {
+        if (!canToggleTerminal()) return false;
+        toggleTerminalVisibility();
+      },
+      canRun: canToggleTerminal,
     },
     "terminal.previous": ({ terminalFocusOwner }) => {
       if (!activeThreadRef || !terminalFocusOwner) return false;

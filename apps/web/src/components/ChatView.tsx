@@ -2953,20 +2953,25 @@ export default function ChatView(props: ChatViewProps) {
       "thread.copyReference": ({ event }) => {
         if (!event.repeat) copyActiveThreadReference();
       },
-      "chat.find": () => {
-        if (!isServerThread || serverConfig?.threadFind !== true || activeThreadKey === null)
-          return false;
-        openThreadFind(activeThreadKey);
+      "chat.find": {
+        run: () => {
+          if (!threadFindEnabled || activeThreadKey === null) return false;
+          openThreadFind(activeThreadKey);
+        },
+        canRun: () => threadFindEnabled && activeThreadKey !== null,
       },
-      "composer.cycleHost": ({ event }) => {
-        if (!canChangeEnvironment) return false;
-        if (event.repeat) return;
-        const currentId = readPendingEnvironmentChange()?.environmentId ?? environmentId;
-        const index = logicalProjectEnvironments.findIndex(
-          (env) => env.environmentId === currentId,
-        );
-        const next = logicalProjectEnvironments[(index + 1) % logicalProjectEnvironments.length];
-        if (next) onEnvironmentChangeStable(next.environmentId);
+      "composer.cycleHost": {
+        run: ({ event }) => {
+          if (!canChangeEnvironment) return false;
+          if (event.repeat) return;
+          const currentId = readPendingEnvironmentChange()?.environmentId ?? environmentId;
+          const index = logicalProjectEnvironments.findIndex(
+            (env) => env.environmentId === currentId,
+          );
+          const next = logicalProjectEnvironments[(index + 1) % logicalProjectEnvironments.length];
+          if (next) onEnvironmentChangeStable(next.environmentId);
+        },
+        canRun: () => canChangeEnvironment,
       },
       "thread.steerQueuedMessage": ({ event }) =>
         routeKind !== "draft" && queuedRunsControlRef.current?.steerNext(event.repeat) === true,
@@ -2974,9 +2979,12 @@ export default function ChatView(props: ChatViewProps) {
         routeKind !== "draft" &&
         composerRef.current?.isCaretAtStart() === true &&
         queuedRunsControlRef.current?.editLatest(event.repeat) === true,
-      "thread.stop": ({ event }) => {
-        if (!canInterruptRunningThread) return false;
-        if (!event.repeat) void onInterruptStable();
+      "thread.stop": {
+        run: ({ event }) => {
+          if (!canInterruptRunningThread) return false;
+          if (!event.repeat) void onInterruptStable();
+        },
+        canRun: () => canInterruptRunningThread,
       },
     },
     fallback: (command) => {

@@ -7,6 +7,7 @@ import { userEvent } from "vite-plus/test/browser";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "~/components/ui/input-group";
 import type { RightPanelSurface } from "~/rightPanelStore";
 import { render, stubGlobal } from "../../test/render";
+import { isCommandAvailable, runRegisteredCommand } from "../shortcuts/commandRegistry";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import { RightPanelTabs, type RightPanelTabsProps } from "./RightPanelTabs";
 import { subscribePreviewAction } from "./preview/previewActionBus";
@@ -290,5 +291,21 @@ describe("device tab rename", () => {
     await userEvent.fill(input, "日本語");
     await userEvent.keyboard("{Enter}");
     expect(onRenameDevice).toHaveBeenCalledExactlyOnceWith(DEVICE_SURFACE.id, "日本語");
+  });
+});
+
+describe("right panel new surface command", () => {
+  it("opens the add surface menu by id only while the panel is open", async () => {
+    await using screen = await render(panel(DIFF_SURFACE));
+    const trigger = screen.getByRole("button", { name: "Add panel surface" });
+
+    expect(isCommandAvailable("rightPanel.new")).toBe(true);
+    expect(runRegisteredCommand("rightPanel.new")).toBe(true);
+    await expect.element(trigger).toHaveAttribute("aria-expanded", "true");
+
+    await screen.rerender(
+      <RightPanelTabs {...(panel(DIFF_SURFACE).props as RightPanelTabsProps)} open={false} />,
+    );
+    expect(isCommandAvailable("rightPanel.new")).toBe(false);
   });
 });

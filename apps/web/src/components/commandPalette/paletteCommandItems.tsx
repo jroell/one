@@ -1,8 +1,4 @@
-import type {
-  ContextMenuItem,
-  KeybindingCommand,
-  ResolvedKeybindingsConfig,
-} from "@t3tools/contracts";
+import type { ContextMenuItem, KeybindingCommand } from "@t3tools/contracts";
 import {
   ArchiveIcon,
   ArrowLeftIcon,
@@ -34,8 +30,9 @@ import {
 import { msg } from "gt-react";
 
 import type { MessageResolver } from "../../i18n/messages";
-import { runKeybindingCommand } from "../../shortcuts/runCommand";
+import { isCommandAvailable } from "../../shortcuts/commandRegistry";
 import { commandSectionFor, type CommandSectionId } from "../../shortcuts/commandSections";
+import { runCommandFromPalette } from "../../shortcuts/runCommand";
 import { toggleShortcutsDialog } from "../shortcuts/shortcutsDialogStore";
 import type { ThreadActionMenuId } from "../threadActionMenu.logic";
 import {
@@ -52,13 +49,13 @@ interface KeybindingCommandSpec {
   readonly title: string;
   readonly keywords: ReadonlyArray<string>;
   readonly icon: LucideIcon;
-  /** Only a chat has the panel, the terminal or the picker the key reaches. */
+  /** Only a chat has the panel, the terminal or the picker; without one the row is left out. */
   readonly needsChat: boolean;
 }
 
 /**
- * Actions that exist only as a key, with the key the palette runs. The rows run through
- * the key handlers themselves (see `runKeybindingCommand`), so they follow the live binding.
+ * Actions that exist only as a key. A row runs the command by id through the function its scope
+ * registered (see `runCommandFromPalette`), so it needs no key and shows the live one when bound.
  */
 const KEYBINDING_COMMAND_SPECS: ReadonlyArray<KeybindingCommandSpec> = [
   {
@@ -161,34 +158,31 @@ const KEYBINDING_COMMAND_SPECS: ReadonlyArray<KeybindingCommandSpec> = [
   },
 ];
 
-function isBound(command: KeybindingCommand, keybindings: ResolvedKeybindingsConfig): boolean {
-  return keybindings.some(
-    (binding) =>
-      binding.command === command &&
-      !(binding.whenAst?.type === "identifier" && binding.whenAst.name === "false"),
-  );
-}
-
+/**
+ * A row for each command a scope has registered. One that cannot run now is left out when only
+ * a chat has it, and shown disabled otherwise.
+ */
 export function buildKeybindingCommandItems(input: {
-  readonly keybindings: ResolvedKeybindingsConfig;
-  readonly hasOpenChat: boolean;
   readonly resolve: MessageResolver;
 }): ReadonlyArray<CommandPaletteActionItem> {
-  const { keybindings, hasOpenChat, resolve } = input;
-  return KEYBINDING_COMMAND_SPECS.filter((spec) => hasOpenChat || !spec.needsChat).map((spec) => {
+  const { resolve } = input;
+  return KEYBINDING_COMMAND_SPECS.flatMap((spec): CommandPaletteActionItem[] => {
+    const available = isCommandAvailable(spec.command);
+    if (!available && spec.needsChat) return [];
     const title = resolve(spec.title);
-    const bound = isBound(spec.command, keybindings);
-    return {
-      kind: "action",
-      value: `command:${spec.command}`,
-      section: commandSectionFor(spec.command),
-      title,
-      searchTerms: [...spec.keywords, spec.command],
-      icon: <spec.icon className={ITEM_ICON_CLASS} />,
-      shortcutCommand: spec.command,
-      ...(bound ? {} : { disabled: true, description: resolve(msg("No shortcut assigned")) }),
-      run: () => runKeybindingCommand(spec.command, title),
-    };
+    return [
+      {
+        kind: "action",
+        value: `command:${spec.command}`,
+        section: commandSectionFor(spec.command),
+        title,
+        searchTerms: [...spec.keywords, spec.command],
+        icon: <spec.icon className={ITEM_ICON_CLASS} />,
+        shortcutCommand: spec.command,
+        ...(available ? {} : { disabled: true, description: resolve(msg("Not available")) }),
+        run: () => runCommandFromPalette(spec.command, title),
+      },
+    ];
   });
 }
 
@@ -201,7 +195,7 @@ export function buildKeyboardShortcutsItem(resolve: MessageResolver): CommandPal
     searchTerms: ["keyboard shortcuts", "cheat sheet", "hotkeys", "keys", "bindings", "help"],
     icon: <KeyboardIcon className={ITEM_ICON_CLASS} />,
     shortcutCommand: "shortcuts.show",
-    run: toggleShortcutsDialog,
+    run: async () => toggleShortcutsDialog(),
   };
 }
 

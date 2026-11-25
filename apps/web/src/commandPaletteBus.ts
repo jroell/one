@@ -32,9 +32,13 @@ export function openCommandPalette(detail: CommandPaletteOpenDetail = {}): void 
   }
 }
 
-/** True while the palette popup is on screen, including its closing animation. */
+/**
+ * True while the palette popup or the keyboard shortcuts sheet it hosts is on screen, including
+ * the closing animation. Both own the keyboard, so app shortcuts stand down for either.
+ */
 export function isCommandPaletteOpen(): boolean {
   return (
-    typeof document !== "undefined" && document.querySelector("[data-command-palette]") !== null
+    typeof document !== "undefined" &&
+    document.querySelector("[data-command-palette], [data-shortcuts-sheet]") !== null
   );
 }

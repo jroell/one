@@ -325,16 +325,19 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   );
 
   const shortcuts = {
-    "rightPanel.toggle": () => toggleRightPanel(),
+    "rightPanel.toggle": { run: () => toggleRightPanel(), canRun: () => activeThreadRef !== null },
     "rightPanel.toggleMaximized": ({ event }) => {
       if (!event.repeat) toggleRightPanelMaximized();
     },
-    "threadPanel.toggle": () => toggleThreadPanel(),
+    "threadPanel.toggle": {
+      run: () => toggleThreadPanel(),
+      canRun: () => activeThreadRef !== null,
+    },
     "rightPanel.close": ({ event }) => {
       if (!activeRightPanelSurface) return false;
       if (!event.repeat) closeRightPanelSurface(activeRightPanelSurface);
     },
-    "diff.toggle": () => onToggleDiff(),
+    "diff.toggle": { run: () => onToggleDiff(), canRun: () => isServerThread },
   } satisfies ChatShortcutCommands;
 
   return {

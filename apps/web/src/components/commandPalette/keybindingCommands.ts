@@ -1,25 +1,6 @@
-import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@t3tools/contracts";
+import type { KeybindingCommand } from "@t3tools/contracts";
 
-import { isCommandRunnable } from "../../shortcuts/runCommand";
-
-/** Commands whose handlers live in the open chat, so they do nothing on other pages. */
-const CHAT_COMMAND_PREFIXES = new Set([
-  "thread",
-  "composer",
-  "terminal",
-  "rightPanel",
-  "threadPanel",
-  "diff",
-  "preview",
-  "modelPicker",
-  "editor",
-  "pullRequest",
-  "script",
-]);
-
-function needsOpenChat(command: KeybindingCommand): boolean {
-  return command === "chat.find" || CHAT_COMMAND_PREFIXES.has(String(command).split(".")[0] ?? "");
-}
+import { isCommandAvailable } from "../../shortcuts/commandRegistry";
 
 /** The palette's own overlays and the usage page's keys have no business running from a row. */
 const NOT_RUNNABLE_FROM_PALETTE = new Set([
@@ -29,18 +10,10 @@ const NOT_RUNNABLE_FROM_PALETTE = new Set([
   "usage",
 ]);
 
-/**
- * Whether Enter on the command's row can run it: it has a key that resolves once the
- * palette is closed, and the page it works on is open.
- */
-export function canRunFromPalette(
-  command: KeybindingCommand,
-  keybindings: ResolvedKeybindingsConfig,
-  hasOpenChat: boolean,
-): boolean {
+/** Whether Enter on the command's row can run it: a scope registered it and it can run now. */
+export function canRunFromPalette(command: KeybindingCommand): boolean {
   if (NOT_RUNNABLE_FROM_PALETTE.has(String(command).split(".")[0] ?? "")) return false;
-  if (needsOpenChat(command) && !hasOpenChat) return false;
-  return isCommandRunnable(command, keybindings);
+  return isCommandAvailable(command);
 }
 
 const KEYBINDING_SEARCH_PREFIX = "keybinding-";

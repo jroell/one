@@ -6,6 +6,7 @@ import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { useClientSettings } from "../hooks/useSettings";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
+import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 
 const HOLD_THRESHOLD_MS = 300;
 
@@ -180,6 +181,28 @@ export function useDictationShortcut(input: ShortcutInput) {
         starting: speech.start(),
       };
     };
+    // The palette's row calls this: start when idle, finish when recording, with no key to hold.
+    // The key path above cannot do that in hold mode, where only a release ends a recording.
+    const canToggle = () => {
+      const { speech, disabled } = current.current;
+      const busy = [...shortcutTargets].find(([, read]) => {
+        const phase = read().speech.state.phase;
+        return phase !== "idle" && phase !== "error";
+      });
+      if (busy) return busy[0] === id.current && speech.state.phase === "recording";
+      return speech.available && !disabled;
+    };
+    const toggle = () => {
+      if (!canToggle()) return false;
+      const { speech } = current.current;
+      pressed.current = null;
+      generation.current += 1;
+      if (speech.state.phase === "recording") void speech.stop();
+      else void speech.start();
+    };
+    const disposeRow = registerCommandHandlers({
+      "composer.dictation": { run: toggle, canRun: canToggle },
+    });
     const onBlur = () => finish(null);
     const relay = (event: KeyboardEvent) => {
       relayedFrom.set(event, id.current);
@@ -197,6 +220,7 @@ export function useDictationShortcut(input: ShortcutInput) {
       disposed = true;
       pressed.current = null;
       shortcutTargets.delete(id.current);
+      disposeRow();
       unsubscribe?.();
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", finish, true);

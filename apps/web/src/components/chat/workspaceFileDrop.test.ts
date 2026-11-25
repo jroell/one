@@ -60,7 +60,7 @@ describe("makeWorkspaceFileDropHandlers", () => {
     preventDefault: () => undefined,
   });
 
-  it("ignores a dragleave that carries no data transfer", () => {
+  it("clears an active file drop when a dragleave carries no data transfer", () => {
     const active: boolean[] = [];
     const handlers = makeWorkspaceFileDropHandlers({
       setDragActive: (value) => active.push(value),
@@ -68,10 +68,26 @@ describe("makeWorkspaceFileDropHandlers", () => {
       addFolders: () => undefined,
     });
 
+    handlers.onDragOver({
+      ...leave({ types: ["Files"], files: [], dropEffect: "none" }),
+    } as never);
     expect(() => handlers.onDragLeave(leave(null) as never)).not.toThrow();
-    expect(active).toEqual([]);
+    expect(active).toEqual([true, false]);
+  });
 
-    handlers.onDragLeave(leave({ types: ["Files"], files: [], dropEffect: "none" }) as never);
-    expect(active).toEqual([false]);
+  it("keeps an active file drop while the pointer moves between children of the target", () => {
+    const active: boolean[] = [];
+    const handlers = makeWorkspaceFileDropHandlers({
+      setDragActive: (value) => active.push(value),
+      addFiles: () => undefined,
+      addFolders: () => undefined,
+    });
+
+    handlers.onDragLeave({
+      ...leave({ types: ["Files"], files: [], dropEffect: "none" }),
+      relatedTarget: {},
+      currentTarget: { contains: () => true },
+    } as never);
+    expect(active).toEqual([]);
   });
 });

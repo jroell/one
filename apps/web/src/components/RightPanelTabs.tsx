@@ -1,6 +1,7 @@
 import { msg, T, useGT, useMessages } from "gt-react";
 import { contextMenuSourceOf } from "../contextMenuSource";
 import { m, type MessageResolver } from "../i18n/messages";
+import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
@@ -1143,6 +1144,10 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
 
   const addSurfaceMenuBlocked = () =>
     !addSurfaceMenuOpen && document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS) !== null;
+  const openNewSurfaceMenu = useEffectEvent(() => {
+    addSurfaceTriggerRef.current?.focus();
+    setAddSurfaceMenuOpen(true);
+  });
   const onNewSurfaceKeyDown = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing) return;
     if (
@@ -1154,24 +1159,34 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     if (addSurfaceMenuBlocked()) return;
     event.preventDefault();
     event.stopPropagation();
-    if (!event.repeat) {
-      addSurfaceTriggerRef.current?.focus();
-      setAddSurfaceMenuOpen(true);
-    }
+    if (!event.repeat) openNewSurfaceMenu();
   });
+  // A palette row asks the open panel for its menu by id; a closed panel never registers.
+  const canOpenNewSurfaceMenu = useEffectEvent(() => !addSurfaceMenuBlocked());
   // Forwarded from a focused browser page. Focusing the trigger here would let ChatView's
   // window-focus handler see a plain button and refocus the composer, closing the menu.
   const onMenuAction = useEffectEvent((action: string) => {
     if (action === "rightPanel.new" && !addSurfaceMenuBlocked()) setAddSurfaceMenuOpen(true);
   });
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes document keydown and the desktop menu action (forwarded from a focused browser page) for the new surface shortcut while the panel is open
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes document keydown and the desktop menu action (forwarded from a focused browser page) and registers the new surface command by id for the new surface shortcut while the panel is open
   useEffect(() => {
     if (props.open === false) return;
     document.addEventListener("keydown", onNewSurfaceKeyDown, true);
     const unsubscribe = window.desktopBridge?.onMenuAction(onMenuAction);
+    const disposeRow = registerCommandHandlers({
+      "rightPanel.new": {
+        run: () => {
+          if (!canOpenNewSurfaceMenu()) return false;
+          openNewSurfaceMenu();
+        },
+        // No canRun: the palette asks while it renders, where an effect event may not be called.
+        // The panel being open is what makes the row available; run still checks for a blocker.
+      },
+    });
     return () => {
       document.removeEventListener("keydown", onNewSurfaceKeyDown, true);
       unsubscribe?.();
+      disposeRow();
     };
   }, [props.open]);
 

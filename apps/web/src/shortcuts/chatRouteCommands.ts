@@ -32,6 +32,7 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useUiStateStore } from "../uiStateStore";
+import { registerCommandHandlers } from "./commandRegistry";
 import { type CommandHandler, registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
@@ -113,20 +114,73 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     event.stopPropagation();
   };
 
-  const startNewLocal: CommandHandler = (event) => {
-    claim(event);
+  // Each command's work is one function with no key in it, so a key and a palette row run the same one.
+  const startNewLocalNow = () => {
     // With no current or open project, such as when every project is archived, pick one.
     void startNewThreadFromContext(readThreadContext()).then((started) => {
       if (!started) openCommandPalette({ open: "new-thread-in" });
     });
+  };
+  const readScratchEnvironmentId = () => {
+    const { activeThread, activeDraftThread } = readThreadContext();
+    return scratch.scratchEnvironmentId(
+      activeThread?.environmentId ?? activeDraftThread?.environmentId ?? null,
+    );
+  };
+  const startNewWithoutProjectNow = () => {
+    const environmentId = readScratchEnvironmentId();
+    if (environmentId === null) return false;
+    void scratch.startScratchThread(environmentId);
+  };
+  const startNewNow = () => {
+    const groups = readProjectGroups();
+    if (
+      !shouldCreateNewThreadInCurrentProject(
+        false,
+        groups.filter((group) => !group.archived).length,
+        groups.length,
+      )
+    ) {
+      openCommandPalette({ open: "new-thread-in" });
+      return;
+    }
+    startNewLocalNow();
+  };
+  const togglePreviewNow = () => {
+    const threadRef = readRouteThreadRef();
+    if (!threadRef || (!canOperatePreview(threadRef.environmentId) && !readPreviewOpen())) {
+      return;
+    }
+    if (!isPreviewAvailableFor(threadRef.environmentId)) {
+      toastManager.add(
+        stackedThreadToast({
+          type: "info",
+          title: m(msg("Preview is desktop-only")),
+          description: m(msg("Open One in the desktop app to use the in-app preview.")),
+        }),
+      );
+      return;
+    }
+    dispatchPreviewAction("toggle-panel");
+  };
+  const canOperateRoutePreview = () => {
+    const environmentId = readRouteEnvironmentId();
+    return environmentId !== null && canOperatePreview(environmentId);
+  };
+  const previewActionNow = (action: PreviewAction) => {
+    if (canOperateRoutePreview()) dispatchPreviewAction(action);
+  };
+
+  const startNewLocal: CommandHandler = (event) => {
+    claim(event);
+    startNewLocalNow();
   };
 
   const previewCommand =
     (action: PreviewAction): CommandHandler =>
     (event) => {
       claim(event);
-      const environmentId = readRouteEnvironmentId();
-      if (environmentId && canOperatePreview(environmentId)) dispatchPreviewAction(action);
+      previewActionNow(action);
     };
   // Unclaimed, zoom keys reach the desktop menu accelerators or the browser's own zoom.
   const zoomCommand =
@@ -136,50 +190,42 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       previewCommand(action)(event);
     };
 
-  return registerCommands(
+  const onChatRoute = () =>
+    router.state.matches.some((match) => match.routeId === CHAT_ROUTE_ID) &&
+    !router.state.matches.some((match) => isAppModalPage(match.pathname));
+
+  const previewRow = (action: PreviewAction) => ({
+    run: () => previewActionNow(action),
+    canRun: () => onChatRoute() && canOperateRoutePreview(),
+  });
+  const disposeRows = registerCommandHandlers({
+    "chat.newLocal": { run: startNewLocalNow, canRun: onChatRoute },
+    "chat.newWithoutProject": {
+      run: startNewWithoutProjectNow,
+      canRun: () => onChatRoute() && readScratchEnvironmentId() !== null,
+    },
+    "chat.new": { run: startNewNow, canRun: onChatRoute },
+    "preview.toggle": { run: togglePreviewNow, canRun: onChatRoute },
+    "preview.refresh": previewRow("refresh"),
+    "preview.focusUrl": previewRow("focus-url"),
+    "preview.find": previewRow("find"),
+  });
+
+  const disposeKeys = registerCommands(
     {
       "chat.newLocal": startNewLocal,
       "chat.newWithoutProject": (event) => {
-        const { activeThread, activeDraftThread } = readThreadContext();
-        const environmentId = scratch.scratchEnvironmentId(
-          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? null,
-        );
-        if (environmentId === null) return;
+        if (readScratchEnvironmentId() === null) return;
         claim(event);
-        void scratch.startScratchThread(environmentId);
+        startNewWithoutProjectNow();
       },
       "chat.new": (event) => {
-        const groups = readProjectGroups();
-        if (
-          !shouldCreateNewThreadInCurrentProject(
-            false,
-            groups.filter((group) => !group.archived).length,
-            groups.length,
-          )
-        ) {
-          claim(event);
-          openCommandPalette({ open: "new-thread-in" });
-          return;
-        }
-        startNewLocal(event);
+        claim(event);
+        startNewNow();
       },
       "preview.toggle": (event) => {
         claim(event);
-        const threadRef = readRouteThreadRef();
-        if (!threadRef || (!canOperatePreview(threadRef.environmentId) && !readPreviewOpen())) {
-          return;
-        }
-        if (!isPreviewAvailableFor(threadRef.environmentId)) {
-          toastManager.add(
-            stackedThreadToast({
-              type: "info",
-              title: m(msg("Preview is desktop-only")),
-              description: m(msg("Open One in the desktop app to use the in-app preview.")),
-            }),
-          );
-          return;
-        }
-        dispatchPreviewAction("toggle-panel");
+        togglePreviewNow();
       },
       "preview.refresh": previewCommand("refresh"),
       "preview.focusUrl": previewCommand("focus-url"),
@@ -195,10 +241,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       },
     },
     {
-      when: () =>
-        router.state.matches.some((match) => match.routeId === CHAT_ROUTE_ID) &&
-        !router.state.matches.some((match) => isAppModalPage(match.pathname)) &&
-        !isCommandPaletteOpen(),
+      when: () => onChatRoute() && !isCommandPaletteOpen(),
       context: () => {
         const threadRef = readRouteThreadRef();
         return {
@@ -220,4 +263,8 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       },
     },
   );
+  return () => {
+    disposeKeys();
+    disposeRows();
+  };
 }

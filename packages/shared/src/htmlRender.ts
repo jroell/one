@@ -396,8 +396,9 @@ export function htmlRenderThemeMessage(theme: HtmlRenderTheme) {
 const BASE_CSS =
   "html{box-sizing:border-box;padding:8px;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}" +
   "html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}" +
-  // Focus outlines paint inside the element, so the frame edge never clips them.
-  ":where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}" +
+  // Focus outlines paint inside the element, so the frame edge never clips them. The inset surface band
+  // keeps the ring visible on a control filled with the ring color (--primary, --accent).
+  ":where(:focus-visible){outline:2px solid var(--ring);box-shadow:inset 0 0 0 4px var(--background)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}" +
   ":where(img:not(a[href] img,button img)){cursor:zoom-in}";
 
 function rootRule(theme: HtmlRenderTheme): string {

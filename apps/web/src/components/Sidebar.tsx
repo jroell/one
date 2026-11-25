@@ -291,6 +291,7 @@ import {
   SidebarSectionHeader,
   SidebarSectionPlaceholder,
 } from "./sidebar/SidebarListMarkers";
+import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import { readShortcutLabel } from "../shortcuts/shortcutLabels";
 
 function sameSidebarProviderEntries(
@@ -2991,6 +2992,27 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       handleThreadContextMenu(threadRef, position, source, true),
   );
 
+  // The function a thread key and its palette row both call; null when the row has nowhere to go.
+  const openerForRowKey = useStableCallback((targetRowKey: string | null) => {
+    if (!targetRowKey) return null;
+    const targetDraftId = draftIdByRowKey.get(targetRowKey);
+    const targetThread = threadByKey.get(targetRowKey);
+    if (targetDraftId !== undefined) return () => navigateToDraft(targetDraftId);
+    if (targetThread) {
+      return () => navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
+    }
+    return null;
+  });
+  const openerForTraversal = useStableCallback((direction: "previous" | "next") =>
+    openerForRowKey(
+      resolveAdjacentThreadId({
+        threadIds: orderedRowKeys,
+        currentThreadId: routeRowKey,
+        direction,
+      }),
+    ),
+  );
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to window keydown for thread navigation shortcuts using the current thread list
   useEffect(() => {
     const onWindowKeyDown = (event: KeyboardEvent) => {
@@ -3001,45 +3023,39 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         platform: navigator.platform,
         context: threadShortcutContext(routeThreadRef),
       });
-      const navigateToRowKey = (targetRowKey: string | null) => {
-        if (!targetRowKey) return false;
-        const targetDraftId = draftIdByRowKey.get(targetRowKey);
-        const targetThread = threadByKey.get(targetRowKey);
-        if (targetDraftId === undefined && !targetThread) return false;
+      const open = (opener: (() => void) | null) => {
+        if (!opener) return;
         event.preventDefault();
         event.stopPropagation();
-        if (targetDraftId !== undefined) navigateToDraft(targetDraftId);
-        else if (targetThread)
-          navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
-        return true;
+        opener();
       };
       const traversalDirection = threadTraversalDirectionFromCommand(command);
       if (traversalDirection !== null) {
-        navigateToRowKey(
-          resolveAdjacentThreadId({
-            threadIds: orderedRowKeys,
-            currentThreadId: routeRowKey,
-            direction: traversalDirection,
-          }),
-        );
+        open(openerForTraversal(traversalDirection));
         return;
       }
       const jumpIndex = threadJumpIndexFromCommand(command ?? "");
       if (jumpIndex === null) return;
-      navigateToRowKey(orderedRowKeys[jumpIndex] ?? null);
+      open(openerForRowKey(orderedRowKeys[jumpIndex] ?? null));
     };
     window.addEventListener("keydown", onWindowKeyDown);
     return () => window.removeEventListener("keydown", onWindowKeyDown);
-  }, [
-    draftIdByRowKey,
-    keybindings,
-    navigateToDraft,
-    navigateToThread,
-    orderedRowKeys,
-    routeRowKey,
-    routeThreadRef,
-    threadByKey,
-  ]);
+  }, [keybindings, openerForRowKey, openerForTraversal, orderedRowKeys, routeThreadRef]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- registers the previous and next thread commands by id so their palette rows run the same openers as the keys
+  useEffect(
+    () =>
+      registerCommandHandlers({
+        "thread.previous": {
+          run: () => openerForTraversal("previous")?.(),
+          canRun: () => openerForTraversal("previous") !== null,
+        },
+        "thread.next": {
+          run: () => openerForTraversal("next")?.(),
+          canRun: () => openerForTraversal("next") !== null,
+        },
+      }),
+    [openerForTraversal],
+  );
 
   const showJumpHints = useThreadJumpHintsVisible(keybindings, routeThreadRef);
   const draftJumpLabelById = showJumpHints

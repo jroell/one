@@ -2,6 +2,7 @@ import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { createRef, type RefObject } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { render } from "../../test/render";
+import { isCommandAvailable, runRegisteredCommand } from "../shortcuts/commandRegistry";
 import { useDictationShortcut, type DictationKeyHandlers } from "./useDictationShortcut";
 
 const settings = vi.hoisted(() => ({ mode: "hold" as "hold" | "auto" | "toggle" }));
@@ -260,3 +261,40 @@ it.each([
     expect(preview.cancel).toHaveBeenCalledTimes(previewRecords ? 1 : 0);
   },
 );
+
+it("starts and finishes dictation from the palette command in hold mode, with no key event", async () => {
+  const speech = actions(true, "hold");
+  const keyEvents = vi.fn();
+  await using screen = await render(<Probe speech={speech} />);
+  window.addEventListener("keydown", keyEvents, true);
+  window.addEventListener("keyup", keyEvents, true);
+  using _keys = {
+    [Symbol.dispose]: () => {
+      window.removeEventListener("keydown", keyEvents, true);
+      window.removeEventListener("keyup", keyEvents, true);
+    },
+  };
+
+  expect(isCommandAvailable("composer.dictation")).toBe(true);
+  expect(runRegisteredCommand("composer.dictation")).toBe(true);
+  expect(speech.start).toHaveBeenCalledOnce();
+  expect(speech.stop).not.toHaveBeenCalled();
+
+  await screen.rerender(
+    <Probe speech={{ ...speech, state: { ...speech.state, phase: "recording" } }} />,
+  );
+  expect(runRegisteredCommand("composer.dictation")).toBe(true);
+
+  expect(speech.stop).toHaveBeenCalledOnce();
+  expect(speech.start).toHaveBeenCalledOnce();
+  expect(keyEvents).not.toHaveBeenCalled();
+});
+
+it("offers no dictation command while dictation is off", async () => {
+  const speech = actions(false);
+  await using _screen = await render(<Probe speech={speech} />);
+
+  expect(isCommandAvailable("composer.dictation")).toBe(false);
+  expect(runRegisteredCommand("composer.dictation")).toBe(false);
+  expect(speech.start).not.toHaveBeenCalled();
+});

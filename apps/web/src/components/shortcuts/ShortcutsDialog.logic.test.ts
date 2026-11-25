@@ -1,3 +1,7 @@
+import {
+  MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
+  THREAD_JUMP_KEYBINDING_COMMANDS,
+} from "@t3tools/contracts";
 import { compileResolvedKeybindingsConfig } from "@t3tools/shared/keybindings";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -72,5 +76,78 @@ describe("buildShortcutSections", () => {
       ["sidebar.toggle"],
     );
     expect(build(config, { query: "nothing like this" })).toEqual([]);
+  });
+
+  it("leaves out a key that a later command always takes in the same contexts", () => {
+    const sections = build([
+      { command: "diff.toggle", key: "mod+d", when: "!terminalFocus" },
+      { command: "composer.mode", key: "mod+d", when: "!terminalFocus" },
+      { command: "sidebar.toggle", key: "mod+b", when: "editableFocus" },
+      { command: "workspace.focusNext", key: "mod+b", when: "!editableFocus" },
+      { command: "terminal.toggle", key: "mod+j" },
+      { command: "composer.stash", key: "mod+j", when: "terminalFocus" },
+      { command: "thread.pin", key: "mod+j", when: "!terminalFocus" },
+    ]);
+
+    expect(
+      sections.flatMap((section) => section.rows.map((row) => [row.command, row.keys])),
+    ).toEqual(
+      expect.arrayContaining([
+        ["composer.mode", [["Ctrl", "D"]]],
+        ["sidebar.toggle", [["Ctrl", "B"]]],
+        ["workspace.focusNext", [["Ctrl", "B"]]],
+      ]),
+    );
+    const listed = sections.flatMap((section) => section.rows.map((row) => row.command));
+    expect(listed).not.toContain("diff.toggle");
+    expect(listed).not.toContain("terminal.toggle");
+  });
+
+  it("lists each numbered jump family as one row from its first key to its last", () => {
+    const sections = build([
+      ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+        command,
+        key: `mod+${index + 1}`,
+        when: "terminalFocus",
+      })),
+      ...MODEL_PICKER_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+        command,
+        key: `mod+${index + 1}`,
+        when: "modelPickerOpen",
+      })),
+      { command: "thread.previous" as const, key: "mod+[" },
+    ]);
+
+    const jumpRows = sections
+      .flatMap((section) => section.rows)
+      .filter((row) => /jump/i.test(row.label));
+    expect(jumpRows.map((row) => [row.label, row.qualifier, row.keys, row.keysJoiner])).toEqual([
+      [
+        "Model picker: jump to model 1 to 9",
+        "with the model picker open",
+        [
+          ["Ctrl", "1"],
+          ["Ctrl", "9"],
+        ],
+        "to",
+      ],
+      [
+        "Thread: jump to thread 1 to 9",
+        "in the terminal",
+        [
+          ["Ctrl", "1"],
+          ["Ctrl", "9"],
+        ],
+        "to",
+      ],
+    ]);
+  });
+
+  it("keeps a lone numbered jump command as its own row", () => {
+    const sections = build([{ command: "thread.jump.3", key: "mod+3" }]);
+
+    expect(sections.flatMap((section) => section.rows.map((row) => row.label))).toEqual([
+      "Thread: Jump: 3",
+    ]);
   });
 });

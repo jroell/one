@@ -23,6 +23,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 
 import { AppRoot } from "~/AppRoot";
+import { openCommandPalette } from "~/commandPaletteBus";
 // The route loads ChatView lazily, and its first transform (React Compiler over ~4k lines)
 // takes 6-11s; importing it here keeps that out of the test's timeout.
 import "~/components/ChatView";
@@ -796,6 +797,32 @@ it("Enter on an empty prompt resumes an interrupted thread", async () => {
       expect.objectContaining({ manualContinuationOfRunId: interruptedRun.id }),
     ),
   );
+});
+
+it("the command palette opens over a thread and its Toggle right panel row opens the panel", async () => {
+  const thread = threadWithHistory("palette-over-thread", 1);
+  using _environment = installFakeEnvironment([thread]);
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  const panel = page.getByRole("button", { name: "Toggle right panel", exact: true });
+  await expect.element(panel).toHaveAttribute("aria-pressed", "false");
+
+  // The palette asks every mounted chat command whether it can run while it renders.
+  await act(() => openCommandPalette());
+  await userEvent.fill(page.getByRole("combobox").last(), "toggle right panel");
+  await userEvent.click(page.getByRole("option", { name: /Toggle right panel/ }));
+
+  await expect.element(panel).toHaveAttribute("aria-pressed", "true");
 });
 
 it("opening a thread or returning to the window on a touch tablet does not focus the composer", async () => {

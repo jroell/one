@@ -10,7 +10,7 @@ import { LAST_USED_PROJECT_STORAGE_KEY } from "../hooks/useHandleNewThread";
 import { removeLocalStorageItem } from "../hooks/useLocalStorage";
 import { makeThreadFixture } from "../test-fixtures";
 import type { Project, Thread } from "../types";
-import { registerCommands } from "../shortcuts/dispatcher";
+import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import type { ThreadRouteTarget } from "../threadRoutes";
 import { CommandPalette } from "./CommandPalette";
 
@@ -35,6 +35,7 @@ vi.mock("../state/server", async (original) => {
     })),
     { key: "mod+alt+9", command: "terminal.toggle" },
     { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
+    { key: "mod+d", command: "composer.mode", when: "editableFocus" },
     { key: "mod+shift+m", command: "modelPicker.toggle", when: "!terminalFocus" },
     { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
     { key: "mod+shift+s", command: "thread.settle", when: "!terminalFocus" },
@@ -426,6 +427,14 @@ describe("CommandPalette commands", () => {
     using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     setup(openThread());
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    using _handlers = new DisposableStack();
+    _handlers.defer(
+      registerCommandHandlers({
+        "terminal.toggle": { run: vi.fn() },
+        "diff.toggle": { run: vi.fn() },
+        "modelPicker.toggle": { run: vi.fn() },
+      }),
+    );
     openCommandPalette({});
 
     for (const [query, title, keys] of [
@@ -459,10 +468,10 @@ describe("CommandPalette commands", () => {
   it("runs a keybinding result's command on Enter", async () => {
     using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     setup(openThread());
-    const stash = vi.fn((event: KeyboardEvent) => event.preventDefault());
+    const stash = vi.fn();
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
     using _handlers = new DisposableStack();
-    _handlers.defer(registerCommands({ "composer.stash": stash }));
+    _handlers.defer(registerCommandHandlers({ "composer.stash": { run: stash } }));
     openCommandPalette({ query: "Composer: Stash" });
 
     const row = page.getByRole("option", { name: /^Composer: Stash/ });
@@ -470,6 +479,97 @@ describe("CommandPalette commands", () => {
     await userEvent.keyboard("{Enter}");
 
     await vi.waitFor(() => expect(stash).toHaveBeenCalledOnce());
+  });
+
+  it("runs Toggle diff panel by id when its key means another command with the composer focused", async () => {
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    setup(openThread());
+    const stateWhenRun: string[] = [];
+    const toggleDiff = vi.fn(() => {
+      stateWhenRun.push(
+        `${document.querySelector("[data-command-palette]") ? "palette on screen" : "palette gone"}, focus in ${document.activeElement?.getAttribute("aria-label")}`,
+      );
+    });
+    const composerMode = vi.fn();
+    await using _screen = await render(
+      <CommandPalette>
+        <textarea aria-label="Message" />
+      </CommandPalette>,
+    );
+    using _handlers = new DisposableStack();
+    _handlers.defer(
+      registerCommandHandlers({
+        "diff.toggle": { run: toggleDiff },
+        "composer.mode": { run: composerMode },
+      }),
+    );
+    await page.getByRole("textbox", { name: "Message" }).click();
+    openCommandPalette({});
+    await userEvent.fill(searchInput(), "diff");
+    await userEvent.keyboard("{Enter}");
+
+    await vi.waitFor(() => expect(toggleDiff).toHaveBeenCalledOnce());
+    expect(composerMode).not.toHaveBeenCalled();
+    await expect.element(page.getByRole("textbox", { name: "Message" })).toHaveFocus();
+    expect(stateWhenRun).toEqual(["palette gone, focus in Message"]);
+  });
+
+  it("runs a command that has no key bound from its row", async () => {
+    setup(openThread());
+    const toggleRightPanel = vi.fn();
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    using _handlers = new DisposableStack();
+    _handlers.defer(registerCommandHandlers({ "rightPanel.toggle": { run: toggleRightPanel } }));
+    openCommandPalette({});
+    await userEvent.fill(searchInput(), "right panel");
+
+    const row = page.getByRole("option", { name: /^Toggle right panel/ });
+    await expect.element(row).not.toHaveAttribute("aria-disabled", "true");
+    await userEvent.keyboard("{Enter}");
+
+    await vi.waitFor(() => expect(toggleRightPanel).toHaveBeenCalledOnce());
+  });
+
+  it("disables a row whose command cannot run, and leaves it out when only a chat has it", async () => {
+    setup(openThread());
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    using _handlers = new DisposableStack();
+    _handlers.defer(
+      registerCommandHandlers({
+        "diff.toggle": { run: vi.fn(), canRun: () => false },
+        "view.reopenClosed": { run: vi.fn(), canRun: () => false },
+      }),
+    );
+    openCommandPalette({});
+
+    await userEvent.fill(searchInput(), "diff");
+    await expect
+      .element(page.getByRole("option", { name: /Toggle diff panel/ }))
+      .not.toBeInTheDocument();
+    await userEvent.fill(searchInput(), "reopen");
+    await expect.element(page.getByText("Reopen closed tab")).toBeVisible();
+    await expect.element(page.getByText("Not available")).toBeVisible();
+    await expect
+      .element(page.getByRole("option", { name: /^Reopen closed tab/ }))
+      .not.toBeInTheDocument();
+  });
+
+  it("runs a row once when Enter arrives twice before the palette has closed", async () => {
+    setup({ projects: [makeProject("acme")] });
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    openCommandPalette({ open: "new-thread-in" });
+    await expect.element(page.getByRole("option", { name: /acme/ })).toBeVisible();
+
+    const input = page.getByPlaceholder("Search...").element();
+    for (let press = 0; press < 2; press += 1) {
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+      );
+    }
+
+    await vi.waitFor(() => expect(entities.handleNewThread).toHaveBeenCalled());
+    await expect.element(page.getByTestId("command-palette")).not.toBeInTheDocument();
+    expect(entities.handleNewThread).toHaveBeenCalledOnce();
   });
 
   it("sends a keybinding result to its setting when no chat can run it", async () => {

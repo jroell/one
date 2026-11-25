@@ -5,7 +5,7 @@ import {
   type ResolvedKeybindingsConfig,
 } from "@t3tools/contracts";
 import { msg } from "gt-react";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import { usePreferredEditor } from "../../editorPreferences";
 import { editorLabelForPlatform } from "../../editorLabels";
@@ -13,6 +13,7 @@ import { isOpenFavoriteEditorShortcut } from "../../keybindings";
 import { m } from "../../i18n/messages";
 import { announce } from "../../lib/announce";
 import { openRemoteEditorUrl, useRemoteCapableEditors, useRemoteOpenState } from "../../remoteOpen";
+import { registerCommandHandlers } from "../../shortcuts/commandRegistry";
 import { registerCommands } from "../../shortcuts/dispatcher";
 import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -20,26 +21,39 @@ import { useAtomCommand } from "../../state/use-atom-command";
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
 
+const favoriteEditorButton = () =>
+  [...document.querySelectorAll<HTMLButtonElement>(`[${OPEN_FAVORITE_EDITOR_ATTRIBUTE}]`)].at(-1);
+
+const canPressFavoriteEditorButton = () => {
+  const button = favoriteEditorButton();
+  return button !== undefined && !button.disabled;
+};
+
+const pressFavoriteEditorButton = () => favoriteEditorButton()?.click();
+
 /**
  * `editor.openFavorite` presses the marked OpenInPicker primary button, so the shortcut opens
  * exactly what the button on screen would. A missing or disabled button leaves the chord to the
  * bubble-phase fallback below. Capture phase, so a focused terminal does not swallow the chord.
  */
 export function registerOpenFavoriteEditorCommand(): () => void {
-  return registerCommands(
+  const disposeKey = registerCommands(
     {
       "editor.openFavorite": (event) => {
-        if (event.repeat) return false;
-        const button = [
-          ...document.querySelectorAll<HTMLButtonElement>(`[${OPEN_FAVORITE_EDITOR_ATTRIBUTE}]`),
-        ].at(-1);
-        if (button === undefined || button.disabled) return false;
+        if (event.repeat || !canPressFavoriteEditorButton()) return false;
         event.preventDefault();
-        button.click();
+        pressFavoriteEditorButton();
       },
     },
     { capture: true },
   );
+  const disposeRow = registerCommandHandlers({
+    "editor.openFavorite": { run: pressFavoriteEditorButton, canRun: canPressFavoriteEditorButton },
+  });
+  return () => {
+    disposeKey();
+    disposeRow();
+  };
 }
 
 export function useOpenFavoriteEditorShortcut({
@@ -63,7 +77,35 @@ export function useOpenFavoriteEditorShortcut({
     remote.mode === "local-exec" ? availableEditors : remoteCapableEditors,
   );
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes a window keydown listener for the open-in-editor shortcut while enabled
+  const target =
+    enabled && remote.mode !== "remote-unavailable" && openInCwd && preferredEditor
+      ? { cwd: openInCwd, editor: preferredEditor }
+      : null;
+  const openFavorite = useEffectEvent(() => {
+    if (!target) return false;
+    const label = editorLabelForPlatform(target.editor, navigator.platform);
+    if (remote.mode === "remote-links") {
+      const url = buildRemoteOpenUrl({
+        editor: target.editor,
+        ...remote.host,
+        absolutePath: target.cwd,
+      });
+      if (url === undefined) return false;
+      void openRemoteEditorUrl(url).then((opened) => {
+        if (opened) announce(m(msg("Opened in {editor}", { editor: label })));
+      });
+      return;
+    }
+    void openInEditorMutation({
+      environmentId,
+      input: target,
+    }).then((result) => {
+      if (result._tag === "Success") announce(m(msg("Opened in {editor}", { editor: label })));
+    });
+  });
+  const canOpenFavorite = target !== null;
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes a window keydown listener for the open-in-editor shortcut and registers its command by id while enabled
   useEffect(() => {
     if (!enabled || remote.mode === "remote-unavailable") return;
     const handler = (event: globalThis.KeyboardEvent) => {
@@ -73,41 +115,18 @@ export function useOpenFavoriteEditorShortcut({
         !isOpenFavoriteEditorShortcut(event, keybindings)
       )
         return;
-      if (!openInCwd || !preferredEditor) return;
+      if (!canOpenFavorite) return;
 
       event.preventDefault();
-      const label = editorLabelForPlatform(preferredEditor, navigator.platform);
-      if (remote.mode === "remote-links") {
-        const url = buildRemoteOpenUrl({
-          editor: preferredEditor,
-          ...remote.host,
-          absolutePath: openInCwd,
-        });
-        if (url === undefined) return;
-        void openRemoteEditorUrl(url).then((opened) => {
-          if (opened) announce(m(msg("Opened in {editor}", { editor: label })));
-        });
-        return;
-      }
-      void openInEditorMutation({
-        environmentId,
-        input: {
-          cwd: openInCwd,
-          editor: preferredEditor,
-        },
-      }).then((result) => {
-        if (result._tag === "Success") announce(m(msg("Opened in {editor}", { editor: label })));
-      });
+      openFavorite();
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [
-    enabled,
-    environmentId,
-    keybindings,
-    openInCwd,
-    openInEditorMutation,
-    preferredEditor,
-    remote,
-  ]);
+    const disposeRow = registerCommandHandlers({
+      "editor.openFavorite": { run: () => openFavorite(), canRun: () => canOpenFavorite },
+    });
+    return () => {
+      window.removeEventListener("keydown", handler);
+      disposeRow();
+    };
+  }, [canOpenFavorite, enabled, keybindings, remote.mode]);
 }

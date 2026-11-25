@@ -65,6 +65,27 @@ export function installCommandPaletteCommands(
     },
   );
 
+  const scopeOptions: CommandScopeOptions = {
+    ...options,
+    when: isCommandPaletteMounted,
+    context: () => {
+      const threadRef = readRouteThreadRef();
+      return {
+        terminalOpen: threadRef
+          ? selectThreadTerminalUiState(
+              useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
+              threadRef,
+            ).terminalOpen
+          : false,
+        previewOpen: threadRef
+          ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) ===
+            "preview"
+          : false,
+        usagePageOpen: router.state.location.pathname === "/usage",
+      };
+    },
+  };
+
   const disposeCommands = registerCommands(
     {
       "appearance.cycle": (event) => {
@@ -113,40 +134,28 @@ export function installCommandPaletteCommands(
         dispatchCommandPalette({ _tag: "SetOpen", open: false });
         void router.navigate({ to: "/usage" });
       },
-      "shortcuts.show": (event) => {
-        consume(event);
-        if (event.repeat) return;
-        dispatchCommandPalette({ _tag: "SetOpen", open: false });
-        void toggleShortcutsDialog();
-      },
       "commandPalette.toggle": toggleOverlay("commandPalette.toggle"),
       "filePicker.toggle": toggleOverlay("filePicker.toggle"),
       "projectSearch.toggle": toggleOverlay("projectSearch.toggle"),
     },
+    scopeOptions,
+  );
+  // The key that closes the sheet is the one command that works while the sheet owns the keyboard.
+  const disposeSheetKey = registerCommands(
     {
-      ...options,
-      when: isCommandPaletteMounted,
-      context: () => {
-        const threadRef = readRouteThreadRef();
-        return {
-          terminalOpen: threadRef
-            ? selectThreadTerminalUiState(
-                useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
-                threadRef,
-              ).terminalOpen
-            : false,
-          previewOpen: threadRef
-            ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) ===
-              "preview"
-            : false,
-          usagePageOpen: router.state.location.pathname === "/usage",
-        };
+      "shortcuts.show": (event) => {
+        consume(event);
+        if (event.repeat) return;
+        dispatchCommandPalette({ _tag: "SetOpen", open: false });
+        toggleShortcutsDialog();
       },
     },
+    { ...scopeOptions, whileShortcutsSheetOpen: true },
   );
 
   return () => {
     disposeEscape();
     disposeCommands();
+    disposeSheetKey();
   };
 }
