@@ -1,3 +1,4 @@
+import { useNavigation } from "@react-navigation/native";
 import { msg, useGT, useMessages } from "gt-react-native";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
@@ -222,6 +223,7 @@ function EnvironmentMethodSection({
 export function SettingsVoiceRouteScreen() {
   const gt = useGT();
   const m = useMessages();
+  const navigation = useNavigation();
   const transcriber = useAtomValue(localVoiceTranscriberAtom);
   const grant = useAtomValue(voiceGrantAtom);
   const { environments, isReady } = useEnvironments();
@@ -296,6 +298,13 @@ export function SettingsVoiceRouteScreen() {
         contentContainerClassName="gap-3 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        <SettingsSection title={gt("Hands-free driving")}>
+          <SettingsActionRow
+            icon="car"
+            label={gt("Open Drive & CarPlay")}
+            onPress={() => navigation.navigate("DriveMode")}
+          />
+        </SettingsSection>
         <SettingsSection title={gt("Transcribe on")}>
           <ListChoiceRow
             label={gt("This device")}

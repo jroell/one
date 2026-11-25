@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["OneCarPlayModule"],
+    "podspecPath": "ios/OneCarPlay.podspec"
+  },
+  "android": {
+    "modules": ["expo.modules.onecarplay.OneCarPlayModule"]
+  }
+}

@@ -607,6 +607,9 @@ importers:
       '@t3tools/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@t3tools/mobile-carplay-native':
+        specifier: file:./modules/one-carplay
+        version: file:apps/mobile/modules/one-carplay(expo@58.0.26)
       '@t3tools/mobile-highlights-native':
         specifier: file:./modules/t3-highlights
         version: file:apps/mobile/modules/t3-highlights(react-native-nitro-modules@0.37.2(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0))
@@ -6995,6 +6998,11 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
+
+  '@t3tools/mobile-carplay-native@file:apps/mobile/modules/one-carplay':
+    resolution: {directory: apps/mobile/modules/one-carplay, type: directory}
+    peerDependencies:
+      expo: '*'
 
   '@t3tools/mobile-highlights-native@file:apps/mobile/modules/t3-highlights':
     resolution: {directory: apps/mobile/modules/t3-highlights, type: directory}
@@ -17087,6 +17095,10 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@t3tools/mobile-carplay-native@file:apps/mobile/modules/one-carplay(expo@58.0.26)':
+    dependencies:
+      expo: 58.0.26(f1276074af5eee14937223530600d31d)
 
   '@t3tools/mobile-highlights-native@file:apps/mobile/modules/t3-highlights(react-native-nitro-modules@0.37.2(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0))':
     dependencies:

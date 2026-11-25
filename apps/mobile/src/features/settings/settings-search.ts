@@ -73,6 +73,13 @@ const SETTINGS_SEARCH_TERMS = {
     msg("microphone order", { $context: "settings search keyword" }),
     msg("bluetooth", { $context: "settings search keyword" }),
   ],
+  DriveMode: [
+    "carplay",
+    msg("drive", { $context: "settings search keyword" }),
+    msg("hands-free", { $context: "settings search keyword" }),
+    msg("realtime voice", { $context: "settings search keyword" }),
+    msg("voice studio", { $context: "settings search keyword" }),
+  ],
   SettingsScheduledTasks: [
     msg("automations", { $context: "settings search keyword" }),
     msg("schedule", { $context: "settings search keyword" }),
@@ -177,7 +184,7 @@ const SETTINGS_SEARCH_TERMS = {
     msg("terms", { $context: "settings search keyword" }),
     msg("open source licenses", { $context: "settings search keyword" }),
   ],
-} satisfies Partial<Record<SettingsPageTarget | "account", readonly string[]>>;
+} satisfies Partial<Record<SettingsPageTarget | "account" | "DriveMode", readonly string[]>>;
 const termsById: ReadonlyMap<string, readonly string[]> = new Map(
   Object.entries(SETTINGS_SEARCH_TERMS),
 );

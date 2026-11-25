@@ -11,10 +11,10 @@
 </p>
 
 <p align="center">
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/jroell/t3code?style=flat-square&color=d4a02c&labelColor=111114" alt="MIT License" /></a>
-  <a href="https://github.com/jroell/t3code/stargazers"><img src="https://img.shields.io/github/stars/jroell/t3code?style=flat-square&color=d4a02c&labelColor=111114" alt="GitHub Stars" /></a>
-  <a href="https://github.com/jroell/t3code/forks"><img src="https://img.shields.io/github/forks/jroell/t3code?style=flat-square&color=d4a02c&labelColor=111114" alt="GitHub Forks" /></a>
-  <a href="https://github.com/jroell/t3code/commits/custom/main"><img src="https://img.shields.io/github/last-commit/jroell/t3code/custom/main?style=flat-square&color=d4a02c&labelColor=111114" alt="Last Commit" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/jroell/one?style=flat-square&color=d4a02c&labelColor=111114" alt="MIT License" /></a>
+  <a href="https://github.com/jroell/one/stargazers"><img src="https://img.shields.io/github/stars/jroell/one?style=flat-square&color=d4a02c&labelColor=111114" alt="GitHub Stars" /></a>
+  <a href="https://github.com/jroell/one/forks"><img src="https://img.shields.io/github/forks/jroell/one?style=flat-square&color=d4a02c&labelColor=111114" alt="GitHub Forks" /></a>
+  <a href="https://github.com/jroell/one/commits/custom/main"><img src="https://img.shields.io/github/last-commit/jroell/one/custom/main?style=flat-square&color=d4a02c&labelColor=111114" alt="Last Commit" /></a>
 </p>
 
 <p align="center">
@@ -99,6 +99,12 @@ One runs the coding agents installed on your machine and puts every thread behin
       Event-sourced orchestration, bounded SQLite projections, native Rust resource telemetry, and Vite+ tooling keep switching across dozens of active threads responsive.
     </td>
   </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <h3>One Drive &amp; Apple CarPlay</h3>
+      Talk hands-free on the road through native Apple CarPlay or Phone Drive Mode (iOS and Android). Choose from 29 voices across OpenAI Realtime, Gemini Live, ElevenLabs, and zero-key On-Device speech, switch between 6 driving personas, interrupt naturally with hardware echo cancellation, and check or steer live One threads with verbal confirmation before approvals or messages go out. See the <a href="./docs/user/carplay-voice.md">One Drive &amp; CarPlay guide</a>.
+    </td>
+  </tr>
 </table>
 
 ## Architecture
@@ -173,7 +179,7 @@ Because One is an unofficial community fork, build it directly from this reposit
 ### 1. Clone and run the dev server
 
 ```bash
-git clone https://github.com/jroell/t3code.git
+git clone https://github.com/jroell/one.git
 cd t3code
 vp i
 vp run dev
@@ -263,6 +269,7 @@ vp run check:changed
 
 - [All documentation](./docs/README.md)
 - [Install and provider setup](./docs/user/install.md)
+- [One Drive and Apple CarPlay voice companion](./docs/user/carplay-voice.md)
 - [Remote access (LAN, Tailscale, SSH, linked machines)](./docs/user/remote-access.md)
 - [Permission modes](./docs/user/permission-modes.md)
 - [Source control and worktrees](./docs/user/source-control.md)

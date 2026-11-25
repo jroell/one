@@ -142,6 +142,7 @@ import { UsageRouteScreen } from "./features/usage/UsageRouteScreen";
 import { WorkflowRunRouteScreen } from "./features/workflows/WorkflowRunRouteScreen";
 import { WorkflowStepSheet } from "./features/workflows/WorkflowStepSheet";
 import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRouteScreen";
+import { DriveModeRouteScreen } from "./features/carplay";
 import { SettingsNotificationsRouteScreen } from "./features/settings/SettingsNotificationsRouteScreen";
 import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
 import { SettingsLabsRouteScreen } from "./features/settings/ThreadSettingsSections";
@@ -193,6 +194,7 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsProjectOverview: msg("Projects"),
   SettingsKeyboard: msg("Keyboard"),
   SettingsVoice: msg("Voice"),
+  DriveMode: msg("Drive & CarPlay"),
   SettingsFollowUp: msg("Chat", { $context: "noun, settings page title" }),
   SettingsScheduledTasks: msg("Scheduled tasks"),
   SettingsScheduledTaskNew: msg("New scheduled task"),
@@ -843,6 +845,11 @@ const RootStackConfig = createWorkspaceStackNavigator({
       options: sheetRoute({ detent: 0.55, maxDetent: 0.7, androidFit: true }),
     }),
     ...SETTINGS_SCREENS,
+    DriveMode: createNativeStackScreen({
+      screen: DriveModeRouteScreen,
+      linking: "drive",
+      options: immersiveRoute({ fullWidth: true }),
+    }),
     SettingsLegal: createNativeStackScreen({
       screen: SettingsLegalRouteScreen,
       linking: "settings/legal",
