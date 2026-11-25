@@ -68,6 +68,31 @@ describe("voice chat turn order", () => {
     }
   });
 
+  it("follows a draft to the saved thread it becomes once its question is sent", () => {
+    const sent = run([
+      { type: "start", threadKey: "draft-1", isDraft: true },
+      { type: "sent", latestAssistantMessageId: null },
+    ]);
+    const promoted = reduceVoiceSession(sent, { type: "promoted", threadKey: "thread-9" });
+    expect(promoted).toMatchObject({ stage: "sending", threadKey: "thread-9" });
+    // A second change of key is another thread, not a promotion.
+    expect(reduceVoiceSession(promoted, { type: "promoted", threadKey: "thread-10" })).toBe(
+      promoted,
+    );
+  });
+
+  it("does not follow a saved thread, or a draft that has not sent anything, to another key", () => {
+    const saved = run([
+      { type: "start", threadKey: "t1" },
+      { type: "sent", latestAssistantMessageId: null },
+    ]);
+    expect(reduceVoiceSession(saved, { type: "promoted", threadKey: "t2" })).toBe(saved);
+    const listeningDraft = run([{ type: "start", threadKey: "draft-1", isDraft: true }]);
+    expect(reduceVoiceSession(listeningDraft, { type: "promoted", threadKey: "t2" })).toBe(
+      listeningDraft,
+    );
+  });
+
   it("keeps the thread it started in through a whole turn", () => {
     const state = run([
       { type: "start", threadKey: "t1" },

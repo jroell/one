@@ -10,12 +10,16 @@ export type VoiceSessionState = Readonly<{
   stage: VoiceStage;
   /** The thread (or draft) this conversation belongs to. Voice chat never follows you to another thread. */
   threadKey: string | null;
+  /** Started in an unsent draft, whose key changes once when its first message is sent. */
+  startedAsDraft: boolean;
   /** The newest assistant message when the current question was sent, so only a newer one is read aloud. */
   baselineMessageId: string | null;
 }>;
 
 export type VoiceSessionEvent =
-  | { readonly type: "start"; readonly threadKey: string }
+  | { readonly type: "start"; readonly threadKey: string; readonly isDraft?: boolean }
+  /** The draft this conversation started in became a saved thread when its first question was sent. */
+  | { readonly type: "promoted"; readonly threadKey: string }
   | { readonly type: "stop" }
   | { readonly type: "sent"; readonly latestAssistantMessageId: string | null }
   | { readonly type: "working" }
@@ -26,6 +30,7 @@ export type VoiceSessionEvent =
 export const VOICE_SESSION_OFF: VoiceSessionState = {
   stage: "off",
   threadKey: null,
+  startedAsDraft: false,
   baselineMessageId: null,
 };
 
@@ -36,7 +41,17 @@ export function reduceVoiceSession(
   switch (event.type) {
     case "start":
       return state.stage === "off"
-        ? { stage: "listening", threadKey: event.threadKey, baselineMessageId: null }
+        ? {
+            stage: "listening",
+            threadKey: event.threadKey,
+            startedAsDraft: event.isDraft === true,
+            baselineMessageId: null,
+          }
+        : state;
+    case "promoted":
+      // Only a draft that has sent its question can turn into a thread.
+      return state.startedAsDraft && state.stage !== "off" && state.stage !== "listening"
+        ? { ...state, threadKey: event.threadKey, startedAsDraft: false }
         : state;
     case "stop":
       return VOICE_SESSION_OFF;
@@ -131,10 +146,26 @@ export function createSilenceDetector(options: SilenceDetectorOptions = DEFAULT_
 let session: VoiceSessionState = VOICE_SESSION_OFF;
 const listeners = new Set<() => void>();
 
+let releaseMicrophone: (() => void) | null = null;
+
+/**
+ * Registers how to stop the recording this conversation started. It runs when
+ * the conversation ends, however it ends, so the microphone is never left on.
+ */
+export function holdMicrophone(release: () => void): void {
+  releaseMicrophone = release;
+}
+
 export function dispatchVoiceSession(event: VoiceSessionEvent): void {
   const next = reduceVoiceSession(session, event);
   if (next === session) return;
   session = next;
+  if (next.stage === "off") {
+    const release = releaseMicrophone;
+    releaseMicrophone = null;
+    release?.();
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+  }
   for (const listener of listeners) listener();
 }
 

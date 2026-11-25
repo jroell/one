@@ -8,6 +8,8 @@ import { useSyncExternalStore } from "react";
 export type VoiceBridge = Readonly<{
   /** The thread or draft the composer is writing to. */
   threadKey: string;
+  /** A new thread that has not been sent yet; its key changes when the first message is sent. */
+  isDraft: boolean;
   /** Dictation can start: voice input is set up and this composer may send. */
   available: boolean;
   /** Nothing is typed or attached, so a spoken question is sent on its own. */

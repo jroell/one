@@ -23,10 +23,8 @@ export function StandalonePageHeader({
   return (
     <>
       <div className="flex items-baseline justify-between gap-3 text-muted-foreground">
-        {/* oxlint-disable-next-line t3code/no-untranslated-copy -- product name */}
         <span className="flex items-center gap-2" role="img" aria-label="One">
           <OneMark className="size-6" />
-          {/* oxlint-disable-next-line t3code/no-untranslated-copy -- product wordmark */}
           <span className="text-lg font-semibold tracking-tight text-foreground">One</span>
         </span>
         {context ? <span className="text-sm">{context}</span> : null}

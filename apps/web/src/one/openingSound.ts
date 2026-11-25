@@ -4,6 +4,9 @@
  * Browsers only allow sound after a user gesture; when the page may not play,
  * this stays silent rather than waiting and sounding late.
  */
+/** How long the browser may hold the sound before the opening goes on without it. */
+const RESUME_DEADLINE_MS = 600;
+
 export function playOpeningSound(ignitionSeconds: number): () => void {
   const AudioContextClass = typeof window === "undefined" ? undefined : window.AudioContext;
   if (!AudioContextClass) return () => {};
@@ -31,8 +34,12 @@ export function playOpeningSound(ignitionSeconds: number): () => void {
     const asked = performance.now();
     void context
       .resume()
-      .then(() => (performance.now() - asked < 600 ? begin() : close()))
+      .then(() => (performance.now() - asked < RESUME_DEADLINE_MS ? begin() : close()))
       .catch(close);
+    // A page that is never allowed to play would otherwise keep the context open for good.
+    window.setTimeout(() => {
+      if (context.state !== "running") close();
+    }, RESUME_DEADLINE_MS);
   }
   return () => stop();
 }
@@ -116,7 +123,10 @@ function scheduleOpeningSound(
   master.gain.exponentialRampToValueAtTime(0.0001, end);
   const timer = window.setTimeout(close, (end - context.currentTime + 0.3) * 1000);
 
+  let stopped = false;
   return () => {
+    if (stopped) return;
+    stopped = true;
     window.clearTimeout(timer);
     // Fade instead of cutting, so skipping the opening does not click.
     const now = context.currentTime;

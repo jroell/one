@@ -2447,11 +2447,24 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   }, [submitComposerStable]);
   const voiceStart = useStableCallback(() => void speechInput.start());
   const voiceSubmit = useStableCallback(() => void submitComposerRef.current());
-  const voiceCancel = useStableCallback(() => speechInput.cancel());
+  const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
   const publishesVoice = voiceChatHost && !hiddenThread;
-  const voiceAvailable = speechInput.available && !dictationDisabled && !isEditingQueuedMessage;
+  // Voice chat sends a spoken question on its own, so it is offered only when the
+  // composer is free: nothing waiting for an answer, and no queued message being edited.
+  const voiceAvailable =
+    speechInput.available &&
+    !dictationDisabled &&
+    !isEditingQueuedMessage &&
+    !isComposerApprovalState &&
+    activePendingProgress === null;
   const voiceDraftEmpty =
-    prompt.trim().length === 0 && composerImages.length === 0 && composerFiles.length === 0;
+    prompt.trim().length === 0 &&
+    composerImages.length + composerFiles.length === 0 &&
+    composerSendState.sendableTerminalContexts.length === 0 &&
+    composerPreviewAnnotations.length === 0 &&
+    composerReviewComments.length === 0 &&
+    composerThreadContexts.length === 0 &&
+    (composerDraft?.replyTo ?? null) === null;
   const voicePhase = speechInput.state.phase;
   const voiceError = speechInput.state.error;
   const voiceHeard = speechInput.preview
@@ -2462,6 +2475,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (!publishesVoice) return;
     publishVoiceBridge(voiceBridgeOwner, {
       threadKey: composerDraftTargetKey,
+      isDraft: routeKind === "draft",
       available: voiceAvailable,
       draftEmpty: voiceDraftEmpty,
       phase: voicePhase,
@@ -2475,6 +2489,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     publishesVoice,
     voiceBridgeOwner,
     composerDraftTargetKey,
+    routeKind,
     voiceAvailable,
     voiceDraftEmpty,
     voicePhase,

@@ -1,4 +1,5 @@
 import { T, useGT } from "gt-react";
+import { createContext, use } from "react";
 import {
   AudioLinesIcon,
   CircleHelpIcon,
@@ -24,10 +25,18 @@ function greetingFor(hour: number, gt: ReturnType<typeof useGT>): string {
   return gt("Good evening");
 }
 
+/**
+ * True inside the main conversation, the only place whose composer the welcome
+ * can fill and whose thread voice chat can join. Linked, side and read-only
+ * timelines get the plain placeholder.
+ */
+export const MainConversationContext = createContext(false);
+
 /** Shown in a thread with no messages yet. */
 export function OneEmptyState() {
   const mode = useWorkspaceMode();
-  if (mode === "chat") return <ChatWelcome />;
+  const mainConversation = use(MainConversationContext);
+  if (mode === "chat" && mainConversation) return <ChatWelcome />;
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <OneMark className="size-12 opacity-90" />

@@ -568,6 +568,11 @@ export function useEnvironmentSpeechInput(input: HookInput) {
       setSetup(INITIAL_SETUP);
       if (owns) session?.cancel();
     }),
+    /** Stops the shared recorder whichever editor started it, and leaves any setup dialog alone. */
+    cancelRecording: useStableCallback(() => {
+      startRequestRef.current += 1;
+      session?.cancel();
+    }),
     skipPostProcessing: useStableCallback(() => {
       if (owns) session?.skipPostProcessing();
     }),

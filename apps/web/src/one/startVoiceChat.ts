@@ -11,6 +11,8 @@ import { getWorkspaceMode, setWorkspaceMode } from "./workspaceMode";
  * own, so an unfinished draft has to be sent or cleared first.
  */
 export function startVoiceChat(voice: VoiceBridge): void {
+  // A dictation already under way belongs to the editor; voice chat must not take it over and send it.
+  if (voice.phase !== "idle") return;
   if (!voice.draftEmpty) {
     toastManager.add({
       type: "info",
@@ -19,7 +21,7 @@ export function startVoiceChat(voice: VoiceBridge): void {
     });
     return;
   }
-  dispatchVoiceSession({ type: "start", threadKey: voice.threadKey });
+  dispatchVoiceSession({ type: "start", threadKey: voice.threadKey, isDraft: voice.isDraft });
 }
 
 /**

@@ -136,6 +136,13 @@ void main() {
   vec3 rd = normalize(vec3(uv * 1.2, -3.0));
   float pixel = 2.2 / min(uRes.x, uRes.y);
 
+  // Nothing is drawn outside this circle (the glow has faded to zero there),
+  // so those pixels skip the march and the smoke entirely.
+  if (length(uv) > 1.0) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
+
   float t = 2.0;
   float nearest = 1e3;
   bool hit = false;
@@ -154,7 +161,7 @@ void main() {
     vec3 p = ro + rd * t;
     vec3 n = ringNormal(p);
     vec3 v = -rd;
-    float facing = max(dot(n, v), 0.0);
+    float facing = clamp(dot(n, v), 0.0, 1.0);
     float fresnel = 0.06 + 0.94 * pow(1.0 - facing, 4.0);
     vec3 reflection = studio(reflect(rd, n));
     // Colored glass over a mirror: lights keep the brand hue and turn white

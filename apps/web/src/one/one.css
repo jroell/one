@@ -340,6 +340,11 @@ html[data-theme-id=""] {
     outline: 1px solid ButtonText;
     outline-offset: -3px;
   }
+
+  .one-mode-switch-option[aria-checked="true"]:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: -3px;
+  }
 }
 
 @media (hover: hover) {
@@ -360,29 +365,12 @@ html[data-theme-id=""] {
 
 @media (pointer: coarse) {
   .one-mode-switch {
-    height: 2.75rem;
+    height: auto;
   }
 
   .one-mode-switch-option {
     min-width: 2.75rem;
-  }
-}
-
-/* Reduced motion keeps the feedback of a press (color, outline) and drops the movement. */
-@media (prefers-reduced-motion: reduce) {
-  .one-mode-switch-thumb,
-  .one-mark-host .one-mark,
-  .one-chip,
-  .one-voice-orb-button,
-  .one-reflection {
-    transition: none;
-  }
-
-  .one-mode-switch:active .one-mode-switch-thumb,
-  .one-mark-host:active .one-mark,
-  .one-chip:active,
-  .one-voice-orb-button:not([aria-disabled="true"]):active {
-    scale: 1;
+    min-height: 2.75rem;
   }
 }
 
@@ -394,7 +382,7 @@ html[data-one-mode="chat"] {
   --chat-content-max-width: 43rem;
 }
 
-html[data-one-mode="chat"] [data-thread-details-panel] {
+html[data-one-mode="chat"] [data-thread-details-panel="inline"] {
   display: none;
 }
 
@@ -765,7 +753,7 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 [data-one-working] [data-one-reflect] > .one-reflection {
   opacity: 1;
   background: conic-gradient(
-    from var(--one-angle),
+    from var(--one-angle, 0deg),
     transparent 0deg,
     transparent 250deg,
     color-mix(in oklch, var(--one-brand) 55%, transparent) 310deg,
@@ -787,7 +775,8 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 }
 
 /* A request for approval is the one thing on screen that needs the person. */
-[data-v2-item-type="approval_request"] {
+[role="group"][data-v2-item-type="approval_request"] {
+  position: relative;
   margin-block: 0.375rem;
   padding: 0.5rem 0.625rem;
   border-radius: 0.875rem;
@@ -798,18 +787,48 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
     inset 0 0 0 1px color-mix(in oklch, var(--warning) 34%, transparent);
 }
 
+/* The glow breathes by opacity only, so it never repaints the card. */
+[role="group"][data-v2-item-type="approval_request"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--warning) 55%, transparent),
+    0 0 22px -6px color-mix(in oklch, var(--warning) 55%, transparent);
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  [data-v2-item-type="approval_request"] {
+  [role="group"][data-v2-item-type="approval_request"]::after {
     animation: one-attention 2.6s ease-in-out infinite;
   }
 }
 
 @keyframes one-attention {
   50% {
-    box-shadow:
-      inset 0 1px 0 0 var(--one-glass-rim-top),
-      inset 0 0 0 1px color-mix(in oklch, var(--warning) 60%, transparent),
-      0 0 22px -6px color-mix(in oklch, var(--warning) 55%, transparent);
+    opacity: 1;
+  }
+}
+
+/* The working mark turns like a coin: one transform on its own layer. */
+.one-working-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  perspective: 6rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-working-mark > svg {
+    animation: one-coin 2.4s linear infinite;
+    will-change: transform;
+  }
+}
+
+@keyframes one-coin {
+  to {
+    transform: rotateY(360deg);
   }
 }
 
@@ -830,9 +849,12 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
   margin-top: 1.125rem;
 }
 
-/* Where a thread runs (checkout, branch, access) is a coding concern. */
-html[data-one-mode="chat"] [data-slot="composer-context-strip"] {
-  display: none;
+/* A short window has no room for the ring above the composer. */
+@media (max-height: 560px) {
+  .one-chat-welcome[data-compact] .one-chat-welcome-orb,
+  .one-chat-welcome[data-compact] .one-chat-welcome-lead {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------- instant response */
@@ -855,4 +877,44 @@ html[data-one-mode="chat"] [data-slot="composer-context-strip"] {
     scale: 1;
     transition: none;
   }
+}
+
+/* --------------------------------------------------------- reduced motion */
+
+/* Last in the file so it wins over every press and release rule above. */
+/* Reduced motion keeps the feedback of a press (color, outline) and drops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .one-mode-switch-thumb,
+  .one-mark-host .one-mark,
+  .one-chip,
+  .one-voice-orb-button,
+  .one-reflection {
+    transition: none;
+  }
+
+  .one-mode-switch:active .one-mode-switch-thumb,
+  .one-mark-host:active .one-mark,
+  .one-chip:active,
+  .one-voice-orb-button:not([aria-disabled="true"]):active {
+    scale: 1;
+  }
+}
+
+/* The opening's way out for the keyboard and for screen readers. Quiet, but there. */
+.one-opening-skip {
+  position: absolute;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding: 0.5rem 0.875rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: rgb(246 226 166 / 45%);
+  cursor: pointer;
+  outline: none;
+  animation: one-opening-rule 1200ms var(--one-ease-out) 1600ms both;
+}
+
+.one-opening-skip:focus-visible {
+  color: #f6e2a6;
+  box-shadow: inset 0 0 0 1px rgb(246 226 166 / 55%);
 }

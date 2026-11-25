@@ -340,6 +340,7 @@ it("tests the selected model after download and preserves its transcript across 
           stop: async () => {},
           cancel: () => {},
           skipPostProcessing: () => {},
+          cancelRecording: () => {},
         }),
         async () => {
           await using screen = await render(

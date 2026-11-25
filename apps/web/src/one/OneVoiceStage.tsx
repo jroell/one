@@ -11,6 +11,7 @@ import {
   createSilenceDetector,
   dispatchVoiceSession,
   getVoiceSession,
+  holdMicrophone,
   speakableText,
   useVoiceSession,
   type VoiceStage,
@@ -32,11 +33,13 @@ const ORB_STATE: Record<Exclude<VoiceStage, "off">, OneOrbState> = {
 };
 
 /** How long a finished turn may take to show its reply before voice chat listens again. */
-const REPLY_GRACE_MS = 1_500;
+const REPLY_GRACE_MS = 4_000;
 /** How long a send may sit without starting a turn before voice chat listens again. */
 const SEND_STALL_MS = 6_000;
 /** How long the microphone may take to begin before voice chat closes (setup needed or refused). */
 const START_REFUSED_MS = 2_500;
+
+let mountedStages = 0;
 
 /** Makes quiet speech visible on the ring without letting loud speech clip. */
 function displayLevel(level: number): number {
@@ -54,10 +57,24 @@ export function OneVoiceStage(props: {
   readonly isWorking: boolean;
   /** The turn is waiting for an approval or an answer that only the page behind can give. */
   readonly needsUser: boolean;
+  /** The conversation is covered or inert (a maximized panel), so the dialog could not be seen. */
+  readonly conversationHidden?: boolean;
   /** Messages of a draft thread; a saved thread's replies are read from its turn items. */
   readonly draftMessages: ReadonlyArray<VoiceStageMessage>;
 }) {
   const session = useVoiceSession();
+  // A conversation cannot outlive the screen that shows it. The check runs a tick
+  // later so a development re-mount of this component does not end it.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the shared voice session when the last voice stage leaves the page
+  useEffect(() => {
+    mountedStages += 1;
+    return () => {
+      mountedStages -= 1;
+      queueMicrotask(() => {
+        if (mountedStages === 0) dispatchVoiceSession({ type: "stop" });
+      });
+    };
+  }, []);
   // Reply text streams token by token, so only an open voice chat subscribes to it.
   if (session.stage === "off") return null;
   return <ActiveVoiceStage {...props} />;
@@ -67,17 +84,20 @@ function ActiveVoiceStage({
   threadRef,
   isWorking,
   needsUser,
+  conversationHidden = false,
   draftMessages,
 }: {
   readonly threadRef: ScopedThreadRef | null;
   readonly isWorking: boolean;
   readonly needsUser: boolean;
+  readonly conversationHidden?: boolean;
   readonly draftMessages: ReadonlyArray<VoiceStageMessage>;
 }) {
   const gt = useGT();
   const session = useVoiceSession();
   const liveBridge = useVoiceBridge();
   const mode = useWorkspaceMode();
+  const stage = session.stage;
   const turnItems = useThreadVisibleTurnItems(threadRef);
   const messages: ReadonlyArray<VoiceStageMessage> =
     threadRef === null
@@ -95,17 +115,29 @@ function ActiveVoiceStage({
             : [],
         );
 
-  const stage = session.stage;
   // Only the composer of the thread this conversation started in may be driven.
+  // A draft that has sent its first question becomes a saved thread under a new key:
+  // that one change of key is the same conversation, not another thread.
+  const promoted =
+    liveBridge !== null &&
+    liveBridge.threadKey !== session.threadKey &&
+    session.startedAsDraft &&
+    !liveBridge.isDraft &&
+    stage !== "listening";
+  const promotedKey = promoted ? liveBridge.threadKey : null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves the shared voice session to the saved thread its draft became
+  useEffect(() => {
+    if (promotedKey !== null) dispatchVoiceSession({ type: "promoted", threadKey: promotedKey });
+  }, [promotedKey]);
   const bridge: VoiceBridge | null =
-    liveBridge !== null && liveBridge.threadKey === session.threadKey ? liveBridge : null;
+    liveBridge !== null && (liveBridge.threadKey === session.threadKey || promoted)
+      ? liveBridge
+      : null;
   const levelRef = useRef(0);
   const speechPulseRef = useRef(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const orbButtonRef = useRef<HTMLButtonElement | null>(null);
   const startRequestedRef = useRef(false);
-  /** Cancels the recording this session began, even after its composer has gone. */
-  const cancelRecordingRef = useRef<(() => void) | null>(null);
 
   const latestAssistant = messages.findLast((message) => message.role === "assistant") ?? null;
   const reply =
@@ -113,6 +145,7 @@ function ActiveVoiceStage({
       ? latestAssistant
       : null;
   const replyReady = reply !== null && !reply.streaming;
+  const replyLength = reply?.text.length ?? 0;
   const latest = useRef({ bridge, reply, latestAssistantId: latestAssistant?.id ?? null });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge and reply to the frame loop, timers and speech effect below
   useEffect(() => {
@@ -134,12 +167,14 @@ function ActiveVoiceStage({
 
   // The conversation ends when its thread, its composer or chat mode goes away,
   // and steps aside when the turn needs an approval or an answer from the page behind.
-  const orphaned = bridge === null || mode !== "chat";
-  const blockedOnUser = needsUser && (stage === "sending" || stage === "thinking");
+  const orphaned = bridge === null || mode !== "chat" || conversationHidden;
+  const blockedOnUser = needsUser;
+  // Something typed or attached since the last turn would ride along with the next spoken question.
+  const draftInTheWay = stage === "listening" && bridge?.phase === "idle" && !bridge.draftEmpty;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the shared voice session when the thread, composer or mode it belongs to is gone
   useEffect(() => {
-    if (orphaned || blockedOnUser) dispatchVoiceSession({ type: "stop" });
-  }, [orphaned, blockedOnUser]);
+    if (orphaned || blockedOnUser || draftInTheWay) dispatchVoiceSession({ type: "stop" });
+  }, [orphaned, blockedOnUser, draftInTheWay]);
 
   // Listening: start the composer's recording once, then send when the speaker pauses.
   const recordingPhase = bridge?.phase ?? "idle";
@@ -159,11 +194,14 @@ function ActiveVoiceStage({
     latest.current.bridge?.start();
   }, [stage, bridgeReady, waitingForThread, recordingPhase]);
 
-  const recordingBegun = recordingPhase !== "idle";
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- remembers how to cancel the recorder this session started, so ending the session can release the microphone
+  // Once the microphone is live, the session holds the way to stop it. A start that
+  // only reached setup is not held, so ending voice chat leaves that setup alone.
+  const recordingLive = recordingPhase === "recording" || recordingPhase === "transcribing";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands the recorder's stop to the voice session, which releases it when the conversation ends
   useEffect(() => {
-    if (recordingBegun) cancelRecordingRef.current = latest.current.bridge?.cancel ?? null;
-  }, [recordingBegun]);
+    const cancel = latest.current.bridge?.cancel;
+    if (recordingLive && cancel) holdMicrophone(cancel);
+  }, [recordingLive]);
 
   // The microphone never started (voice input needs setup, or the request was refused):
   // close voice chat and leave any setup screen it opened alone.
@@ -218,7 +256,12 @@ function ActiveVoiceStage({
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- waits for the finished reply of the turn; the timer covers a turn that ends with nothing to read
   useEffect(() => {
     if (!turnOver) return;
-    if (replyReady && speakableText(latest.current.reply?.text ?? "").length > 0) {
+    // The length is read here so a reply whose text arrives after its item re-runs this check.
+    if (
+      replyReady &&
+      replyLength > 0 &&
+      speakableText(latest.current.reply?.text ?? "").length > 0
+    ) {
       dispatchVoiceSession({ type: "replied", hasNewReply: true });
       return;
     }
@@ -227,7 +270,7 @@ function ActiveVoiceStage({
       REPLY_GRACE_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [turnOver, replyReady]);
+  }, [turnOver, replyReady, replyLength]);
 
   // Speaking: read the reply aloud once, from the text it had when reading began.
   const speakingReplyId = stage === "speaking" ? (reply?.id ?? null) : null;
@@ -269,6 +312,10 @@ function ActiveVoiceStage({
     orbButtonRef.current?.focus();
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // A menu, select or dialog opened over voice chat closes first.
+      const stageElement = stageRef.current;
+      const layers = document.querySelectorAll("[role=dialog], [role=menu], [role=listbox]");
+      if ([...layers].some((layer) => layer !== stageElement)) return;
       event.preventDefault();
       event.stopPropagation();
       dispatchVoiceSession({ type: "stop" });
@@ -288,11 +335,9 @@ function ActiveVoiceStage({
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusIn);
-      // A development re-run of this effect must not cancel the recording it just started.
+      // A development re-run of this effect must not move focus while the dialog stays open.
       if (getVoiceSession().stage !== "off") return;
-      cancelRecordingRef.current?.();
-      cancelRecordingRef.current = null;
-      if (opener?.isConnected) opener.focus();
+      if (opener?.isConnected && opener.closest("[inert]") === null) opener.focus();
     };
   }, []);
 

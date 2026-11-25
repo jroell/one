@@ -23,12 +23,19 @@ type MicrophonePhase = "idle" | "recording" | "transcribing";
 
 /** Stands in for the main composer's dictation: the microphone is the boundary being faked. */
 function setup() {
-  const microphone = { phase: "idle" as MicrophonePhase, threadKey: "thread-a", recordings: 0 };
+  const microphone = {
+    phase: "idle" as MicrophonePhase,
+    threadKey: "thread-a",
+    isDraft: false,
+    draftEmpty: true,
+    recordings: 0,
+  };
   const publish = () =>
     publishVoiceBridge("test", {
       threadKey: microphone.threadKey,
+      isDraft: microphone.isDraft,
       available: true,
-      draftEmpty: true,
+      draftEmpty: microphone.draftEmpty,
       phase: microphone.phase,
       error: null,
       heard: microphone.phase === "recording" ? "why is the sky blue" : "",
@@ -58,10 +65,18 @@ function setup() {
         microphone.phase = "idle";
         publish();
       }),
-    moveComposerTo: (threadKey: string) =>
+    moveComposerTo: (threadKey: string, isDraft = false) =>
       act(() => {
         microphone.threadKey = threadKey;
+        microphone.isDraft = isDraft;
         publish();
+      }),
+    startInDraft: () =>
+      act(() => {
+        microphone.threadKey = "draft-1";
+        microphone.isDraft = true;
+        publish();
+        dispatchVoiceSession({ type: "start", threadKey: "draft-1", isDraft: true });
       }),
     stage: (isWorking: boolean, messages: ReadonlyArray<VoiceStageMessage>, needsUser = false) => (
       <OneVoiceStage
@@ -145,6 +160,35 @@ it("voice chat closes and releases the microphone when the composer moves to ano
   await voice.moveComposerTo("thread-b");
   await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
   expect(voice.microphone.phase).toBe("idle");
+});
+
+it("voice chat started in a new thread stays open when the first question turns the draft into a saved thread", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+
+  await voice.startInDraft();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  await voice.moveComposerTo("env:thread-9");
+  await screen.rerender(voice.stage(true, []));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
+
+  await screen.rerender(voice.stage(false, [NEW_REPLY]));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+});
+
+it("voice chat closes and releases the microphone when its screen goes away", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+
+  await voice.start();
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Listening");
+
+  await screen.unmount();
+  await expect.poll(() => voice.microphone.phase).toBe("idle");
 });
 
 it("voice chat steps aside when the turn needs an approval", async () => {

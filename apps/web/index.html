@@ -697,10 +697,11 @@
       } catch {}
     </script>
     <style>
-      html[data-one-opening] #boot-shell {
+      /* Only the plain boot placeholder goes black. A boot error keeps its own readable colors. */
+      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) {
         background: #000;
       }
-      html[data-one-opening] #boot-shell-logo {
+      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-logo {
         visibility: hidden;
       }
     </style>

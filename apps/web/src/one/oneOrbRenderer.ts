@@ -26,6 +26,8 @@ const POSES: Record<OneOrbState, OrbPose> = {
 const OPEN_ANGLE = 0.48;
 
 const MAX_PIXEL_RATIO = 2;
+const LARGE_RING_PX = 300;
+const LARGE_RING_PIXEL_RATIO = 1.5;
 /** About 30 frames a second while the ring is at rest. */
 const RESTING_FRAME_MS = 30;
 
@@ -108,6 +110,11 @@ export function startOneOrb(
   }
   gl.useProgram(program);
   const buffer = gl.createBuffer();
+  if (!buffer) {
+    release();
+    input.onUnsupported();
+    return null;
+  }
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   const position = gl.getAttribLocation(program, "aPos");
@@ -140,7 +147,9 @@ export function startOneOrb(
   applyColors();
 
   const resize = () => {
-    const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    // A large ring has pixels to spare; full density there costs four times the shading for no visible gain.
+    const cap = canvas.clientWidth > LARGE_RING_PX ? LARGE_RING_PIXEL_RATIO : MAX_PIXEL_RATIO;
+    const ratio = Math.min(window.devicePixelRatio || 1, cap);
     const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
     if (canvas.width !== width || canvas.height !== height) {
@@ -164,6 +173,7 @@ export function startOneOrb(
   let energy = 0;
   const openingSeconds = input.openingSeconds ?? 0;
   let reveal = openingSeconds > 0 ? 0 : 1;
+  const openingStarted = performance.now();
   let aura = openingSeconds > 0 ? 1 : POSES[input.getState()].aura;
 
   let lastDrawn = 0;
@@ -195,7 +205,9 @@ export function startOneOrb(
         const rest = OPEN_ANGLE + Math.PI * Math.round((spin - OPEN_ANGLE) / Math.PI);
         spin += (rest - spin) * (1 - Math.exp(-delta * 3));
       }
-      if (reveal < 1) reveal = Math.min(1, reveal + delta / openingSeconds);
+      // The opening runs on the wall clock, so a slow first frame cannot leave the ring half lit
+      // when the cover lifts.
+      if (reveal < 1) reveal = Math.min(1, (now - openingStarted) / (openingSeconds * 1000));
       // The corona burns high through the opening, then settles to the resting glow.
       const auraTarget = reveal < 1 ? 1 : pose.aura;
       aura += (auraTarget - aura) * (1 - Math.exp(-delta * 1.2));

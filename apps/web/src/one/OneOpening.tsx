@@ -1,5 +1,6 @@
 import { useGT } from "gt-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { OneOrb, OPENING_SECONDS } from "./OneOrb";
 import { getOpeningPreferences, onReplayOpening, OPENING_SEEN_KEY } from "./openingPreferences";
@@ -29,14 +30,21 @@ type Phase = "playing" | "leaving" | "done";
 export function OneOpening() {
   const gt = useGT();
   const [phase, setPhase] = useState<Phase>(() => (shouldPlayOpening() ? "playing" : "done"));
+  /** Counts plays, so a replay mounts a fresh ring that ignites again. */
+  const [play, setPlay] = useState(0);
+  const skipRef = useRef<HTMLButtonElement | null>(null);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- runs the opening's timers, sound and skip listeners, all outside React, while the overlay is up
   useEffect(() => {
+    const app = document.getElementById("root");
     if (phase === "done") {
       delete document.documentElement.dataset.oneOpening;
+      if (app) app.inert = false;
       return;
     }
     if (phase === "leaving") {
+      // The app is usable again as soon as the cover starts to fade.
+      if (app) app.inert = false;
       const timer = window.setTimeout(() => setPhase("done"), LEAVE_MS);
       return () => window.clearTimeout(timer);
     }
@@ -45,35 +53,59 @@ export function OneOpening() {
     } catch {
       // Without session storage the opening simply plays again next load.
     }
+    // The cover hides the app, so the app takes no focus, keys or clicks until it lifts.
+    if (app) app.inert = true;
+    skipRef.current?.focus();
     const stopSound = getOpeningPreferences().sound ? playOpeningSound(OPENING_SECONDS) : () => {};
-    const leave = () => setPhase("leaving");
+    const leave = () => {
+      stopSound();
+      setPhase("leaving");
+    };
     const timer = window.setTimeout(leave, HOLD_MS);
-    // The opening covers the app, so it takes the key or click that dismisses it:
-    // Escape must not also close a dialog underneath.
+    // Any key or click lifts the cover, and that key or click goes no further.
     const skip = (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
-      stopSound();
       leave();
     };
     window.addEventListener("keydown", skip, { once: true, capture: true });
     window.addEventListener("pointerdown", skip, { once: true, capture: true });
     return () => {
       window.clearTimeout(timer);
+      stopSound();
       window.removeEventListener("keydown", skip, { capture: true });
       window.removeEventListener("pointerdown", skip, { capture: true });
     };
   }, [phase]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- listens for the "play it now" request from Settings, which lives outside this tree
-  useEffect(() => onReplayOpening(() => setPhase("playing")), []);
+  useEffect(
+    () =>
+      onReplayOpening(() => {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        setPlay((count) => count + 1);
+        setPhase("playing");
+      }),
+    [],
+  );
 
   if (phase === "done") return null;
-  return (
-    <div className="one-opening" data-phase={phase} role="img" aria-label={gt("One is opening")}>
-      <OneOrb opening className="one-opening-ring" />
+  // Outside the app root, which is inert while the cover is up.
+  return createPortal(
+    <div
+      className="one-opening"
+      data-phase={phase}
+      role="dialog"
+      aria-modal="true"
+      aria-label={gt("One is opening")}
+    >
+      <OneOrb key={play} opening className="one-opening-ring" />
       <p className="one-opening-name">One</p>
       <span aria-hidden="true" className="one-opening-rule" />
-    </div>
+      <button ref={skipRef} type="button" className="one-opening-skip">
+        {gt("Skip")}
+      </button>
+    </div>,
+    document.body,
   );
 }
