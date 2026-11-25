@@ -820,3 +820,17 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
     inset 0 1px 0 0 var(--one-glass-rim-top),
     inset 0 0 0 1px var(--one-glass-rim);
 }
+
+/* Above a new thread's composer there is less room: the ring gives way to the words. */
+.one-chat-welcome[data-compact] .one-chat-welcome-orb {
+  width: clamp(4rem, 10vh, 6rem);
+}
+
+.one-chat-welcome[data-compact] .one-chat-starters {
+  margin-top: 1.125rem;
+}
+
+/* Where a thread runs (checkout, branch, access) is a coding concern. */
+html[data-one-mode="chat"] [data-slot="composer-context-strip"] {
+  display: none;
+}

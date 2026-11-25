@@ -39,7 +39,7 @@ export function OneEmptyState() {
 }
 
 /** The chat mode welcome: a greeting, ways to start, and the way into voice chat. */
-export function ChatWelcome() {
+export function ChatWelcome({ compact = false }: { readonly compact?: boolean }) {
   const gt = useGT();
   const composer = useComposerHandleContext();
   const voice = useVoiceBridge();
@@ -65,7 +65,7 @@ export function ChatWelcome() {
   };
 
   return (
-    <div className="one-chat-welcome">
+    <div className="one-chat-welcome" data-compact={compact || undefined}>
       {voiceOpen ? (
         <div className="one-chat-welcome-orb aspect-square" />
       ) : (

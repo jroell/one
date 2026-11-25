@@ -3821,7 +3821,7 @@ export default function ChatView(props: ChatViewProps) {
                       >
                         {workspaceMode === "chat" && !embedded ? (
                           <div className="flex justify-center pb-6">
-                            <ChatWelcome />
+                            <ChatWelcome compact />
                           </div>
                         ) : (
                           <DraftHeroHeadline
