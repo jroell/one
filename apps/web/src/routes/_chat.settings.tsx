@@ -18,7 +18,7 @@ import { SettingsScopeNotice } from "../components/settings/SettingsScopeNotice"
 import {
   SettingsSearchEmptyState,
   SettingsSearchProvider,
-  useClearNoMatchSearchOnNavigation,
+  useClearNoMatchSearchOnEscape,
   useSettingsSearchHasNoResults,
 } from "../components/settings/SettingsSearchContext";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
@@ -157,10 +157,10 @@ function SettingsContentLayout() {
       : JSON.stringify(search);
   const [restoreSignal, setRestoreSignal] = useState(0);
   const searchHasNoResults = useSettingsSearchHasNoResults();
-  useClearNoMatchSearchOnNavigation(searchHasNoResults);
+  const clearSearchOnEscape = useClearNoMatchSearchOnEscape();
 
   return (
-    <AppRouteModal label={gt("Settings")}>
+    <AppRouteModal label={gt("Settings")} onEscape={clearSearchOnEscape}>
       <div className="relative flex min-h-0 flex-1">
         <SettingsSidebarNav pathname={location.pathname} />
         <div {...contentArea} className="flex min-h-0 min-w-0 flex-1 flex-col">

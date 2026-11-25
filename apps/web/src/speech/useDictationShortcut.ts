@@ -6,7 +6,7 @@ import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { useClientSettings } from "../hooks/useSettings";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
-import { registerCommandHandlers } from "../shortcuts/commandRegistry";
+import { registerCommandHandlers, type CommandRunContext } from "../shortcuts/commandRegistry";
 
 const HOLD_THRESHOLD_MS = 300;
 
@@ -59,6 +59,33 @@ function ownsShortcut(id: symbol) {
     entries.find(([, read]) => read().targetRef?.current?.contains(document.activeElement));
   if (focused) return focused[0] === id;
   return entries.find(([, read]) => !read().targetRef && !read().ownsFocus)?.[0] === id;
+}
+
+const isShown = (element: HTMLElement | null | undefined): element is HTMLElement =>
+  !!element?.isConnected && element.getClientRects().length > 0;
+
+const isInPreview = (element: Element) =>
+  element.tagName.toLowerCase() === "webview" ||
+  element.closest("[data-preview-panel-mode]") !== null;
+
+/**
+ * The editor a palette row starts dictation in while none is recording: the one that held focus
+ * when the palette opened, else the page's own composer. An editor that is not on screen, such as
+ * a thread kept mounted under Settings, never qualifies.
+ */
+function idleStartTarget(opener: Element | null): symbol | null {
+  const shown = [...shortcutTargets]
+    .map(([id, read]) => [id, read()] as const)
+    .filter(([, input]) => !input.targetRef || isShown(input.targetRef.current));
+  if (opener) {
+    const holder =
+      shown.find(([, input]) => input.targetRef?.current?.contains(opener)) ??
+      shown.find(
+        ([, input]) => input.ownsFocus !== undefined && (input.ownsFocus() || isInPreview(opener)),
+      );
+    if (holder) return holder[0];
+  }
+  return shown.find(([, input]) => !input.targetRef && !input.ownsFocus)?.[0] ?? null;
 }
 
 const targetScope = (field: HTMLElement | null | undefined) =>
@@ -183,17 +210,19 @@ export function useDictationShortcut(input: ShortcutInput) {
     };
     // The palette's row calls this: start when idle, finish when recording, with no key to hold.
     // The key path above cannot do that in hold mode, where only a release ends a recording.
-    const canToggle = () => {
+    // A recording is finished by its own editor. Starting is left to the editor the user was in.
+    const canToggle = (context?: CommandRunContext) => {
       const { speech, disabled } = current.current;
       const busy = [...shortcutTargets].find(([, read]) => {
         const phase = read().speech.state.phase;
         return phase !== "idle" && phase !== "error";
       });
       if (busy) return busy[0] === id.current && speech.state.phase === "recording";
-      return speech.available && !disabled;
+      if (!speech.available || disabled) return false;
+      return idleStartTarget(context ? context.opener : document.activeElement) === id.current;
     };
-    const toggle = () => {
-      if (!canToggle()) return false;
+    const toggle = (context?: CommandRunContext) => {
+      if (!canToggle(context)) return false;
       const { speech } = current.current;
       pressed.current = null;
       generation.current += 1;

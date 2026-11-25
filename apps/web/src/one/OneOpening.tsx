@@ -38,8 +38,11 @@ export function OneOpening() {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- runs the opening's timers, sound and skip listeners, all outside React, while the overlay is up
   useEffect(() => {
     const app = document.getElementById("root");
+    // The key dispatcher runs no command while the attribute is set, so a key that skips the
+    // opening cannot also run a command. A replay from Settings sets it again.
+    if (phase === "playing") document.documentElement.dataset.oneOpening = "";
+    else delete document.documentElement.dataset.oneOpening;
     if (phase === "done") {
-      delete document.documentElement.dataset.oneOpening;
       if (app) app.inert = false;
       // After a replay from Settings, focus goes back to the button that started it.
       const opener = openerRef.current;

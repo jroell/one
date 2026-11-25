@@ -24,11 +24,17 @@ export function composerShortcutCommands(
       },
       canRun: composerMounted,
     },
-    "composer.increaseEffort": ({ event }) => {
-      if (!event.repeat) composerRef.current?.stepReasoningEffort(1);
+    "composer.increaseEffort": {
+      run: ({ event }) => {
+        if (!event.repeat) composerRef.current?.stepReasoningEffort(1);
+      },
+      canRun: composerMounted,
     },
-    "composer.decreaseEffort": ({ event }) => {
-      if (!event.repeat) composerRef.current?.stepReasoningEffort(-1);
+    "composer.decreaseEffort": {
+      run: ({ event }) => {
+        if (!event.repeat) composerRef.current?.stepReasoningEffort(-1);
+      },
+      canRun: composerMounted,
     },
     "composer.host": openControl("composer.host"),
     "composer.effort": openControl("composer.effort"),
@@ -40,8 +46,11 @@ export function composerShortcutCommands(
       },
       canRun: branchToolbarMounted,
     },
-    "composer.previousWorktree": ({ event }) => {
-      if (!event.repeat) branchToolbarRef.current?.usePreviousWorktree();
+    "composer.previousWorktree": {
+      run: ({ event }) => {
+        if (!event.repeat) branchToolbarRef.current?.usePreviousWorktree();
+      },
+      canRun: branchToolbarMounted,
     },
   } satisfies ChatShortcutCommands;
 }

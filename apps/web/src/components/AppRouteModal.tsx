@@ -28,10 +28,13 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 export function AppRouteModal({
   label,
   actionsRef,
+  onEscape,
   children,
 }: {
   label: string;
   actionsRef?: RefObject<DialogPrimitive.Root.Actions | null>;
+  /** Runs on Esc after nested popups had their chance; return true to keep the modal open. */
+  onEscape?: () => boolean;
   children: ReactNode;
 }) {
   const closeAppModal = useCloseAppModal();
@@ -90,6 +93,7 @@ export function AppRouteModal({
         ) {
           return eventDetails.cancel();
         }
+        if (eventDetails.reason === "escape-key" && onEscape?.()) return eventDetails.cancel();
         // Closing unmounts a focused field without a blur, so commit-on-blur rows would
         // drop what was typed. Blur first so they commit.
         blurFocusedWithin(popupRef.current);

@@ -1,6 +1,7 @@
 import type { KeybindingCommand } from "@t3tools/contracts";
 
 import { isCommandAvailable } from "../../shortcuts/commandRegistry";
+import { readPaletteRunContext } from "../../shortcuts/paletteRunScope";
 
 /** The palette's own overlays and the usage page's keys have no business running from a row. */
 const NOT_RUNNABLE_FROM_PALETTE = new Set([
@@ -10,10 +11,13 @@ const NOT_RUNNABLE_FROM_PALETTE = new Set([
   "usage",
 ]);
 
-/** Whether Enter on the command's row can run it: a scope registered it and it can run now. */
+/**
+ * Whether Enter on the command's row can run it: a scope registered it and it can run now, from
+ * where the user opened the palette.
+ */
 export function canRunFromPalette(command: KeybindingCommand): boolean {
   if (NOT_RUNNABLE_FROM_PALETTE.has(String(command).split(".")[0] ?? "")) return false;
-  return isCommandAvailable(command);
+  return isCommandAvailable(command, readPaletteRunContext());
 }
 
 const KEYBINDING_SEARCH_PREFIX = "keybinding-";

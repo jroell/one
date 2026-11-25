@@ -405,12 +405,28 @@ describe("searchSidebarThreads", () => {
     );
 
   it("ranks word matches by recent use, then lists message matches once", () => {
-    expect(searchSidebarThreads(threads, "work", contentKeys("thread-1", "thread-2"), now)).toEqual(
-      {
-        titleMatches: [threads[0], threads[2], threads[3]],
-        contentMatches: [threads[1]],
-      },
+    const { titleMatches, contentMatches } = searchSidebarThreads(
+      threads,
+      "work",
+      contentKeys("thread-1", "thread-2"),
+      now,
     );
+    expect(titleMatches).toEqual([threads[0], threads[2], threads[3]]);
+    expect(contentMatches).toEqual([threads[1]]);
+  });
+
+  it("reports the title characters a two-letter prefix query matched", () => {
+    const git = searchThread("thread-5", "Git hooks", "2026-10-22T00:00:00.000Z");
+    const { titleMatches, titleRanges } = searchSidebarThreads([git], "gi", new Set(), now);
+    expect(titleMatches).toEqual([git]);
+    expect(titleRanges.get(git)).toEqual([{ start: 0, end: 2 }]);
+  });
+
+  it("reports the matched word for a typo query, which the message matcher would miss", () => {
+    const hooks = searchThread("thread-6", "Git hooks", "2026-10-22T00:00:00.000Z");
+    const { titleMatches, titleRanges } = searchSidebarThreads([hooks], "hoosk", new Set(), now);
+    expect(titleMatches).toEqual([hooks]);
+    expect(titleRanges.get(hooks)).toEqual([{ start: 4, end: 9 }]);
   });
 });
 

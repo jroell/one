@@ -7,6 +7,9 @@ const { mocks } = vi.hoisted(() => ({
     reducedMotion: false,
     appState: "active" as string,
     appStateListeners: new Set<() => void>(),
+    blurListeners: new Set<() => void>(),
+    focusListeners: new Set<() => void>(),
+    dismissHandlers: new Map<string, () => void>(),
     activateKeepAwakeAsync: vi.fn(() => Promise.resolve()),
     deactivateKeepAwake: vi.fn(() => Promise.resolve()),
     impactAsync: vi.fn(() => Promise.resolve()),
@@ -44,8 +47,20 @@ vi.mock("react-native", () => {
     <div data-testid={testID}>{children}</div>
   );
 
-  const Modal = ({ visible, children }: { visible: boolean; children?: ReactNode }) =>
-    visible ? <div data-modal="true">{children}</div> : null;
+  // The real Modal always holds its onDismiss; tests fire it by the testID of the sheet's root view.
+  const Modal = ({
+    visible,
+    children,
+    onDismiss,
+  }: {
+    visible: boolean;
+    children?: ReactNode;
+    onDismiss?: () => void;
+  }) => {
+    const sheetId = (children as { props?: { testID?: string } } | undefined)?.props?.testID;
+    if (sheetId && onDismiss) mocks.dismissHandlers.set(sheetId, onDismiss);
+    return visible ? <div data-modal="true">{children}</div> : null;
+  };
 
   const Pressable = ({
     children,
@@ -101,14 +116,21 @@ vi.mock("react-native", () => {
   );
 
   return {
+    // Expo's Babel preset inlines Platform.OS at build time, so tests always run as iOS.
     Platform: { OS: "ios" },
     AppState: {
       get currentState() {
         return mocks.appState;
       },
-      addEventListener: (_event: "change", listener: () => void) => {
-        mocks.appStateListeners.add(listener);
-        return { remove: () => mocks.appStateListeners.delete(listener) };
+      addEventListener: (event: "change" | "blur" | "focus", listener: () => void) => {
+        const listeners =
+          event === "blur"
+            ? mocks.blurListeners
+            : event === "focus"
+              ? mocks.focusListeners
+              : mocks.appStateListeners;
+        listeners.add(listener);
+        return { remove: () => listeners.delete(listener) };
       },
     },
     StyleSheet: {
@@ -238,6 +260,7 @@ import type {
 } from "./driveUiTypes";
 import { OneVoiceOrb } from "./OneVoiceOrb";
 import { PROPOSAL_SEND_GUARD_MS } from "./proposalSendGuard";
+import { SHEET_DISMISS_FALLBACK_MS, SHEET_DISMISS_SETTLE_MS } from "./sheetCoverage";
 import { VoiceStudioSheet } from "./VoiceStudioSheet";
 
 const TEST_VOICES: readonly VoiceProfileView[] = [
@@ -401,6 +424,9 @@ beforeEach(() => {
   mocks.reducedMotion = false;
   mocks.appState = "active";
   mocks.appStateListeners.clear();
+  mocks.blurListeners.clear();
+  mocks.focusListeners.clear();
+  mocks.dismissHandlers.clear();
   mocks.activateKeepAwakeAsync.mockClear();
   mocks.deactivateKeepAwake.mockClear();
   mocks.impactAsync.mockClear();
@@ -790,7 +816,7 @@ describe("DriveStageView", () => {
     });
   }
 
-  it("keeps Send inert until 700 ms after a sheet that was open when the proposal arrived closes", () => {
+  it("keeps Send inert until the Voice studio close settles for 600 ms plus 700 ms when the proposal arrived behind it", () => {
     vi.useFakeTimers();
     const callbacks = makeCallbacks();
 
@@ -809,19 +835,21 @@ describe("DriveStageView", () => {
       buttonByLabel("Close Voice studio").click();
     });
 
-    // First frame the driver sees: Send is not armed.
+    // First frame the driver sees: Send is not armed, and the guard waits for the sheet to leave.
     const send = buttonByLabel("Send pending message");
     expect(send.disabled).toBe(true);
     act(() => {
       send.click();
-      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+    });
+    // Each step is its own act so the guard timer starts when the sheet has really settled.
+    advanceInSteps(SHEET_DISMISS_SETTLE_MS + PROPOSAL_SEND_GUARD_MS - STEP_MS);
+    act(() => {
       send.click();
     });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
     expect(callbacks.onConfirmPendingAction).not.toHaveBeenCalled();
 
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
+    advanceInSteps(STEP_MS);
     expect(buttonByLabel("Send pending message").disabled).toBe(false);
     act(() => {
       buttonByLabel("Send pending message").click();
@@ -829,7 +857,7 @@ describe("DriveStageView", () => {
     expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-1");
   });
 
-  it("disarms Send when a sheet opens over an armed card and restarts the full guard after it closes", () => {
+  it("disarms Send when the Voice studio opens over an armed card and restarts after 600 ms plus 700 ms once it closes", () => {
     vi.useFakeTimers();
     const callbacks = makeCallbacks();
 
@@ -847,8 +875,186 @@ describe("DriveStageView", () => {
       buttonByLabel("Close Voice studio").click();
     });
     expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    advanceInSteps(SHEET_DISMISS_SETTLE_MS + PROPOSAL_SEND_GUARD_MS - STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    advanceInSteps(STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  const STEP_MS = 100;
+  function advanceInSteps(totalMs: number) {
+    for (let elapsed = 0; elapsed < totalMs; elapsed += STEP_MS) {
+      act(() => {
+        vi.advanceTimersByTime(STEP_MS);
+      });
+    }
+  }
+
+  function openDrivingModes() {
+    act(() => {
+      const pill = Array.from(container.querySelectorAll("button")).find((el) =>
+        el.getAttribute("aria-label")?.startsWith("Active mode"),
+      );
+      pill?.click();
+    });
+    expect(container.querySelector('[data-testid="persona-picker-sheet"]')).not.toBeNull();
+  }
+
+  it("keeps Send inert after the driving modes sheet closes until iOS reports the dismissal plus 700 ms", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
     act(() => {
       vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    openDrivingModes();
+    act(() => {
+      buttonByLabel("Close driving modes").click();
+    });
+
+    // The sheet is still sliding away: more than 700 ms pass without onDismiss and Send stays inert.
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+
+    act(() => {
+      mocks.dismissHandlers.get("persona-picker-sheet")?.();
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  it("arms Send 1500 ms plus 700 ms after the driving modes sheet closes when iOS never reports the dismissal", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    openDrivingModes();
+    act(() => {
+      buttonByLabel("Close driving modes").click();
+    });
+    advanceInSteps(SHEET_DISMISS_FALLBACK_MS + PROPOSAL_SEND_GUARD_MS - STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    advanceInSteps(STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  it("keeps Send inert after the transcript closes until iOS reports the dismissal plus 700 ms", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, {
+      pendingConfirmation: PROPOSAL_A,
+      activeCaption: "On my way.",
+      activeCaptionRole: "assistant",
+    });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    act(() => {
+      buttonByLabel("Live spoken caption, tap to open full transcript").click();
+    });
+    act(() => {
+      buttonByLabel("Close transcript").click();
+    });
+
+    advanceInSteps(1_000);
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      mocks.dismissHandlers.get("transcript-drawer")?.();
+    });
+    advanceInSteps(PROPOSAL_SEND_GUARD_MS - STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    advanceInSteps(STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  it("keeps Send inert until the CarPlay panel close settles for 600 ms plus 700 ms", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    act(() => {
+      buttonByLabel("Open CarPlay preview and setup").click();
+    });
+    act(() => {
+      buttonByLabel("Close CarPlay and setup").click();
+    });
+
+    advanceInSteps(SHEET_DISMISS_SETTLE_MS + PROPOSAL_SEND_GUARD_MS - STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    advanceInSteps(STEP_MS);
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  it("disarms Send when the Android window loses focus and re-arms it 700 ms after focus returns", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+
+    // The notification shade opens: AppState stays "active" but the window blurs.
+    act(() => {
+      for (const listener of mocks.blurListeners) listener();
+    });
+    expect(mocks.appState).toBe("active");
+    const send = buttonByLabel("Send pending message");
+    expect(send.disabled).toBe(true);
+    act(() => {
+      send.click();
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+
+    act(() => {
+      for (const listener of mocks.focusListeners) listener();
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+      send.click();
+    });
+    expect(callbacks.onConfirmPendingAction).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(false);
+  });
+
+  it("restarts the 700 ms guard when the Android window blurs 400 ms into the countdown", () => {
+    vi.useFakeTimers();
+    const callbacks = makeCallbacks();
+
+    renderStage(callbacks, { pendingConfirmation: PROPOSAL_A });
+    act(() => {
+      vi.advanceTimersByTime(400);
+      for (const listener of mocks.blurListeners) listener();
+    });
+    act(() => {
+      for (const listener of mocks.focusListeners) listener();
+    });
+    act(() => {
+      vi.advanceTimersByTime(PROPOSAL_SEND_GUARD_MS - 1);
+    });
+    expect(buttonByLabel("Send pending message").disabled).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(1);
     });
     expect(buttonByLabel("Send pending message").disabled).toBe(false);
   });

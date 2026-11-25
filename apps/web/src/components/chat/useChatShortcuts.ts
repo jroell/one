@@ -10,7 +10,11 @@ import {
 import { isInSideChatPane } from "../../lib/sideChatPane";
 import { getTerminalFocusOwner, type TerminalFocusOwner } from "../../lib/terminalFocus";
 import type { ComposerHandleRef } from "../../composerHandleContext";
-import { registerCommandHandlers, type RegisteredCommands } from "../../shortcuts/commandRegistry";
+import {
+  registerCommandHandlers,
+  type CommandRunContext,
+  type RegisteredCommands,
+} from "../../shortcuts/commandRegistry";
 import type { BranchToolbarHandle } from "../BranchToolbar";
 import { shouldTypeToFocusComposer } from "./composerFocusRedirect";
 import { composerShortcutCommands } from "./composerShortcuts";
@@ -28,11 +32,12 @@ type ChatShortcutHandler = (context: {
 
 /**
  * A handler with a check for whether it would act now, so a palette row can say so first.
- * A key still reaches `run`, which keeps its own early returns.
+ * A key still reaches `run`, which keeps its own early returns. `canRun` is read while the
+ * palette renders, so it must not call an effect event.
  */
-interface ChatShortcutDefinition {
+export interface ChatShortcutDefinition {
   readonly run: ChatShortcutHandler;
-  readonly canRun: () => boolean;
+  readonly canRun: (context: { readonly terminalFocusOwner: TerminalFocusOwner | null }) => boolean;
 }
 
 export type ChatShortcutCommands = Partial<
@@ -42,6 +47,19 @@ export type ChatShortcutCommands = Partial<
 /** The one function a key and a palette row both call. */
 const handlerOf = (entry: ChatShortcutHandler | ChatShortcutDefinition): ChatShortcutHandler =>
   typeof entry === "function" ? entry : entry.run;
+
+/**
+ * Commands whose key action depends on the key itself or on the caret, so a palette row has no
+ * correct action for them. They keep their settings link and are never offered as runnable.
+ */
+const NO_PALETTE_ACTION: ReadonlySet<KeybindingCommand> = new Set(["thread.editQueuedMessage"]);
+
+/** The terminal the palette was opened from, which a key reads from the focused element instead. */
+function terminalFocusOwnerOfOpener(opener: Element | null): TerminalFocusOwner | null {
+  if (!opener?.isConnected) return null;
+  const owner = opener.closest<HTMLElement>("[data-terminal-owner]")?.dataset.terminalOwner;
+  return owner === "drawer" || owner === "right-panel" ? owner : null;
+}
 
 /** Window-level commands the main chat still runs while focus is in its side chat pane. */
 const SIDE_CHAT_PANE_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
@@ -74,12 +92,21 @@ interface ChatShortcutsInput {
   readonly fallback: (command: KeybindingCommand) => ChatShortcutHandler | undefined;
 }
 
-function canRunChatCommand(input: ChatShortcutsInput, command: KeybindingCommand): boolean {
+function canRunChatCommand(
+  input: ChatShortcutsInput,
+  command: KeybindingCommand,
+  context: CommandRunContext | undefined,
+): boolean {
   if (!input.enabled) return false;
   const entry =
     input.commands[command] ??
     composerShortcutCommands(input.composerRef, input.branchToolbarRef)[command];
-  return entry !== undefined && (typeof entry === "function" || entry.canRun());
+  const terminalFocusOwner = context
+    ? terminalFocusOwnerOfOpener(context.opener)
+    : getTerminalFocusOwner();
+  return (
+    entry !== undefined && (typeof entry === "function" || entry.canRun({ terminalFocusOwner }))
+  );
 }
 
 /**
@@ -176,13 +203,20 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     event.preventDefault();
     event.stopPropagation();
   });
-  // A palette row calls the same handler a key does, with no key and no terminal focus.
-  const runRegistered = useEffectEvent((command: KeybindingCommand) => {
-    const entry =
-      input.commands[command] ??
-      composerShortcutCommands(input.composerRef, input.branchToolbarRef)[command];
-    return entry ? handlerOf(entry)({ event: NO_KEY, terminalFocusOwner: null }) : false;
-  });
+  // A palette row calls the same handler a key does, with no key. The terminal it acts on is the
+  // one that had focus when the palette opened, where a key reads the focused one.
+  const runRegistered = useEffectEvent(
+    (command: KeybindingCommand, context: CommandRunContext | undefined) => {
+      const entry =
+        input.commands[command] ??
+        composerShortcutCommands(input.composerRef, input.branchToolbarRef)[command];
+      if (!entry) return false;
+      const terminalFocusOwner = context
+        ? terminalFocusOwnerOfOpener(context.opener)
+        : getTerminalFocusOwner();
+      return handlerOf(entry)({ event: NO_KEY, terminalFocusOwner });
+    },
+  );
   // The palette asks this while it renders, where an effect event may not be called, so it reads
   // the latest input from a ref instead.
   const latestInput = useRef(input);
@@ -203,9 +237,10 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     const commands = registeredCommandIds();
     const registered: RegisteredCommands = {};
     for (const command of new Set(commands)) {
+      if (NO_PALETTE_ACTION.has(command)) continue;
       registered[command] = {
-        run: () => runRegistered(command),
-        canRun: () => canRunChatCommand(latestInput.current, command),
+        run: (context) => runRegistered(command, context),
+        canRun: (context) => canRunChatCommand(latestInput.current, command, context),
       };
     }
     return registerCommandHandlers(registered);

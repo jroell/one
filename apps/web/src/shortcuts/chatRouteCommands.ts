@@ -32,7 +32,9 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useUiStateStore } from "../uiStateStore";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { registerCommandHandlers } from "./commandRegistry";
+import { setActiveThreadKeyReader } from "./paletteRunScope";
 import { type CommandHandler, registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
@@ -58,6 +60,11 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   const readRouteThreadRef = () => {
     const target = readRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;
+  };
+  const readRouteThreadKey = () => {
+    const target = readRouteTarget();
+    if (!target) return null;
+    return target.kind === "server" ? scopedThreadKey(target.threadRef) : `draft:${target.draftId}`;
   };
   const readRouteEnvironmentId = () => {
     const target = readRouteTarget();
@@ -194,10 +201,12 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     router.state.matches.some((match) => match.routeId === CHAT_ROUTE_ID) &&
     !router.state.matches.some((match) => isAppModalPage(match.pathname));
 
+  // The preview listens for these only while it is showing, so a closed preview is not offered.
   const previewRow = (action: PreviewAction) => ({
     run: () => previewActionNow(action),
-    canRun: () => onChatRoute() && canOperateRoutePreview(),
+    canRun: () => onChatRoute() && readPreviewOpen() && canOperateRoutePreview(),
   });
+  const disposeThreadKey = setActiveThreadKeyReader(readRouteThreadKey);
   const disposeRows = registerCommandHandlers({
     "chat.newLocal": { run: startNewLocalNow, canRun: onChatRoute },
     "chat.newWithoutProject": {
@@ -266,5 +275,6 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   return () => {
     disposeKeys();
     disposeRows();
+    disposeThreadKey();
   };
 }

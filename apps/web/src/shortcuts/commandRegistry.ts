@@ -1,11 +1,23 @@
 import type { KeybindingCommand } from "@t3tools/contracts";
 import { useSyncExternalStore } from "react";
 
+/** What a palette row knows that a key press does not. A key passes none. */
+export interface CommandRunContext {
+  /**
+   * The element that had focus when the palette opened, or null when nothing did. Handlers that
+   * depend on where the user was (a focused terminal, the editor to dictate into) read it.
+   */
+  readonly opener: Element | null;
+}
+
 export interface RegisteredCommand {
   /** The function the command's key calls. Returns false when it declined and did nothing. */
-  readonly run: () => boolean | void;
-  /** Whether `run` would act now. Read when a row is built and again before it runs. */
-  readonly canRun?: () => boolean;
+  readonly run: (context?: CommandRunContext) => boolean | void;
+  /**
+   * Whether `run` would act now. Read when a row is built and again before it runs, so it must
+   * not call an effect event: the palette reads it during render.
+   */
+  readonly canRun?: (context?: CommandRunContext) => boolean;
 }
 
 export type RegisteredCommands = Partial<Record<KeybindingCommand, RegisteredCommand>>;
@@ -47,28 +59,37 @@ export function registerCommandHandlers(commands: RegisteredCommands): () => voi
 }
 
 /** The newest registration that can run now; one that declines falls through to the next. */
-function resolveRegistration(command: KeybindingCommand): RegisteredCommand | null {
+function resolveRegistration(
+  command: KeybindingCommand,
+  context: CommandRunContext | undefined,
+): RegisteredCommand | null {
   const list = registrations.get(command);
   if (!list) return null;
   for (let index = list.length - 1; index >= 0; index -= 1) {
     const registration = list[index];
-    if (registration && registration.canRun?.() !== false) return registration;
+    if (registration && registration.canRun?.(context) !== false) return registration;
   }
   return null;
 }
 
-export function isCommandAvailable(command: KeybindingCommand): boolean {
-  return resolveRegistration(command) !== null;
+export function isCommandAvailable(
+  command: KeybindingCommand,
+  context?: CommandRunContext,
+): boolean {
+  return resolveRegistration(command, context) !== null;
 }
 
 /** Runs the command's newest runnable registration; false when none can run or it declined. */
-export function runRegisteredCommand(command: KeybindingCommand): boolean {
+export function runRegisteredCommand(
+  command: KeybindingCommand,
+  context?: CommandRunContext,
+): boolean {
   const list = registrations.get(command);
   if (!list) return false;
   for (let index = list.length - 1; index >= 0; index -= 1) {
     const registration = list[index];
-    if (!registration || registration.canRun?.() === false) continue;
-    if (registration.run() !== false) return true;
+    if (!registration || registration.canRun?.(context) === false) continue;
+    if (registration.run(context) !== false) return true;
   }
   return false;
 }

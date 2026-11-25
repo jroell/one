@@ -17,7 +17,12 @@ import {
   threadSearchSubject,
   type ThreadSearchShell,
 } from "@t3tools/client-runtime/state/thread-search";
-import { foldSearchQuery, rankSearchItems, scoreThreadSearch } from "@t3tools/shared/paletteSearch";
+import {
+  foldSearchQuery,
+  rankSearchItems,
+  scoreThreadSearch,
+  type SearchRange,
+} from "@t3tools/shared/paletteSearch";
 import {
   type ContextMenuItem,
   type EnvironmentId,
@@ -1137,7 +1142,8 @@ const EMPTY_CONTENT_MATCH_KEYS: ReadonlySet<string> = new Set<string>();
 /**
  * Sidebar search results: title, branch, and pull request matches ranked as
  * the command palette ranks them, then threads listed only because their
- * messages match, in `contentMatchKeys` order.
+ * messages match, in `contentMatchKeys` order. `titleRanges` holds the title characters the
+ * scorer matched, which is what the row marks: a match with no exact range (a typo) has none.
  */
 export function searchSidebarThreads<
   T extends ThreadSearchShell & {
@@ -1149,15 +1155,23 @@ export function searchSidebarThreads<
   query: string,
   contentMatchKeys: ReadonlySet<string> = EMPTY_CONTENT_MATCH_KEYS,
   now = Date.now(),
-): { readonly titleMatches: T[]; readonly contentMatches: T[] } {
+): {
+  readonly titleMatches: T[];
+  readonly contentMatches: T[];
+  readonly titleRanges: ReadonlyMap<T, ReadonlyArray<SearchRange>>;
+} {
   const normalizedQuery = foldSearchQuery(query);
-  if (normalizedQuery.length === 0) return { titleMatches: [], contentMatches: [] };
-  const titleMatches = rankSearchItems(threads, (thread, options) =>
+  if (normalizedQuery.length === 0) {
+    return { titleMatches: [], contentMatches: [], titleRanges: new Map() };
+  }
+  const ranked = rankSearchItems(threads, (thread, options) =>
     scoreThreadSearch(normalizedQuery, threadSearchSubject(thread, null), now, {
       ...options,
       picks: false,
     }),
-  ).map(({ item }) => item);
+  );
+  const titleMatches = ranked.map(({ item }) => item);
+  const titleRanges = new Map(ranked.map(({ item, match }) => [item, match.ranges] as const));
   const listed = new Set(titleMatches);
   // In the order the server ranked their messages, as the palette lists them.
   const threadByKey = new Map(
@@ -1170,7 +1184,7 @@ export function searchSidebarThreads<
     const thread = threadByKey.get(key);
     return thread && !listed.has(thread) ? [thread] : [];
   });
-  return { titleMatches, contentMatches };
+  return { titleMatches, contentMatches, titleRanges };
 }
 
 export function pullRequestMatchesSearchQuery(

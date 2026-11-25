@@ -3,6 +3,7 @@ import { T, useGT, useMessages } from "gt-react";
 import { SearchIcon } from "lucide-react";
 import { Fragment, useRef, useState } from "react";
 
+import { useClientSettings } from "../../hooks/useSettings";
 import { primaryServerKeybindingsAtom } from "../../state/server";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
@@ -25,9 +26,10 @@ function ShortcutsDialogPopup() {
   const gt = useGT();
   const m = useMessages();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const sendShortcut = useClientSettings((settings) => settings.sendShortcut);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-  const sections = buildShortcutSections(keybindings, { query, resolve: m });
+  const sections = buildShortcutSections(keybindings, { query, resolve: m, sendShortcut });
 
   return (
     <DialogPopup

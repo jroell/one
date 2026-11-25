@@ -32,6 +32,7 @@ import { msg } from "gt-react";
 import type { MessageResolver } from "../../i18n/messages";
 import { isCommandAvailable } from "../../shortcuts/commandRegistry";
 import { commandSectionFor, type CommandSectionId } from "../../shortcuts/commandSections";
+import { readPaletteRunContext } from "../../shortcuts/paletteRunScope";
 import { runCommandFromPalette } from "../../shortcuts/runCommand";
 import { toggleShortcutsDialog } from "../shortcuts/shortcutsDialogStore";
 import type { ThreadActionMenuId } from "../threadActionMenu.logic";
@@ -166,8 +167,9 @@ export function buildKeybindingCommandItems(input: {
   readonly resolve: MessageResolver;
 }): ReadonlyArray<CommandPaletteActionItem> {
   const { resolve } = input;
+  const context = readPaletteRunContext();
   return KEYBINDING_COMMAND_SPECS.flatMap((spec): CommandPaletteActionItem[] => {
-    const available = isCommandAvailable(spec.command);
+    const available = isCommandAvailable(spec.command, context);
     if (!available && spec.needsChat) return [];
     const title = resolve(spec.title);
     return [

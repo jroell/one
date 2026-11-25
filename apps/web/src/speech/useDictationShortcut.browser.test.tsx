@@ -298,3 +298,42 @@ it("offers no dictation command while dictation is off", async () => {
   expect(runRegisteredCommand("composer.dictation")).toBe(false);
   expect(speech.start).not.toHaveBeenCalled();
 });
+
+it("starts dictation from the palette in the editor that had focus, never in the newest or a hidden one", async () => {
+  const main = actions(true);
+  const side = actions(true);
+  const hidden = actions(true);
+  const sideRef = createRef<HTMLDivElement>();
+  const hiddenRef = createRef<HTMLDivElement>();
+  await using screen = await render(
+    <>
+      <Probe speech={main} />
+      <div ref={sideRef}>
+        <textarea aria-label="Side chat" />
+      </div>
+      <Probe speech={side} targetRef={sideRef} />
+      <div ref={hiddenRef} hidden>
+        <textarea aria-label="Hidden thread" />
+      </div>
+      <Probe speech={hidden} targetRef={hiddenRef} />
+      <input aria-label="Main composer" />
+    </>,
+  );
+  const opener = (name: string) => {
+    const element = screen.getByRole("textbox", { name }).element();
+    if (!(element instanceof HTMLElement)) throw new Error("expected a text field");
+    return element;
+  };
+
+  expect(runRegisteredCommand("composer.dictation", { opener: opener("Side chat") })).toBe(true);
+  expect(side.start).toHaveBeenCalledOnce();
+
+  expect(runRegisteredCommand("composer.dictation", { opener: opener("Main composer") })).toBe(
+    true,
+  );
+  expect(runRegisteredCommand("composer.dictation", { opener: null })).toBe(true);
+  expect(main.start).toHaveBeenCalledTimes(2);
+
+  expect(side.start).toHaveBeenCalledOnce();
+  expect(hidden.start).not.toHaveBeenCalled();
+});

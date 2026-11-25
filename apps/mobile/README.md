@@ -163,3 +163,5 @@ vp run eas:android:dev
 vp run eas:android:preview:dev
 vp run eas:android:preview
 ```
+
+Every EAS build and update needs the fork's own Expo project. Set `EAS_PROJECT_ID` (in the shell, `.env.local` or the EAS and CI environment) to that project's id; without it EAS stops at project lookup. The local run scripts (`vp run android:dev`, `vp run ios:dev`, `vp run start` and the rest) set `ONE_MOBILE_LOCAL_BUILD=1`, which fills in a stand-in id so the app can start without an Expo project. If you run `expo` or Gradle by hand, set one of the two yourself: the Android app stops at launch when the id is missing.

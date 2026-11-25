@@ -6,9 +6,15 @@ import { userEvent } from "vite-plus/test/browser";
 import { compileResolvedKeybindingsConfig } from "@t3tools/shared/keybindings";
 import { isPreviewFocused } from "~/lib/previewFocus";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { render } from "../../../test/render";
+import { dispatchCommandPalette, useCommandPaletteStore } from "../../commandPaletteStore";
+import { selectActiveRightPanelSurface, useRightPanelStore } from "../../rightPanelStore";
 import { isCommandAvailable, runRegisteredCommand } from "../../shortcuts/commandRegistry";
+import { readPaletteRunContext } from "../../shortcuts/paletteRunScope";
 import type { ChatComposerHandle } from "./ChatComposer";
+import { stepTerminalShortcut } from "./useChatTerminalActions";
 import { useChatShortcuts } from "./useChatShortcuts";
 
 const shortcutContext = {
@@ -484,4 +490,67 @@ it("runs a chat shortcut except while the keyboard shortcuts sheet is on screen"
   await userEvent.keyboard("{Control>}f{/Control}");
 
   expect(finds).toEqual(["main"]);
+});
+
+it("steps terminals from a palette row only for the terminal that had focus when the palette opened", async () => {
+  const threadRef = scopeThreadRef(EnvironmentId.make("env"), ThreadId.make("thread"));
+  using _stores = new DisposableStack();
+  _stores.defer(() => useRightPanelStore.setState({ byThreadKey: {} }));
+  _stores.defer(() =>
+    useCommandPaletteStore.setState(useCommandPaletteStore.getInitialState(), true),
+  );
+  useRightPanelStore.getState().openTerminal(threadRef, "first");
+  useRightPanelStore.getState().openTerminal(threadRef, "second");
+  const activeTerminal = () => {
+    const surface = selectActiveRightPanelSurface(
+      useRightPanelStore.getState().byThreadKey,
+      threadRef,
+    );
+    return surface?.kind === "terminal" ? surface.activeTerminalId : null;
+  };
+  function Chat() {
+    useChatShortcuts({
+      enabled: true,
+      keybindings: [],
+      scriptKeybindings: [],
+      getShortcutContext: () => shortcutContext,
+      threadFindActive: false,
+      composerRef: { current: null },
+      branchToolbarRef: { current: null },
+      closeThreadFind: () => {},
+      commands: { "terminal.next": stepTerminalShortcut(threadRef, "next") },
+      fallback: () => undefined,
+    });
+    return (
+      <>
+        <div data-terminal-owner="right-panel">
+          <input aria-label="Terminal" />
+        </div>
+        <input aria-label="Composer" />
+      </>
+    );
+  }
+  await using screen = await render(<Chat />, options);
+  const focus = (name: string) => {
+    const field = screen.getByRole("textbox", { name }).element();
+    if (!(field instanceof HTMLElement)) throw new Error("expected a text field");
+    field.focus();
+  };
+  const openPalette = () => {
+    useCommandPaletteStore.setState(useCommandPaletteStore.getInitialState(), true);
+    dispatchCommandPalette({ _tag: "SetOpen", open: true });
+    return readPaletteRunContext();
+  };
+
+  focus("Composer");
+  const fromComposer = openPalette();
+  expect(isCommandAvailable("terminal.next", fromComposer)).toBe(false);
+  expect(runRegisteredCommand("terminal.next", fromComposer)).toBe(false);
+  expect(activeTerminal()).toBe("second");
+
+  focus("Terminal");
+  const fromTerminal = openPalette();
+  expect(isCommandAvailable("terminal.next", fromTerminal)).toBe(true);
+  expect(runRegisteredCommand("terminal.next", fromTerminal)).toBe(true);
+  expect(activeTerminal()).toBe("first");
 });

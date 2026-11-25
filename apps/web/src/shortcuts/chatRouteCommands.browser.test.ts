@@ -1,9 +1,19 @@
 import type { AnyRouter } from "@tanstack/react-router";
-import { describe, expect, it } from "vite-plus/test";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { isMacPlatform } from "../lib/utils";
+import { useRightPanelStore } from "../rightPanelStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { installChatRouteCommands } from "./chatRouteCommands";
+import { isCommandAvailable } from "./commandRegistry";
+
+// Every environment grants the preview, so what decides is whether the preview is open.
+vi.mock(import("../state/session"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  readEnvironmentScope: (() => true) as never,
+}));
 
 type Match = { readonly routeId: string; readonly pathname: string };
 
@@ -97,5 +107,36 @@ describe("chat route commands", () => {
     browser.setAttribute("data-preview-view", "");
     panel.append(browser);
     for (const key of ["=", "+", "-", "0"]) expect(pressMod(key).defaultPrevented).toBe(true);
+  });
+
+  it("offers the preview commands from a palette row only while the preview is showing", () => {
+    const threadRef = scopeThreadRef(EnvironmentId.make("env"), ThreadId.make("thread"));
+    const router = {
+      state: {
+        matches: [
+          { routeId: "__root__", pathname: "/", params: {} },
+          {
+            routeId: "/_chat",
+            pathname: "/",
+            params: { environmentId: threadRef.environmentId, threadId: threadRef.threadId },
+          },
+        ],
+      },
+    } as unknown as AnyRouter;
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    stack.defer(() => useRightPanelStore.setState({ byThreadKey: {} }));
+    const offered = () =>
+      (["preview.refresh", "preview.focusUrl", "preview.find"] as const).map((command) =>
+        isCommandAvailable(command),
+      );
+
+    expect(offered()).toEqual([false, false, false]);
+
+    useRightPanelStore.getState().open(threadRef, "preview");
+    expect(offered()).toEqual([true, true, true]);
+
+    useRightPanelStore.getState().open(threadRef, "diff");
+    expect(offered()).toEqual([false, false, false]);
   });
 });

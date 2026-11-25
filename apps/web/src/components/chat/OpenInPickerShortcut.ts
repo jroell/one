@@ -21,20 +21,21 @@ import { useAtomCommand } from "../../state/use-atom-command";
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
 
+// The newest marked button that is on screen and enabled; one kept mounted out of sight is skipped.
 const favoriteEditorButton = () =>
-  [...document.querySelectorAll<HTMLButtonElement>(`[${OPEN_FAVORITE_EDITOR_ATTRIBUTE}]`)].at(-1);
+  [...document.querySelectorAll<HTMLButtonElement>(`[${OPEN_FAVORITE_EDITOR_ATTRIBUTE}]`)]
+    .reverse()
+    .find((button) => !button.disabled && button.getClientRects().length > 0);
 
-const canPressFavoriteEditorButton = () => {
-  const button = favoriteEditorButton();
-  return button !== undefined && !button.disabled;
-};
+const canPressFavoriteEditorButton = () => favoriteEditorButton() !== undefined;
 
 const pressFavoriteEditorButton = () => favoriteEditorButton()?.click();
 
 /**
  * `editor.openFavorite` presses the marked OpenInPicker primary button, so the shortcut opens
- * exactly what the button on screen would. A missing or disabled button leaves the chord to the
- * bubble-phase fallback below. Capture phase, so a focused terminal does not swallow the chord.
+ * exactly what the button on screen would, such as the file being viewed. Only with no usable
+ * button does the chord reach the project fallback below, for a key and a palette row alike.
+ * Capture phase, so a focused terminal does not swallow the chord.
  */
 export function registerOpenFavoriteEditorCommand(): () => void {
   const disposeKey = registerCommands(
@@ -121,8 +122,12 @@ export function useOpenFavoriteEditorShortcut({
       openFavorite();
     };
     window.addEventListener("keydown", handler);
+    // The newest registration is tried first, so the fallback steps aside while a button is usable.
     const disposeRow = registerCommandHandlers({
-      "editor.openFavorite": { run: () => openFavorite(), canRun: () => canOpenFavorite },
+      "editor.openFavorite": {
+        run: () => openFavorite(),
+        canRun: () => canOpenFavorite && !canPressFavoriteEditorButton(),
+      },
     });
     return () => {
       window.removeEventListener("keydown", handler);

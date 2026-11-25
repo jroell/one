@@ -1,4 +1,5 @@
 import type {
+  ClientSettings,
   KeybindingCommand,
   KeybindingWhenNode,
   ResolvedKeybindingsConfig,
@@ -6,7 +7,7 @@ import type {
 import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../../i18n/messages";
-import { shortcutConflictKey } from "../../keybindings";
+import { shortcutConflictKey, shortcutForContext } from "../../keybindings";
 import { COMMAND_SECTIONS, commandSectionFor } from "../../shortcuts/commandSections";
 import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import {
@@ -26,6 +27,8 @@ export interface ShortcutSheetRow {
   readonly keys: ReadonlyArray<ReadonlyArray<string>>;
   /** "or" between alternates; "to" between the first and last key of a numbered family. */
   readonly keysJoiner: "or" | "to";
+  /** Every key the row stands for, so filtering finds a key a collapsed family does not draw. */
+  readonly matchKeys: ReadonlyArray<ReadonlyArray<string>>;
 }
 
 export interface ShortcutSheetSection {
@@ -38,7 +41,7 @@ export interface ShortcutSheetSection {
 const DEFAULT_WHEN = "!terminalFocus";
 
 interface DraftRow {
-  readonly row: Omit<ShortcutSheetRow, "keys" | "keysJoiner">;
+  readonly row: Omit<ShortcutSheetRow, "keys" | "keysJoiner" | "matchKeys">;
   readonly keys: Array<ReadonlyArray<string>>;
   readonly claimed: Set<string>;
 }
@@ -59,6 +62,10 @@ const NUMBERED_FAMILIES = [
 
 // More terms than this would make the check below slow; such a rule is never treated as shadowed.
 const MAX_SHADOW_TERMS = 12;
+// Work one comparison may cost, in condition evaluations; a costlier one is treated as not shadowed.
+const MAX_COMPARISON_WORK = 4096;
+// Work all comparisons for one config may cost together. Past it, remaining keys are shown.
+const MAX_TOTAL_WORK = 60_000;
 
 function collectWhenTerms(node: KeybindingWhenNode | undefined, into: Set<string>): void {
   if (!node) return;
@@ -76,34 +83,52 @@ function collectWhenTerms(node: KeybindingWhenNode | undefined, into: Set<string
   }
 }
 
-function holds(node: KeybindingWhenNode | undefined, trueTerms: ReadonlySet<string>): boolean {
+/** Whether `node` holds when exactly the terms whose bit is set in `mask` are true. */
+function holds(
+  node: KeybindingWhenNode | undefined,
+  mask: number,
+  bitOf: ReadonlyMap<string, number>,
+): boolean {
   if (!node) return true;
   switch (node.type) {
-    case "identifier":
-      return node.name === "true" || (node.name !== "false" && trueTerms.has(node.name));
+    case "identifier": {
+      if (node.name === "true") return true;
+      const bit = bitOf.get(node.name);
+      return bit !== undefined && ((mask >> bit) & 1) === 1;
+    }
     case "not":
-      return !holds(node.node, trueTerms);
+      return !holds(node.node, mask, bitOf);
     case "and":
-      return holds(node.left, trueTerms) && holds(node.right, trueTerms);
+      return holds(node.left, mask, bitOf) && holds(node.right, mask, bitOf);
     case "or":
-      return holds(node.left, trueTerms) || holds(node.right, trueTerms);
+      return holds(node.left, mask, bitOf) || holds(node.right, mask, bitOf);
   }
 }
 
-/** Whether, in every context where `when` holds, one of the `later` conditions holds too. */
+interface ShadowBudget {
+  remaining: number;
+}
+
+/**
+ * Whether, in every context where `when` holds, one of the `later` conditions holds too. When the
+ * answer would cost more than the budget allows, it is "no", so the key is shown.
+ */
 function alwaysCoveredBy(
   when: KeybindingWhenNode | undefined,
   later: ReadonlyArray<KeybindingWhenNode | undefined>,
+  budget: ShadowBudget,
 ): boolean {
   if (later.some((condition) => condition === undefined)) return true;
   const terms = new Set<string>();
   collectWhenTerms(when, terms);
   for (const condition of later) collectWhenTerms(condition, terms);
   if (terms.size > MAX_SHADOW_TERMS) return false;
-  const names = [...terms];
-  for (let mask = 0; mask < 2 ** names.length; mask += 1) {
-    const trueTerms = new Set(names.filter((_, index) => (mask >> index) & 1));
-    if (holds(when, trueTerms) && !later.some((condition) => holds(condition, trueTerms))) {
+  const cost = 2 ** terms.size * (1 + later.length);
+  if (cost > MAX_COMPARISON_WORK || cost > budget.remaining) return false;
+  budget.remaining -= cost;
+  const bitOf = new Map([...terms].map((name, index) => [name, index] as const));
+  for (let mask = 0; mask < 2 ** terms.size; mask += 1) {
+    if (holds(when, mask, bitOf) && !later.some((condition) => holds(condition, mask, bitOf))) {
       return false;
     }
   }
@@ -115,12 +140,37 @@ function isUnassigned(binding: ResolvedKeybindingsConfig[number]): boolean {
 }
 
 function toSheetRow(draft: DraftRow): ShortcutSheetRow {
-  return { ...draft.row, keys: draft.keys, keysJoiner: "or" };
+  return { ...draft.row, keys: draft.keys, keysJoiner: "or", matchKeys: draft.keys };
+}
+
+/**
+ * Whether the numbered commands are one unbroken run whose keys differ only by that number: the
+ * same modifiers, then the digit that matches the command. A gap, a command left unassigned or a
+ * key moved to anything else breaks it.
+ */
+function isUnbrokenRun(
+  sorted: ReadonlyArray<{ readonly number: number; readonly draft: DraftRow }>,
+): boolean {
+  const first = sorted[0];
+  if (!first || sorted.length < 2) return false;
+  const modifiers = (caps: ReadonlyArray<string>) => caps.slice(0, -1).join("\u0000");
+  const firstCaps = first.draft.keys[0];
+  if (!firstCaps) return false;
+  return sorted.every((member, index) => {
+    const caps = member.draft.keys[0];
+    return (
+      member.draft.keys.length === 1 &&
+      caps !== undefined &&
+      member.number === first.number + index &&
+      caps.at(-1) === String(member.number) &&
+      modifiers(caps) === modifiers(firstCaps)
+    );
+  });
 }
 
 /**
  * One row for each numbered family and condition, from its first number to its last, when every
- * command in it has one key. Otherwise the commands keep their own rows.
+ * command in it has one key of the same pattern. Otherwise the commands keep their own rows.
  */
 function collapseNumberedFamilies(
   drafts: ReadonlyArray<DraftRow>,
@@ -144,13 +194,7 @@ function collapseNumberedFamilies(
     const sorted = members.toSorted((left, right) => left.number - right.number);
     const first = sorted[0];
     const last = sorted.at(-1);
-    if (
-      !family ||
-      !first ||
-      !last ||
-      sorted.length < 2 ||
-      sorted.some((member) => member.draft.keys.length !== 1)
-    ) {
+    if (!family || !first || !last || !isUnbrokenRun(sorted)) {
       rows.push(...sorted.map((member) => toSheetRow(member.draft)));
       continue;
     }
@@ -160,8 +204,115 @@ function collapseNumberedFamilies(
       label: family.label(String(first.number), String(last.number), resolve),
       keys: [first.draft.keys[0]!, last.draft.keys[0]!],
       keysJoiner: "to",
+      matchKeys: sorted.flatMap((member) => member.draft.keys),
     });
   }
+  return rows;
+}
+
+/** The send shortcut changes Mod+Enter into Mod+Shift+Enter for two commands, so each mode is its own chord set. */
+function modifierModesFor(sendShortcut: ClientSettings["sendShortcut"]): ReadonlyArray<boolean> {
+  return sendShortcut === "mod-enter-multiline" ? [false, true] : [sendShortcut === "mod-enter"];
+}
+
+interface RowOptions {
+  readonly platform: string;
+  readonly sendShortcut: ClientSettings["sendShortcut"];
+  readonly resolve: MessageResolver;
+}
+
+/**
+ * The bound commands with the keys in force now. The dispatcher lets the newest matching rule
+ * win, so a key that a later rule for another command always takes in the same contexts never
+ * runs this command. That is judged on the chords the dispatcher matches, after the send shortcut
+ * has moved a chord, and within a work budget.
+ */
+function buildShortcutRows(
+  keybindings: ResolvedKeybindingsConfig,
+  { platform, sendShortcut, resolve }: RowOptions,
+): ReadonlyArray<ShortcutSheetRow> {
+  const drafts = new Map<string, DraftRow>();
+  const platformWhens = keybindings.map((binding) => whenForPlatform(binding.whenAst, platform));
+  const budget: ShadowBudget = { remaining: MAX_TOTAL_WORK };
+  const modes = modifierModesFor(sendShortcut).map((composerRequiresModifier) => {
+    const shortcuts = keybindings.map((binding) =>
+      shortcutForContext(binding, { composerRequiresModifier }),
+    );
+    const conflictKeys = shortcuts.map((shortcut) => shortcutConflictKey(shortcut, platform));
+    const sameKey = new Map<string, number[]>();
+    keybindings.forEach((_, index) => {
+      if (platformWhens[index] === null) return;
+      const key = conflictKeys[index]!;
+      const group = sameKey.get(key);
+      if (group) group.push(index);
+      else sameKey.set(key, [index]);
+    });
+    return { shortcuts, conflictKeys, sameKey };
+  });
+  keybindings.forEach((binding, index) => {
+    const when = platformWhens[index];
+    if (when === null || isUnassigned(binding)) return;
+    const expression = whenAstToExpression(when);
+    const id = `${binding.command}\u0000${expression}`;
+    for (const { shortcuts, conflictKeys, sameKey } of modes) {
+      const conflictKey = conflictKeys[index]!;
+      const shadowers: Array<KeybindingWhenNode | undefined> = [];
+      for (const later of sameKey.get(conflictKey) ?? []) {
+        const laterWhen = platformWhens[later];
+        if (
+          later > index &&
+          laterWhen !== null &&
+          keybindings[later]!.command !== binding.command
+        ) {
+          shadowers.push(laterWhen);
+        }
+      }
+      if (shadowers.length > 0 && alwaysCoveredBy(when, shadowers, budget)) continue;
+      let draft = drafts.get(id);
+      if (!draft) {
+        draft = {
+          row: {
+            id,
+            command: binding.command,
+            label: commandLabel(binding.command, resolve),
+            qualifier:
+              expression === "" || expression === DEFAULT_WHEN ? null : describeWhen(when, resolve),
+          },
+          keys: [],
+          claimed: new Set(),
+        };
+        drafts.set(id, draft);
+      }
+      if (draft.claimed.has(conflictKey)) continue;
+      draft.claimed.add(conflictKey);
+      draft.keys.push(shortcutKeycaps(shortcuts[index]!, platform));
+    }
+  });
+  return collapseNumberedFamilies([...drafts.values()], resolve);
+}
+
+// Building the rows is the costly part and depends only on the config, so a filter keystroke
+// reuses them. A new config object, platform, send shortcut or language builds them again.
+const rowCache = new WeakMap<
+  ResolvedKeybindingsConfig,
+  RowOptions & { readonly rows: ReadonlyArray<ShortcutSheetRow> }
+>();
+
+function rowsFor(
+  keybindings: ResolvedKeybindingsConfig,
+  options: RowOptions,
+): ReadonlyArray<ShortcutSheetRow> {
+  const cached = rowCache.get(keybindings);
+  if (
+    cached &&
+    cached.platform === options.platform &&
+    cached.sendShortcut === options.sendShortcut &&
+    cached.resolve === options.resolve
+  ) {
+    return cached.rows;
+  }
+  const rows = buildShortcutRows(keybindings, options);
+  rowCache.set(keybindings, { ...options, rows });
   return rows;
 }
 
@@ -175,60 +326,25 @@ export function buildShortcutSections(
     readonly query?: string;
     readonly platform?: string;
     readonly resolve?: MessageResolver;
+    readonly sendShortcut?: ClientSettings["sendShortcut"];
   } = {},
 ): ReadonlyArray<ShortcutSheetSection> {
-  const { query = "", platform = navigator.platform, resolve = m } = options;
-  const drafts = new Map<string, DraftRow>();
-  const conflictKeys = keybindings.map((binding) =>
-    shortcutConflictKey(binding.shortcut, platform),
-  );
-  const platformWhens = keybindings.map((binding) => whenForPlatform(binding.whenAst, platform));
-  keybindings.forEach((binding, index) => {
-    const when = platformWhens[index];
-    if (when === null || isUnassigned(binding)) return;
-    // The dispatcher lets the newest matching rule win, so a key that a later rule for another
-    // command always takes in the same contexts never runs this command.
-    const shadowers: Array<KeybindingWhenNode | undefined> = [];
-    for (let later = index + 1; later < keybindings.length; later += 1) {
-      const laterWhen = platformWhens[later];
-      if (
-        laterWhen !== null &&
-        keybindings[later]!.command !== binding.command &&
-        conflictKeys[later] === conflictKeys[index]
-      ) {
-        shadowers.push(laterWhen);
-      }
-    }
-    if (shadowers.length > 0 && alwaysCoveredBy(when, shadowers)) return;
-    const expression = whenAstToExpression(when);
-    const id = `${binding.command}\u0000${expression}`;
-    let draft = drafts.get(id);
-    if (!draft) {
-      draft = {
-        row: {
-          id,
-          command: binding.command,
-          label: commandLabel(binding.command, resolve),
-          qualifier:
-            expression === "" || expression === DEFAULT_WHEN ? null : describeWhen(when, resolve),
-        },
-        keys: [],
-        claimed: new Set(),
-      };
-      drafts.set(id, draft);
-    }
-    if (draft.claimed.has(conflictKeys[index]!)) return;
-    draft.claimed.add(conflictKeys[index]!);
-    draft.keys.push(shortcutKeycaps(binding.shortcut, platform));
-  });
-
-  const sheetRows = collapseNumberedFamilies([...drafts.values()], resolve);
+  const {
+    query = "",
+    platform = navigator.platform,
+    resolve = m,
+    sendShortcut = "enter",
+  } = options;
+  const sheetRows = rowsFor(keybindings, { platform, sendShortcut, resolve });
   const needle = query.trim().toLowerCase();
   const matches = (row: ShortcutSheetRow) =>
     needle === "" ||
-    [row.label, row.command, row.qualifier ?? "", ...row.keys.map((caps) => caps.join(" "))].some(
-      (text) => text.toLowerCase().includes(needle),
-    );
+    [
+      row.label,
+      row.command,
+      row.qualifier ?? "",
+      ...row.matchKeys.map((caps) => caps.join(" ")),
+    ].some((text) => text.toLowerCase().includes(needle));
   const rowsBySection = new Map<string, ShortcutSheetRow[]>();
   for (const sheetRow of sheetRows) {
     if (!matches(sheetRow)) continue;

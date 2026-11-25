@@ -1431,8 +1431,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     Number.POSITIVE_INFINITY,
   );
   if (messageOrder !== shownMessageOrder) setShownMessageOrder(messageOrder);
-  const { titleMatches: threadTitleResults, contentMatches: threadContentResults } =
-    searchSidebarThreads(searchableThreads, threadSearchQuery, new Set(messageOrder.keys));
+  const {
+    titleMatches: threadTitleResults,
+    contentMatches: threadContentResults,
+    titleRanges: threadTitleRanges,
+  } = searchSidebarThreads(searchableThreads, threadSearchQuery, new Set(messageOrder.keys));
   const threadSearchResults = [...threadTitleResults, ...threadContentResults];
   // Only rows listed for their messages show one, and open find on it.
   const threadSearchMatchByKey = new Map(
@@ -3426,6 +3429,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             ) ?? null
                           }
                           searchQuery={threadSearchQuery}
+                          titleRanges={threadTitleRanges.get(thread)}
                           searchMatchQuery={threadSearch.query}
                           onHighlight={() => setActiveSearchResultIndex(index)}
                           onSelect={() => selectThreadSearchResult(thread)}

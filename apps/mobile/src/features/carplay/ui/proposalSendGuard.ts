@@ -7,18 +7,42 @@ import { useEffect, useState, useSyncExternalStore } from "react";
  */
 export const PROPOSAL_SEND_GUARD_MS = 700;
 
-function subscribeToAppState(listener: () => void): () => void {
-  const subscription = AppState.addEventListener("change", listener);
-  return () => subscription.remove();
-}
-
-function readAppIsActive(): boolean {
-  return AppState.currentState === "active";
+/**
+ * Whether the app is in the foreground and, on Android, holds window focus. Android keeps
+ * `AppState` "active" while the notification shade or another window covers the app, and reports
+ * that only as `blur` and `focus`. iOS has no such events, so it reads `AppState.currentState`.
+ */
+function createAppVisibilityStore() {
+  let windowBlurred = false;
+  return {
+    subscribe(listener: () => void): () => void {
+      // Android reports window focus only through these events. iOS never emits them, so there the
+      // listeners stay silent and visibility comes from `AppState.currentState` alone.
+      const subscriptions = [
+        AppState.addEventListener("change", listener),
+        AppState.addEventListener("blur", () => {
+          windowBlurred = true;
+          listener();
+        }),
+        AppState.addEventListener("focus", () => {
+          windowBlurred = false;
+          listener();
+        }),
+      ];
+      return () => {
+        for (const subscription of subscriptions) subscription.remove();
+      };
+    },
+    read(): boolean {
+      return AppState.currentState === "active" && !windowBlurred;
+    },
+  };
 }
 
 /** True only while the app is in the foreground. "inactive" (app switcher, call) is not visible. */
 export function useAppIsActive(): boolean {
-  return useSyncExternalStore(subscribeToAppState, readAppIsActive, readAppIsActive);
+  const [store] = useState(createAppVisibilityStore);
+  return useSyncExternalStore(store.subscribe, store.read, store.read);
 }
 
 /**

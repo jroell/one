@@ -80,4 +80,29 @@ describe("keyboard shortcuts sheet", () => {
     expect(useShortcutsDialogStore.getState().open).toBe(true);
     setShortcutsDialogOpen(false);
   });
+
+  it("opens past a hidden dialog, as the closed mobile sidebar leaves one mounted, but not past one still closing", async () => {
+    setShortcutsDialogOpen(false);
+    await using screen = await render(
+      <>
+        <Host />
+        <div role="dialog" aria-label="Sidebar" hidden data-closed="" />
+        <div role="dialog" aria-label="Right panel" data-closed="" style={{ display: "none" }} />
+      </>,
+      { router: "/" },
+    );
+
+    toggleShortcutsDialog();
+    expect(useShortcutsDialogStore.getState().open).toBe(true);
+    setShortcutsDialogOpen(false);
+
+    await screen.rerender(
+      <>
+        <Host />
+        <div role="dialog" aria-label="Rename thread" data-closed="" data-ending-style="" />
+      </>,
+    );
+    toggleShortcutsDialog();
+    expect(useShortcutsDialogStore.getState().open).toBe(false);
+  });
 });

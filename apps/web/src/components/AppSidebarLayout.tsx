@@ -66,6 +66,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { registerCommandHandlers } from "../shortcuts/commandRegistry";
+import { isShortcutsSheetOnScreen } from "../shortcuts/shortcutsSheet";
 import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
 
@@ -344,7 +345,8 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     // A hidden sidebar would still save the toggle, so the shortcut does nothing without one.
     if (!showSidebar) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      // This listener sits outside the key dispatcher, so it stands down for the sheet itself.
+      if (event.defaultPrevented || isShortcutsSheetOnScreen()) return;
       if (
         event.target instanceof HTMLElement &&
         event.target.closest("[data-keybinding-capture]")

@@ -28,6 +28,7 @@ import {
 } from "./driveUiTypes";
 import { OneVoiceOrb } from "./OneVoiceOrb";
 import { useAppIsActive, useProposalSendGuard } from "./proposalSendGuard";
+import { useSheetCoverage } from "./sheetCoverage";
 import { VoiceStudioSheet } from "./VoiceStudioSheet";
 
 const KEEP_AWAKE_TAG = "one-drive-mode";
@@ -79,7 +80,8 @@ type PendingProposal = NonNullable<DriveSnapshotView["pendingConfirmation"]>;
 /**
  * Keyed by proposal id by its parent, so a replacement proposal mounts a fresh card (and a fresh
  * guard) instead of reusing the Send button the driver was about to press. `covered` is true while
- * a sheet hides the stage; the guard counts only time the driver can see the card.
+ * a sheet (including its close animation) or another window hides the stage, or the app is not in
+ * the foreground; the guard counts only time the driver can see the card.
  */
 function PendingConfirmationCard(props: {
   readonly proposal: PendingProposal;
@@ -89,8 +91,7 @@ function PendingConfirmationCard(props: {
 }) {
   const { proposal } = props;
   const gt = useGT();
-  const appIsActive = useAppIsActive();
-  const armed = useProposalSendGuard(appIsActive && !props.covered);
+  const armed = useProposalSendGuard(!props.covered);
 
   return (
     <View testID="pending-confirmation-card" style={styles.confirmCard}>
@@ -171,7 +172,20 @@ export function DriveStageView({
   const [personaDrawerOpen, setPersonaDrawerOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
-  const stageCovered = voiceStudioOpen || carPlayPanelOpen || personaDrawerOpen || transcriptOpen;
+  // The app state lives here, not on the card, so a replacement card still knows the window is blurred.
+  const appIsActive = useAppIsActive();
+  // A sheet keeps covering the card until its close animation ends. The two sheet components wrap
+  // their own Modal without exposing `onDismiss`, so they rely on the settle interval.
+  const voiceStudioCoverage = useSheetCoverage(voiceStudioOpen, false);
+  const carPlayPanelCoverage = useSheetCoverage(carPlayPanelOpen, false);
+  const personaDrawerCoverage = useSheetCoverage(personaDrawerOpen, true);
+  const transcriptCoverage = useSheetCoverage(transcriptOpen, true);
+  const stageCovered =
+    !appIsActive ||
+    voiceStudioCoverage.covered ||
+    carPlayPanelCoverage.covered ||
+    personaDrawerCoverage.covered ||
+    transcriptCoverage.covered;
 
   // Keep the display awake while a hands-free driving session is running.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- manages the native screen keep-awake lock tied to active driving sessions
@@ -684,6 +698,7 @@ export function DriveStageView({
         visible={personaDrawerOpen}
         animationType="slide"
         presentationStyle="pageSheet"
+        onDismiss={personaDrawerCoverage.onDismiss}
         onRequestClose={() => setPersonaDrawerOpen(false)}
       >
         <View
@@ -759,6 +774,7 @@ export function DriveStageView({
         visible={transcriptOpen}
         animationType="slide"
         presentationStyle="pageSheet"
+        onDismiss={transcriptCoverage.onDismiss}
         onRequestClose={() => setTranscriptOpen(false)}
       >
         <View

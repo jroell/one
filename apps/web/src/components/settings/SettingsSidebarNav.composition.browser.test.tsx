@@ -7,7 +7,7 @@ import { SidebarProvider } from "../ui/sidebar";
 import {
   SettingsSearchEmptyState,
   SettingsSearchProvider,
-  useClearNoMatchSearchOnNavigation,
+  useClearNoMatchSearchOnEscape,
   useSettingsSearchHasNoResults,
 } from "./SettingsSearchContext";
 import { SettingsSidebarNav } from "./SettingsSidebarNav";
@@ -158,7 +158,6 @@ it.each([1280, 390])("names each group by a heading outside it at %ipx wide", as
 
 function SettingsPaneStandIn() {
   const hasNoResults = useSettingsSearchHasNoResults();
-  useClearNoMatchSearchOnNavigation(hasNoResults);
   return hasNoResults ? <SettingsSearchEmptyState /> : <p>Settings page</p>;
 }
 
@@ -205,6 +204,32 @@ it("drops a search with no matches when another settings page opens, so that pag
   await expect.element(search).toHaveValue("");
 });
 
+it("drops a search with no matches when only the URL search parameters change, without a render warning", async () => {
+  await using screen = await render(
+    <SettingsSearchProvider>
+      <SidebarProvider defaultOpen>
+        <SettingsSidebarNav pathname="/settings/general" />
+      </SidebarProvider>
+      <SettingsPaneStandIn />
+    </SettingsSearchProvider>,
+    { router: "/settings/general?project=a" },
+  );
+  using errors = vi.spyOn(console, "error");
+  const search = page.getByRole("combobox", { name: "Search settings" });
+
+  await search.fill("zzzxx");
+  await expect.element(page.getByText("No settings match “zzzxx”")).toBeVisible();
+
+  await act(() =>
+    screen.router?.navigate({ to: "/settings/general", search: { project: "b" } as never }),
+  );
+  await expect.element(page.getByText("Settings page")).toBeVisible();
+  await expect.element(search).toHaveValue("");
+  expect(errors.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain(
+    "Cannot update a component",
+  );
+});
+
 it("keeps a search that still has matches when another settings page opens", async () => {
   await using screen = await render(
     <SettingsSearchProvider>
@@ -223,21 +248,28 @@ it("keeps a search that still has matches when another settings page opens", asy
   await expect.element(search).toHaveValue("theme");
 });
 
-it("Esc on Clear search clears the search and keeps Settings open until the next Esc", async () => {
+function SettingsModalStandIn() {
+  const onEscape = useClearNoMatchSearchOnEscape();
+  return (
+    <AppRouteModal label="Settings" onEscape={onEscape}>
+      <SidebarProvider defaultOpen>
+        <SettingsSidebarNav pathname="/settings/general" />
+      </SidebarProvider>
+      <SettingsPaneStandIn />
+    </AppRouteModal>
+  );
+}
+
+it("Esc on Clear settings search clears the search and keeps Settings open until the next Esc", async () => {
   await using _screen = await render(
-    <AppRouteModal label="Settings">
-      <SettingsSearchProvider>
-        <SidebarProvider defaultOpen>
-          <SettingsSidebarNav pathname="/settings/general" />
-        </SidebarProvider>
-        <SettingsPaneStandIn />
-      </SettingsSearchProvider>
-    </AppRouteModal>,
+    <SettingsSearchProvider>
+      <SettingsModalStandIn />
+    </SettingsSearchProvider>,
     { router: "/settings/general" },
   );
   const settings = page.getByRole("dialog", { name: "Settings" });
   const search = page.getByRole("combobox", { name: "Search settings" });
-  const clear = page.getByRole("button", { name: "Clear search", exact: true });
+  const clear = page.getByRole("button", { name: "Clear settings search" });
 
   await search.fill("zzzxx");
   await act(() => clear.element().focus());

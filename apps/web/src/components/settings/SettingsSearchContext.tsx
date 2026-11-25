@@ -15,10 +15,24 @@ interface SettingsSearchState {
 
 const SettingsSearchContext = createContext<SettingsSearchState | null>(null);
 
-/** Shares the settings search text between the nav's field and the page it sits beside. */
+/**
+ * Shares the settings search text between the nav's field and the page it sits beside. A query
+ * that matches nothing makes the page behind it inert, so landing on another page or scope (the
+ * command palette, a link) would leave that page unusable. Drops such a query when the location
+ * changes, including its search parameters; a query that still has results stays.
+ */
 export function SettingsSearchProvider({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasNoResults = useQueryHasNoResults(query);
+  const place = useLocation({
+    select: (location) => `${location.pathname}${location.searchStr}${location.hash}`,
+  });
+  const [seenPlace, setSeenPlace] = useState(place);
+  if (seenPlace !== place) {
+    setSeenPlace(place);
+    if (hasNoResults) setQuery("");
+  }
   return (
     <SettingsSearchContext value={{ query, setQuery, inputRef }}>{children}</SettingsSearchContext>
   );
@@ -31,27 +45,30 @@ export function useSettingsSearchState(): SettingsSearchState {
   return shared ?? { query, setQuery, inputRef };
 }
 
-/** True while the search text matches nothing, so the page beside the nav has nothing to show. */
-export function useSettingsSearchHasNoResults(): boolean {
+function useQueryHasNoResults(query: string): boolean {
   const m = useMessages();
-  const { query } = useSettingsSearchState();
   const items = useAvailableSettingsSearchItems();
   return query.trim().length > 0 && searchSettings(query, items, m).length === 0;
 }
 
+/** True while the search text matches nothing, so the page beside the nav has nothing to show. */
+export function useSettingsSearchHasNoResults(): boolean {
+  return useQueryHasNoResults(useSettingsSearchState().query);
+}
+
 /**
- * A query that matches nothing makes the page behind it inert, so landing on another page (the
- * command palette, a link) would leave that page unusable. Drops such a query when the location
- * changes; a query that still has results stays.
+ * Escape handler for the Settings dialog: while the search matches nothing, the first Escape
+ * clears it and keeps Settings open, wherever focus is. Returns whether it used the key.
  */
-export function useClearNoMatchSearchOnNavigation(hasNoResults: boolean): void {
-  const { setQuery } = useSettingsSearchState();
-  const place = useLocation({ select: (location) => `${location.pathname}${location.hash}` });
-  const [seenPlace, setSeenPlace] = useState(place);
-  if (seenPlace !== place) {
-    setSeenPlace(place);
-    if (hasNoResults) setQuery("");
-  }
+export function useClearNoMatchSearchOnEscape(): () => boolean {
+  const { setQuery, inputRef } = useSettingsSearchState();
+  const hasNoResults = useSettingsSearchHasNoResults();
+  return () => {
+    if (!hasNoResults) return false;
+    setQuery("");
+    inputRef.current?.focus();
+    return true;
+  };
 }
 
 export function SettingsSearchEmptyState() {
@@ -62,16 +79,7 @@ export function SettingsSearchEmptyState() {
     inputRef.current?.focus();
   };
   return (
-    <div
-      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background px-6 text-center"
-      onKeyDown={(event) => {
-        // The first Escape clears the search, like the search field; the next one closes Settings.
-        if (event.key !== "Escape") return;
-        event.preventDefault();
-        event.stopPropagation();
-        clearSearch();
-      }}
-    >
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background px-6 text-center">
       <SearchXIcon aria-hidden className="size-6 text-muted-foreground" />
       <div role="status" className="flex max-w-sm flex-col gap-1">
         <p className="text-sm font-medium text-foreground wrap-anywhere">

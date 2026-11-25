@@ -19,12 +19,12 @@ const runtimeVersionPolicy =
 const personalTeamBundleIdentifier = repoEnv.T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID?.trim();
 const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
-// expo-observe on Android throws at launch without extra.eas.projectId, so local builds get a
-// stand-in. EAS reads the same field as the project to build or publish to, so a run under EAS or
-// with an Expo token never gets it and fails clearly without a real id.
-const runsUnderEas = process.env.EAS_BUILD === "true" || Boolean(process.env.EXPO_TOKEN);
+// expo-observe on Android throws at launch without extra.eas.projectId. EAS reads the same field
+// as the project to build or publish to, so only the local run scripts (ONE_MOBILE_LOCAL_BUILD=1)
+// get a stand-in; every EAS path needs a real EAS_PROJECT_ID and fails clearly without one.
 const easProjectId =
-  repoEnv.EAS_PROJECT_ID ?? (runsUnderEas ? undefined : "00000000-0000-4000-8000-000000000001");
+  repoEnv.EAS_PROJECT_ID ??
+  (repoEnv.ONE_MOBILE_LOCAL_BUILD === "1" ? "00000000-0000-4000-8000-000000000001" : undefined);
 
 // Compiled into the native project. Without a relay, Observe's native side could dispatch to
 // Expo's own ingest before observe.ts turns it off; `.invalid` never resolves (RFC 6761).

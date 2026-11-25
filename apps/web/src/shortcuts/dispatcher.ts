@@ -59,6 +59,14 @@ function readFocusContext(event: KeyboardEvent): Partial<ShortcutMatchContext> {
   };
 }
 
+/**
+ * True while the opening covers the app. index.html sets the attribute before app code runs and
+ * the opening removes it as it lifts, so the first key press skips the opening and runs nothing.
+ */
+function isOpeningPlaying(): boolean {
+  return document.documentElement.dataset.oneOpening !== undefined;
+}
+
 function isInsideConfirmation(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('[role="alertdialog"]') !== null;
 }
@@ -96,7 +104,7 @@ function runScope(scope: CommandScope, event: KeyboardEvent): boolean {
  * consume it. Capture scopes have already run (and declined) by the time a widget sees it.
  */
 export function hasCommandForKeyDown(event: KeyboardEvent): boolean {
-  if (isShortcutsSheetOnScreen()) return false;
+  if (isShortcutsSheetOnScreen() || isOpeningPlaying()) return false;
   return globalScopes.some(
     (scope) =>
       (!scope.options.when || scope.options.when(event)) &&
@@ -114,11 +122,12 @@ function runScopes(scopes: readonly CommandScope[], event: KeyboardEvent): boole
 }
 
 function dispatchCaptureKeyDown(event: KeyboardEvent): void {
-  if (isInsideKeybindingCapture(event.target)) return;
+  if (isOpeningPlaying() || isInsideKeybindingCapture(event.target)) return;
   runScopes(captureScopes, event);
 }
 
 function dispatchKeyDown(event: KeyboardEvent): void {
+  if (isOpeningPlaying()) return;
   const consumed = runScopes(globalScopes, event) || event.defaultPrevented;
   if (isShortcutsSheetOnScreen()) return;
   for (const scope of observerScopes.slice()) scope.options.observe?.(event, consumed);

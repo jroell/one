@@ -55,9 +55,27 @@ import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { previewEnvironment } from "../../state/preview";
 import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
-import type { ChatShortcutCommands } from "./useChatShortcuts";
+import type { ChatShortcutCommands, ChatShortcutDefinition } from "./useChatShortcuts";
 const SCRIPT_TERMINAL_COLS = 120;
 const SCRIPT_TERMINAL_ROWS = 30;
+
+/**
+ * Steps through the terminals of the one that holds focus, the drawer's or the right panel's. A
+ * palette row has no focus of its own, so it counts the terminal that had focus when the palette
+ * opened; with none, the command is not offered.
+ */
+export function stepTerminalShortcut(
+  threadRef: ScopedThreadRef | null,
+  direction: "previous" | "next",
+): ChatShortcutDefinition {
+  return {
+    run: ({ terminalFocusOwner }) => {
+      if (!threadRef || !terminalFocusOwner) return false;
+      return cycleThreadTerminal(threadRef, terminalFocusOwner, direction);
+    },
+    canRun: ({ terminalFocusOwner }) => threadRef !== null && terminalFocusOwner !== null,
+  };
+}
 
 export interface TerminalLaunchContext {
   threadId: ThreadId;
@@ -429,14 +447,8 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       },
       canRun: canToggleTerminal,
     },
-    "terminal.previous": ({ terminalFocusOwner }) => {
-      if (!activeThreadRef || !terminalFocusOwner) return false;
-      return cycleThreadTerminal(activeThreadRef, terminalFocusOwner, "previous");
-    },
-    "terminal.next": ({ terminalFocusOwner }) => {
-      if (!activeThreadRef || !terminalFocusOwner) return false;
-      return cycleThreadTerminal(activeThreadRef, terminalFocusOwner, "next");
-    },
+    "terminal.previous": stepTerminalShortcut(activeThreadRef, "previous"),
+    "terminal.next": stepTerminalShortcut(activeThreadRef, "next"),
     "terminal.split": ({ terminalFocusOwner }) => {
       if (!hasTerminalWriteAccess()) return false;
       if (terminalFocusOwner === "right-panel") return void splitPanelTerminal();

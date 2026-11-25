@@ -31,6 +31,17 @@ describe("injectHtmlRenderBootstrap", () => {
     expect(injected).toContain('name="viewport"');
   });
 
+  it("paints the focus ring with an outline gap, not a box-shadow a control can override", () => {
+    const css = /<style id="t3-theme">([\s\S]*?)<\/style>/.exec(
+      injectHtmlRenderBootstrap("<p>x</p>"),
+    )?.[1];
+    const focusRules = css?.match(/[^{}]*:focus-visible[^{}]*\{[^}]*\}/g) ?? [];
+    expect(focusRules.length).toBeGreaterThan(0);
+    expect(focusRules.join("")).toContain("outline:2px solid var(--ring)");
+    expect(focusRules.join("")).toContain("outline-offset:2px!important");
+    expect(focusRules.join("")).not.toContain("box-shadow");
+  });
+
   it.each([
     "<html><head data-condition='x > 0'>",
     '<html><head data-condition="x > 0" data-label=\'it "works"\'>',

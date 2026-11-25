@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, fakeTimers, render as renderUi } from "../../../test/render";
 import type { RemoteOpenState } from "../../remoteOpen";
+import { runRegisteredCommand } from "../../shortcuts/commandRegistry";
 
 const state = vi.hoisted(() => ({
   allowed: new Set<string>(),
@@ -282,5 +283,38 @@ describe("open in editor announcement", () => {
     expect(await spoken()).toBe("");
     await pressOpenFavorite();
     expect(await spoken()).toBe("Opened in VS Code");
+  });
+});
+
+describe("open in editor from the palette", () => {
+  it("opens the file button's path when one is on screen, and the project otherwise", async () => {
+    await using fixture = await setup();
+    const { screen, FavoriteEditorFallback } = fixture;
+    state.allowed.add(selected);
+    // A failed open is not announced, so no timer outlives the test.
+    state.run.mockResolvedValue(AsyncResult.failure(Cause.fail(new Error("No editor"))));
+    const file = "/work/project/notes.md";
+    const withFileButton = (
+      <>
+        <FavoriteEditorFallback />
+        <OpenInPicker
+          environmentId={selected}
+          keybindings={DEFAULT_RESOLVED_KEYBINDINGS}
+          availableEditors={editors}
+          openInCwd={file}
+          fileManagerAction="open"
+          displayMode="toolbar"
+          compact
+        />
+      </>
+    );
+    await act(async () => screen.rerender(withFileButton));
+
+    expect(runRegisteredCommand("editor.openFavorite")).toBe(true);
+    expect(state.run.mock.calls.map(([call]) => call.input.cwd)).toEqual([file]);
+
+    await act(async () => screen.rerender(<FavoriteEditorFallback />));
+    expect(runRegisteredCommand("editor.openFavorite")).toBe(true);
+    expect(state.run.mock.calls.map(([call]) => call.input.cwd)).toEqual([file, "/work/project"]);
   });
 });

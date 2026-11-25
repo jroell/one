@@ -9,7 +9,11 @@ import { buildShortcutSections } from "./ShortcutsDialog.logic";
 
 const build = (
   config: Parameters<typeof compileResolvedKeybindingsConfig>[0],
-  options: { readonly query?: string; readonly platform?: string } = {},
+  options: {
+    readonly query?: string;
+    readonly platform?: string;
+    readonly sendShortcut?: "enter" | "mod-enter-multiline" | "mod-enter";
+  } = {},
 ) =>
   buildShortcutSections(compileResolvedKeybindingsConfig(config), {
     platform: "Linux x86_64",
@@ -149,5 +153,106 @@ describe("buildShortcutSections", () => {
     expect(sections.flatMap((section) => section.rows.map((row) => row.label))).toEqual([
       "Thread: Jump: 3",
     ]);
+  });
+
+  it("lists a numbered family with a remapped or unassigned member as individual rows", () => {
+    const jumps = THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+      command,
+      key: `mod+${index + 1}`,
+    }));
+    const remapped = jumps.map((jump) =>
+      jump.command === "thread.jump.5" ? { ...jump, key: "mod+alt+x" } : jump,
+    );
+    const gap = jumps.map((jump) =>
+      jump.command === "thread.jump.5" ? { ...jump, when: "false" } : jump,
+    );
+
+    for (const config of [remapped, gap]) {
+      const rows = build(config).flatMap((section) =>
+        section.rows.filter((row) => /jump/i.test(row.label)),
+      );
+      expect(rows.some((row) => row.keysJoiner === "to")).toBe(false);
+      expect(rows.map((row) => row.command).toSorted()).toEqual(
+        THREAD_JUMP_KEYBINDING_COMMANDS.filter(
+          (command) => config !== gap || command !== "thread.jump.5",
+        ).toSorted(),
+      );
+    }
+    expect(
+      build(remapped, { query: "ctrl alt x" }).flatMap((section) =>
+        section.rows.map((row) => row.command),
+      ),
+    ).toEqual(["thread.jump.5"]);
+  });
+
+  it("finds a numbered family by any of its keys while showing only the first and last", () => {
+    const sections = build(
+      THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+        command,
+        key: `mod+${index + 1}`,
+      })),
+      { query: "ctrl 5" },
+    );
+
+    expect(sections.flatMap((section) => section.rows.map((row) => row.keys))).toEqual([
+      [
+        ["Ctrl", "1"],
+        ["Ctrl", "9"],
+      ],
+    ]);
+  });
+
+  it("lists the chord the send shortcut moves a command to, not the one it left", () => {
+    const config = [
+      {
+        command: "composer.sendAlternate" as const,
+        key: "mod+enter",
+        when: "composerFocus && turnRunning",
+      },
+      // Takes Mod+Enter in the same contexts, so the sheet hid the command with the default send key.
+      { command: "composer.mode" as const, key: "mod+enter", when: "composerFocus" },
+    ];
+    const keysOf = (sendShortcut: "enter" | "mod-enter" | "mod-enter-multiline") =>
+      build(config, { sendShortcut })
+        .flatMap((section) => section.rows)
+        .filter((row) => row.command === "composer.sendAlternate")
+        .map((row) => row.keys);
+
+    expect(keysOf("enter")).toEqual([]);
+    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
+    expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
+  });
+
+  it("shows a key again once comparing it would exceed the work budget", () => {
+    // 256 rules on one key, each covered by the next rule of the other command.
+    const config = compileResolvedKeybindingsConfig(
+      Array.from({ length: 256 }, (_, index) => ({
+        command: index % 2 === 0 ? ("diff.toggle" as const) : ("composer.mode" as const),
+        key: "mod+d",
+        when: "composerFocus && editableFocus && previewFocus && terminalFocus",
+      })),
+    );
+
+    const listed = buildShortcutSections(config, { platform: "Linux x86_64" }).flatMap((section) =>
+      section.rows.map((row) => row.command),
+    );
+
+    expect(listed.toSorted()).toEqual(["composer.mode", "diff.toggle"]);
+  });
+
+  it("builds the rows once for a config and filters them on each keystroke", () => {
+    const config = compileResolvedKeybindingsConfig([
+      { command: "diff.toggle", key: "mod+d" },
+      { command: "sidebar.toggle", key: "mod+b" },
+    ]);
+    const rowsOf = (query: string) =>
+      buildShortcutSections(config, { platform: "Linux x86_64", query }).flatMap(
+        (section) => section.rows,
+      );
+
+    const all = rowsOf("");
+
+    expect(rowsOf("diff")[0]).toBe(all.find((row) => row.command === "diff.toggle"));
+    expect(rowsOf("d")[0]).toBe(all.find((row) => row.command === "diff.toggle"));
   });
 });

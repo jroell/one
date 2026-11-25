@@ -124,7 +124,7 @@ import { pickSnoozePreset, resolveSnoozePresets, type SnoozePreset } from "../Si
 import { useThreadShell } from "../../state/entities";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { ThreadSearchMatchExcerpt } from "../ThreadSearchMatch";
-import { findSearchTokenRanges, splitSearchText } from "@t3tools/shared/paletteSearch";
+import { splitSearchText, type SearchRange } from "@t3tools/shared/paletteSearch";
 import { makeWorkspaceFileDropHandlers } from "../chat/workspaceFileDrop";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { getTriggerDisplayModelName } from "../chat/providerIconUtils";
@@ -1765,11 +1765,12 @@ const scrollHighlightedResultIntoView = (node: HTMLLIElement | null) => {
   node?.scrollIntoView({ block: "nearest" });
 };
 
-/** A result title with the part the query matched in semibold foreground, as in `ThreadSearchMatch`. */
-function HighlightedResultTitle(props: { title: string; query: string }) {
-  const ranges = findSearchTokenRanges(props.title, props.query);
-  if (ranges.length === 0) return props.title;
-  return splitSearchText(props.title, ranges).map((part) =>
+const NO_TITLE_RANGES: ReadonlyArray<SearchRange> = [];
+
+/** A result title with the ranges the title scorer matched in semibold foreground. */
+function HighlightedResultTitle(props: { title: string; ranges: ReadonlyArray<SearchRange> }) {
+  if (props.ranges.length === 0) return props.title;
+  return splitSearchText(props.title, props.ranges).map((part) =>
     part.highlighted ? (
       <mark className="bg-transparent font-semibold text-foreground" key={part.start}>
         {part.text}
@@ -1793,6 +1794,8 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
   resultId: string;
   searchMatch: EnvironmentThreadSearchMatch | null;
   searchQuery: string;
+  /** Title characters the search scorer matched; none for a typo or message match. */
+  titleRanges?: ReadonlyArray<SearchRange> | undefined;
   /** The query `searchMatch` was found for, which lags `searchQuery` while a search runs. */
   searchMatchQuery?: string;
   onHighlight: () => void;
@@ -1951,7 +1954,10 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                       : "text-foreground",
                 )}
               >
-                <HighlightedResultTitle title={thread.title} query={props.searchQuery} />
+                <HighlightedResultTitle
+                  title={thread.title}
+                  ranges={props.titleRanges ?? NO_TITLE_RANGES}
+                />
                 {isRegeneratingTitle ? (
                   <ActivityShimmerOverlay className="truncate">
                     {thread.title}

@@ -17,6 +17,7 @@ import {
 } from "../../test/fakeEnvironment";
 import { act, render } from "../../test/render";
 import { makeThreadFixture } from "../test-fixtures";
+import { searchSidebarThreads } from "./Sidebar.logic";
 import { SidebarSearchResultRow } from "./sidebar/SidebarThreadRow";
 
 // The socket is the only fake layer; see test/appScenarios.renders.tsx.
@@ -142,12 +143,14 @@ it("keeps focus in the search box when a click picks a search result", async () 
   await expect.element(search).toHaveFocus();
 });
 
-it("marks the part of a search result title that matches the query", async () => {
+it("marks Gi in the title Git hooks when the sidebar finds it for the query gi", async () => {
+  const thread = makeThreadFixture({ title: "Git hooks" });
+  const { titleRanges } = searchSidebarThreads([thread], "gi", new Set());
   await using _screen = await render(
     <ul role="listbox">
       <SidebarSearchResultRow
         isSettled={false}
-        thread={makeThreadFixture({ title: "Invoice export" })}
+        thread={thread}
         project={null}
         projectDisplayName={null}
         environmentLabel={null}
@@ -157,7 +160,8 @@ it("marks the part of a search result title that matches the query", async () =>
         isRouteActive={false}
         resultId="result-0"
         searchMatch={null}
-        searchQuery="invoice"
+        searchQuery="gi"
+        titleRanges={titleRanges.get(thread)}
         onHighlight={() => {}}
         onSelect={() => {}}
         onContextMenu={() => {}}
@@ -165,7 +169,7 @@ it("marks the part of a search result title that matches the query", async () =>
       />
     </ul>,
   );
-  const marked = page.getByText("Invoice", { exact: true });
+  const marked = page.getByText("Gi", { exact: true });
   await expect.element(marked).toBeInTheDocument();
   expect(marked.element().tagName).toBe("MARK");
   expect(document.querySelectorAll("mark")).toHaveLength(1);
