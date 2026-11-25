@@ -1,6 +1,13 @@
 import { BUILT_IN_THEMES } from "@t3tools/shared/themePalettes";
 import { msg, T, useGT, useMessages } from "gt-react";
-import { MonitorIcon, MoonIcon, PaletteIcon, SunIcon } from "lucide-react";
+import {
+  CodeXmlIcon,
+  MessagesSquareIcon,
+  MonitorIcon,
+  MoonIcon,
+  PaletteIcon,
+  SunIcon,
+} from "lucide-react";
 
 import { m } from "../i18n/messages";
 import { useCustomThemes } from "../hooks/useCustomThemes";
@@ -20,6 +27,7 @@ import {
   ThemePreviewCircle,
 } from "./settings/ThemePreviewCircles";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { toggleWorkspaceMode, useWorkspaceMode } from "../one/workspaceMode";
 
 export const APPEARANCE_OPTIONS = [
   { mode: "system", label: msg("System"), icon: MonitorIcon },
@@ -56,6 +64,7 @@ function useThemeCards() {
 }
 
 export function useCommandPaletteThemeItems() {
+  const workspaceMode = useWorkspaceMode();
   const {
     theme,
     themeHalves,
@@ -172,5 +181,22 @@ export function useCommandPaletteThemeItems() {
     },
   };
 
-  return { changeThemeItem, changeAppearanceItem, themeEditorItem };
+  const workspaceModeItem: CommandPaletteActionItem = {
+    kind: "action",
+    value: "action:workspace-mode",
+    searchTerms: ["chat mode", "code mode", "workspace", "voice", "brainstorm", "learn", "switch"],
+    title: workspaceMode === "chat" ? gt("Switch to Code mode") : gt("Switch to Chat mode"),
+    icon:
+      workspaceMode === "chat" ? (
+        <CodeXmlIcon className={ITEM_ICON_CLASS} />
+      ) : (
+        <MessagesSquareIcon className={ITEM_ICON_CLASS} />
+      ),
+    shortcutCommand: "workspaceMode.toggle",
+    run: async () => {
+      toggleWorkspaceMode();
+    },
+  };
+
+  return { changeThemeItem, changeAppearanceItem, themeEditorItem, workspaceModeItem };
 }

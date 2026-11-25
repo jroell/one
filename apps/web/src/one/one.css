@@ -1,0 +1,665 @@
+/*
+ * One: brand, glass material and motion, layered on the app's theme tokens.
+ * Everything here reads the active theme, so built-in and custom themes all
+ * get the same material without their own rules.
+ */
+
+:root {
+  /* Brand color. The standard theme uses One gold; a chosen theme lends its action color. */
+  --one-brand: #b98f1f;
+  --one-ring-mid: var(--one-brand);
+  --one-ring-hi: color-mix(in oklch, var(--one-brand) 36%, white);
+  --one-ring-lo: color-mix(in oklch, var(--one-brand) 60%, black);
+  --one-ring-deep: color-mix(in oklch, var(--one-brand) 28%, black);
+  --one-ring-spec: white;
+
+  /* Glass edges: light catches the top edge, the bottom edge sits in shade. */
+  --one-glass-rim-top: rgb(255 255 255 / 85%);
+  --one-glass-rim: rgb(255 255 255 / 38%);
+  --one-glass-rim-bottom: rgb(0 0 0 / 5%);
+  --one-glass-sheen: linear-gradient(
+    168deg,
+    rgb(255 255 255 / 42%) 0%,
+    rgb(255 255 255 / 8%) 28%,
+    transparent 56%
+  );
+  --one-glass-shadow: 0 1px 1px rgb(0 0 0 / 4%), 0 10px 30px -12px rgb(0 0 0 / 22%);
+  --one-reflection: rgb(255 255 255 / 90%);
+  --one-brand-glow: color-mix(in oklch, var(--one-brand) 34%, transparent);
+
+  /* Motion. Presses land fast; releases settle on a spring. */
+  --one-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --one-ease-spring: linear(
+    0,
+    0.009,
+    0.035 2.1%,
+    0.141 4.4%,
+    0.723 12.9%,
+    0.938 16.7%,
+    1.017,
+    1.077,
+    1.121,
+    1.149 24.3%,
+    1.159,
+    1.163,
+    1.161,
+    1.154 29.9%,
+    1.129 32.8%,
+    1.051 39.6%,
+    1.017 43.1%,
+    0.991,
+    0.977 51%,
+    0.974 53.8%,
+    0.975 57.1%,
+    0.997 69.8%,
+    1.003 76.9%,
+    1.004 83.8%,
+    1
+  );
+
+  @variant dark {
+    --one-glass-rim-top: rgb(255 255 255 / 20%);
+    --one-glass-rim: rgb(255 255 255 / 7%);
+    --one-glass-rim-bottom: rgb(0 0 0 / 40%);
+    --one-glass-sheen: linear-gradient(
+      168deg,
+      rgb(255 255 255 / 9%) 0%,
+      rgb(255 255 255 / 2%) 30%,
+      transparent 58%
+    );
+    --one-glass-shadow: 0 1px 1px rgb(0 0 0 / 40%), 0 18px 40px -16px rgb(0 0 0 / 85%);
+    --one-reflection: rgb(255 255 255 / 55%);
+    --one-brand: #d9b450;
+    --one-brand-glow: color-mix(in oklch, var(--one-brand) 42%, transparent);
+  }
+}
+
+html[data-theme-id]:not([data-theme-id=""]) {
+  --one-brand: var(--app-theme-message-action);
+}
+
+/* The standard One theme: black and gold when dark, white and gold when light.
+   The gold values are shared with One Platform so the two apps match. */
+html:not([data-theme-id]),
+html[data-theme-id=""] {
+  --primary: #b98f1f;
+  --primary-foreground: #1a1304;
+  --ring: #b98f1f;
+  --stage-art-top: oklch(0.8 0.13 82);
+  --stage-art-mid: oklch(0.62 0.145 62);
+  --stage-art-bottom: oklch(0.4 0.1 48);
+  --stage-art-highlight: oklch(0.955 0.05 96);
+  --stage-art-secondary: oklch(0.81 0.13 76);
+  --stage-art-tertiary: oklch(0.67 0.16 44);
+  --stage-art-line: oklch(0.96 0.03 95);
+  --stage-art-celeste-highlight: oklch(0.97 0.05 100);
+  --stage-art-celeste-secondary: oklch(0.84 0.12 86);
+  --stage-art-violet-highlight: oklch(0.9 0.06 58);
+  --stage-art-grid-line: oklch(0.97 0.02 90);
+  --stage-night-base-top: oklch(0.27 0.06 62);
+  --stage-night-base-mid: oklch(0.2 0.045 52);
+  --stage-night-base-bottom: oklch(0.16 0.03 42);
+  --stage-night-highlight: oklch(0.76 0.14 80);
+  --stage-night-secondary: oklch(0.61 0.14 60);
+  --stage-night-tertiary: oklch(0.6 0.17 40);
+  --stage-night-line: oklch(0.94 0.03 90);
+  --stage-night-glow-highlight: oklch(0.56 0.13 70);
+  --stage-night-glow-secondary: oklch(0.34 0.08 60);
+  --stage-night-sparkle: oklch(0.9 0.06 90);
+
+  @variant dark {
+    --primary: #d9b450;
+    --primary-foreground: #1a1304;
+    --ring: #d9b450;
+    --stage-art-top: oklch(0.52 0.115 66);
+    --stage-art-mid: oklch(0.37 0.095 56);
+    --stage-art-bottom: oklch(0.21 0.05 50);
+  }
+}
+
+/* ---------------------------------------------------------------- the mark */
+
+.one-mark {
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.one-mark-sheen {
+  opacity: 0;
+}
+
+/* On the sidebar artwork the ring turns to clear glass so it reads on any palette. */
+.one-mark-on-backdrop {
+  --one-ring-hi: white;
+  --one-ring-mid: rgb(255 255 255 / 88%);
+  --one-ring-lo: rgb(255 255 255 / 52%);
+  --one-ring-deep: rgb(0 0 0 / 45%);
+}
+
+.one-mark-host .one-mark {
+  transition: scale 480ms var(--one-ease-spring);
+}
+
+.one-mark-host:active .one-mark {
+  scale: 0.86;
+  transition: scale 70ms ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @media (hover: hover) {
+    .one-mark-host:hover .one-mark-sheen {
+      animation: one-mark-sheen 900ms var(--one-ease-out) both;
+    }
+  }
+}
+
+@keyframes one-mark-sheen {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 40px 0;
+  }
+}
+
+/* -------------------------------------------------------------- the glass */
+
+/* Floating surfaces: a lit top edge, a shaded bottom edge, and a soft sheen.
+   The ring shadow variable is kept so focus rings still draw. */
+.dropdown-glass,
+.dialog-glass {
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    var(--tw-ring-shadow, 0 0 #0000),
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    inset 0 -1px 0 0 var(--one-glass-rim-bottom),
+    var(--one-glass-shadow);
+}
+
+/* A reflection that follows the pointer along the edge of a surface.
+   reflections.ts sets --one-mx/--one-my on the hovered [data-one-reflect]. */
+[data-one-reflect] {
+  --one-mx: 50%;
+  --one-my: 0%;
+  --one-reflect-strength: 0;
+}
+
+.one-reflection {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: radial-gradient(
+    180px circle at var(--one-mx) var(--one-my),
+    var(--one-reflection),
+    transparent 70%
+  );
+  /* Paint only the 1px edge. */
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  opacity: var(--one-reflect-strength);
+  transition: opacity 320ms var(--one-ease-out);
+}
+
+[data-one-reflect]:has([data-composer-banner-surface="attached"]) > .one-reflection {
+  display: none;
+}
+
+@media (hover: hover) {
+  [data-one-reflect]:hover {
+    --one-reflect-strength: 1;
+  }
+}
+
+/* The composer is the main object on screen: it lifts and takes a brand-tinted
+   edge when it has focus. */
+[data-slot="composer-host"] {
+  transition: box-shadow 260ms var(--one-ease-out);
+}
+
+[data-slot="composer-shell"]:focus-within [data-slot="composer-host"] {
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--one-brand) 38%, transparent),
+    0 0 0 5px color-mix(in oklch, var(--one-brand) 10%, transparent),
+    0 18px 44px -22px var(--one-brand-glow);
+}
+
+[data-slot="composer-host"]::before,
+[data-slot="composer-shell"]::before {
+  background-image: var(--one-glass-sheen);
+}
+
+/* ----------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Buttons already shrink on press; this makes the release settle on a spring. */
+  [data-slot="button"]:not(:active) {
+    transition-duration: 420ms;
+    transition-timing-function: var(--one-ease-spring);
+  }
+
+  [data-slot="button"]:active {
+    transition-duration: 70ms;
+    transition-timing-function: ease-out;
+  }
+}
+
+/* ------------------------------------------------------------ mode switch */
+
+.one-mode-switch {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  height: 1.75rem;
+  padding: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 6%, transparent);
+  pointer-events: auto;
+}
+
+.one-mode-switch-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: 999px;
+  background: var(--popover);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    0 1px 2px rgb(0 0 0 / 14%),
+    0 3px 8px -3px rgb(0 0 0 / 22%);
+  transition:
+    translate 460ms var(--one-ease-spring),
+    scale 160ms ease-out;
+}
+
+.one-mode-switch[data-one-mode-switch="chat"] .one-mode-switch-thumb {
+  translate: 100% 0;
+}
+
+/* The thumb flattens a little under the finger, like pressing a gel button. */
+.one-mode-switch:active .one-mode-switch-thumb {
+  scale: 0.94 0.9;
+}
+
+.one-mode-switch-option {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  outline: none;
+  transition: color 180ms ease-out;
+}
+
+.one-mode-switch-option[aria-checked="true"] {
+  color: var(--foreground);
+}
+
+.one-mode-switch-option:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+@media (hover: hover) {
+  .one-mode-switch-option:hover {
+    color: var(--foreground);
+  }
+}
+
+@media (max-width: 640px) {
+  .one-mode-switch-label {
+    display: none;
+  }
+
+  .one-mode-switch-option {
+    padding: 0 0.5rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .one-mode-switch {
+    height: 2.25rem;
+  }
+
+  .one-mode-switch-option {
+    min-width: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-mode-switch-thumb {
+    transition: none;
+  }
+}
+
+/* -------------------------------------------------------------- chat mode */
+
+/* Chat mode keeps the same thread and the same composer. It removes the
+   coding chrome and sets the conversation in a reading measure. */
+html[data-one-mode="chat"] {
+  --chat-content-max-width: 43rem;
+}
+
+html[data-one-mode="chat"] [data-thread-details-panel],
+html[data-one-mode="chat"] [data-panel-layout-controls] > :not(.one-mode-switch, .one-voice-entry) {
+  display: none;
+}
+
+html[data-one-mode="chat"] .chat-markdown {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+html[data-one-mode-transition]::view-transition-old(root),
+html[data-one-mode-transition]::view-transition-new(root) {
+  animation-duration: 280ms;
+  animation-timing-function: var(--one-ease-out);
+}
+
+/* Chat mode composer: a rounder, lifted bar, closer to a message field than an editor. */
+html[data-one-mode="chat"] [data-slot="composer-shell"],
+html[data-one-mode="chat"] [data-slot="composer-shell"]::before,
+html[data-one-mode="chat"] [data-slot="composer-host"],
+html[data-one-mode="chat"] [data-slot="composer-host"]::before,
+html[data-one-mode="chat"] [data-chat-composer-main-surface] {
+  border-radius: 1.625rem;
+}
+
+/* A slow wash of the brand color behind the conversation. It is two fixed
+   gradients on one composited layer, so it costs no layout and no blur. */
+html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      42rem 28rem at 28% 0%,
+      color-mix(in oklch, var(--one-brand) 13%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      36rem 26rem at 82% 12%,
+      color-mix(in oklch, var(--one-ring-hi) 9%, transparent),
+      transparent 72%
+    );
+  background-size: 120% 120%;
+  background-repeat: no-repeat;
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
+    animation: one-chat-wash 26s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes one-chat-wash {
+  from {
+    background-position:
+      0% 0%,
+      100% 0%;
+  }
+  to {
+    background-position:
+      60% 20%,
+      30% 30%;
+  }
+}
+
+/* ----------------------------------------------------------- chat welcome */
+
+.one-chat-welcome {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 40rem;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 1rem;
+  text-align: center;
+}
+
+.one-chat-welcome-orb {
+  width: clamp(9rem, 26vh, 13rem);
+}
+
+.one-chat-welcome-title {
+  margin-top: 0.25rem;
+  font-size: clamp(1.625rem, 1.2rem + 1.4vw, 2.125rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+.one-chat-welcome-lead {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+}
+
+.one-chat-starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-chat-welcome > * {
+    animation: one-rise 520ms var(--one-ease-out) both;
+  }
+
+  .one-chat-welcome > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .one-chat-welcome > :nth-child(3) {
+    animation-delay: 110ms;
+  }
+
+  .one-chat-welcome > :nth-child(4) {
+    animation-delay: 160ms;
+  }
+}
+
+@keyframes one-rise {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
+/* ------------------------------------------------------------------ chips */
+
+.one-chip {
+  position: relative;
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  background-color: color-mix(in srgb, var(--popover) var(--glass-opacity), transparent);
+  background-image: var(--one-glass-sheen);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 9%, transparent),
+    0 1px 2px rgb(0 0 0 / 6%);
+  cursor: pointer;
+  outline: none;
+  transition:
+    scale 420ms var(--one-ease-spring),
+    box-shadow 200ms ease-out,
+    background-color 200ms ease-out;
+}
+
+.one-chip svg {
+  color: var(--muted-foreground);
+  transition: color 200ms ease-out;
+}
+
+.one-chip[data-tone="brand"] svg {
+  color: var(--one-ring-mid);
+}
+
+@media (hover: hover) {
+  .one-chip:hover {
+    background-color: color-mix(in srgb, var(--popover) 96%, transparent);
+    box-shadow:
+      inset 0 1px 0 0 var(--one-glass-rim-top),
+      inset 0 0 0 1px color-mix(in srgb, var(--foreground) 14%, transparent),
+      0 6px 16px -8px rgb(0 0 0 / 28%);
+  }
+
+  .one-chip:hover svg {
+    color: var(--foreground);
+  }
+
+  .one-chip[data-tone="brand"]:hover svg {
+    color: var(--one-ring-mid);
+  }
+}
+
+.one-chip:active {
+  scale: 0.96;
+  transition-duration: 70ms;
+  transition-timing-function: ease-out;
+}
+
+.one-chip:focus-visible {
+  box-shadow:
+    inset 0 0 0 2px var(--ring),
+    0 1px 2px rgb(0 0 0 / 6%);
+}
+
+@media (pointer: coarse) {
+  .one-chip {
+    min-height: 2.75rem;
+  }
+}
+
+/* ------------------------------------------------------------ voice stage */
+
+.one-voice-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(28px) saturate(1.2);
+}
+
+.one-voice-stage-body {
+  display: flex;
+  width: 100%;
+  max-width: 36rem;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.one-voice-orb-button {
+  width: clamp(11rem, 38vh, 18rem);
+  flex-shrink: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+  transition: scale 480ms var(--one-ease-spring);
+}
+
+.one-voice-orb-button[aria-disabled="true"] {
+  cursor: default;
+}
+
+.one-voice-orb-button:not([aria-disabled="true"]):active {
+  scale: 0.95;
+  transition: scale 70ms ease-out;
+}
+
+.one-voice-orb-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.one-voice-status {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.one-voice-caption {
+  width: 100%;
+  min-height: 4.5rem;
+  max-height: min(34vh, 16rem);
+  margin-top: 0.75rem;
+  overflow-y: auto;
+  font-size: clamp(1.0625rem, 0.95rem + 0.5vw, 1.3125rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  text-wrap: pretty;
+  white-space: pre-line;
+}
+
+.one-voice-caption[data-kind="heard"] {
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+
+.one-voice-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-voice-stage {
+    animation: one-stage-in 320ms var(--one-ease-out) both;
+  }
+}
+
+@keyframes one-stage-in {
+  from {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0) saturate(1);
+    backdrop-filter: blur(0) saturate(1);
+  }
+}

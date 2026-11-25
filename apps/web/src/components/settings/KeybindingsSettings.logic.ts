@@ -487,6 +487,7 @@ const COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "theme.select": msg("Theme: Select"),
   "appearance.cycle": msg("Appearance: Cycle"),
   "themeEditor.toggle": msg("Theme Editor: Toggle"),
+  "workspaceMode.toggle": msg("Workspace: Switch between Code and Chat"),
   "composer.stash": msg("Composer: Stash"),
   "composer.host": msg("Composer: Host"),
   "composer.cycleHost": msg("Composer: Cycle Host"),

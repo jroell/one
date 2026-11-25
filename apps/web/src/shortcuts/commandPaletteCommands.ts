@@ -16,6 +16,7 @@ import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { type CommandHandler, type CommandScopeOptions, registerCommands } from "./dispatcher";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
+import { toggleWorkspaceMode } from "../one/workspaceMode";
 
 function consume(event: KeyboardEvent): void {
   event.preventDefault();
@@ -84,6 +85,11 @@ export function installCommandPaletteCommands(
           ),
           timeout: 1500,
         });
+      },
+      "workspaceMode.toggle": (event) => {
+        consume(event);
+        if (event.repeat) return;
+        toggleWorkspaceMode();
       },
       "theme.select": (event) => {
         consume(event);

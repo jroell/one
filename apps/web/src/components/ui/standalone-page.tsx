@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { T3AppIcon } from "../T3AppIcon";
+import { OneMark } from "../../one/OneMark";
 
 export function StandalonePage({ children }: { readonly children: ReactNode }) {
   return (
@@ -25,7 +25,7 @@ export function StandalonePageHeader({
       <div className="flex items-baseline justify-between gap-3 text-muted-foreground">
         {/* oxlint-disable-next-line t3code/no-untranslated-copy -- product name */}
         <span className="flex items-center gap-2" role="img" aria-label="One">
-          <T3AppIcon className="size-5 shrink-0 rounded-sm" />
+          <OneMark className="size-6" />
           {/* oxlint-disable-next-line t3code/no-untranslated-copy -- product wordmark */}
           <span className="text-lg font-semibold tracking-tight text-foreground">One</span>
         </span>

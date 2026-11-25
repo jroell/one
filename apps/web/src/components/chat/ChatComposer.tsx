@@ -149,6 +149,7 @@ import {
 import { attachmentUploadBlockReason } from "../../lib/attachmentUploadState";
 import { useDictationShortcut } from "../../speech/useDictationShortcut";
 import { useDictationSubmissionShortcut } from "../../speech/useDictationSubmissionShortcut";
+import { publishVoiceBridge, retractVoiceBridge } from "~/one/voiceBridge";
 import { useEnvironmentSpeechInput } from "../../speech/useEnvironmentSpeechInput";
 import { ComposerSpeechButton, ComposerSpeechRecordingPill } from "./ComposerSpeechButton";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
@@ -1967,6 +1968,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isComposerApprovalState ||
     activePendingIsResponding ||
     activePendingProgress?.activeQuestion?.allowCustomAnswer === false;
+  const voiceBridgeOwner = useId();
   const speechInput = useEnvironmentSpeechInput({
     environmentId,
     projectId: activeProjectId,
@@ -2440,6 +2442,30 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current = (mode, intent, options) =>
       submitComposerStable(undefined, mode, intent, options);
   }, [submitComposerStable]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes this composer's dictation controls to voice chat, which lives outside the composer tree
+  useEffect(() => {
+    if (hiddenThread) return;
+    publishVoiceBridge(
+      voiceBridgeOwner,
+      {
+        available: speechInput.available,
+        phase: speechInput.state.phase,
+        error: speechInput.state.error,
+        heard: speechInput.preview
+          ? `${speechInput.preview.committed}${speechInput.preview.tentative}`
+          : "",
+        start: () => void speechInput.start(),
+        submit: () => void submitComposerRef.current(),
+        cancel: () => speechInput.cancel(),
+      },
+      speechInput.level,
+    );
+  });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- withdraws the controls when this composer unmounts or is hidden
+  useEffect(() => {
+    if (hiddenThread) return;
+    return () => retractVoiceBridge(voiceBridgeOwner);
+  }, [hiddenThread, voiceBridgeOwner]);
   useDictationSubmissionShortcut({
     enabled: voiceInputActive && !speechInput.preparing,
     formRef: composerFormRef,

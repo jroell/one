@@ -11,9 +11,13 @@ import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
 import { whenLocaleReady } from "./i18n/runtime";
 import { chunkLoadState } from "./lib/chunkReloadGuard";
+import { installOneReflections } from "./one/reflections";
 
 const stopTrackingKeyboardLayout = trackKeyboardLayout();
 import.meta.hot?.dispose(stopTrackingKeyboardLayout);
+
+const stopOneReflections = installOneReflections();
+import.meta.hot?.dispose(stopOneReflections);
 
 const router = startAppServices();
 
