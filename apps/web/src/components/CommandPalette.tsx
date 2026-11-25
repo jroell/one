@@ -51,6 +51,8 @@ import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
   AuthFilesystemReadScope,
+  type KeybindingCommand,
+  STATIC_KEYBINDING_COMMANDS,
   type DesktopWslState,
   type EnvironmentId,
   type FilesystemBrowseResult,
@@ -70,6 +72,7 @@ import {
   FolderGit2Icon,
   FolderIcon,
   FolderPlusIcon,
+  KeyboardIcon,
   MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
@@ -273,11 +276,29 @@ import { canShareWithGuestAtom } from "./chat/guestShareAvailability";
 import { openGuestShareDialog } from "./chat/guestShareDialogState";
 import { openUseInAnotherApp } from "./mcp/UseInAnotherAppDialog";
 import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog";
-import { settingsForThisPlatform, SETTINGS_SECTION_LABELS } from "./settings/settingsSearch";
+import {
+  keybindingSearchAnchorId,
+  settingsForThisPlatform,
+  SETTINGS_SECTION_LABELS,
+} from "./settings/settingsSearch";
+import { commandLabel } from "./settings/KeybindingsSettings.logic";
+import { ShortcutsDialogHost } from "./shortcuts/ShortcutsDialog";
+import {
+  canRunFromPalette,
+  commandOfKeybindingSearchRow,
+} from "./commandPalette/keybindingCommands";
+import {
+  buildKeyboardShortcutsItem,
+  buildKeybindingCommandItems,
+  buildThreadCommandItems,
+} from "./commandPalette/paletteCommandItems";
+import { runKeybindingCommand } from "../shortcuts/runCommand";
+import { useThreadActionRunner } from "../hooks/useThreadActionMenu";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { resolveShortcutCommand, threadJumpIndexFromCommand } from "../keybindings";
 import { CommandDialog, CommandDialogPopup, CommandFooterAction } from "./ui/command";
 import { Button } from "./ui/button";
+import { Kbd, KbdGroup } from "./ui/kbd";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { suggestAppAccessForRemote } from "./sourceControlAppAccessToast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -367,6 +388,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
           initialContext={state.restoredSearch}
         />
       </CommandDialog>
+      <ShortcutsDialogHost />
     </ComposerHandleContext>
   );
 }
@@ -768,6 +790,13 @@ function OpenCommandPaletteDialog(props: {
     currentProjectId,
   );
   const currentProjectCwd = currentProject?.workspaceRoot ?? null;
+  const hasOpenChat = paletteRouteTarget !== null;
+  // The breadcrumb menu's own actions; rename and find stay with the header and the find row above.
+  const threadActions = useThreadActionRunner({
+    threadRef: activeThread ? scopeThreadRef(activeThread.environmentId, activeThread.id) : null,
+    projectCwd: currentProjectCwd,
+    canShareWithGuest: false,
+  });
   const currentProjectCwdForBrowse =
     browseEnvironmentId && currentProjectEnvironmentId === browseEnvironmentId
       ? currentProjectCwd
@@ -1630,6 +1659,7 @@ function OpenCommandPaletteDialog(props: {
       value: "action:new-project",
       searchTerms: ["new project", "create project", "empty", "repository", "repo", "git init"],
       title: gt("New project"),
+      description: gt("Start a new Git repository from a name"),
       icon: <FolderGit2Icon className={ITEM_ICON_CLASS} />,
       keepOpen: true,
       run: async () => {
@@ -1661,6 +1691,7 @@ function OpenCommandPaletteDialog(props: {
       "environment",
     ],
     title: gt("Add project"),
+    description: gt("Open a folder or clone a repository"),
     icon: <FolderPlusIcon className={ITEM_ICON_CLASS} />,
     keepOpen: true,
     run: async () => {
@@ -1683,6 +1714,20 @@ function OpenCommandPaletteDialog(props: {
       },
     });
   }
+
+  if (activeThread) {
+    actionItems.push(
+      ...buildThreadCommandItems({
+        menu: threadActions.buildMenu(activeThread, messages).items,
+        run: (action) => threadActions.runAction(action),
+        resolve: messages,
+      }),
+    );
+  }
+  actionItems.push(
+    ...buildKeybindingCommandItems({ keybindings, hasOpenChat, resolve: messages }),
+    buildKeyboardShortcutsItem(messages),
+  );
 
   actionItems.push(changeThemeItem);
   actionItems.push(changeAppearanceItem);
@@ -1873,34 +1918,58 @@ function OpenCommandPaletteDialog(props: {
   }
 
   const rootGroups = buildRootGroups({ actionItems, recentThreadItems }, messages);
+  // A command with its own row is not listed again as a keybinding setting.
+  const commandsWithRows = new Set(
+    actionItems.flatMap((item) => (item.shortcutCommand ? [item.shortcutCommand] : [])),
+  );
+  const openKeybindingSetting = (command: KeybindingCommand) =>
+    navigate({
+      to: "/settings/keybindings",
+      hash: keybindingSearchAnchorId(command),
+      replace: pathname === "/settings/keybindings",
+      hashScrollIntoView: false,
+    });
   // Every setting goes to the palette's own matcher, so settings get the same
-  // word starts and typo tolerance as threads.
+  // word starts and typo tolerance as threads. A keybinding runs its command when it can.
   const settingsSearchItems: CommandPaletteActionItem[] = settingsForThisPlatform(
     availableSettingsSearchItems,
-  ).map((item) => ({
-    kind: "action",
-    value: `setting:${item.id}`,
-    // Matches the English and the displayed language, like the settings search.
-    searchTerms: [
-      item.title,
-      SETTINGS_SECTION_LABELS[item.to],
-      ...(item.searchTerms ?? []),
-    ].flatMap((term) => [messages(term), decodeMsg(term)]),
-    title: messages(item.title),
-    description: gt("Settings · {section}", {
-      section: messages(SETTINGS_SECTION_LABELS[item.to]),
-    }),
-    ...(item.secondary ? { secondary: true } : {}),
-    icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
-    run: async () => {
-      await navigate({
-        to: item.to,
-        hash: item.targetId ?? item.id,
-        replace: pathname === item.to,
-        hashScrollIntoView: false,
-      });
-    },
-  }));
+  ).flatMap((item): CommandPaletteActionItem[] => {
+    const command = commandOfKeybindingSearchRow(item.id, STATIC_KEYBINDING_COMMANDS);
+    if (command !== null && commandsWithRows.has(command)) return [];
+    const runnable = command !== null && canRunFromPalette(command, keybindings, hasOpenChat);
+    return [
+      {
+        kind: "action",
+        value: `setting:${item.id}`,
+        // Matches the English and the displayed language, like the settings search.
+        searchTerms: [
+          item.title,
+          SETTINGS_SECTION_LABELS[item.to],
+          ...(item.searchTerms ?? []),
+        ].flatMap((term) => [messages(term), decodeMsg(term)]),
+        title: messages(item.title),
+        description: runnable
+          ? gt("Runs this command")
+          : gt("Settings · {section}", {
+              section: messages(SETTINGS_SECTION_LABELS[item.to]),
+            }),
+        ...(item.secondary ? { secondary: true } : {}),
+        ...(command !== null ? { shortcutCommand: command } : {}),
+        icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
+        run:
+          runnable && command !== null
+            ? () => runKeybindingCommand(command, commandLabel(command, messages))
+            : async () => {
+                await navigate({
+                  to: item.to,
+                  hash: item.targetId ?? item.id,
+                  replace: pathname === item.to,
+                  hashScrollIntoView: false,
+                });
+              },
+      },
+    ];
+  });
   const sourceSelectionViewValue =
     addProjectEnvironmentId === null ? null : `sources:${addProjectEnvironmentId}`;
   const activeGroups =
@@ -2603,9 +2672,50 @@ function OpenCommandPaletteDialog(props: {
   } else if (isBrowsing) {
     displayedGroups = relativePathNeedsActiveProject ? [] : browseGroups;
   }
+  const isRootSearchWithoutMatches =
+    displayedGroups.length === 0 &&
+    deferredQuery.trim().length > 0 &&
+    currentView === null &&
+    !isActionsOnly &&
+    !isBrowsing &&
+    !isRemoteProjectCloneFlow &&
+    newProjectFlow === null &&
+    !isThreadSearchPending;
+  if (isRootSearchWithoutMatches) {
+    // Keep the empty message as the heading and offer where shortcuts can be found.
+    displayedGroups = [
+      {
+        value: "no-matches",
+        label: gt("No matching commands, projects, or threads."),
+        items: [
+          {
+            kind: "action",
+            value: "action:open-keybindings",
+            searchTerms: [],
+            title: gt("Open keybindings"),
+            icon: <KeyboardIcon className={ITEM_ICON_CLASS} />,
+            run: async () => {
+              await navigate({
+                to: "/settings/keybindings",
+                replace: pathname === "/settings/keybindings",
+              });
+            },
+          },
+        ],
+      },
+    ];
+  }
   const resultRows = buildCommandPaletteRows(displayedGroups);
   const autoHighlightsFirstRow =
     !isBrowsing && !isRemoteProjectCloneFlow && newProjectFlow === null;
+  // Shift+Enter opens the shortcut's setting for the row Enter would run.
+  const highlightedShortcutCommand = (() => {
+    const command = findHighlightedCommandPaletteItem(
+      displayedGroups,
+      highlightedItemValue ?? (autoHighlightsFirstRow ? (resultRows.itemValues[0] ?? null) : null),
+    )?.shortcutCommand;
+    return command !== undefined && threadJumpIndexFromCommand(command) === null ? command : null;
+  })();
 
   const inputPlaceholder =
     newProjectFlow !== null
@@ -2696,6 +2806,20 @@ function OpenCommandPaletteDialog(props: {
     if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) {
       // Confirming an IME candidate must not submit a path or select a row.
       (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
+      return;
+    }
+
+    if (
+      event.key === "Enter" &&
+      event.shiftKey &&
+      !event.nativeEvent.isComposing &&
+      highlightedShortcutCommand !== null
+    ) {
+      (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      void openKeybindingSetting(highlightedShortcutCommand);
       return;
     }
 
@@ -3098,6 +3222,14 @@ function OpenCommandPaletteDialog(props: {
     >
       {gt("Open in {app}", { app: fileManagerName })}
     </CommandFooterAction>
+  ) : highlightedShortcutCommand !== null && !isBrowsing ? (
+    <KbdGroup>
+      <Kbd>Shift</Kbd>
+      <Kbd>Enter</Kbd>
+      <span>
+        <T>Edit shortcut</T>
+      </span>
+    </KbdGroup>
   ) : isThreadSearchPending && !isLinkedThreadSearch && !isBrowsing ? (
     // In the footer, so the list keeps its height while message results may
     // still arrive below it.

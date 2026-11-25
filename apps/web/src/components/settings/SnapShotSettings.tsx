@@ -365,7 +365,7 @@ export function SnapShotSettings() {
 
   return (
     <SettingsPageContainer>
-      <SettingsSection id="snap-shot" title={gt("SnapShots")}>
+      <SettingsSection id="snap-shot" title={gt("SnapShots")} hideTitle>
         <SettingsUnavailableGroup message={unavailableMessage}>
           <SettingsRow
             {...setting("snap-shot-enabled")}

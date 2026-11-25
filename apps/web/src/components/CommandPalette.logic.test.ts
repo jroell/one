@@ -4,6 +4,7 @@ import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools
 import type { Thread } from "../types";
 import { makeThreadFixture } from "../test-fixtures";
 import {
+  buildRootGroups,
   newThreadNoProjectIndex,
   buildNestedSearchItems,
   resolveCommandPaletteProject,
@@ -985,5 +986,51 @@ describe("newThreadNoProjectIndex", () => {
   it("keeps a pinned or current scratch project in its own place", () => {
     expect(newThreadNoProjectIndex([entry(false, true, true), entry()])).toBe(0);
     expect(newThreadNoProjectIndex([entry(true), entry(true, false, true), entry()])).toBe(1);
+  });
+});
+
+describe("buildRootGroups", () => {
+  const action = (value: string, title: string, section?: "thread" | "view" | "git") => ({
+    kind: "action" as const,
+    value,
+    searchTerms: [title],
+    title,
+    icon: null,
+    ...(section ? { section } : {}),
+    run: async () => undefined,
+  });
+  const recent = [action("thread:env:1", "Fix the build")];
+  const actions = [
+    action("action:usage", "Open usage"),
+    action("command:diff.toggle", "Toggle diff panel", "view"),
+    action("action:new-thread", "New thread in t3code"),
+    action("command:composer.branch", "Switch branch", "git"),
+  ];
+
+  it("lists recent threads first, then actions under their headings in a fixed order", () => {
+    const groups = buildRootGroups({ actionItems: actions, recentThreadItems: recent });
+
+    expect(groups.map((group) => [group.label, group.items.map((item) => item.title)])).toEqual([
+      ["Recent Threads", ["Fix the build"]],
+      ["Thread", ["New thread in t3code"]],
+      ["View", ["Toggle diff panel"]],
+      ["Git", ["Switch branch"]],
+      ["Navigate", ["Open usage"]],
+    ]);
+  });
+
+  it("keeps every action heading when the list is narrowed to actions with >", () => {
+    const rootGroups = buildRootGroups({ actionItems: actions, recentThreadItems: recent });
+    const labels = (query: string) =>
+      filterCommandPaletteGroups({
+        activeGroups: rootGroups,
+        query,
+        isInSubmenu: false,
+        projectSearchItems: [],
+        threadSearchItems: [],
+      }).map((group) => group.label);
+
+    expect(labels(">")).toEqual(["Thread", "View", "Git", "Navigate"]);
+    expect(labels(">diff")).toEqual(["View"]);
   });
 });

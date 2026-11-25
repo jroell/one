@@ -260,6 +260,8 @@ import {
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
+import { SidebarSearchEmpty } from "./sidebar/SidebarSearchEmpty";
+import { destructiveConfirm } from "../confirmDialog";
 import { TooltipProvider } from "./ui/tooltip";
 import {
   composerDraftHasUserContent,
@@ -289,6 +291,7 @@ import {
   SidebarSectionHeader,
   SidebarSectionPlaceholder,
 } from "./sidebar/SidebarListMarkers";
+import { readShortcutLabel } from "../shortcuts/shortcutLabels";
 
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
@@ -2570,7 +2573,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               }),
               gt("This permanently clears conversation history for these threads."),
             ].join("\n"),
-            { variant: "destructive" },
+            destructiveConfirm(
+              gt("{count, plural, one {Delete thread} other {Delete threads}}", { count }),
+            ),
           ),
         );
         if (confirmed._tag === "Failure" || !confirmed.value) return;
@@ -2718,43 +2723,48 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ) ?? null;
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
-            buildThreadActionMenuItems({
-              canOperate: readEnvironmentScope(
-                threadRef.environmentId,
-                AuthOrchestrationOperateScope,
-              ),
-              canTriage: threadTriagePermitted(threadRef.environmentId),
-              branch: thread.branch ?? null,
-              // An archived project is not a filter choice.
-              projectFilter:
-                threadProjectGroup && !threadProjectGroup.archived
-                  ? {
-                      label: threadProjectGroup.displayName,
-                      isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
-                    }
-                  : null,
-              isPinned,
-              isSettled,
-              autoSettleEnabled: thread.autoSettleDisabledAt == null,
-              isSnoozed,
-              canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
-              isRegeneratingTitle,
-              isRunning: !threadRuntimeCanArchive(thread.runtime),
-              hasCompletedRun: thread.latestRun?.completedAt != null,
-              canShareWithGuest: appAtomRegistry.get(
-                canShareWithGuestAtom(threadRef.environmentId),
-              ),
-              canTurnIntoProject: canTurnThreadIntoProject(threadRef),
-              canRename: !fromSearch,
-              supports: {
-                settlement: configLoaded,
-                autoSettleOptOut: supportsAutoSettleOptOut,
-                snooze: configLoaded,
-                pinning: configLoaded,
-                titleRegeneration: configLoaded,
+            buildThreadActionMenuItems(
+              {
+                canOperate: readEnvironmentScope(
+                  threadRef.environmentId,
+                  AuthOrchestrationOperateScope,
+                ),
+                canTriage: threadTriagePermitted(threadRef.environmentId),
+                branch: thread.branch ?? null,
+                // An archived project is not a filter choice.
+                projectFilter:
+                  threadProjectGroup && !threadProjectGroup.archived
+                    ? {
+                        label: threadProjectGroup.displayName,
+                        isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
+                      }
+                    : null,
+                isPinned,
+                isSettled,
+                autoSettleEnabled: thread.autoSettleDisabledAt == null,
+                isSnoozed,
+                canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
+                isRegeneratingTitle,
+                isRunning: !threadRuntimeCanArchive(thread.runtime),
+                hasCompletedRun: thread.latestRun?.completedAt != null,
+                canShareWithGuest: appAtomRegistry.get(
+                  canShareWithGuestAtom(threadRef.environmentId),
+                ),
+                canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+                canRename: !fromSearch,
+                supports: {
+                  settlement: configLoaded,
+                  autoSettleOptOut: supportsAutoSettleOptOut,
+                  snooze: configLoaded,
+                  pinning: configLoaded,
+                  titleRegeneration: configLoaded,
+                },
+                snoozePresets,
               },
-              snoozePresets,
-            }),
+              undefined,
+              // The keys act on the open thread, so only its menu shows them.
+              threadKey === routeThreadKey ? readShortcutLabel : undefined,
+            ),
             position,
             source,
           ),
@@ -2951,7 +2961,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     gt('Delete thread "{title}"?', { title: thread.title }),
                     gt("This permanently clears conversation history for this thread."),
                   ].join("\n"),
-                  { variant: "destructive" },
+                  destructiveConfirm(gt("Delete thread")),
                 ),
               );
               if (confirmed._tag === "Failure" || !confirmed.value) return;
@@ -3412,16 +3422,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 </DndContext>
               </TooltipProvider>
             ) : (
-              <p
-                role="status"
-                className="px-2 py-6 text-center text-xs text-sidebar-muted-foreground"
-              >
-                {threadSearch.isPending
-                  ? gt("Searching thread messages…")
-                  : threadSearch.failed
-                    ? gt("Couldn't search thread messages")
-                    : gt("No threads found")}
-              </p>
+              <SidebarSearchEmpty
+                status={
+                  threadSearch.isPending ? "pending" : threadSearch.failed ? "failed" : "empty"
+                }
+                onClear={() => {
+                  clearThreadSearch();
+                  threadSearchInputRef.current?.focus();
+                }}
+              />
             )
           ) : null}
           {/* A scope can hide every active thread; say so even when its project still has settled ones. */}

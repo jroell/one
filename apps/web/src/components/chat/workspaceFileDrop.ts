@@ -1,14 +1,17 @@
+interface WorkspaceFileTransfer {
+  readonly types: ReadonlyArray<string>;
+  readonly files: Iterable<File>;
+  readonly items?: Iterable<{
+    readonly kind: string;
+    getAsFile(): File | null;
+    webkitGetAsEntry(): { readonly isDirectory: boolean } | null;
+  }>;
+  dropEffect: string;
+}
+
 interface WorkspaceFileDragEvent {
-  readonly dataTransfer: {
-    readonly types: ReadonlyArray<string>;
-    readonly files: Iterable<File>;
-    readonly items?: Iterable<{
-      readonly kind: string;
-      getAsFile(): File | null;
-      webkitGetAsEntry(): { readonly isDirectory: boolean } | null;
-    }>;
-    dropEffect: string;
-  };
+  /** A dragleave can carry no transfer, although React types it as always present. */
+  readonly dataTransfer: WorkspaceFileTransfer | null;
   readonly relatedTarget: EventTarget | null;
   readonly currentTarget: {
     contains(target: Node | null): boolean;
@@ -22,8 +25,8 @@ interface WorkspaceFileDropHost {
   addFolders(folders: File[]): void;
 }
 
-function isFileDrag(event: WorkspaceFileDragEvent): boolean {
-  return event.dataTransfer.types.includes("Files");
+function fileTransferOf(event: WorkspaceFileDragEvent): WorkspaceFileTransfer | null {
+  return event.dataTransfer?.types.includes("Files") === true ? event.dataTransfer : null;
 }
 
 function movedWithinDropTarget(event: WorkspaceFileDragEvent): boolean {
@@ -31,7 +34,7 @@ function movedWithinDropTarget(event: WorkspaceFileDragEvent): boolean {
 }
 
 export function splitTransferredFiles(
-  dataTransfer: Pick<WorkspaceFileDragEvent["dataTransfer"], "files" | "items">,
+  dataTransfer: Pick<WorkspaceFileTransfer, "files" | "items">,
 ): {
   files: File[];
   folders: File[];
@@ -57,28 +60,30 @@ export function splitTransferredFiles(
 export function makeWorkspaceFileDropHandlers(host: WorkspaceFileDropHost) {
   return {
     onDragEnter(event: WorkspaceFileDragEvent) {
-      if (!isFileDrag(event)) return;
+      if (fileTransferOf(event) === null) return;
       event.preventDefault();
       if (movedWithinDropTarget(event)) return;
       host.setDragActive(true);
     },
     onDragOver(event: WorkspaceFileDragEvent) {
-      if (!isFileDrag(event)) return;
+      const transfer = fileTransferOf(event);
+      if (transfer === null) return;
       event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
+      transfer.dropEffect = "copy";
       host.setDragActive(true);
     },
     onDragLeave(event: WorkspaceFileDragEvent) {
-      if (!isFileDrag(event)) return;
+      if (fileTransferOf(event) === null) return;
       event.preventDefault();
       if (movedWithinDropTarget(event)) return;
       host.setDragActive(false);
     },
     onDrop(event: WorkspaceFileDragEvent) {
-      if (!isFileDrag(event)) return;
+      const transfer = fileTransferOf(event);
+      if (transfer === null) return;
       event.preventDefault();
       host.setDragActive(false);
-      const { files, folders } = splitTransferredFiles(event.dataTransfer);
+      const { files, folders } = splitTransferredFiles(transfer);
       if (files.length > 0) host.addFiles(files);
       if (folders.length > 0) host.addFolders(folders);
     },

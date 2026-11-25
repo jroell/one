@@ -6,7 +6,7 @@ import {
 import { msg, useGT, useMessages } from "gt-react";
 import { memo } from "react";
 import { EllipsisIcon, TriangleAlertIcon } from "lucide-react";
-import { Button, InlineButton } from "../ui/button";
+import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
@@ -27,13 +27,13 @@ interface ComposerPendingApprovalActionsProps {
 const DEFAULT_APPROVAL_OPTIONS = [
   {
     decision: "cancel",
-    label: msg("Cancel", { $context: "verb, response to an approval request" }),
+    label: msg("Cancel the turn", { $context: "verb, response to an approval request" }),
   },
   {
     decision: "decline",
     label: msg("Decline", { $context: "verb, response to an approval request" }),
   },
-  { decision: "acceptForSession", label: msg("Always allow this session") },
+  { decision: "acceptForSession", label: msg("Allow for the rest of this session") },
   {
     decision: "accept",
     label: msg("Approve", { $context: "verb, response to an approval request" }),
@@ -80,25 +80,16 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
             </span>
           </>
         );
-        const button =
-          presentation === "inline" ? (
-            <InlineButton
-              key={option.decision}
-              {...buttonProps}
-              tone={option.decision === "accept" ? "default" : "muted"}
-            >
-              {content}
-            </InlineButton>
-          ) : (
-            <Button
-              key={option.decision}
-              {...buttonProps}
-              size="xs"
-              variant={option.decision === "accept" ? "default" : "outline"}
-            >
-              {content}
-            </Button>
-          );
+        const button = (
+          <Button
+            key={option.decision}
+            {...buttonProps}
+            size={presentation === "inline" ? "sm-multiline" : "xs"}
+            variant={option.decision === "accept" ? "default" : "outline"}
+          >
+            {content}
+          </Button>
+        );
         return option.warning ? (
           <Tooltip key={option.decision}>
             <TooltipTrigger render={button} />
@@ -114,7 +105,11 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
             disabled={disabled || isResponding || !canRespond}
             render={
               presentation === "inline" ? (
-                <InlineButton tone="muted" aria-label={gt("More approval options")} />
+                <Button
+                  size="sm-multiline"
+                  variant="ghost-muted"
+                  aria-label={gt("More approval options")}
+                />
               ) : (
                 <Button size="icon-xs" variant="outline" aria-label={gt("More approval options")} />
               )

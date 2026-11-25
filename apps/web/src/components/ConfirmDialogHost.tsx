@@ -67,6 +67,7 @@ export function ConfirmDialogHost() {
   const copy = resolveConfirmDialogCopy(state.status === "idle" ? "" : state.message, m);
   const confirmVariant = state.status === "idle" ? "default" : state.variant;
   const focusConfirm = state.status !== "idle" && state.initialFocus === "confirm";
+  const confirmLabel = state.status === "idle" ? undefined : state.confirmLabel;
   const onCancel = () => respondToConfirmDialog(false);
   const onConfirm = () => respondToConfirmDialog(true);
 
@@ -95,11 +96,11 @@ export function ConfirmDialogHost() {
           </AlertDialogClose>
           {focusConfirm && confirmVariant === "default" ? (
             <AlertDialogAction onClick={onConfirm}>
-              <T>Confirm</T>
+              {confirmLabel ?? <T>Confirm</T>}
             </AlertDialogAction>
           ) : (
             <Button variant={confirmVariant} onClick={onConfirm}>
-              <T>Confirm</T>
+              {confirmLabel ?? <T>Confirm</T>}
             </Button>
           )}
         </AlertDialogFooter>

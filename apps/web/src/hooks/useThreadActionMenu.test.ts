@@ -70,6 +70,9 @@ vi.mock("../state/use-atom-command", () => ({
     return AsyncResult.success(undefined);
   },
 }));
+vi.mock("../shortcuts/shortcutLabels", () => ({
+  readShortcutLabel: (command: string) => (command === "chat.find" ? "Ctrl+F" : null),
+}));
 vi.mock("../localApi", () => ({
   readLocalApi: () => ({
     contextMenu: { show: state.show, close: () => {} },
@@ -143,7 +146,7 @@ vi.mock("./useThreadActions", () => ({
     ),
 }));
 
-import { useThreadActionMenu } from "./useThreadActionMenu";
+import { useThreadActionMenu, useThreadActionRunner } from "./useThreadActionMenu";
 
 const target = {
   environmentId: EnvironmentId.make("secondary"),
@@ -189,9 +192,28 @@ describe("thread menu permissions", () => {
     createMenu({ onFind }).openMenu(position);
     await state.completed.promise;
     const items = state.show.mock.calls[1]![0];
-    expect(items[0]).toMatchObject({ id: "find", label: "Find in thread" });
+    expect(items[0]).toMatchObject({ id: "find", label: "Find in thread", detail: "Ctrl+F" });
     expect(items[0]?.disabled).not.toBe(true);
     expect(state.effects).toEqual(["find"]);
     expect(onFind).toHaveBeenCalledExactlyOnceWith(target);
+  });
+});
+
+describe("thread actions run without the menu", () => {
+  it("pins for the command palette only while the connection can operate", async () => {
+    const runner = () =>
+      useThreadActionRunner({
+        threadRef: target,
+        projectCwd: "/project",
+        canShareWithGuest: false,
+      });
+
+    await runner().runAction("pin");
+    expect(state.effects).toEqual([]);
+
+    state.granted.add("secondary");
+    await runner().runAction("pin");
+    expect(state.effects).toEqual(["pinThread"]);
+    expect(state.show).not.toHaveBeenCalled();
   });
 });

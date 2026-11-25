@@ -10,12 +10,15 @@ import { LAST_USED_PROJECT_STORAGE_KEY } from "../hooks/useHandleNewThread";
 import { removeLocalStorageItem } from "../hooks/useLocalStorage";
 import { makeThreadFixture } from "../test-fixtures";
 import type { Project, Thread } from "../types";
+import { registerCommands } from "../shortcuts/dispatcher";
+import type { ThreadRouteTarget } from "../threadRoutes";
 import { CommandPalette } from "./CommandPalette";
 
 const entities = vi.hoisted(() => ({
   projects: [] as ReadonlyArray<Project>,
   threads: [] as ReadonlyArray<Thread>,
   activeThread: undefined as Thread | undefined,
+  routeTarget: null as ThreadRouteTarget | null,
   delegatedUnderParent: new Set<string>() as ReadonlySet<string>,
   handleNewThread: vi.fn(async () => undefined),
 }));
@@ -25,12 +28,19 @@ vi.mock("../state/server", async (original) => {
   const { compileResolvedKeybindingsConfig } = await import("@t3tools/shared/keybindings");
   const { THREAD_JUMP_KEYBINDING_COMMANDS } = await import("@t3tools/contracts");
   // The default jump bindings are desktop-only; these hold in the browser too.
-  const jumpBindings = compileResolvedKeybindingsConfig(
-    THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+  const jumpBindings = compileResolvedKeybindingsConfig([
+    ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
       key: `mod+${index + 1}`,
       command,
     })),
-  );
+    { key: "mod+alt+9", command: "terminal.toggle" },
+    { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
+    { key: "mod+shift+m", command: "modelPicker.toggle", when: "!terminalFocus" },
+    { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
+    { key: "mod+shift+s", command: "thread.settle", when: "!terminalFocus" },
+    { key: "mod+s", command: "composer.stash", when: "!terminalFocus" },
+    { key: "mod+/", command: "shortcuts.show", when: "!terminalFocus" },
+  ]);
   return { ...actual, primaryServerKeybindingsAtom: Atom.make(jumpBindings) };
 });
 vi.mock("../hooks/useHandleNewThread", async (original) => {
@@ -44,8 +54,17 @@ vi.mock("../hooks/useHandleNewThread", async (original) => {
     }),
   };
 });
+vi.mock("../hooks/useThreadRouteTarget", () => ({
+  useThreadRouteTarget: () => entities.routeTarget,
+  useThreadRouteRef: () => null,
+}));
+vi.mock("../state/session", async (original) => ({
+  ...(await original<typeof import("../state/session")>()),
+  readEnvironmentScope: () => true,
+}));
 vi.mock("../state/entities", async (original) => ({
   ...(await original<typeof import("../state/entities")>()),
+  readEnvironmentServerConfigLoaded: () => true,
   useProjects: () => entities.projects,
   useVisibleThreadShells: () => entities.threads,
   useDelegatedUnderParent: () => entities.delegatedUnderParent,
@@ -59,6 +78,7 @@ function setup(state: Partial<typeof entities> = {}) {
   entities.projects = state.projects ?? [];
   entities.threads = state.threads ?? [];
   entities.activeThread = state.activeThread;
+  entities.routeTarget = state.routeTarget ?? null;
   entities.delegatedUnderParent = state.delegatedUnderParent ?? new Set();
   entities.handleNewThread.mockClear();
 }
@@ -383,5 +403,97 @@ describe("CommandPalette open intents", () => {
 
     await userEvent.keyboard("{Escape}");
     await expect.element(palette).not.toBeInTheDocument();
+  });
+});
+
+describe("CommandPalette commands", () => {
+  function openThread() {
+    const thread = makeThreadFixture({
+      environmentId: EnvironmentId.make("local"),
+      id: ThreadId.make("open-thread"),
+    });
+    return {
+      activeThread: thread,
+      routeTarget: {
+        kind: "server",
+        threadRef: { environmentId: thread.environmentId, threadId: thread.id },
+      } satisfies ThreadRouteTarget,
+    };
+  }
+  const searchInput = () => page.getByPlaceholder("Search commands, projects, and threads...");
+
+  it("finds the panel, thread and branch commands by name, with their live keys", async () => {
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    setup(openThread());
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    openCommandPalette({});
+
+    for (const [query, title, keys] of [
+      ["diff", "Toggle diff panel", "Ctrl+D"],
+      ["term", "Toggle terminal", "Ctrl+Alt+9"],
+      ["model", "Open model picker", "Ctrl+Shift+M"],
+      ["pin", "Pin thread", "Ctrl+Shift+P"],
+      ["settle", "Settle thread", "Ctrl+Shift+S"],
+      ["snooze", "Snooze$", null],
+    ] as const) {
+      await userEvent.fill(searchInput(), query);
+      const row = page.getByRole("option", { name: new RegExp(`^${title}`) });
+      await expect.element(row).toBeVisible();
+      if (keys !== null) await expect.element(row).toMatchTextContent(keys);
+    }
+  });
+
+  it("hides thread commands where no thread is open", async () => {
+    setup();
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    openCommandPalette({});
+
+    await userEvent.fill(searchInput(), "diff");
+    await expect
+      .element(page.getByRole("option", { name: /Toggle diff panel/ }))
+      .not.toBeInTheDocument();
+    await userEvent.fill(searchInput(), "pin thread");
+    await expect.element(page.getByRole("option", { name: /^Pin thread/ })).not.toBeInTheDocument();
+  });
+
+  it("runs a keybinding result's command on Enter", async () => {
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    setup(openThread());
+    const stash = vi.fn((event: KeyboardEvent) => event.preventDefault());
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    using _handlers = new DisposableStack();
+    _handlers.defer(registerCommands({ "composer.stash": stash }));
+    openCommandPalette({ query: "Composer: Stash" });
+
+    const row = page.getByRole("option", { name: /^Composer: Stash/ });
+    await expect.element(row).toMatchTextContent("Runs this command");
+    await userEvent.keyboard("{Enter}");
+
+    await vi.waitFor(() => expect(stash).toHaveBeenCalledOnce());
+  });
+
+  it("sends a keybinding result to its setting when no chat can run it", async () => {
+    setup();
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    openCommandPalette({ query: "Composer: Stash" });
+
+    await expect
+      .element(page.getByRole("option", { name: /^Composer: Stash/ }))
+      .toMatchTextContent("Settings · Keybindings");
+  });
+
+  it("opens the shortcuts sheet from its row with the filter focused, and Escape closes it", async () => {
+    setup(openThread());
+    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
+    openCommandPalette({ query: "keyboard shortcuts" });
+    await expect.element(page.getByRole("option", { name: /^Keyboard shortcuts/ })).toBeVisible();
+    await userEvent.keyboard("{Enter}");
+
+    const filter = page.getByRole("searchbox", { name: "Filter shortcuts" });
+    await expect.element(filter).toHaveFocus();
+    // A custom key for a command that ships with another one.
+    await expect.element(page.getByText("Terminal: Toggle")).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(filter).not.toBeInTheDocument();
   });
 });

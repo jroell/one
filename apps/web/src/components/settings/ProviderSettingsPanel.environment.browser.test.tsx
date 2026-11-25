@@ -564,6 +564,7 @@ describe("EnvironmentProviderSettings instance removal", () => {
       expect.stringContaining("It will also be turned off."),
       {
         variant: "destructive",
+        confirmLabel: "Reset provider",
       },
     );
     expect(state.mutateProviderInstance).not.toHaveBeenCalled();

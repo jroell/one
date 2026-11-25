@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentType,
-  type KeyboardEvent,
-} from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType, type KeyboardEvent } from "react";
 import {
   ArchiveIcon,
   FlaskConicalIcon,
@@ -49,6 +41,7 @@ import {
   SidebarMenuItem,
   SidebarInput,
 } from "../ui/sidebar";
+import { useSettingsSearchState } from "./SettingsSearchContext";
 import { scrollToSettingsTarget } from "./settingsLayout";
 import {
   searchSettings,
@@ -140,8 +133,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navigate = useNavigate();
   const currentHash = useLocation({ select: (location) => location.hash });
   const activePath = SETTINGS_DETAIL_PAGE_PARENTS[pathname] ?? pathname;
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState("");
+  const { query, setQuery, inputRef: searchInputRef } = useSettingsSearchState();
   // Below md the nav is an icon rail; searching expands it over the page.
   const [compactSearchOpen, setCompactSearchOpen] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
@@ -194,12 +186,12 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [searchInputRef]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focuses the search input DOM node after the compact search opens
   useEffect(() => {
     if (compactSearchOpen) searchInputRef.current?.focus();
-  }, [compactSearchOpen]);
+  }, [compactSearchOpen, searchInputRef]);
 
   const handleSectionClick = (to: SettingsPath) => {
     void navigate({
@@ -268,15 +260,16 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
           "max-md:absolute max-md:inset-y-0 max-md:start-0 max-md:z-10 max-md:w-full",
       )}
     >
-      <SidebarContent className="overflow-x-hidden">
-        <SidebarGroup>
-          <div className="flex flex-col gap-2">
-            <div
-              className={cn(
-                "flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground",
-                !compactSearchOpen && "max-md:hidden",
-              )}
-            >
+      <SidebarContent
+        className="overflow-x-hidden"
+        fixedHeader={
+          <div
+            className={cn(
+              "p-(--sidebar-content-inset) pb-2",
+              !compactSearchOpen && "max-md:hidden",
+            )}
+          >
+            <div className="flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground">
               <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
               {/* Native search inputs clear on Escape even during IME composition. */}
               <SidebarInput
@@ -324,6 +317,11 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 <Kbd>/</Kbd>
               )}
             </div>
+          </div>
+        }
+      >
+        <SidebarGroup>
+          <div className="flex flex-col gap-2">
             {isSearching && results.length === 0 ? (
               <p
                 role="status"

@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@t3tools/contracts";
+import type { ContextMenuItem, KeybindingCommand } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 import { msg } from "gt-react";
 
@@ -155,9 +155,39 @@ export function isThreadTriageAction(action: string): boolean {
   );
 }
 
+const THREAD_ACTION_SHORTCUTS: Partial<Record<ThreadActionMenuId, KeybindingCommand>> = {
+  find: "chat.find",
+  pin: "thread.pin",
+  unpin: "thread.pin",
+  settle: "thread.settle",
+  unsettle: "thread.settle",
+  "regenerate-title": "thread.regenerateTitle",
+  "copy-thread": "thread.copyReference",
+};
+
+/**
+ * The menu is native on desktop, which has no key column, so the hint rides in `detail`.
+ * The keys act on the open thread, so a caller passes labels only for that thread's menu.
+ */
+function withShortcutHints(
+  items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
+  shortcutLabel: (command: KeybindingCommand) => string | null,
+): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
+  return items.map((item) => {
+    const command = THREAD_ACTION_SHORTCUTS[item.id];
+    const hint = command && item.detail === undefined ? shortcutLabel(command) : null;
+    return {
+      ...item,
+      ...(hint ? { detail: hint } : {}),
+      ...(item.children ? { children: withShortcutHints(item.children, shortcutLabel) } : {}),
+    };
+  });
+}
+
 export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
   resolve: MessageResolver = m,
+  shortcutLabel: (command: KeybindingCommand) => string | null = () => null,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
     ...(state.canFind
@@ -324,9 +354,10 @@ export function buildThreadActionMenuItems(
       icon: "trash",
     },
   ];
+  const hinted = withShortcutHints(items, shortcutLabel);
   return state.canOperate
-    ? items
-    : items.map((item) =>
+    ? hinted
+    : hinted.map((item) =>
         threadActionRequiresOperate(item.id) &&
         !(state.canTriage === true && isThreadTriageAction(item.id))
           ? {

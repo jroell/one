@@ -760,8 +760,10 @@ function UsageOverview({
                       }}
                     />
                     <ProviderMark provider={provider} className="size-4" />
-                    <span className="flex min-w-0 items-baseline gap-1.5">
-                      <span className="truncate">{PROVIDER_PRESENTATION[provider].label}</span>
+                    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+                      <span className="whitespace-nowrap">
+                        {PROVIDER_PRESENTATION[provider].label}
+                      </span>
                       <span
                         className={cn(
                           "shrink-0 whitespace-nowrap text-2xs text-muted-foreground tabular-nums",

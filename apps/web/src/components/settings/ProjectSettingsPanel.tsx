@@ -53,6 +53,7 @@ import {
   ProjectFaviconPickerDialog,
 } from "./ProjectFaviconPickerDialog";
 import { ProjectActionsSettings } from "./ProjectActionsSettings";
+import { destructiveConfirm } from "~/confirmDialog";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { ProjectRepositoriesSettings } from "./ProjectRepositoriesSettings";
 import { ProjectWorktreeLayoutSettings } from "./ProjectWorktreeLayoutSettings";
@@ -372,7 +373,7 @@ function ProjectDetail({
       resolveMessage,
     );
     const confirmed = await settlePromise(() =>
-      api.dialogs.confirm(confirmationMessage, { variant: "destructive" }),
+      api.dialogs.confirm(confirmationMessage, destructiveConfirm(gt("Remove project"))),
     );
     if (confirmed._tag === "Failure" || !confirmed.value) return;
     if (checkProjectAccess(members, gt("Failed to remove project"))) return;

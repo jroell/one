@@ -40,6 +40,7 @@ import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { closeThreadFindIn } from "./threadFindStore";
+import { destructiveConfirm } from "../../confirmDialog";
 
 /**
  * A side chat or a subagent as a tab: the thread's own chat, which decides its bottom, the
@@ -117,7 +118,7 @@ export default function SideThreadPane(props: {
             gt('Delete side chat "{title}"?', { title: shell.title }),
             gt("This permanently clears its conversation history."),
           ].join("\n"),
-          { variant: "destructive" },
+          destructiveConfirm(gt("Delete side chat")),
         ),
       );
       if (confirmed._tag === "Failure" || !confirmed.value) return;

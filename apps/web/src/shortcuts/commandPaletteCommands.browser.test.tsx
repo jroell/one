@@ -9,10 +9,12 @@ import {
   useCommandPaletteMount,
   useCommandPaletteStore,
 } from "../commandPaletteStore";
+import { useShortcutsDialogStore } from "../components/shortcuts/shortcutsDialogStore";
 import { installCommandPaletteCommands } from "./commandPaletteCommands";
 
 const keybindings = compileResolvedKeybindingsConfig([
   { key: "mod+k", command: "commandPalette.toggle" },
+  { key: "mod+/", command: "shortcuts.show" },
 ]);
 
 function MountedPalette() {
@@ -53,6 +55,24 @@ describe("command palette shortcuts", () => {
 
     await screen.rerender(<div />);
     expect(useCommandPaletteStore.getState().open).toBe(false);
+  });
+
+  it("show the shortcuts sheet, closing the palette first, and hide it on a second press", async () => {
+    setup();
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    await using screen = await render(<MountedPalette />, { router: "/" });
+    using commands = new DisposableStack();
+    commands.defer(
+      installCommandPaletteCommands(screen.router!, { keybindings: () => keybindings }),
+    );
+    dispatchCommandPalette({ _tag: "SetOpen", open: true });
+
+    await userEvent.keyboard("{Control>}/{/Control}");
+    await vi.waitFor(() => expect(useShortcutsDialogStore.getState().open).toBe(true));
+    expect(useCommandPaletteStore.getState().open).toBe(false);
+
+    await userEvent.keyboard("{Control>}/{/Control}");
+    await vi.waitFor(() => expect(useShortcutsDialogStore.getState().open).toBe(false));
   });
 
   it("keep a child search open on a composing Escape", async () => {

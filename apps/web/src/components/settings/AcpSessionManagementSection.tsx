@@ -5,6 +5,7 @@ import {
   AuthOrchestrationReadScope,
 } from "@t3tools/contracts";
 import { useEnvironmentScope, readEnvironmentScope } from "~/state/session";
+import { destructiveConfirm } from "~/confirmDialog";
 import type {
   AcpRegistryConfigurableProvider,
   AcpRegistrySession,
@@ -269,7 +270,7 @@ function InstanceSessionManagement(
       gt('Permanently delete native ACP session "{session}"?', {
         session: session.title ?? session.sessionId,
       }),
-      { variant: "destructive" },
+      destructiveConfirm(gt("Delete session")),
     );
     if (
       generation !== projectGeneration.current ||
@@ -373,7 +374,7 @@ function InstanceSessionManagement(
       return;
     const confirmed = await ensureLocalApi().dialogs.confirm(
       gt('Disable ACP provider "{provider}"?', { provider: provider.providerId }),
-      { variant: "destructive" },
+      destructiveConfirm(gt("Disable provider")),
     );
     if (
       generation !== projectGeneration.current ||
@@ -415,7 +416,7 @@ function InstanceSessionManagement(
     <div className="grid gap-3">
       <SettingsRow
         title={gt("Native sessions")}
-        description={gt("Resume agent-owned conversations as T3 threads.")}
+        description={gt("Resume agent-owned conversations as One threads.")}
         status={
           canList && props.projects.length === 0
             ? gt("Add a project before importing sessions.")

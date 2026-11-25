@@ -30,7 +30,7 @@ import { GripVerticalIcon, PlusIcon, XIcon } from "lucide-react";
 import { T, useGT, useMessages } from "gt-react";
 import { useState } from "react";
 
-import { requestConfirmDialog } from "~/confirmDialog";
+import { destructiveConfirm, requestConfirmDialog } from "~/confirmDialog";
 import { environmentCatalog } from "~/connection/catalog";
 import { cn } from "~/lib/utils";
 import type { EnvironmentPresentation } from "~/state/environments";
@@ -79,7 +79,7 @@ export function EnvironmentRoutesList({
             route: connectionRouteLabelText(route, messages),
             address,
           }),
-      { variant: "destructive" },
+      destructiveConfirm(gt("Remove route")),
     );
     if (confirmed !== true) return;
     await removeRoute({

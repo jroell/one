@@ -1,5 +1,6 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m as resolveMessage } from "~/i18n/messages";
+import { destructiveConfirm } from "~/confirmDialog";
 import { useAtomValue } from "@effect/atom-react";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
@@ -133,6 +134,8 @@ import { downloadLocalUpdate } from "../sidebar/SidebarUpdatePill";
 import { useUpdateEverythingRun } from "../sidebar/updateEverythingRun";
 import { awaitsTrackSwitch, channelSwitchLabel } from "../sidebar/updateEverything.logic";
 import { isHostedByThisApp } from "../sidebar/useUpdateEverything";
+import { setOpeningPreferences, useOpeningPreferences } from "~/one/openingPreferences";
+import { setVoiceChatStyle, useVoiceChatStyle } from "~/one/voiceChatPreferences";
 
 const RESPONSE_STREAMING_MODE_LABELS: Record<ResponseStreamingMode, string> = {
   turn: msg("Wait for the full response"),
@@ -491,6 +494,8 @@ export function useSettingsRestore(onRestored?: () => void) {
   } = useTheme();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
+  const opening = useOpeningPreferences();
+  const voiceChatStyle = useVoiceChatStyle();
 
   const isTextGenerationModelDirty = !Equal.equals(
     settings.textGenerationModelSelection ?? null,
@@ -654,6 +659,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.enableAgentBrowserAccess !== DEFAULT_UNIFIED_SETTINGS.enableAgentBrowserAccess
       ? [gt("Agent browser access")]
       : []),
+    ...(opening.animation ? [] : [gt("Opening animation")]),
+    ...(opening.sound ? [] : [gt("Opening sound")]),
+    ...(voiceChatStyle === "natural" ? [] : [gt("Conqueror voice")]),
   ];
 
   const restoreDefaults = async () => {
@@ -664,9 +672,11 @@ export function useSettingsRestore(onRestored?: () => void) {
         gt("Restore default settings?"),
         gt("This will reset: {settings}.", { settings: changedSettingLabels.join(", ") }),
       ].join("\n"),
-      { variant: "destructive" },
+      destructiveConfirm(gt("Restore defaults")),
     );
     if (!confirmed) return;
+    setOpeningPreferences({ animation: true, sound: true });
+    setVoiceChatStyle("natural");
 
     // Reset only dirty theme keys so storage failures cannot block other settings; re-read after confirmation
     // for safe rollback.
@@ -959,7 +969,8 @@ export function GeneralSettingsPanel() {
           description={
             <T>
               Fold working and monitoring threads into a Working section. They return to the top of
-              the inbox when they need you. The boring sidebar in Labs has no Working section.
+              the inbox when they need you. With "Group threads by project" on in Labs, there is no
+              Working section.
             </T>
           }
           resetAction={
@@ -1276,7 +1287,7 @@ export function ChatSettingsPanel() {
         />
         <SettingsRow
           {...setting("send-shortcut")}
-          description={gt("Choose when Enter sends a prompt or inserts a new line")}
+          description={gt("Choose when Enter sends a prompt or inserts a new line.")}
           resetAction={
             settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? (
               <SettingResetButton

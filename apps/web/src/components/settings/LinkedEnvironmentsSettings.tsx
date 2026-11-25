@@ -23,7 +23,7 @@ import { PlusIcon } from "lucide-react";
 import { T, useGT, useMessages, Var } from "gt-react";
 import { type ReactNode, useId, useRef, useState } from "react";
 
-import { requestConfirmDialog } from "~/confirmDialog";
+import { destructiveConfirm, requestConfirmDialog } from "~/confirmDialog";
 import { useEnvironment } from "~/state/environments";
 import { mintPairingCodeOn } from "~/state/peerPairingCode";
 import {
@@ -674,7 +674,7 @@ export function useForgetPeerLink(environmentId: EnvironmentId, link: PeerLinkSu
         "Forget {label}? Agents here stop working there, and their session on {label} ends too if it answers.",
         { label: link.label },
       ),
-      { variant: "destructive" },
+      destructiveConfirm(gt("Forget machine")),
     ) ?? Promise.resolve(false));
     if (!confirmed) return;
     setBusy(true);

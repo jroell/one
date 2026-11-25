@@ -1,4 +1,5 @@
 import { SettingsGroup } from "./SettingsGroup";
+import { destructiveConfirm } from "~/confirmDialog";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   AuthSettingsWriteScope,
@@ -146,11 +147,12 @@ function providerInstanceName(instance: ProviderInstanceConfig): string {
 
 async function confirmProviderInstanceRemoval(
   question: string,
+  confirmLabel: string,
   consequence = "",
 ): Promise<boolean> {
   const message = `${question}\n${resolveNow(msg("Its saved settings, including any custom binary path, will be removed."))}${consequence}`;
   const confirmed = await settlePromise(() =>
-    ensureLocalApi().dialogs.confirm(message, { variant: "destructive" }),
+    ensureLocalApi().dialogs.confirm(message, destructiveConfirm(confirmLabel)),
   );
   return confirmed._tag === "Success" && confirmed.value;
 }
@@ -878,6 +880,7 @@ export function EnvironmentProviderSettings({
         gt("Remove the {provider} provider instance?", {
           provider: providerInstanceName(instance),
         }),
+        gt("Remove instance"),
       );
       if (!confirmed) return;
       const updateResult = await persistProviderInstance({
@@ -931,6 +934,7 @@ export function EnvironmentProviderSettings({
       gt("Reset the {provider} provider to its defaults?", {
         provider: providerInstanceName(instance),
       }),
+      gt("Reset provider"),
       turnsOff ? ` ${gt("It will also be turned off.")}` : "",
     );
     if (!confirmed) return;

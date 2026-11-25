@@ -1,5 +1,6 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m as resolveMessage } from "~/i18n/messages";
+import { destructiveConfirm } from "~/confirmDialog";
 import { ProcessSignalActions } from "./ProcessSignalActions";
 import { resolveUsageAccess } from "@t3tools/client-runtime/state/usage-access";
 import { environmentSession } from "../../state/session";
@@ -912,7 +913,7 @@ function DiagnosticsSettingsBody() {
       try {
         confirmed = await ensureLocalApi().dialogs.confirm(
           gt("Send SIGKILL to process {pid}? This cannot be handled by the process.", { pid }),
-          { variant: "destructive" },
+          destructiveConfirm(gt("Send SIGKILL")),
         );
       } catch (error) {
         clearSignaling();
@@ -965,7 +966,7 @@ function DiagnosticsSettingsBody() {
           type: "info",
           title: gt("Process already exited"),
           description: gt(
-            "The process is not a child of the T3 Server. It might already have exited.",
+            "The process is not a child of the One server. It might already have exited.",
           ),
         });
         return;
@@ -1094,7 +1095,7 @@ function DiagnosticsSettingsBody() {
             label={gt("CPU Time")}
             value={resourceData ? formatCpuTime(resourceData.totalCpuSecondsApprox, m) : "..."}
             tooltip={gt(
-              "Approximate active CPU time for the T3 server root process and its descendants during the selected window. It grows only while sampled processes use CPU and older samples leave as the window moves.",
+              "Approximate active CPU time for the One server root process and its descendants during the selected window. It grows only while sampled processes use CPU and older samples leave as the window moves.",
             )}
           />
           <StatBlock

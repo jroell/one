@@ -5,8 +5,8 @@ import { Button } from "../ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { cn } from "~/lib/utils";
 import {
-  formatThreadFindCount,
   nextThreadFindAnnouncement,
+  threadFindPosition,
   type ThreadFindAnnouncement,
 } from "./threadFind";
 import { THREAD_DETAILS_CARD_GAP } from "./threadDetailsCardLayout";
@@ -51,7 +51,13 @@ export function ThreadFindBar(props: ThreadFindBarProps) {
   const noResults = hasQuery && !props.status && props.matchCount === 0;
   let label = "";
   if (hasQuery) {
-    label = props.counting ? "1/…" : formatThreadFindCount(props.activeIndex, props.matchCount);
+    const position = threadFindPosition(props.activeIndex, props.matchCount);
+    // While the server is still counting, the total so far is a floor.
+    label = !props.counting
+      ? gt("{current} of {total}", position)
+      : position.total > 0
+        ? gt("{current} of {total}+", position)
+        : gt("{current} of …", position);
   }
   if (props.status === "loading") label = gt("Searching…");
   if (props.status === "error") label = gt("Search failed");
@@ -112,7 +118,7 @@ export function ThreadFindBar(props: ThreadFindBarProps) {
           <span
             aria-hidden
             className={cn(
-              "min-w-10 text-center text-xs tabular-nums",
+              "min-w-10 shrink-0 text-center text-xs whitespace-nowrap tabular-nums",
               noResults ? "text-destructive" : "text-muted-foreground",
             )}
           >

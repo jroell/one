@@ -9,6 +9,7 @@ import {
 import { overlayModeForCommand } from "../components/CommandPalette.logic";
 import { APPEARANCE_OPTIONS, notifyThemeSaveFailure } from "../components/CommandPaletteThemeItems";
 import { toggleThemeEditorForTheme } from "../components/settings/themeEditorStore";
+import { toggleShortcutsDialog } from "../components/shortcuts/shortcutsDialogStore";
 import { toastManager } from "../components/ui/toast";
 import { getThemeSnapshot, setAppearanceMode } from "../hooks/useTheme";
 import { m } from "../i18n/messages";
@@ -111,6 +112,12 @@ export function installCommandPaletteCommands(
         consume(event);
         dispatchCommandPalette({ _tag: "SetOpen", open: false });
         void router.navigate({ to: "/usage" });
+      },
+      "shortcuts.show": (event) => {
+        consume(event);
+        if (event.repeat) return;
+        dispatchCommandPalette({ _tag: "SetOpen", open: false });
+        void toggleShortcutsDialog();
       },
       "commandPalette.toggle": toggleOverlay("commandPalette.toggle"),
       "filePicker.toggle": toggleOverlay("filePicker.toggle"),

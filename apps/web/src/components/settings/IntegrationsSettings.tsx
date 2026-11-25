@@ -884,7 +884,7 @@ function DeviceIntegrationSettings() {
 
   return (
     <>
-      <SettingsSection id="devices" title={gt("Devices")}>
+      <SettingsSection id="devices" title={gt("Devices")} hideTitle>
         <DeviceIntegrationControls
           key={`${environmentId}:${JSON.stringify(search)}`}
           environmentId={environmentId}

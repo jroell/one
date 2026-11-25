@@ -20,8 +20,12 @@ export function stepThreadFindIndex(index: number, total: number, delta: number)
   return (((clamped + delta) % total) + total) % total;
 }
 
-export function formatThreadFindCount(index: number, total: number): string {
-  return total <= 0 ? "0/0" : `${clampThreadFindIndex(index, total) + 1}/${total}`;
+/** The one-based position of the active match, or 0 of 0 when nothing matches. */
+export function threadFindPosition(index: number, total: number) {
+  return {
+    current: total <= 0 ? 0 : clampThreadFindIndex(index, total) + 1,
+    total: Math.max(total, 0),
+  };
 }
 
 export interface ThreadFindAnnouncement {

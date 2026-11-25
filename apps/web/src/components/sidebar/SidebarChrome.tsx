@@ -6,7 +6,8 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useAtomValue } from "@effect/atom-react";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
-import { shortcutLabelForCommand } from "../../keybindings";
+import { isElectron as isDesktopApp } from "../../env";
+import { formatShortcutLabel, shortcutLabelForCommand } from "../../keybindings";
 import {
   navigateHistory,
   useCanNavigateHistory,
@@ -199,13 +200,25 @@ function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
   );
 }
 
+// The desktop application menu owns this accelerator; it is not a keybinding command.
+const DESKTOP_SETTINGS_SHORTCUT = {
+  key: ",",
+  modKey: true,
+  metaKey: false,
+  ctrlKey: false,
+  shiftKey: false,
+  altKey: false,
+} as const;
+
 function SidebarUtilityItem({
   icon,
   label,
+  shortcutLabel,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
+  shortcutLabel?: string | null;
   onClick: () => void;
 }) {
   return (
@@ -218,7 +231,10 @@ function SidebarUtilityItem({
             </SidebarMenuButton>
           }
         />
-        <TooltipPopup side="top">{label}</TooltipPopup>
+        <TooltipPopup side="top">
+          {label}
+          {shortcutLabel ? ` (${shortcutLabel})` : ""}
+        </TooltipPopup>
       </Tooltip>
     </SidebarMenuItem>
   );
@@ -234,6 +250,8 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   });
   const pullRequestsSupported = usePullRequestsSupported();
   const issuesSupported = useIssuesSupported();
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const usageShortcutLabel = shortcutLabelForCommand(keybindings, "usage.open");
   const closeMobileSidebar = () => {
     if (isMobile) {
       setOpenMobile(false);
@@ -283,6 +301,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           <SidebarUtilityItem
             icon={<SettingsIcon />}
             label={gt("Settings")}
+            shortcutLabel={isDesktopApp ? formatShortcutLabel(DESKTOP_SETTINGS_SHORTCUT) : null}
             onClick={handleSettingsClick}
           />
           {pullRequestsSupported ? (
@@ -302,6 +321,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           <SidebarUtilityItem
             icon={<ChartNoAxesColumnIcon />}
             label={gt("Usage")}
+            shortcutLabel={usageShortcutLabel}
             onClick={handleUsageClick}
           />
         </>

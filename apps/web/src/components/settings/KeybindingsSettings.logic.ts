@@ -245,6 +245,134 @@ export function keybindingConflictLabels(
   return [...new Set(conflicts)].toSorted();
 }
 
+const WHEN_WORDS: Record<string, string> = {
+  terminalFocus: msg("in the terminal"),
+  terminalOpen: msg("with the terminal open"),
+  previewFocus: msg("in the preview"),
+  previewOpen: msg("with the preview open"),
+  composerFocus: msg("in the composer"),
+  editableFocus: msg("while typing in a field"),
+  turnRunning: msg("while the agent works"),
+  rightPanelOpen: msg("with the right panel open"),
+  usagePageOpen: msg("on the usage page"),
+  modelPickerOpen: msg("with the model picker open"),
+  draftThreadRoute: msg("in a new thread"),
+  isMac: msg("on macOS"),
+  isWeb: msg("in the browser"),
+  isDesktop: msg("in the desktop app"),
+};
+
+const WHEN_NEGATED_WORDS: Record<string, string> = {
+  terminalFocus: msg("not in the terminal"),
+  previewFocus: msg("not in the preview"),
+  composerFocus: msg("not in the composer"),
+  editableFocus: msg("while not typing in a field"),
+  draftThreadRoute: msg("in a thread that has started"),
+  modelPickerOpen: msg("with the model picker closed"),
+  isMac: msg("not on macOS"),
+  isWeb: msg("not in the browser"),
+  isDesktop: msg("not in the desktop app"),
+};
+
+/**
+ * A `when` clause in words, such as "not in the terminal". Names with no wording
+ * keep their raw spelling; the raw clause stays in the editor and on hover.
+ */
+export function describeWhen(
+  node: KeybindingWhenNode | undefined,
+  resolve: MessageResolver = m,
+): string {
+  if (!node) return "";
+  const describe = (current: KeybindingWhenNode, nested: boolean): string => {
+    switch (current.type) {
+      case "identifier": {
+        const words = WHEN_WORDS[current.name];
+        return words ? resolve(words) : current.name;
+      }
+      case "not": {
+        if (current.node.type === "identifier") {
+          const words = WHEN_NEGATED_WORDS[current.node.name];
+          if (words) return resolve(words);
+        }
+        return `!${describe(current.node, true)}`;
+      }
+      case "and":
+      case "or": {
+        const joined = `${describe(current.left, true)} ${
+          current.type === "and"
+            ? resolve(msg("and", { $context: "joins two conditions of a keyboard shortcut" }))
+            : resolve(msg("or", { $context: "joins two conditions of a keyboard shortcut" }))
+        } ${describe(current.right, true)}`;
+        return nested ? `(${joined})` : joined;
+      }
+    }
+  };
+  return describe(node, false);
+}
+
+type SimplifiedWhen = KeybindingWhenNode | boolean;
+
+function simplifyWhenForPlatform(node: KeybindingWhenNode, isMac: boolean): SimplifiedWhen {
+  switch (node.type) {
+    case "identifier":
+      return node.name === "isMac" ? isMac : node;
+    case "not": {
+      const inner = simplifyWhenForPlatform(node.node, isMac);
+      return typeof inner === "boolean" ? !inner : { type: "not", node: inner };
+    }
+    case "and":
+    case "or": {
+      const left = simplifyWhenForPlatform(node.left, isMac);
+      const right = simplifyWhenForPlatform(node.right, isMac);
+      const absorbing = node.type === "or";
+      if (left === absorbing || right === absorbing) return absorbing;
+      if (typeof left === "boolean") return right;
+      if (typeof right === "boolean") return left;
+      return { type: node.type, left, right };
+    }
+  }
+}
+
+/** The condition left once platform terms are decided; null when it can never hold here. */
+export function whenForPlatform(
+  node: KeybindingWhenNode | undefined,
+  platform = navigator.platform,
+): KeybindingWhenNode | null | undefined {
+  if (!node) return undefined;
+  const simplified = simplifyWhenForPlatform(node, isMacPlatform(platform));
+  if (simplified === false) return null;
+  return simplified === true ? undefined : simplified;
+}
+
+/** One command's keys under one condition: the first row edits the rest as alternates. */
+export interface KeybindingRowSet {
+  readonly row: KeybindingRow;
+  readonly alternates: ReadonlyArray<KeybindingRow>;
+}
+
+/**
+ * Rows for the same command under the same condition become one row with several keys.
+ * A default for another platform, such as the Windows keys for Terminal: Next on a Mac,
+ * never fires here and is left out; platform-specific rows that remain compare without
+ * their platform term.
+ */
+export function collapseAlternateRows(
+  rows: ReadonlyArray<KeybindingRow>,
+  platform = navigator.platform,
+): ReadonlyArray<KeybindingRowSet> {
+  const sets = new Map<string, { row: KeybindingRow; alternates: KeybindingRow[] }>();
+  for (const row of rows) {
+    const simplified = whenForPlatform(row.binding.whenAst, platform);
+    if (simplified === null) continue;
+    const condition = whenAstToExpression(simplified);
+    const id = `${row.command}\u0000${condition}`;
+    const existing = sets.get(id);
+    if (existing) existing.alternates.push(row);
+    else sets.set(id, { row, alternates: [] });
+  }
+  return [...sets.values()];
+}
+
 export interface KeybindingGroup {
   readonly id: string;
   readonly title: string;
@@ -534,6 +662,7 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "view.reopenClosed": msg("Reopen Closed Tab"),
   "preview.focusUrl": msg("Preview: Focus URL"),
   "preview.find": msg("Preview: Find on Page"),
+  "shortcuts.show": msg("Keyboard Shortcuts: Show"),
 };
 
 export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {

@@ -35,6 +35,7 @@ import { isShownUnderParent } from "@t3tools/client-runtime/state/threads";
 import { type ReactNode } from "react";
 import { msg } from "gt-react";
 import { m, type MessageResolver } from "../i18n/messages";
+import { COMMAND_SECTIONS, type CommandSectionId } from "../shortcuts/commandSections";
 import { formatRelativeTimeLabel } from "../timestampFormat";
 import { type Project, type SidebarThreadSummary, type Thread } from "../types";
 
@@ -211,6 +212,8 @@ export interface CommandPaletteItem {
   readonly titleTrailingContent?: ReactNode;
   readonly shortcutCommand?: KeybindingCommand;
   readonly secondary?: boolean;
+  /** The heading an action sits under in the default list; see `commandPaletteSectionOf`. */
+  readonly section?: CommandSectionId;
 }
 
 export interface CommandPaletteActionItem extends CommandPaletteItem {
@@ -611,14 +614,14 @@ export function filterCommandPaletteGroups(
 
   if (normalizedQuery.length === 0) {
     if (isActionsFilter) {
-      return input.activeGroups.filter((group) => group.value === "actions");
+      return input.activeGroups.filter((group) => isActionsGroup(group.value));
     }
     return [...input.activeGroups];
   }
 
   let baseGroups = [...input.activeGroups];
   if (isActionsFilter) {
-    baseGroups = baseGroups.filter((group) => group.value === "actions");
+    baseGroups = baseGroups.filter((group) => isActionsGroup(group.value));
   } else if (!input.isInSubmenu) {
     baseGroups = baseGroups.filter((group) => group.value !== "recent-threads");
   }
@@ -808,6 +811,47 @@ export function getCommandPaletteMode(input: {
   return input.isBrowsing ? "root-browse" : "root";
 }
 
+/** Rows that predate sections, by value; anything else sits under Navigate. */
+const LEGACY_ACTION_SECTIONS: Readonly<Record<string, CommandSectionId>> = {
+  "action:new-thread": "thread",
+  "action:new-thread-in": "thread",
+  "action:new-thread-without-project": "thread",
+  "find-current-thread": "thread",
+  "action:copy-prompt-link": "thread",
+  "action:copy-prompt-link-with-context": "thread",
+  "action:copy-thread-reference": "thread",
+  "action:share-thread-with-guest": "thread",
+  "action:restart-agent-session": "thread",
+  "action:workspace-mode": "thread",
+  "action:voice-chat": "thread",
+  "find-in-browser-page": "view",
+  "action:port-forwards": "view",
+  "action:link-pull-request": "git",
+  "action:open-thread-pull-requests": "git",
+  "action:pull-requests": "git",
+  "action:new-project": "project",
+  "action:add-project": "project",
+  "action:add-project:wsl-folder": "project",
+  "action:project-pin": "project",
+  "action:project-settings": "project",
+  "action:change-theme": "appearance",
+  "action:change-appearance": "appearance",
+  "action:theme-editor": "appearance",
+  "action:triage": "help",
+  "action:use-in-another-app": "help",
+};
+
+function commandPaletteSectionOf(item: CommandPaletteItem): CommandSectionId {
+  return item.section ?? LEGACY_ACTION_SECTIONS[item.value] ?? "navigate";
+}
+
+const ACTIONS_GROUP_PREFIX = "actions:";
+
+function isActionsGroup(value: string): boolean {
+  return value === "actions" || value.startsWith(ACTIONS_GROUP_PREFIX);
+}
+
+/** Recent threads first, since opening one is the commonest start, then actions under headings. */
 export function buildRootGroups(
   input: {
     actionItems: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
@@ -816,15 +860,22 @@ export function buildRootGroups(
   resolve: MessageResolver = m,
 ): CommandPaletteGroup[] {
   const groups: CommandPaletteGroup[] = [];
-  if (input.actionItems.length > 0) {
-    groups.push({ value: "actions", label: resolve(msg("Actions")), items: input.actionItems });
-  }
   if (input.recentThreadItems.length > 0) {
     groups.push({
       value: "recent-threads",
       label: resolve(msg("Recent Threads")),
       items: input.recentThreadItems,
     });
+  }
+  for (const section of COMMAND_SECTIONS) {
+    const items = input.actionItems.filter((item) => commandPaletteSectionOf(item) === section.id);
+    if (items.length > 0) {
+      groups.push({
+        value: `${ACTIONS_GROUP_PREFIX}${section.id}`,
+        label: resolve(section.title),
+        items,
+      });
+    }
   }
   return groups;
 }

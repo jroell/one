@@ -1,3 +1,4 @@
+import { msg, useMessages } from "gt-react";
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -110,6 +111,12 @@ export function SidebarDragBoundary(props: {
   );
 }
 
+const EMPTY_SHELF_MESSAGES = {
+  working: msg("Nothing is running."),
+  snoozed: msg("No snoozed threads."),
+  settled: msg("No settled threads."),
+} as const;
+
 export function SidebarSectionHeader(props: {
   marker: "working-header" | "snoozed-header" | "settled-header";
   label: string;
@@ -120,6 +127,7 @@ export function SidebarSectionHeader(props: {
   isDropTarget?: boolean;
   toggle: { expanded: boolean; onToggle: () => void };
 }) {
+  const m = useMessages();
   const shelf =
     props.marker === "working-header"
       ? "working"
@@ -127,21 +135,31 @@ export function SidebarSectionHeader(props: {
         ? "snoozed"
         : "settled";
   return (
-    <SortableSidebarMarker
-      marker={props.marker}
-      data-testid={`sidebar-${props.marker}`}
-      className={cn("relative mx-0.5 h-8", props.className)}
-    >
-      <CollapsibleSectionHeader
-        data-sidebar-row={`shelf:${shelf}`}
-        onClick={props.toggle.onToggle}
-        expanded={props.toggle.expanded}
-        tone={props.isDropTarget ? "accent" : props.dragging ? "emphasized" : "muted"}
-        data-testid={`sidebar-${shelf}-shelf-toggle`}
-        accessory={<span className="font-normal tabular-nums">{props.count}</span>}
+    <>
+      <SortableSidebarMarker
+        marker={props.marker}
+        data-testid={`sidebar-${props.marker}`}
+        className={cn("relative mx-0.5 h-8", props.className)}
       >
-        {props.label}
-      </CollapsibleSectionHeader>
-    </SortableSidebarMarker>
+        <CollapsibleSectionHeader
+          data-sidebar-row={`shelf:${shelf}`}
+          onClick={props.toggle.onToggle}
+          expanded={props.toggle.expanded}
+          tone={props.isDropTarget ? "accent" : props.dragging ? "emphasized" : "muted"}
+          data-testid={`sidebar-${shelf}-shelf-toggle`}
+          accessory={<span className="font-normal tabular-nums">{props.count}</span>}
+        >
+          {props.label}
+        </CollapsibleSectionHeader>
+      </SortableSidebarMarker>
+      {props.toggle.expanded && props.count === 0 && !props.dragging ? (
+        <li
+          data-testid={`sidebar-${shelf}-shelf-empty`}
+          className="list-none px-2.5 pb-1 text-xs text-sidebar-muted-foreground"
+        >
+          {m(EMPTY_SHELF_MESSAGES[shelf])}
+        </li>
+      ) : null}
+    </>
   );
 }

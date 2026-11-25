@@ -294,3 +294,26 @@ it("filters actions and allows additional shortcuts for assigned commands", asyn
     .element(screen.getByRole("combobox", { name: "Command", exact: true }))
     .toHaveTextContent("Composer: Cycle Host");
 });
+
+it("shows a command's alternate keys on one row, as glyphs, with its condition in words", async () => {
+  using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+  await using screen = await render(<KeybindingsSettingsPanel />);
+
+  const chatNewKeys = page.getByRole("button", { name: /^Edit shortcut for Chat: New: / });
+  await vi.waitFor(() => expect(chatNewKeys.elements()).toHaveLength(2));
+  expect(page.getByText("Chat: New", { exact: true }).elements()).toHaveLength(1);
+  await expect
+    .element(
+      screen
+        .getByRole("button", { name: /^Edit shortcut for Focus Next Workspace Area: / })
+        .first(),
+    )
+    .toHaveTextContent("F6");
+  await expect
+    .element(
+      screen.getByRole("button", { name: /^Edit shortcut for Queue: Edit Last Queued Message: / }),
+    )
+    .toHaveTextContent("AltUp");
+  const condition = screen.getByRole("button", { name: "Edit when clause for Chat: New" });
+  await expect.element(condition).toHaveTextContent("not in the terminal");
+});

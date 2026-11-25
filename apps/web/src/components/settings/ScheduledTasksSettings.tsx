@@ -57,7 +57,7 @@ import { useClientSettings, useEnvironmentSettings } from "../../hooks/useSettin
 import { getCustomModelOptionsByInstance, selectsPlanAgent } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { usePrimaryCloudLinkState } from "../../cloud/cloudLinkState";
-import { requestConfirmDialog } from "../../confirmDialog";
+import { destructiveConfirm, requestConfirmDialog } from "../../confirmDialog";
 import { webhookAddress } from "@t3tools/client-runtime/webhook-address";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
@@ -116,7 +116,14 @@ import {
 import { Label } from "../ui/label";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "../ui/menu";
 import { ToggleGroup, Toggle } from "../ui/toggle-group";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "../ui/empty";
+import {
+  Empty,
+  EmptyContent,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyMedia,
+} from "../ui/empty";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -461,24 +468,37 @@ export function ScheduledTasksSettings(target: {
     permittedEnvironments.find(
       (entry) => entry.environmentId === defaultEnvironment?.environmentId,
     ) ?? permittedEnvironments[0];
+  const connectedIds = environments.flatMap((entry) =>
+    entry.connection.phase === "connected" && entry.serverConfig !== null
+      ? [entry.environmentId]
+      : [],
+  );
+  const taskQueries = useAtomValue(scheduledTasksListAtom(environmentIdsKey(connectedIds)));
+  // Filters cannot be hiding anything when every connected environment has no tasks at all.
+  const noTasksAtAll =
+    taskQueries.length > 0 &&
+    taskQueries.every((query) => AsyncResult.getOrElse(query, () => null)?.tasks.length === 0);
+  const createTask = () =>
+    creationEnvironment &&
+    setEditor({ environmentId: creationEnvironment.environmentId, task: null });
+  const onCreateFirst = noTasksAtAll ? createTask : undefined;
   return (
     <SettingsPageContainer>
       <SettingsSection
         {...setting("scheduled-tasks")}
         variant="plain"
         headerAction={
-          <Button
-            size="xs"
-            variant="ghost-muted"
-            disabled={!creationEnvironment}
-            onClick={() =>
-              creationEnvironment &&
-              setEditor({ environmentId: creationEnvironment.environmentId, task: null })
-            }
-          >
-            <PlusIcon className="size-3" />
-            <T>New task</T>
-          </Button>
+          noTasksAtAll ? undefined : (
+            <Button
+              size="xs"
+              variant="ghost-muted"
+              disabled={!creationEnvironment}
+              onClick={createTask}
+            >
+              <PlusIcon className="size-3" />
+              <T>New task</T>
+            </Button>
+          )
         }
       >
         {scope.kind === "unavailable" ? (
@@ -504,6 +524,8 @@ export function ScheduledTasksSettings(target: {
             environmentId={linkedEnvironmentId}
             taskId={target.taskId}
             onEdit={openForEdit}
+            onCreateFirst={onCreateFirst}
+            canCreate={creationEnvironment !== undefined}
           />
         ) : (
           <div className="space-y-8">
@@ -513,6 +535,8 @@ export function ScheduledTasksSettings(target: {
                 environment={entry}
                 taskId={linkedEnvironmentId === entry.environmentId ? target.taskId : undefined}
                 onEdit={openForEdit}
+                onCreateFirst={onCreateFirst}
+                canCreate={creationEnvironment !== undefined}
               />
             ))}
           </div>
@@ -543,10 +567,14 @@ function ScheduledTaskEnvironmentList({
   environmentId,
   taskId,
   onEdit,
+  onCreateFirst,
+  canCreate,
 }: {
   readonly environmentId: EnvironmentId | undefined;
   readonly taskId: ScheduledTaskId | undefined;
   readonly onEdit: (environmentId: EnvironmentId, task: ScheduledTask) => void;
+  readonly onCreateFirst: (() => void) | undefined;
+  readonly canCreate: boolean;
 }) {
   const messages = useMessages();
   const gt = useGT();
@@ -640,10 +668,14 @@ function ScheduledTaskEnvironmentList({
         />
       ) : null}
       {populated.length === 0 && loaded.length > 0 ? (
-        <SettingsRow
-          title={gt("No scheduled tasks")}
-          description={gt("No tasks match this environment and project selection.")}
-        />
+        onCreateFirst ? (
+          <NoScheduledTasks onCreate={onCreateFirst} canCreate={canCreate} />
+        ) : (
+          <SettingsRow
+            title={gt("No matching tasks")}
+            description={gt("No tasks match this environment and project selection.")}
+          />
+        )
       ) : null}
       {Object.entries(summaries).map(([label, entries]) => {
         if (entries.length === 0) return null;
@@ -688,14 +720,48 @@ function ScheduledTaskEnvironmentSubtitle({
   );
 }
 
+function NoScheduledTasks({
+  onCreate,
+  canCreate,
+}: {
+  readonly onCreate: () => void;
+  readonly canCreate: boolean;
+}) {
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Clock3Icon />
+        </EmptyMedia>
+        <EmptyTitle>
+          <T>No scheduled tasks yet</T>
+        </EmptyTitle>
+        <EmptyDescription>
+          <T>Scheduled tasks run a prompt on a timer, such as a morning summary of open work.</T>
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button disabled={!canCreate} onClick={onCreate}>
+          <PlusIcon />
+          <T>New task</T>
+        </Button>
+      </EmptyContent>
+    </Empty>
+  );
+}
+
 function ScheduledTaskEnvironmentSection({
   environment,
   taskId,
   onEdit,
+  onCreateFirst,
+  canCreate,
 }: {
   readonly environment: EnvironmentPresentation;
   readonly taskId?: ScheduledTaskId | undefined;
   readonly onEdit: (environmentId: EnvironmentId, task: ScheduledTask) => void;
+  readonly onCreateFirst: (() => void) | undefined;
+  readonly canCreate: boolean;
 }) {
   const gt = useGT();
   const { scope } = useSettingsScope();
@@ -748,10 +814,14 @@ function ScheduledTaskEnvironmentSection({
             />
           ) : null}
           {tasks.length === 0 ? (
-            <SettingsRow
-              title={gt("No scheduled tasks")}
-              description={gt("No tasks match this environment and project selection.")}
-            />
+            onCreateFirst ? (
+              <NoScheduledTasks onCreate={onCreateFirst} canCreate={canCreate} />
+            ) : (
+              <SettingsRow
+                title={gt("No matching tasks")}
+                description={gt("No tasks match this environment and project selection.")}
+              />
+            )
           ) : (
             tasks.map((task) => (
               <ScheduledTaskRow
@@ -804,7 +874,7 @@ function ScheduledTaskRow({
     if (action === "delete") {
       const message = `${gt('Delete "{title}"?', { title: task.title })}\n${gt("This cannot be undone.")}`;
       const confirmed =
-        (await requestConfirmDialog(message, { variant: "destructive" })) ??
+        (await requestConfirmDialog(message, destructiveConfirm(gt("Delete task")))) ??
         window.confirm(message);
       if (!confirmed) return;
     }
@@ -1179,9 +1249,7 @@ function WebhookEndpointField({
     const confirmed =
       (await requestConfirmDialog(
         `${gt("Rotate this webhook URL?")}\n${gt("The current URL stops working.")}`,
-        {
-          variant: "destructive",
-        },
+        destructiveConfirm(gt("Rotate URL")),
       )) ?? window.confirm(gt("Rotate this webhook URL? The current URL stops working."));
     if (!confirmed) return;
     setRotating(true);

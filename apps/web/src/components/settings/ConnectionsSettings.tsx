@@ -116,7 +116,7 @@ import {
   useEnvironments,
   usePrimaryEnvironment,
 } from "~/state/environments";
-import { requestConfirmDialog } from "~/confirmDialog";
+import { destructiveConfirm, requestConfirmDialog } from "~/confirmDialog";
 import { useUpdateEnvironmentSettings } from "~/hooks/useSettings";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { environmentIdsKey } from "~/state/environmentAtomList";
@@ -782,7 +782,7 @@ function ConnectionsSettingsContent({
         "Remove {environment} from this device?\nThis forgets its pairing, credentials, and cached threads here. Switch it off instead to keep it saved.",
         { environment: environment.label },
       ),
-      { variant: "destructive" },
+      destructiveConfirm(gt("Remove environment")),
     );
     if (confirmed === true) await removeSavedBackend(environment);
   };

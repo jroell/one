@@ -38,6 +38,7 @@ import { useNewThreadHandler } from "./useHandleNewThread";
 import { refreshArchivedThreadsForEnvironment } from "../lib/archivedThreadsState";
 import { releaseComposerDraftUploads } from "../lib/composerDraftUploads";
 import { announce } from "../lib/announce";
+import { destructiveConfirm } from "../confirmDialog";
 import { m } from "../i18n/messages";
 import { readLocalApi } from "../localApi";
 import {
@@ -600,7 +601,7 @@ export function useThreadActions() {
             "",
             m(msg("Delete the worktree too?")),
           ].join("\n"),
-          { variant: "destructive" },
+          destructiveConfirm(m(msg("Delete worktree"))),
         ),
       );
       if (confirmationResult._tag === "Failure") {
@@ -1044,7 +1045,7 @@ export function useThreadActions() {
               : m(msg('Delete thread "{title}"?', { title })),
             m(msg("This permanently clears conversation history for this thread.")),
           ].join("\n"),
-          { variant: "destructive" },
+          destructiveConfirm(m(msg("Delete thread"))),
         ),
       );
       if (confirmationResult._tag === "Failure") {

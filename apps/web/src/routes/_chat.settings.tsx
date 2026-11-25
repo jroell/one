@@ -15,6 +15,11 @@ import {
 } from "../components/settings/SettingsScopeContext";
 import { useEnvironments } from "../state/environments";
 import { SettingsScopeNotice } from "../components/settings/SettingsScopeNotice";
+import {
+  SettingsSearchEmptyState,
+  SettingsSearchProvider,
+  useSettingsSearchHasNoResults,
+} from "../components/settings/SettingsSearchContext";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
 import { SettingsPageContainer } from "../components/settings/settingsLayout";
 import {
@@ -150,6 +155,7 @@ function SettingsContentLayout() {
       ? environment?.environmentId
       : JSON.stringify(search);
   const [restoreSignal, setRestoreSignal] = useState(0);
+  const searchHasNoResults = useSettingsSearchHasNoResults();
 
   return (
     <AppRouteModal label={gt("Settings")}>
@@ -167,10 +173,17 @@ function SettingsContentLayout() {
               <AppRouteModalClose />
             </div>
           </header>
-          <div key={`${contentScopeKey}:${restoreSignal}`} className="min-h-0 flex flex-1 flex-col">
-            <SettingsScopeBoundary pathname={location.pathname}>
-              <Outlet />
-            </SettingsScopeBoundary>
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div
+              key={`${contentScopeKey}:${restoreSignal}`}
+              inert={searchHasNoResults}
+              className="min-h-0 flex flex-1 flex-col"
+            >
+              <SettingsScopeBoundary pathname={location.pathname}>
+                <Outlet />
+              </SettingsScopeBoundary>
+            </div>
+            {searchHasNoResults ? <SettingsSearchEmptyState /> : null}
           </div>
         </div>
       </div>
@@ -201,7 +214,9 @@ function SettingsRouteLayout() {
         });
       }}
     >
-      <SettingsContentLayout />
+      <SettingsSearchProvider>
+        <SettingsContentLayout />
+      </SettingsSearchProvider>
     </SettingsScopeProvider>
   );
 }

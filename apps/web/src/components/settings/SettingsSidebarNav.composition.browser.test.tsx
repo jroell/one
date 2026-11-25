@@ -4,6 +4,11 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { act, render } from "../../../test/render";
 import { AppRouteModal } from "../AppRouteModal";
 import { SidebarProvider } from "../ui/sidebar";
+import {
+  SettingsSearchEmptyState,
+  SettingsSearchProvider,
+  useSettingsSearchHasNoResults,
+} from "./SettingsSearchContext";
 import { SettingsSidebarNav } from "./SettingsSidebarNav";
 import { settingsNavGroups, SETTINGS_SECTION_LABELS } from "./settingsSearch";
 
@@ -148,4 +153,31 @@ it.each([1280, 390])("names each group by a heading outside it at %ipx wide", as
     expect(heading?.tagName, `the group starting at ${first} has no heading`).toBe("H3");
   }
   expect(page.getByRole("tree").query()).toBeNull();
+});
+
+function SettingsPaneStandIn() {
+  return useSettingsSearchHasNoResults() ? <SettingsSearchEmptyState /> : <p>Settings page</p>;
+}
+
+it("replaces the page with an empty state naming the query until the search is cleared", async () => {
+  await using _screen = await render(
+    <SettingsSearchProvider>
+      <SidebarProvider defaultOpen>
+        <SettingsSidebarNav pathname="/settings/general" />
+      </SidebarProvider>
+      <SettingsPaneStandIn />
+    </SettingsSearchProvider>,
+    { router: "/settings/general" },
+  );
+  const search = page.getByRole("combobox", { name: "Search settings" });
+  await expect.element(page.getByText("Settings page")).toBeVisible();
+
+  await search.fill("zzzxx");
+  await expect.element(page.getByText("No settings match “zzzxx”")).toBeVisible();
+  expect(page.getByText("Settings page").query()).toBeNull();
+
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await expect.element(page.getByText("Settings page")).toBeVisible();
+  await expect.element(search).toHaveValue("");
+  await expect.element(search).toHaveFocus();
 });

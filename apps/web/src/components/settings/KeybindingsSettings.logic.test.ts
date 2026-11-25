@@ -10,6 +10,8 @@ import { resolveShortcutCommand } from "../../keybindings";
 
 import {
   buildKeybindingRows,
+  collapseAlternateRows,
+  describeWhen,
   buildWhenVariableOptions,
   keybindingConflictLabels,
   keybindingFromKeyboardEvent,
@@ -19,6 +21,7 @@ import {
   unknownWhenVariables,
   whenAstToExpression,
 } from "./KeybindingsSettings.logic";
+import { parseKeybindingWhenExpression } from "@t3tools/shared/keybindings";
 
 describe("KeybindingsSettings.logic", () => {
   it("keeps sibling row identities when a saved binding moves to the end", () => {
@@ -433,5 +436,61 @@ describe("KeybindingsSettings.logic", () => {
     );
 
     expect(rows.map((row) => row.conflicts)).toEqual([[], []]);
+  });
+});
+
+describe("collapseAlternateRows", () => {
+  const rowsFor = (platform: string) =>
+    collapseAlternateRows(
+      buildKeybindingRows(
+        mergeWithDefaultKeybindings(
+          compileResolvedKeybindingsConfig([
+            { command: "chat.new", key: "mod+n", when: "!terminalFocus" },
+            { command: "chat.new", key: "mod+shift+o", when: "!terminalFocus" },
+            { command: "terminal.next", key: "ctrl+alt+]", when: "terminalFocus && !isMac" },
+            { command: "terminal.next", key: "cmd+shift+]", when: "terminalFocus && isMac" },
+            { command: "workspace.focusNext", key: "f6" },
+            { command: "workspace.focusNext", key: "mod+f6" },
+          ]),
+        ),
+        platform,
+      ),
+      platform,
+    );
+
+  it("puts alternate keys for one command and condition on a single row", () => {
+    const sets = rowsFor("MacIntel");
+
+    expect(
+      sets
+        .filter((set) => ["chat.new", "workspace.focusNext"].includes(set.row.command))
+        .map((set) => [set.row.command, [set.row.key, ...set.alternates.map((row) => row.key)]]),
+    ).toEqual([
+      ["chat.new", ["mod+n", "mod+shift+o"]],
+      ["workspace.focusNext", ["f6", "mod+f6"]],
+    ]);
+  });
+
+  it("leaves out a default that is bound for the other platform", () => {
+    const keys = (platform: string) =>
+      rowsFor(platform)
+        .filter((set) => set.row.command === "terminal.next")
+        .map((set) => [set.row.key, set.alternates.length]);
+
+    expect(keys("MacIntel")).toEqual([["meta+shift+]", 0]]);
+    expect(keys("Win32")).toEqual([["ctrl+alt+]", 0]]);
+  });
+});
+
+describe("describeWhen", () => {
+  it("reads a clause in words and keeps unknown names as written", () => {
+    const words = (expression: string) =>
+      describeWhen(parseKeybindingWhenExpression(expression) ?? undefined);
+
+    expect(words("!terminalFocus")).toBe("not in the terminal");
+    expect(words("terminalFocus && !isMac")).toBe("in the terminal and not on macOS");
+    expect(words("composerFocus && (turnRunning || customFlag)")).toBe(
+      "in the composer and (while the agent works or customFlag)",
+    );
   });
 });

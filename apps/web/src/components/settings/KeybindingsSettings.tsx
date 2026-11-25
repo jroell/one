@@ -45,6 +45,7 @@ import {
 import { isElectron } from "../../env";
 import { useOpenInPreferredEditor } from "../../editorPreferences";
 import { formatShortcutLabel } from "../../keybindings";
+import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import { cn } from "../../lib/utils";
 import { serverEnvironment } from "../../state/server";
 import { useSettingsScope } from "./SettingsScopeContext";
@@ -80,14 +81,15 @@ import {
   filterKeybindingRows,
   buildKeybindingCommandOptions,
   buildWhenVariableOptions,
+  collapseAlternateRows,
   commandLabel,
   DEFAULT_WHEN_VARIABLE,
+  describeWhen,
   isKnownWhenVariable,
   keybindingConflictLabels,
   keybindingFromKeyboardEvent,
   parseWhenExpressionDraft,
   groupKeybindingRows,
-  shortcutToKeybindingParts,
   type KeybindingCommandOption,
   type KeybindingGroup,
   type KeybindingRow,
@@ -103,33 +105,11 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useAtomCommand } from "../../state/use-atom-command";
 
 function KeybindingPill({ shortcut }: { shortcut: KeybindingShortcut }) {
-  const isMac = navigator.platform.toLowerCase().includes("mac");
-  const parts = shortcutToKeybindingParts(shortcut);
-  const modifierParts = parts.slice(0, -1);
-  const keyPart = parts.at(-1);
-
   return (
     <KbdGroup>
-      {modifierParts.map((part) => (
-        <Kbd key={part}>
-          {part === "mod"
-            ? isMac
-              ? "⌘"
-              : "Ctrl"
-            : part === "shift"
-              ? "⇧"
-              : part === "alt"
-                ? isMac
-                  ? "⌥"
-                  : "Alt"
-                : part === "ctrl"
-                  ? "⌃"
-                  : part}
-        </Kbd>
+      {shortcutKeycaps(shortcut).map((cap) => (
+        <Kbd key={cap}>{cap}</Kbd>
       ))}
-      {keyPart !== undefined ? (
-        <Kbd key="key">{keyPart.length === 1 ? keyPart.toUpperCase() : keyPart}</Kbd>
-      ) : null}
     </KbdGroup>
   );
 }
@@ -865,6 +845,7 @@ interface KeybindingRowActions {
 
 type KeybindingRowProps = KeybindingRowActions & {
   row: KeybindingRow;
+  alternates?: ReadonlyArray<KeybindingRow>;
   isSaving: boolean;
   anchorId?: string | undefined;
 };
@@ -967,34 +948,45 @@ function WhenClauseControl({
 }) {
   // Closing unmounts the builder, which drops an unparsed draft and keeps the last valid value.
   const gt = useGT();
+  const m = useMessages();
   const handleOpenChange = (open: boolean) => {
     if (!open) onValidityChange(true);
   };
 
   return (
-    <Popover onOpenChange={handleOpenChange}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant={expression ? "ghost" : "ghost-muted"}
-            size="micro"
-            className="min-w-0 shrink"
-          />
-        }
-        aria-label={editLabel}
+    <Tooltip>
+      <TooltipTrigger
+        disabled={expression.length === 0}
+        render={<span className="flex min-w-0 shrink" />}
       >
-        <span className="truncate font-mono">{expression || gt("Always")}</span>
-        <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
-      </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={6}>
-        <WhenExpressionBuilder
-          value={value}
-          variables={variables}
-          onChange={onChange}
-          onValidityChange={onValidityChange}
-        />
-      </PopoverContent>
-    </Popover>
+        <Popover onOpenChange={handleOpenChange}>
+          <PopoverTrigger
+            render={
+              <Button
+                variant={expression ? "ghost" : "ghost-muted"}
+                size="micro"
+                className="min-w-0 shrink"
+              />
+            }
+            aria-label={editLabel}
+          >
+            <span className="truncate">{describeWhen(value, m) || gt("Always")}</span>
+            <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
+          </PopoverTrigger>
+          <PopoverContent align="start" sideOffset={6}>
+            <WhenExpressionBuilder
+              value={value}
+              variables={variables}
+              onChange={onChange}
+              onValidityChange={onValidityChange}
+            />
+          </PopoverContent>
+        </Popover>
+      </TooltipTrigger>
+      <TooltipPopup side="top" variant="code">
+        {expression}
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 
@@ -1121,9 +1113,39 @@ function KeybindingHoverRowMenu(props: {
   );
 }
 
+function KeybindingKeyEditor(props: {
+  row: KeybindingRow;
+  allRows: ReadonlyArray<KeybindingRow>;
+  isSaving: boolean;
+  onSave: (input: ServerUpsertKeybindingInput) => void;
+  onReset: (row: KeybindingRow) => void;
+  onUnassign: (row: KeybindingRow) => void;
+  onRemove: (row: KeybindingRow) => void;
+}) {
+  const { row, allRows, isSaving, onSave, ...menuActions } = props;
+  const editor = useKeybindingRowEditor({ row, allRows, onSave });
+  return (
+    <>
+      <KeybindingConflictWarning labels={editor.conflictLabels} />
+      <KeybindingHoverRowMenu row={row} isSaving={isSaving} {...menuActions} />
+      <KeybindingKeyControl row={row} editor={editor} isSaving={isSaving} pillClassName="-mr-1.5" />
+    </>
+  );
+}
+
 function KeybindingSettingsRow(props: KeybindingRowProps) {
-  const { row, isSaving, anchorId, allRows, variables, onSave, onReset, onUnassign, onRemove } =
-    props;
+  const {
+    row,
+    alternates = [],
+    isSaving,
+    anchorId,
+    allRows,
+    variables,
+    onSave,
+    onReset,
+    onUnassign,
+    onRemove,
+  } = props;
   const editor = useKeybindingRowEditor({ row, allRows, onSave });
 
   return (
@@ -1154,6 +1176,18 @@ function KeybindingSettingsRow(props: KeybindingRowProps) {
             isSaving={isSaving}
             pillClassName="-mr-1.5"
           />
+          {alternates.map((alternate) => (
+            <KeybindingKeyEditor
+              key={alternate.id}
+              row={alternate}
+              allRows={allRows}
+              isSaving={isSaving}
+              onSave={onSave}
+              onReset={onReset}
+              onUnassign={onUnassign}
+              onRemove={onRemove}
+            />
+          ))}
         </div>
       }
     />
@@ -1445,24 +1479,30 @@ function NewKeybindingSettingsRow(props: NewKeybindingProps) {
 
 interface KeybindingsGroupsProps extends KeybindingRowActions {
   groups: ReadonlyArray<KeybindingGroup>;
-  anchorIds: ReadonlyMap<string, string>;
   savingCommand: KeybindingCommand | null;
 }
 
 function KeybindingsGroups(props: KeybindingsGroupsProps) {
-  const { groups, anchorIds, savingCommand, ...rowActions } = props;
+  const { groups, savingCommand, ...rowActions } = props;
   const m = useMessages();
+  // Search jumps to a command's first row.
+  const anchored = new Set<KeybindingCommand>();
   return groups.map((group) => (
     <SettingsSection key={group.id} id={`keybindings-${group.id}`} title={m(group.title)}>
-      {group.rows.map((row) => (
-        <KeybindingSettingsRow
-          key={row.id}
-          row={row}
-          anchorId={anchorIds.get(row.id)}
-          isSaving={savingCommand === row.command}
-          {...rowActions}
-        />
-      ))}
+      {collapseAlternateRows(group.rows).map(({ row, alternates }) => {
+        const isFirstForCommand = !anchored.has(row.command);
+        anchored.add(row.command);
+        return (
+          <KeybindingSettingsRow
+            key={row.id}
+            row={row}
+            alternates={alternates}
+            anchorId={isFirstForCommand ? keybindingSearchAnchorId(row.command) : undefined}
+            isSaving={savingCommand === row.command}
+            {...rowActions}
+          />
+        );
+      })}
     </SettingsSection>
   ));
 }
@@ -1487,17 +1527,6 @@ function BrowserKeybindingNotice() {
       </TooltipPopup>
     </Tooltip>
   );
-}
-
-function keybindingAnchorIds(rows: ReturnType<typeof buildKeybindingRows>) {
-  const ids = new Map<string, string>();
-  const seen = new Set<KeybindingCommand>();
-  for (const row of rows) {
-    if (seen.has(row.command)) continue;
-    seen.add(row.command);
-    ids.set(row.id, keybindingSearchAnchorId(row.command));
-  }
-  return ids;
 }
 
 // Cache rows in a separate hook so the compiler does not rebuild them per search keystroke.
@@ -1552,7 +1581,6 @@ export function KeybindingsSettingsPanel() {
   const { commandOptions, allRows } = useKeybindingCatalog();
   const rows = filterKeybindingRows(allRows, query, m);
   const groups = groupKeybindingRows(rows);
-  const anchorIds = keybindingAnchorIds(rows);
 
   const openKeybindingsFile = () => {
     if (
@@ -1749,12 +1777,7 @@ export function KeybindingsSettingsPanel() {
         ) : null}
 
         {groups.length > 0 ? (
-          <KeybindingsGroups
-            groups={groups}
-            anchorIds={anchorIds}
-            savingCommand={savingCommand}
-            {...rowActions}
-          />
+          <KeybindingsGroups groups={groups} savingCommand={savingCommand} {...rowActions} />
         ) : (
           <SettingsGroup>
             <div className="px-4 py-12 text-center text-sm text-muted-foreground">

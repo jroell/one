@@ -1,6 +1,6 @@
 import { RegistryContext } from "@effect/atom-react";
 import * as Effect from "effect/Effect";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import {
   DEFAULT_UNIFIED_SETTINGS,
   EnvironmentId,
@@ -65,6 +65,12 @@ const state = vi.hoisted(() => ({
   remove: vi.fn(),
   tasks: [] as ScheduledTask[],
   secondary: false,
+  scope: { kind: "all", label: "All", members: [], environmentIds: [] as string[] } as {
+    kind: "all" | "project";
+    label: string;
+    members: { environmentId: string; id: string }[];
+    environmentIds: string[];
+  },
   providers: null as unknown as Atom.Writable<ReadonlyArray<ServerProvider>>,
   settings: null as unknown as UnifiedSettings,
   upsert: vi.fn(),
@@ -78,6 +84,7 @@ function setup() {
   state.remove.mockReset().mockReturnValue(Effect.succeed({ id: task.id }));
   state.tasks = [task];
   state.secondary = false;
+  state.scope = { kind: "all", label: "All", members: [], environmentIds: [environmentId] };
   state.providers = Atom.make<ReadonlyArray<ServerProvider>>([]);
   state.settings = DEFAULT_UNIFIED_SETTINGS;
   state.upsert.mockReset().mockReturnValue(Effect.succeed({ id: task.id }));
@@ -111,7 +118,7 @@ vi.mock(import("./SettingsScopeContext"), async (original) => {
   const scope = () => {
     const entry = environment();
     return {
-      scope: { kind: "all", label: "All", members: [], environmentIds: [environmentId] },
+      scope: state.scope,
       environments: state.secondary ? [entry, secondaryEnvironment()] : [entry],
       connectedEnvironments: state.connected
         ? state.secondary
@@ -140,6 +147,12 @@ vi.mock(import("../../state/server"), async (original) => {
         run: state.remove,
       },
       providersValueAtom: (() => state.providers) as never,
+      scheduledTasksLive: (() =>
+        Atom.make(
+          state.secondary
+            ? AsyncResult.initial(true)
+            : AsyncResult.success({ tasks: state.tasks, timeZone: "UTC" }),
+        )) as never,
       upsertScheduledTask: {
         ...actual.serverEnvironment.upsertScheduledTask,
         run: state.upsert,
@@ -255,7 +268,7 @@ describe("ScheduledTasksSettings", () => {
       .toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Actions for Review issues" }));
     await userEvent.click(page.getByRole("menuitem", { name: "Delete", exact: true }));
-    await userEvent.click(page.getByRole("button", { name: "Confirm", exact: true }));
+    await userEvent.click(page.getByRole("button", { name: "Delete task", exact: true }));
     await vi.waitFor(() =>
       expect(state.remove).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
         environmentId,
@@ -325,6 +338,40 @@ describe("ScheduledTasksSettings", () => {
       }),
     );
   });
+  it("offers one filled New task button and says what tasks are for when none exist", async () => {
+    setup();
+    state.tasks = [];
+    const registry = AtomRegistry.make();
+    using _registry = { [Symbol.dispose]: () => registry.dispose() };
+    await using _screen = await render(
+      <RegistryContext.Provider value={registry}>
+        <ScheduledTasksSettings />
+      </RegistryContext.Provider>,
+    );
+    await expect
+      .element(page.getByText("Scheduled tasks run a prompt on a timer", { exact: false }))
+      .toBeVisible();
+    await expect.element(page.getByRole("button", { name: "New task" })).toBeEnabled();
+    expect(
+      page.getByText("No tasks match this environment and project selection.").query(),
+    ).toBeNull();
+  });
+
+  it("keeps the filter wording when the project filter hides existing tasks", async () => {
+    setup();
+    state.scope = {
+      kind: "project",
+      label: "Other",
+      environmentIds: [environmentId],
+      members: [{ environmentId, id: "other-project" }],
+    };
+    await using _screen = await render(<ScheduledTasksSettings />);
+    await expect
+      .element(page.getByText("No tasks match this environment and project selection."))
+      .toBeVisible();
+    await expect.element(page.getByRole("button", { name: "New task" })).toBeEnabled();
+  });
+
   it("creates on a permitted secondary and reacts to permission changes", async () => {
     setup();
     state.secondary = true;
