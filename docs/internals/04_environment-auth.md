@@ -72,6 +72,41 @@ model.
   read. A command that waited for another one's turn is checked again, who asked, file and
   approval, before it starts; one refused then ran nothing, so the project's `remove` does not run
   for it either.
+- **A repository's push hooks run for an agent below Full access only as a person approved
+  them.** `pull_request_create` pushes as the server's OS user, and Git would run the checkout's
+  `pre-push` and `reference-transaction` hooks, which the agent may have written. By the rule
+  above for who is in Full access, a thread below it gets every Git command of that call with
+  hooks off (`GitVcsDriver.RepositoryHooks`), except the push itself once a person approved the
+  hooks by a digest of their contents. Hooks are the files in the hooks directory and the ones
+  Git's configuration defines (`hook.<name>.command` with `hook.<name>.event`, which Git 2.54 and
+  later run, read from every configuration file Git reads and whatever those include). Off means
+  `-c core.hooksPath=/dev/null` on the command line, which every supported Git honors, and
+  `hook.<name>.enabled=false` for each configured hook. The driver reads the hooks again as its
+  last step before starting that push. If they are not the approved ones, nothing is pushed and
+  the person is asked about the hooks as they are now; if none is left to run, the push goes ahead
+  with hooks off and no request. A hook file or a setting that cannot be read (anything but a
+  missing file) fails the push: unknown never counts as no hook.
+  The approved push gets a temporary hooks directory of its own, holding one launcher per approved
+  hook that starts the hook by its own path (so husky's `$0`-relative lookups still work); a file
+  that appears among the repository's hooks during the push is not run, and every configured hook
+  but the approved ones is disabled. The digest covers what it names and no more: each configured
+  hook's name, command and the points of the push that start it, each hook file Git starts and, where that file is the shim husky 9
+  and Vite+ install (`. "$(dirname "$0")/h"`), the runner `h` beside it and the script of the
+  hook's name one directory up, such as `.husky/pre-push`. A named file edited after that last
+  read and before Git starts it runs as edited, as does a configured hook added in that time.
+  Only hooks are limited: other programs Git's configuration can name for a push, such as
+  `core.sshCommand`, a credential helper or a remote helper, run as configured.
+  The tool asks by MCP elicitation
+  ([`McpClientInput`](../../apps/server/src/mcp/McpClientInput.ts)): a sessionless client is
+  answered with the request and calls the tool again with the reply, so a handler that asks must
+  be safe to run from the start twice. It reads that reply before any push
+  (`McpClientInput.answered`): a decline pushes nothing, whatever the hooks are by then. A call
+  asks at most three times; the request's state carries the count, so it holds across a
+  sessionless client's calls. A client that cannot be asked gets the push with hooks off.
+  The Claude and Codex adapters never answer a request T3 Code's own tool made, whatever the
+  turn's runtime mode and whatever was allowed for the session: it always reaches the person.
+  What those files go on to run, such as a package script or a file they source, is not part of
+  the digest, so an approval is for the named files and not for everything the push executes.
 - **Peer-link client pairing.** Only a full-access peer link may mint a one-time client pairing on
   the linked environment (since full-access agents can already run `t3 auth pairing create`). The
   linked side enforces this itself, and the operation stays a human-triggered RPC/HTTP route rather

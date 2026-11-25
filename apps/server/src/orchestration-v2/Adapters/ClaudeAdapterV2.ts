@@ -128,6 +128,7 @@ import {
   type ProviderApprovalFullAccessOverride,
   ProviderMcpSignInError,
   type ProviderApprovalOption,
+  type ProviderApprovalPushHooks,
   ProviderDriverKind,
   type ProviderInstanceId,
   type ProviderRequestKind,
@@ -2843,6 +2844,9 @@ export const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
   "mcp__t3-code__t3_submit_output",
 ];
 
+// The name this adapter registers T3's MCP server under, and so the one Claude gives for it.
+const CLAUDE_T3_MCP_SERVER = "t3-code";
+
 // request_secret can wait an hour; exceed Claude's default 60 s timeout.
 export const CLAUDE_T3_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 
@@ -2867,7 +2871,7 @@ export function claudeMcpQueryOverrides(input: {
   return {
     allowedTools: Array.from(new Set([...(input.allowedTools ?? []), ...mcpAllowedTools])),
     mcpServers: {
-      "t3-code": {
+      [CLAUDE_T3_MCP_SERVER]: {
         type: "http",
         url: session.endpoint,
         headers: {
@@ -9439,6 +9443,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           readonly requestKind: OrchestrationV2RuntimeRequest["kind"];
           readonly prompt?: string;
           readonly appName?: string;
+          readonly pushHooks?: ProviderApprovalPushHooks | undefined;
           readonly options?: ReadonlyArray<ProviderApprovalOption>;
           readonly presentation?: ReturnType<typeof claudeApprovalPresentation>;
 
@@ -9532,6 +9537,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                   requestKind: input.requestKind as ProviderRequestKind,
                   ...(input.prompt === undefined ? {} : { prompt: input.prompt }),
                   ...(input.appName === undefined ? {} : { appName: input.appName }),
+                  ...(input.pushHooks === undefined ? {} : { pushHooks: input.pushHooks }),
                   ...(input.options === undefined ? {} : { options: input.options }),
                   ...input.presentation,
                 }
@@ -13175,8 +13181,19 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             // request was dismissed and may be asked another way.
             return { action: "cancel" } satisfies ElicitationResult;
           }
+          // T3's own tools leave what they ask with the thread's MCP session while they wait.
+          // A request is T3's when it is one of those, whatever a server calls itself.
+          const ownRequest =
+            request.serverName === CLAUDE_T3_MCP_SERVER
+              ? yield* mcpSessions.findApprovalRequest(context.input.threadId, request.message)
+              : undefined;
           const grantKey = `${request.serverName}\u0000${request.message}`;
-          if ((yield* Ref.get(mcpElicitationSessionGrants)).has(grantKey)) {
+          // T3 Code asks only when a person has to answer, so its own request is never answered
+          // from an earlier answer and offers none to remember.
+          if (
+            ownRequest === undefined &&
+            (yield* Ref.get(mcpElicitationSessionGrants)).has(grantKey)
+          ) {
             return acceptance;
           }
           // The CLI waits on this answer, so a turn held for its prompt echo
@@ -13194,8 +13211,16 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             nativeRequestId,
             requestKind: "mcp-elicitation",
             prompt: request.message,
-            appName: request.displayName ?? request.title ?? request.serverName,
-            options: CLAUDE_MCP_ELICITATION_OPTIONS,
+            // T3 Code asking is the app itself, so there is no other app to name.
+            ...(ownRequest === undefined
+              ? { appName: request.displayName ?? request.title ?? request.serverName }
+              : { pushHooks: ownRequest.pushHooks }),
+            options:
+              ownRequest === undefined
+                ? CLAUDE_MCP_ELICITATION_OPTIONS
+                : CLAUDE_MCP_ELICITATION_OPTIONS.filter(
+                    (option) => option.decision !== "acceptForSession",
+                  ),
           });
           const decision = yield* Deferred.make<ClaudeApprovalResponse>();
           yield* Ref.update(pendingRuntimeRequests, (current) => {
@@ -13266,9 +13291,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             });
           }
           if (resolved === "acceptForSession") {
-            yield* Ref.update(mcpElicitationSessionGrants, (current) =>
-              new Set(current).add(grantKey),
-            );
+            if (ownRequest === undefined) {
+              yield* Ref.update(mcpElicitationSessionGrants, (current) =>
+                new Set(current).add(grantKey),
+              );
+            }
             return acceptance;
           }
           // Never null: the SDK reads null as answered out of band and leaves

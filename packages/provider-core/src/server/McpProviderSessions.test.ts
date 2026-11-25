@@ -159,3 +159,92 @@ describe("McpProviderSessions tool results", () => {
     }).pipe(Effect.provide(McpProviderSessions.layer)),
   );
 });
+
+describe("McpProviderSessions approval requests", () => {
+  const threadId = ThreadId.make("thread-approval-requests");
+  const pushHooks = { branch: "tools", files: [".husky/pre-push"], commands: [] };
+  const makeSession = (providerSessionId: string) => ({
+    environmentId: EnvironmentId.make("env-approval-requests"),
+    threadId,
+    providerSessionId,
+    providerInstanceId: ProviderInstanceId.make("codex"),
+    endpoint: "http://127.0.0.1/mcp",
+    authorizationHeader: "Bearer token",
+    browserToolsAvailable: false,
+  });
+
+  it.effect("keeps what a thread was asked until it is answered, per thread and message", () =>
+    Effect.gen(function* () {
+      const sessions = yield* McpProviderSessions.McpProviderSessions;
+      const asked = yield* sessions.recordApprovalRequest(threadId, {
+        message: "Push tools?",
+        pushHooks,
+      });
+
+      assert.deepEqual(yield* sessions.findApprovalRequest(threadId, "Push tools?"), {
+        message: "Push tools?",
+        pushHooks,
+      });
+      // Showing the request does not end it.
+      assert.isDefined(yield* sessions.findApprovalRequest(threadId, "Push tools?"));
+      assert.isUndefined(yield* sessions.findApprovalRequest(threadId, "Push tools!"));
+      assert.isUndefined(
+        yield* sessions.findApprovalRequest(ThreadId.make("another-thread"), "Push tools?"),
+      );
+
+      yield* sessions.forgetApprovalRequest(threadId, asked);
+      assert.isUndefined(yield* sessions.findApprovalRequest(threadId, "Push tools?"));
+    }).pipe(Effect.provide(McpProviderSessions.layer)),
+  );
+
+  it.effect("an answer forgets only the request it answers", () =>
+    Effect.gen(function* () {
+      const sessions = yield* McpProviderSessions.McpProviderSessions;
+      // Two calls asking the same thing are answered one at a time, each once.
+      const first = yield* sessions.recordApprovalRequest(threadId, {
+        message: "Push tools?",
+        pushHooks,
+      });
+      const second = yield* sessions.recordApprovalRequest(threadId, {
+        message: "Push tools?",
+        pushHooks,
+      });
+      yield* sessions.forgetApprovalRequest(threadId, first);
+      yield* sessions.forgetApprovalRequest(threadId, first);
+      assert.deepEqual(yield* sessions.findApprovalRequest(threadId, "Push tools?"), {
+        message: "Push tools?",
+        pushHooks,
+      });
+      yield* sessions.forgetApprovalRequest(threadId, second);
+      assert.isUndefined(yield* sessions.findApprovalRequest(threadId, "Push tools?"));
+    }).pipe(Effect.provide(McpProviderSessions.layer)),
+  );
+
+  it.effect("a request that ends after its session was replaced leaves the new session's", () =>
+    Effect.gen(function* () {
+      const sessions = yield* McpProviderSessions.McpProviderSessions;
+      yield* sessions.set(makeSession("provider-session-1"));
+      const earlier = yield* sessions.recordApprovalRequest(threadId, {
+        message: "Push tools?",
+        pushHooks,
+      });
+      yield* sessions.set(makeSession("provider-session-2"));
+      yield* sessions.recordApprovalRequest(threadId, { message: "Push tools?", pushHooks });
+
+      yield* sessions.forgetApprovalRequest(threadId, earlier);
+      assert.deepEqual(yield* sessions.findApprovalRequest(threadId, "Push tools?"), {
+        message: "Push tools?",
+        pushHooks,
+      });
+    }).pipe(Effect.provide(McpProviderSessions.layer)),
+  );
+
+  it.effect("drops what was asked when the thread's session ends", () =>
+    Effect.gen(function* () {
+      const sessions = yield* McpProviderSessions.McpProviderSessions;
+      yield* sessions.recordApprovalRequest(threadId, { message: "Push tools?", pushHooks });
+      yield* sessions.clear(threadId);
+      assert.isUndefined(yield* sessions.findApprovalRequest(threadId, "Push tools?"));
+    }).pipe(Effect.provide(McpProviderSessions.layer)),
+  );
+});
