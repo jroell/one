@@ -241,6 +241,25 @@ describe("buildShortcutSections", () => {
     expect(keysOf("mod-enter-multiline")).toEqual([[["Ctrl", "Shift", "Enter"]]]);
   });
 
+  it("keeps a chord outside the composer that is conditioned on the send shortcut not needing a modifier", () => {
+    // The global dispatcher never sets composerRequiresModifier, so this chord opens the
+    // palette in every send mode.
+    const config = [
+      {
+        command: "commandPalette.toggle" as const,
+        key: "mod+alt+shift+k",
+        when: "!composerRequiresModifier",
+      },
+    ];
+    const keysOf = (sendShortcut: "enter" | "mod-enter" | "mod-enter-multiline") =>
+      build(config, { sendShortcut })
+        .flatMap((section) => section.rows)
+        .map((row) => row.keys);
+
+    expect(keysOf("enter")).toEqual([[["Ctrl", "Alt", "Shift", "K"]]]);
+    expect(keysOf("mod-enter")).toEqual([[["Ctrl", "Alt", "Shift", "K"]]]);
+  });
+
   it("shows a key again once comparing it would exceed the work budget", () => {
     // 256 rules on one key, each covered by the next rule of the other command.
     const config = compileResolvedKeybindingsConfig(

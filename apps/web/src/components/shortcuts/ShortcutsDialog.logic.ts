@@ -239,16 +239,18 @@ function buildShortcutRows(
     const shortcuts = keybindings.map((binding) =>
       shortcutForContext(binding, { composerRequiresModifier }),
     );
-    // A condition on the send shortcut is decided by the mode, so a chord that needs the other
-    // mode does not exist here and shadows nothing; null marks such a binding.
-    const whens = platformWhens.map((when) =>
-      when === null
-        ? null
-        : whenWithKnownTerms(
-            when,
-            new Map([["composerRequiresModifier", composerRequiresModifier]]),
-          ),
-    );
+    // The mode decides a condition on the send shortcut: a chord that needs the other mode does
+    // not exist here (null). Only the chat sets the term; elsewhere it reads as false, so a
+    // binding outside the composer is judged that way before it is left out.
+    const whens = platformWhens.map((when, index) => {
+      if (when === null) return null;
+      const inMode = whenWithKnownTerms(
+        when,
+        new Map([["composerRequiresModifier", composerRequiresModifier]]),
+      );
+      if (inMode !== null || keybindings[index]!.command.startsWith("composer.")) return inMode;
+      return whenWithKnownTerms(when, new Map([["composerRequiresModifier", false]]));
+    });
     const conflictKeys = shortcuts.map((shortcut) => shortcutConflictKey(shortcut, platform));
     const sameKey = new Map<string, number[]>();
     keybindings.forEach((_, index) => {

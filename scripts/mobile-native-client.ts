@@ -215,7 +215,10 @@ const command = Effect.fn("nativeClient.command")(function* (
         ...(sdk ? { ANDROID_HOME: sdk } : {}),
         APP_VARIANT: "development",
         // A local native build has no Expo project; app.config.ts fills in a stand-in id for it.
-        ONE_MOBILE_LOCAL_BUILD: "1",
+        // EAS calls leave it out: EAS would look the stand-in up as a real project.
+        ...(withoutEnvironment.includes("ONE_MOBILE_LOCAL_BUILD")
+          ? {}
+          : { ONE_MOBILE_LOCAL_BUILD: "1" }),
         MOBILE_VERSION_POLICY: "appVersion",
         T3CODE_IOS_PERSONAL_TEAM: "0",
         CI: "1",
@@ -667,12 +670,14 @@ const hasXcode = Effect.gen(function* () {
   );
 });
 
+const NO_LOCAL_BUILD_FLAG = ["ONE_MOBILE_LOCAL_BUILD"] as const;
+
 /** Without Xcode, EAS builds the same simulator client from this checkout. */
 const buildIosOnEas = Effect.fn("nativeClient.buildIosOnEas")(function* (staging: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   // Fail before any work when neither builder is available.
-  yield* command("npx", ["-y", easCli, "whoami"]).pipe(
+  yield* command("npx", ["-y", easCli, "whoami"], false, undefined, NO_LOCAL_BUILD_FLAG).pipe(
     Effect.mapError(
       () =>
         new NativeClientError({
@@ -683,18 +688,24 @@ const buildIosOnEas = Effect.fn("nativeClient.buildIosOnEas")(function* (staging
   );
   yield* Console.error("No Xcode here; building the iOS simulator client on EAS (10-30 min).");
   const [build] = yield* decodeEasBuilds(
-    yield* command("npx", [
-      "-y",
-      easCli,
-      "build",
-      "--platform",
-      "ios",
-      "--profile",
-      "development-simulator",
-      "--non-interactive",
-      "--wait",
-      "--json",
-    ]),
+    yield* command(
+      "npx",
+      [
+        "-y",
+        easCli,
+        "build",
+        "--platform",
+        "ios",
+        "--profile",
+        "development-simulator",
+        "--non-interactive",
+        "--wait",
+        "--json",
+      ],
+      false,
+      undefined,
+      NO_LOCAL_BUILD_FLAG,
+    ),
   );
   if (!build) return yield* new NativeClientError({ message: "EAS returned no build." });
   const archive = path.join(staging, "eas-build.tar.gz");
