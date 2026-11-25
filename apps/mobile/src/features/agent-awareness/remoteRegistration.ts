@@ -528,7 +528,8 @@ function armAgentAwarenessLiveActivityForLocalWorkNow(input: {
     const activity = startAgentLiveActivity(
       {
         text: agentActivityText(1, m),
-        title: "T3 Code",
+        // oxlint-disable-next-line t3code/no-untranslated-copy -- product name
+        title: "One",
         subtitle: m(msg("Agent work in progress")),
         activeCount: 1,
         updatedAt: nowIso,

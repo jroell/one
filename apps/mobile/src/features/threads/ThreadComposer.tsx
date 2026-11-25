@@ -587,7 +587,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     armAgentAwarenessLiveActivityForLocalWork({
       environmentId: props.environmentId,
       threadTitle: props.selectedThread.title,
-      projectTitle: props.environmentLabel ?? "T3 Code",
+      // oxlint-disable-next-line t3code/no-untranslated-copy -- product name
+      projectTitle: props.environmentLabel ?? "One",
     });
   };
 

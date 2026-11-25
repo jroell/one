@@ -59,7 +59,8 @@ export function ListSearchToolbar(props: {
   }, [searching, closeSearch, navigation, isTabActive, section]);
   return (
     <AppBar
-      title="T3 Code"
+      // oxlint-disable-next-line t3code/no-untranslated-copy -- product name
+      title="One"
       titleContent={
         <WorkspaceConnectionTitle
           grow
