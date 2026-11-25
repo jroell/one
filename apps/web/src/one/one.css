@@ -663,3 +663,79 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
     backdrop-filter: blur(0) saturate(1);
   }
 }
+
+/* ---------------------------------------------------------------- opening */
+
+/* Always black, whatever the theme: the ring makes its own light. */
+.one-opening {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 90% at 50% 44%, #0b0803 0%, #000 62%);
+  color: #f6e2a6;
+  --one-brand: #d9b450;
+  --one-ring-mid: #d9b450;
+  --one-ring-hi: #f6e2a6;
+  --one-ring-lo: #6d5312;
+  transition:
+    opacity 700ms var(--one-ease-out),
+    scale 700ms var(--one-ease-out),
+    filter 700ms var(--one-ease-out);
+}
+
+.one-opening[data-phase="leaving"] {
+  opacity: 0;
+  scale: 1.06;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.one-opening-ring {
+  width: min(62vmin, 30rem);
+}
+
+.one-opening-name {
+  margin-top: -1.5rem;
+  font-family:
+    "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(1.75rem, 1.2rem + 2.2vmin, 2.75rem);
+  font-weight: 500;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.42em;
+  /* The tracking adds space after the last letter; pull the word back to center. */
+  margin-right: -0.42em;
+  background: linear-gradient(180deg, #fff6d6 0%, #e8cc74 46%, #9c781f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: one-opening-name 1800ms var(--one-ease-out) 1900ms both;
+}
+
+.one-opening-rule {
+  width: min(22vmin, 9rem);
+  height: 1px;
+  margin-top: 1.1rem;
+  background: linear-gradient(90deg, transparent, #d9b450 50%, transparent);
+  animation: one-opening-rule 1600ms var(--one-ease-out) 2300ms both;
+}
+
+@keyframes one-opening-name {
+  from {
+    opacity: 0;
+    letter-spacing: 0.9em;
+    margin-right: -0.9em;
+    filter: blur(6px);
+  }
+}
+
+@keyframes one-opening-rule {
+  from {
+    opacity: 0;
+    scale: 0 1;
+  }
+}

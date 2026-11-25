@@ -6,6 +6,9 @@ import { startOneOrb, type OneOrbRenderer, type OneOrbState } from "./oneOrbRend
 
 export type { OneOrbState };
 
+/** How long the ring takes to ignite in the opening. */
+export const OPENING_SECONDS = 3.2;
+
 /**
  * The One ring as a live object: it rocks slowly at rest, faces you while
  * listening, spins while the agent thinks, and swells with sound.
@@ -14,8 +17,11 @@ export type { OneOrbState };
 export function OneOrb({
   state = "idle",
   levelRef,
+  opening = false,
   className,
 }: {
+  /** Plays the opening: the ring ignites out of the dark. Set once at mount. */
+  readonly opening?: boolean;
   readonly state?: OneOrbState;
   /** Live sound level, 0 to 1. Read every frame without re-rendering. */
   readonly levelRef?: { readonly current: number };
@@ -40,13 +46,14 @@ export function OneOrb({
       getState: () => stateRef.current,
       getLevel: () => levelRef?.current ?? 0,
       onUnsupported: () => setUnsupported(true),
+      ...(opening ? { openingSeconds: OPENING_SECONDS } : {}),
     });
     rendererRef.current = renderer;
     return () => {
       rendererRef.current = null;
       renderer?.dispose();
     };
-  }, [levelRef]);
+  }, [levelRef, opening]);
 
   return (
     <div className={cn("relative aspect-square", className)} data-one-orb={state}>

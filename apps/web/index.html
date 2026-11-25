@@ -684,6 +684,27 @@
       }
     </style>
     <script>
+      // The opening starts from black. Mark the page before first paint so the
+      // boot screen does not flash the theme color first. Mirrors shouldPlayOpening.
+      try {
+        if (
+          window.localStorage.getItem("one:opening") !== "off" &&
+          window.sessionStorage.getItem("one:opening-seen") === null &&
+          !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+          document.documentElement.dataset.oneOpening = "";
+        }
+      } catch {}
+    </script>
+    <style>
+      html[data-one-opening] #boot-shell {
+        background: #000;
+      }
+      html[data-one-opening] #boot-shell-logo {
+        visibility: hidden;
+      }
+    </style>
+    <script>
       // Desktop's preload injects branding before page scripts. Titling before the <title> below
       // parses keeps Electron from reporting the web build's channel to the window first.
       const desktopDisplayName = window.desktopBridge?.getAppBranding?.()?.displayName;

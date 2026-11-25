@@ -11,13 +11,15 @@ type OrbPose = Readonly<{
   sway: number;
   pulse: number;
   baseEnergy: number;
+  /** Strength of the smoke-like corona and drifting sparks, 0 to 1. */
+  aura: number;
 }>;
 
 const POSES: Record<OneOrbState, OrbPose> = {
-  idle: { tilt: 1.02, spinSpeed: 0, sway: 0.42, pulse: 0, baseEnergy: 0 },
-  listening: { tilt: 1.46, spinSpeed: 0, sway: 0.12, pulse: 0, baseEnergy: 0.12 },
-  thinking: { tilt: 1.12, spinSpeed: 1.9, sway: 0, pulse: 1, baseEnergy: 0.06 },
-  speaking: { tilt: 1.26, spinSpeed: 0, sway: 0.24, pulse: 0, baseEnergy: 0.1 },
+  idle: { tilt: 1.02, spinSpeed: 0, sway: 0.42, pulse: 0, baseEnergy: 0, aura: 0.3 },
+  listening: { tilt: 1.46, spinSpeed: 0, sway: 0.12, pulse: 0, baseEnergy: 0.12, aura: 0.5 },
+  thinking: { tilt: 1.12, spinSpeed: 1.9, sway: 0, pulse: 1, baseEnergy: 0.06, aura: 0.75 },
+  speaking: { tilt: 1.26, spinSpeed: 0, sway: 0.24, pulse: 0, baseEnergy: 0.1, aura: 0.55 },
 };
 
 /** The resting angle that shows the opening of the ring. The band looks the same every half turn. */
@@ -72,6 +74,8 @@ export function startOneOrb(
     /** Live sound level, 0 to 1, read every frame. */
     readonly getLevel: () => number;
     readonly onUnsupported: () => void;
+    /** Plays the opening once: the ring ignites out of the dark over this many seconds. */
+    readonly openingSeconds?: number;
   },
 ): OneOrbRenderer | null {
   const gl = canvas.getContext("webgl", { premultipliedAlpha: true, antialias: false });
@@ -112,6 +116,8 @@ export function startOneOrb(
     tilt: uniform("uTilt"),
     pulse: uniform("uPulse"),
     dark: uniform("uDark"),
+    aura: uniform("uAura"),
+    reveal: uniform("uReveal"),
   };
 
   const readColor = createColorReader();
@@ -147,6 +153,9 @@ export function startOneOrb(
   let tilt = POSES[input.getState()].tilt;
   let pulse = 0;
   let energy = 0;
+  const openingSeconds = input.openingSeconds ?? 0;
+  let reveal = openingSeconds > 0 ? 0 : 1;
+  let aura = openingSeconds > 0 ? 1 : POSES[input.getState()].aura;
 
   const draw = (now: number) => {
     frame = 0;
@@ -158,6 +167,8 @@ export function startOneOrb(
       tilt = pose.tilt;
       pulse = 0;
       energy = pose.baseEnergy;
+      reveal = 1;
+      aura = pose.aura;
     } else {
       const ease = 1 - Math.exp(-delta * 5.5);
       time += delta;
@@ -167,6 +178,10 @@ export function startOneOrb(
         const rest = OPEN_ANGLE + Math.PI * Math.round((spin - OPEN_ANGLE) / Math.PI);
         spin += (rest - spin) * (1 - Math.exp(-delta * 3));
       }
+      if (reveal < 1) reveal = Math.min(1, reveal + delta / openingSeconds);
+      // The corona burns high through the opening, then settles to the resting glow.
+      const auraTarget = reveal < 1 ? 1 : pose.aura;
+      aura += (auraTarget - aura) * (1 - Math.exp(-delta * 1.2));
       sway += (pose.sway - sway) * ease;
       tilt += (pose.tilt - tilt) * ease;
       pulse += (pose.pulse - pulse) * ease;
@@ -181,6 +196,8 @@ export function startOneOrb(
     gl.uniform1f(uniforms.tilt, tilt);
     gl.uniform1f(uniforms.pulse, pulse);
     gl.uniform1f(uniforms.energy, energy);
+    gl.uniform1f(uniforms.aura, aura);
+    gl.uniform1f(uniforms.reveal, reveal);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

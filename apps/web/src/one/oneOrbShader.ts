@@ -21,9 +21,51 @@ uniform float uSpin;
 uniform float uTilt;
 uniform float uPulse;
 uniform float uDark;
+uniform float uAura;
+uniform float uReveal;
 
 const float RADIUS = 1.0;
 const vec2 BAND = vec2(0.085, 0.27);
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+float fbm(vec2 p) {
+  float sum = 0.0;
+  float amplitude = 0.5;
+  for (int i = 0; i < 4; i++) {
+    sum += amplitude * noise(p);
+    p = p * 2.03 + vec2(17.0, 9.0);
+    amplitude *= 0.5;
+  }
+  return sum;
+}
+
+/* Sparks that drift up past the ring, each on its own slow path. */
+float embers(vec2 uv) {
+  float glow = 0.0;
+  for (int i = 0; i < 12; i++) {
+    float seed = float(i) * 7.31;
+    float speed = 0.035 + 0.05 * hash(vec2(seed, 1.0));
+    float climb = fract(hash(vec2(seed, 2.0)) + uTime * speed);
+    vec2 at = vec2(
+      (hash(vec2(seed, 3.0)) - 0.5) * 1.5 + 0.06 * sin(uTime * 0.6 + seed),
+      climb * 2.0 - 1.0
+    );
+    float fade = smoothstep(0.0, 0.2, climb) * smoothstep(1.0, 0.55, climb);
+    float flicker = 0.6 + 0.4 * sin(uTime * (2.0 + hash(vec2(seed, 4.0)) * 3.0) + seed);
+    float size = 0.006 + 0.008 * hash(vec2(seed, 5.0));
+    glow += smoothstep(size, 0.0, length(uv - at)) * fade * flicker;
+  }
+  return glow;
+}
 
 mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 
@@ -85,11 +127,13 @@ vec3 studio(vec3 d) {
 
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / min(uRes.x, uRes.y);
-  vec3 ro = vec3(0.0, 0.0, 4.1);
+  // The opening starts far back in the dark and drifts in.
+  float arrive = 1.0 - pow(1.0 - uReveal, 3.0);
+  vec3 ro = vec3(0.0, 0.0, mix(5.3, 4.1, arrive));
   vec3 rd = normalize(vec3(uv * 1.2, -3.0));
   float pixel = 2.2 / min(uRes.x, uRes.y);
 
-  float t = 2.2;
+  float t = 2.0;
   float nearest = 1e3;
   bool hit = false;
   for (int i = 0; i < 64; i++) {
@@ -97,7 +141,7 @@ void main() {
     nearest = min(nearest, d);
     if (d < 0.0012) { hit = true; break; }
     t += d * 0.82;
-    if (t > 6.2) break;
+    if (t > 7.6) break;
   }
 
   vec3 color = vec3(0.0);
@@ -122,6 +166,16 @@ void main() {
     color += vec3(1.0) * pow(max(dot(n, keyHalf), 0.0), 140.0) * 2.4;
     color = color / (1.0 + color * 0.36);
     color = pow(color, vec3(0.82));
+    // Opening: the metal stays black until a line of fire has run around the
+    // band. The body resolves behind the flame front.
+    float around = fract(atan(toRing(p).z, toRing(p).x) / 6.2831853 + 0.25);
+    float front = uReveal * 1.5;
+    float lit = smoothstep(front - 0.42, front - 0.02, around);
+    float settled = smoothstep(0.55, 1.0, uReveal);
+    color *= mix(1.0 - lit, 1.0, settled) * mix(0.0, 1.0, smoothstep(0.02, 0.2, uReveal));
+    float flame = smoothstep(0.07, 0.0, abs(around - front)) * (1.0 - settled);
+    color += mix(uHi, vec3(1.0), 0.6) * flame * 2.2;
+    color += uMid * (1.0 - lit) * pow(1.0 - facing, 2.0) * (1.0 - settled) * 0.9;
     alpha = 1.0;
   }
 
@@ -132,6 +186,14 @@ void main() {
   }
 
   float halo = exp(-max(nearest, 0.0) * (7.5 - 3.0 * uEnergy)) * (0.16 + 0.34 * uEnergy + 0.1 * uPulse);
+  // A corona that moves like slow smoke: light drawn up and off the band.
+  // Two layers sliding past each other, so the smoke curls instead of scrolling.
+  vec2 drift = uv * 2.1 + vec2(0.0, -uTime * 0.16);
+  float smoke = fbm(drift + 0.9 * vec2(fbm(drift * 0.7 + uTime * 0.05), fbm(drift * 0.7 - uTime * 0.04)));
+  float corona = exp(-max(nearest, 0.0) * 2.6) * smoothstep(0.32, 0.85, smoke) * uAura;
+  halo = halo * mix(1.0, 0.55 + 0.9 * smoke, uAura) + corona * 0.42;
+  halo += embers(uv) * uAura * 0.9;
+  halo *= smoothstep(0.0, 0.5, uReveal);
   halo *= mix(0.55, 1.0, uDark);
   // The glow must reach zero before the edge of the canvas, or the square shows.
   halo *= smoothstep(1.0, 0.62, length(uv));
