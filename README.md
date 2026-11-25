@@ -1,121 +1,291 @@
 <p align="center">
-  <a href="https://t3.codes">
-    <img src="./assets/prod/t3-black-web-icon-192x192.png" width="80" height="80" alt="T3 Code logo" />
-  </a>
+  <img src="./.github/readme/banner.png" width="100%" alt="One: One harness to rule them all" />
 </p>
 
-<h1 align="center">T3 Code</h1>
-
-<p align="center">The open-source control plane for coding agents.</p>
+<h1 align="center">One</h1>
 
 <p align="center">
-  <a href="https://t3.codes/download"><strong>Download</strong></a> ·
-  <a href="https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824">iOS</a> ·
-  <a href="https://play.google.com/store/apps/details?id=com.t3tools.t3code">Android</a> ·
-  <a href="https://app.t3.codes">Web</a> ·
-  <a href="./docs/README.md">Docs</a> ·
-  <a href="https://discord.gg/jn4EGJjrvv">Discord</a>
+  <strong>One harness to rule them all.</strong><br />
+  One place to find them, one interface to bring them all, and in one workflow bind them.<br />
+  Command every local and ACP coding agent from desktop, web, and phone.
 </p>
 
 <p align="center">
-  <a href="https://t3.codes">
-    <img src="./.github/readme/hero.webp" width="100%" alt="T3 Code on desktop with a finished Claude thread, next to the phone app asking to approve a command from Codex" />
-  </a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/jroell/t3code?style=flat-square&color=d4a02c&labelColor=111114" alt="MIT License" /></a>
+  <a href="https://github.com/jroell/t3code/stargazers"><img src="https://img.shields.io/github/stars/jroell/t3code?style=flat-square&color=d4a02c&labelColor=111114" alt="GitHub Stars" /></a>
+  <a href="https://github.com/jroell/t3code/forks"><img src="https://img.shields.io/github/forks/jroell/t3code?style=flat-square&color=d4a02c&labelColor=111114" alt="GitHub Forks" /></a>
+  <a href="https://github.com/jroell/t3code/commits/custom/main"><img src="https://img.shields.io/github/last-commit/jroell/t3code/custom/main?style=flat-square&color=d4a02c&labelColor=111114" alt="Last Commit" /></a>
 </p>
 
-T3 Code runs the coding agents on your machine and gives them one fast interface. Start a thread at your desk, then approve the next step from your phone.
+<p align="center">
+  <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-1c1c21?style=flat-square&labelColor=111114" alt="Platforms: macOS, Windows, Linux, iOS, Android" />
+  <img src="https://img.shields.io/badge/agents-10%2B%20built--in%20%2B%20ACP-d4a02c?style=flat-square&labelColor=111114" alt="10+ built-in agents plus ACP" />
+  <img src="https://img.shields.io/badge/stack-TypeScript%20%7C%20React%20%7C%20Electron%20%7C%20Expo-1c1c21?style=flat-square&labelColor=111114" alt="Stack: TypeScript, React, Electron, Expo" />
+</p>
 
-It works with Claude Code, Codex, Cursor, OpenCode, Grok Build, Antigravity, Kiro, Pi, Muse Code, fx, and any [ACP](./docs/user/providers-acp.md) agent. If an agent is set up on your computer, T3 Code can control it.
+<p align="center">
+  <a href="#in-action">In Action</a> ·
+  <a href="#why-one">Why One</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#supported-agents">Supported Agents</a> ·
+  <a href="#quickstart-and-build-from-source">Quickstart</a> ·
+  <a href="#daily-upstream-sync">Upstream Sync</a> ·
+  <a href="#unofficial-fork-and-trademark-notice">Fork Notice</a>
+</p>
 
-## What you get
+> **Unofficial Fork Notice:** One is an independent, unofficial open-source fork based on the MIT-licensed [T3 Code](https://github.com/pingdotgg/t3code) source code. It is not affiliated with, endorsed by, or maintained by T3 Tools, Inc. See [Unofficial Fork and Trademark Notice](#unofficial-fork-and-trademark-notice).
 
-- **Your subscriptions.** T3 Code does not resell tokens. It drives the agents you are already signed in to.
-- **Every agent in one place.** Change models in the middle of a thread. Let Claude hand a task to Codex.
-- **Desktop, web, and phone.** One server, and every client shows the same threads. There are apps for iOS and Android.
-- **Remote ready.** Run agents on any machine. Connect over your local network, Tailscale, or [T3 Connect](./docs/user/remote-access.md).
-- **Git built in.** Each thread can work in its own worktree. Review the diff, then commit, push, and open a pull request with one button.
-- **Fast.** Performance is a feature here. We measure it, and we treat a dropped frame as a bug.
-- **Open.** Source code is MIT licensed. If you don't like something, fork it under your own branding (see [Trademarks and forks](#trademarks-and-forks)).
+---
 
-## Install
+One runs the coding agents installed on your machine and puts every thread behind one fast control plane. Start a feature at your desk with Claude Code, hand implementation to Codex, review the worktree diff in the same window, and approve tool calls from your phone while you walk away.
 
-### Desktop app
+## In Action
 
-[Download T3 Code](https://t3.codes/download) for macOS, Windows, or Linux. You can also use a package manager:
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./.github/readme/screenshots/one-workspace-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="./.github/readme/screenshots/one-workspace-light.png" />
+    <img src="./.github/readme/screenshots/one-workspace-dark.png" width="100%" alt="One workspace managing multi-agent threads across repositories with isolated Git worktrees" />
+  </picture>
+</p>
 
-| Platform       | Command                                                              |
-| -------------- | -------------------------------------------------------------------- |
-| macOS          | `brew install --cask t3-code`                                        |
-| Windows        | `winget install T3Tools.T3Code` or `scoop install extras/t3code`     |
-| Arch Linux     | `yay -S t3code-bin`                                                  |
-| Nix            | `nix profile add github:NixOS/nixpkgs/nixos-unstable#t3code`         |
-| Debian, Ubuntu | `.deb` from [Releases](https://github.com/pingdotgg/t3code/releases) |
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="./.github/readme/screenshots/one-diff-dark.png" width="100%" alt="One split workspace showing an active agent thread beside syntax-highlighted code and file tree" />
+      <p align="center"><sub><strong>Split code &amp; diff review.</strong> Inspect files, diffs, and worktrees beside active threads without leaving the conversation.</sub></p>
+    </td>
+    <td width="50%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="./.github/readme/screenshots/one-workspace-light.png" />
+        <source media="(prefers-color-scheme: light)" srcset="./.github/readme/screenshots/one-workspace-dark.png" />
+        <img src="./.github/readme/screenshots/one-workspace-light.png" width="100%" alt="One workspace in light and dark themes" />
+      </picture>
+      <p align="center"><sub><strong>Native light &amp; dark themes.</strong> Crisp typography, fast keyboard navigation, and zero clutter across desktop, web, and mobile.</sub></p>
+    </td>
+  </tr>
+</table>
 
-### Command line
+## Why One
 
-This installs the `t3` command. Run `t3` to start the server and open the web app.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Multi-agent orchestration</h3>
+      Switch providers or models mid-thread without losing context. Run Claude Code, Codex, Cursor, OpenCode, Grok Build, Antigravity, Kiro, Pi, Muse Code, fx, and any ACP agent side by side instead of babysitting six terminal tabs.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Bring your own subscriptions</h3>
+      One does not resell tokens or sit in front of your billing. It drives the agent CLIs you already have installed and authenticated on your computer, with support for multiple accounts and custom environment variables per provider.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Git worktrees per thread</h3>
+      Give each task its own isolated branch and worktree. Review diffs inline, roll back to turn checkpoints stored in hidden Git refs, then commit, push, and open pull requests from one place.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Desktop, web, and mobile</h3>
+      One server owns your projects, terminals, and durable SQLite state. Connect from the native desktop app, any browser, or the iOS and Android companion apps and watch the same live threads everywhere.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Remote control anywhere</h3>
+      Keep your agents running on a workstation, Mac Mini, or Linux box. Connect over your local network, Tailscale HTTPS, Desktop-managed SSH, or a self-hosted relay. Link multiple machines so agents on one host can delegate work to another.
+    </td>
+    <td width="50%" valign="top">
+      <h3>Built for speed</h3>
+      Event-sourced orchestration, bounded SQLite projections, native Rust resource telemetry, and Vite+ tooling keep switching across dozens of active threads responsive.
+    </td>
+  </tr>
+</table>
+
+## Architecture
+
+Execution stays on the machine that owns the repository and provider credentials. Desktop, web, and mobile clients connect over authenticated RPC and WebSockets, and provider adapters keep agent-specific protocols isolated behind shared capabilities.
+
+```mermaid
+flowchart LR
+  subgraph Clients["Clients (Shared Client Runtime)"]
+    Desktop["Desktop App (Electron)"]
+    Web["Web App (React + Vite)"]
+    Mobile["Mobile Companion (iOS & Android / Expo)"]
+  end
+
+  subgraph Transport["Authenticated RPC & WebSockets"]
+    Route["Localhost / LAN / Tailscale HTTPS / SSH / Self-hosted Relay"]
+  end
+
+  subgraph Server["One Server (apps/server)"]
+    Orch["Event-Sourced Orchestrator"]
+    State["SQLite Projections & Checkpoints"]
+    Git["Git Worktrees & Terminals"]
+  end
+
+  subgraph Agents["Local & ACP Agent CLIs"]
+    A1["Claude Code / Codex / Cursor"]
+    A2["OpenCode / Grok Build / Antigravity"]
+    A3["Kiro / Pi / Muse Code / fx / ACP Registry"]
+  end
+
+  Desktop --> Route
+  Web --> Route
+  Mobile --> Route
+  Route --> Orch
+  Orch --> State
+  Orch --> Git
+  Orch --> A1
+  Orch --> A2
+  Orch --> A3
+```
+
+## Supported Agents
+
+Install and sign in to at least one provider on the machine running the server. You can add multiple instances of the same provider in **Settings -> Providers** for separate accounts, API keys, or custom binary paths.
+
+| Agent            | CLI / Setup                                                              | Authentication                          | Notes                                                                     |
+| ---------------- | ------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------- |
+| **Claude Code**  | [Claude Code](https://claude.com/product/claude-code)                    | `claude auth login`                     | Full streaming, tool approvals, and mid-thread switching                  |
+| **Codex**        | [Codex CLI](https://developers.openai.com/codex/cli) or managed runtime  | `codex login` or ChatGPT sign-in        | Supports managed runtime without a manual `PATH` entry                    |
+| **Cursor**       | [Cursor CLI](https://cursor.com/cli) (`cursor-agent`)                    | `agent login`                           | Managed updates supported from provider settings                          |
+| **OpenCode**     | [OpenCode](https://opencode.ai)                                          | `opencode auth login`                   | Open-source provider integration                                          |
+| **Grok Build**   | [Grok Build CLI](https://x.ai/cli)                                       | `grok login`                            | Context usage tracking and streaming support                              |
+| **Antigravity**  | Managed runtime in Settings                                              | Google sign-in in Settings -> Providers | Installs and updates inside One                                           |
+| **Kiro**         | [Kiro CLI](https://kiro.dev/docs/cli/)                                   | `kiro-cli login`                        | CLI provider adapter                                                      |
+| **Pi**           | [Pi setup guide](./docs/user/providers-pi.md#set-up-pi) (Node.js 22.19+) | Run `pi`, then `/login`                 | Node-based agent runtime                                                  |
+| **Muse Code**    | [Muse Code](https://dev.meta.ai/docs/muse-code)                          | `muse login`                            | Enable in Settings -> Providers                                           |
+| **fx**           | [fx](https://fx.sh) (`fx.sh/setup.sh`)                                   | `fx login`                              | Lightweight CLI agent                                                     |
+| **ACP Registry** | Settings -> Providers -> Add provider -> Show more                       | Per-agent setup                         | Supports GitHub Copilot and any [ACP](./docs/user/providers-acp.md) agent |
+
+## Quickstart and Build from Source
+
+Because One is an unofficial community fork, build it directly from this repository rather than using upstream installers or official app store listings.
+
+### Prerequisites
+
+- [Vite+](https://viteplus.dev/guide/) (`vp` installs and manages the pinned Node.js runtime from `package.json`)
+- [Rust](https://rustup.rs/) (`rustup`) for the native resource monitor and desktop bundles
+- Xcode Command Line Tools on macOS (`xcode-select --install`) for macOS DMG and iOS builds
+- Android SDK and JDK for Android APK builds
+- At least one authenticated agent CLI (for example `claude auth login` or `codex login`)
+
+### 1. Clone and run the dev server
 
 ```bash
-curl -fsSL https://t3.codes/install.sh | sh
+git clone https://github.com/jroell/t3code.git
+cd t3code
+vp i
+vp run dev
 ```
 
-On Windows, in PowerShell:
+Open the pairing URL printed in your terminal to connect your browser to the local server. To launch the Electron desktop shell in development:
 
-```powershell
-irm https://t3.codes/install.ps1 | iex
+```bash
+vp run dev:desktop
 ```
 
-To try it once without an install, run `npx t3@latest`.
+To expose your dev server over Tailscale for remote testing from a phone or another laptop:
 
-### Phone
+```bash
+vp run dev --share
+```
 
-Get the app from the [App Store](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824) or [Google Play](https://play.google.com/store/apps/details?id=com.t3tools.t3code). Then follow [remote access](./docs/user/remote-access.md) to connect it to your computer.
+### 2. Build the desktop app
 
-### Sign in to an agent
+Unsigned local desktop installers write to `release/`:
 
-T3 Code needs one agent that is installed and signed in. For example, install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`, or install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`.
+```bash
+# macOS Apple Silicon DMG
+vp run dist:desktop:dmg:arm64
 
-[Provider setup](./docs/user/install.md#providers) has the steps for each agent. [Install T3 Code](./docs/user/install.md) covers nightly builds, AppImage, WSL, and NixOS.
+# macOS Intel DMG
+vp run dist:desktop:dmg:x64
 
-## "Wait, what are you selling me?"
+# Linux AppImage (x64)
+vp run dist:desktop:linux
 
-Nothing. We built T3 Code because we wanted the best possible development experience with agents. We were inspired by existing solutions like the Codex desktop app, Conductor, Claude Desktop and Cursor Glass, but none met our bar.
+# Windows NSIS installer
+vp run dist:desktop:win
+```
 
-We wanted something performant, remote-ready, and truly open. If we ever go the wrong direction, we want you to have everything you need to fork the source code and build the tool that you want, under your own name and branding.
+### 3. Build the mobile companion app (Android and iOS)
+
+Mobile commands run from `apps/mobile`. The app uses native modules, so build with Expo Dev Client or Release rather than Expo Go:
+
+```bash
+cd apps/mobile
+
+# Android production build / install on connected device or emulator
+vp run android:prod
+
+# Standalone Android ARM64 APK via Gradle
+APP_VARIANT=development EXPO_NO_GIT_STATUS=1 npx expo prebuild --clean --platform android
+cd android && ./gradlew :app:assembleDebug -PreactNativeArchitectures=arm64-v8a
+
+# iOS standalone Release build (no Metro required)
+vp run ios:release
+
+# iOS development client
+vp run ios:dev
+```
+
+If your Xcode account uses a Personal Team, pass your own bundle ID to opt into the reduced-capability local build:
+
+```bash
+T3CODE_IOS_PERSONAL_TEAM=1 \
+T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID=com.example.one \
+vp run ios:release
+```
+
+See [apps/mobile/README.md](./apps/mobile/README.md) for EAS build profiles, simulator caching, and native lint checks.
+
+## Daily Upstream Sync
+
+This fork tracks `pingdotgg/t3code` closely on `custom/main`. Brand customizations stay localized to app metadata, icon assets, and documentation so rebasing upstream changes stays fast and clean:
+
+```bash
+git remote add upstream https://github.com/pingdotgg/t3code.git
+git fetch upstream
+git checkout custom/main
+git rebase upstream/main
+git push --force-with-lease origin custom/main
+```
+
+After rebasing, run the fast verification checks before pushing:
+
+```bash
+vp i
+vp run check:changed
+```
 
 ## Documentation
 
-- [Install and first run](./docs/user/install.md)
-- [Remote access from a phone or another machine](./docs/user/remote-access.md)
+- [All documentation](./docs/README.md)
+- [Install and provider setup](./docs/user/install.md)
+- [Remote access (LAN, Tailscale, SSH, linked machines)](./docs/user/remote-access.md)
 - [Permission modes](./docs/user/permission-modes.md)
-- [Source control](./docs/user/source-control.md)
+- [Source control and worktrees](./docs/user/source-control.md)
 - [Connect outside agents over MCP](./docs/user/outside-agents.md)
+- [Architecture overview](./docs/internals/01_architecture.md)
+- [Development runbook](./docs/operations/00_development.md)
 - [FAQ](./docs/user/faq.md)
-
-[All docs](./docs/README.md) has the full list.
-
-## Contributing
-
-We have limited review capacity. Small, focused fixes are the most likely to be merged. Features need an approved discussion first.
-
-- Read [CONTRIBUTING.md](./CONTRIBUTING.md) before you report a bug or open a pull request.
-- Put feature requests in [Ideas](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
-- Build from source with the [development runbook](./docs/operations/00_development.md#first-checkout). The [architecture overview](./docs/internals/01_architecture.md) explains how it works.
-- Get help in [Discord](https://discord.gg/jn4EGJjrvv).
 
 ## License
 
 The source code in this repository is licensed under the [MIT License](./LICENSE).
 
-## Trademarks and forks
+## Unofficial Fork and Trademark Notice
 
-The MIT license applies **only to the source code**. It does not grant any rights to T3 Tools, Inc.'s trademarks, branding, or trade dress, including the **T3 Code** name, wordmark, logos, and application icons.
+One is an **unofficial, independent open-source fork** derived from the MIT-licensed source code of [T3 Code](https://github.com/pingdotgg/t3code). One is not affiliated with, sponsored by, endorsed by, or maintained by T3 Tools, Inc.
 
-If you fork, redistribute, or build on T3 Code's source code:
+The MIT License applies **only to the source code**. It does not grant any rights to T3 Tools, Inc.'s trademarks, service marks, trade names, trade dress, or branding (including the **T3 Code**, **T3 Connect**, and **T3 Tools** names, wordmarks, logos, application icons, official domains, and official app store listings). This fork replaces user-facing branding and assets with the One name and ring identity in compliance with [TRADEMARK.md](./TRADEMARK.md).
 
-- **Use your own branding.** Replace the T3 Code name, wordmark, logos, and application icons in any public fork, redistributed build, website, package, or app store listing.
-- **Be explicitly clear that your project is unofficial.** Do not use the T3 Code name, wordmark, logo, or branding in your own projects without making it unmistakably clear that your project is unofficial and not affiliated with or endorsed by T3 Tools, Inc.
+If you are looking for the official T3 Code project and its official releases, visit [github.com/pingdotgg/t3code](https://github.com/pingdotgg/t3code).
 
-Using our name, wordmark, logo, or branding in a way that suggests official status or affiliation is trademark infringement and unlawful. **Any project indicating or implying that it is an official version of T3 Code when it is not will be pursued to the full extent of the law.**
+---
 
-See [TRADEMARK.md](./TRADEMARK.md) for the full trademark and branding policy.
+<p align="center">
+  <img src="./.github/readme/assets/ring-only.png" width="44" height="44" alt="One ring emblem" /><br />
+  <sub>One harness to rule them all.</sub>
+</p>
