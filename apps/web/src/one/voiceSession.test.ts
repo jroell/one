@@ -16,7 +16,7 @@ function run(events: ReadonlyArray<VoiceSessionEvent>): VoiceSessionState {
 describe("voice chat turn order", () => {
   it("goes from listening to sending, thinking, speaking and back to listening", () => {
     const stages = [
-      { type: "start" } as const,
+      { type: "start", threadKey: "t1" } as const,
       { type: "sent", latestAssistantMessageId: "a1" } as const,
       { type: "working" } as const,
       { type: "replied", hasNewReply: true } as const,
@@ -29,13 +29,16 @@ describe("voice chat turn order", () => {
   });
 
   it("remembers the newest reply at send time so an old reply is never read aloud", () => {
-    const state = run([{ type: "start" }, { type: "sent", latestAssistantMessageId: "a1" }]);
+    const state = run([
+      { type: "start", threadKey: "t1" },
+      { type: "sent", latestAssistantMessageId: "a1" },
+    ]);
     expect(state.baselineMessageId).toBe("a1");
   });
 
   it("listens again when a turn ends with nothing new to read", () => {
     const state = run([
-      { type: "start" },
+      { type: "start", threadKey: "t1" },
       { type: "sent", latestAssistantMessageId: null },
       { type: "working" },
       { type: "replied", hasNewReply: false },
@@ -45,7 +48,7 @@ describe("voice chat turn order", () => {
 
   it("listens again when the question could not be sent", () => {
     const state = run([
-      { type: "start" },
+      { type: "start", threadKey: "t1" },
       { type: "sent", latestAssistantMessageId: null },
       { type: "failed" },
     ]);
@@ -53,16 +56,31 @@ describe("voice chat turn order", () => {
   });
 
   it("stops from every stage", () => {
-    const active = run([
-      { type: "start" },
+    const turn: ReadonlyArray<VoiceSessionEvent> = [
+      { type: "start", threadKey: "t1" },
       { type: "sent", latestAssistantMessageId: null },
       { type: "working" },
+      { type: "replied", hasNewReply: true },
+    ];
+    for (let length = 1; length <= turn.length; length++) {
+      const active = run(turn.slice(0, length));
+      expect(reduceVoiceSession(active, { type: "stop" })).toEqual(VOICE_SESSION_OFF);
+    }
+  });
+
+  it("keeps the thread it started in through a whole turn", () => {
+    const state = run([
+      { type: "start", threadKey: "t1" },
+      { type: "sent", latestAssistantMessageId: null },
+      { type: "working" },
+      { type: "replied", hasNewReply: true },
+      { type: "spoken" },
     ]);
-    expect(reduceVoiceSession(active, { type: "stop" })).toEqual(VOICE_SESSION_OFF);
+    expect(state).toMatchObject({ stage: "listening", threadKey: "t1" });
   });
 
   it("ignores events that do not belong to the current stage", () => {
-    const listening = run([{ type: "start" }]);
+    const listening = run([{ type: "start", threadKey: "t1" }]);
     expect(reduceVoiceSession(listening, { type: "working" })).toBe(listening);
     expect(reduceVoiceSession(listening, { type: "spoken" })).toBe(listening);
     expect(reduceVoiceSession(VOICE_SESSION_OFF, { type: "replied", hasNewReply: true })).toBe(

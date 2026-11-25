@@ -10,9 +10,11 @@ import {
 
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
+import { OneMark } from "./OneMark";
 import { OneOrb } from "./OneOrb";
 import { useVoiceBridge } from "./voiceBridge";
-import { dispatchVoiceSession } from "./voiceSession";
+import { startVoiceChat } from "./startVoiceChat";
+import { useVoiceSession } from "./voiceSession";
 import { useWorkspaceMode } from "./workspaceMode";
 
 function greetingFor(hour: number, gt: ReturnType<typeof useGT>): string {
@@ -28,7 +30,7 @@ export function OneEmptyState() {
   if (mode === "chat") return <ChatWelcome />;
   return (
     <div className="flex flex-col items-center gap-3 text-center">
-      <OneOrb className="w-36" />
+      <OneMark className="size-12 opacity-90" />
       <p className="text-sm text-muted-foreground">
         <T>Send a message to start the conversation.</T>
       </p>
@@ -36,10 +38,13 @@ export function OneEmptyState() {
   );
 }
 
-function ChatWelcome() {
+/** The chat mode welcome: a greeting, ways to start, and the way into voice chat. */
+export function ChatWelcome() {
   const gt = useGT();
   const composer = useComposerHandleContext();
   const voice = useVoiceBridge();
+  // Voice chat draws its own ring over this screen; two live rings would cost twice.
+  const voiceOpen = useVoiceSession().stage !== "off";
   const hour = new Date(useNowMinute()).getHours();
   const starters: ReadonlyArray<{ icon: LucideIcon; label: string; stem: string }> = [
     { icon: GraduationCapIcon, label: gt("Learn something"), stem: gt("Teach me about ") },
@@ -61,7 +66,11 @@ function ChatWelcome() {
 
   return (
     <div className="one-chat-welcome">
-      <OneOrb className="one-chat-welcome-orb" />
+      {voiceOpen ? (
+        <div className="one-chat-welcome-orb aspect-square" />
+      ) : (
+        <OneOrb className="one-chat-welcome-orb" />
+      )}
       <h1 className="one-chat-welcome-title">{greetingFor(hour, gt)}</h1>
       <p className="one-chat-welcome-lead">
         <T>Ask a question, or pick a way to start.</T>
@@ -88,7 +97,7 @@ function ChatWelcome() {
               className="one-chip"
               data-one-reflect=""
               data-tone="brand"
-              onClick={() => dispatchVoiceSession({ type: "start" })}
+              onClick={() => startVoiceChat(voice)}
             >
               <AudioLinesIcon aria-hidden="true" className="size-4" />
               <T>Talk instead</T>

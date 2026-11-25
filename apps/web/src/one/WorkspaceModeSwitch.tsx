@@ -23,7 +23,7 @@ export function WorkspaceModeSwitch({ className }: { readonly className?: string
   ];
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
     event.preventDefault();
     const next: WorkspaceMode = mode === "code" ? "chat" : "code";
     setWorkspaceMode(next);
@@ -47,6 +47,7 @@ export function WorkspaceModeSwitch({ className }: { readonly className?: string
             type="button"
             role="radio"
             aria-checked={selected}
+            aria-label={option.label}
             tabIndex={selected ? 0 : -1}
             data-mode={option.mode}
             className="one-mode-switch-option"

@@ -26,6 +26,8 @@ const POSES: Record<OneOrbState, OrbPose> = {
 const OPEN_ANGLE = 0.48;
 
 const MAX_PIXEL_RATIO = 2;
+/** About 30 frames a second while the ring is at rest. */
+const RESTING_FRAME_MS = 30;
 
 /** Resolves any CSS color (including oklch and color-mix) to linear-ish RGB through a 1px canvas. */
 function createColorReader(): (color: string) => [number, number, number] {
@@ -85,8 +87,14 @@ export function startOneOrb(
   }
   const vertex = compile(gl, gl.VERTEX_SHADER, ONE_ORB_VERTEX_SHADER);
   const fragment = compile(gl, gl.FRAGMENT_SHADER, ONE_ORB_FRAGMENT_SHADER);
-  const program = gl.createProgram();
+  const program = vertex && fragment ? gl.createProgram() : null;
+  const release = () => {
+    if (program) gl.deleteProgram(program);
+    if (vertex) gl.deleteShader(vertex);
+    if (fragment) gl.deleteShader(fragment);
+  };
   if (!vertex || !fragment || !program) {
+    release();
     input.onUnsupported();
     return null;
   }
@@ -94,6 +102,7 @@ export function startOneOrb(
   gl.attachShader(program, fragment);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    release();
     input.onUnsupported();
     return null;
   }
@@ -157,8 +166,16 @@ export function startOneOrb(
   let reveal = openingSeconds > 0 ? 0 : 1;
   let aura = openingSeconds > 0 ? 1 : POSES[input.getState()].aura;
 
+  let lastDrawn = 0;
   const draw = (now: number) => {
     frame = 0;
+    // A ring at rest moves slowly, so half the frames show the same motion at half the cost.
+    const resting = input.getState() === "idle" && reveal >= 1;
+    if (resting && now - lastDrawn < RESTING_FRAME_MS) {
+      schedule();
+      return;
+    }
+    lastDrawn = now;
     const delta = Math.min(0.05, (now - last) / 1000);
     last = now;
     const pose = POSES[input.getState()];
@@ -231,6 +248,12 @@ export function startOneOrb(
     attributeFilter: ["class", "style", "data-theme-id"],
   });
   const onWake = () => wake();
+  // Moving the window to a screen with another pixel density changes the buffer size, not the CSS size.
+  const onDensityChange = () => {
+    resize();
+    wake();
+  };
+  window.addEventListener("resize", onDensityChange);
   document.addEventListener("visibilitychange", onWake);
   reducedMotion.addEventListener("change", onWake);
   const onContextLost = (event: Event) => {
@@ -240,7 +263,11 @@ export function startOneOrb(
   canvas.addEventListener("webglcontextlost", onContextLost);
   schedule();
 
+  let disposed = false;
   const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    window.removeEventListener("resize", onDensityChange);
     if (frame !== 0) cancelAnimationFrame(frame);
     visibility.disconnect();
     stopObservingSize();
@@ -248,9 +275,7 @@ export function startOneOrb(
     document.removeEventListener("visibilitychange", onWake);
     reducedMotion.removeEventListener("change", onWake);
     canvas.removeEventListener("webglcontextlost", onContextLost);
-    gl.deleteProgram(program);
-    gl.deleteShader(vertex);
-    gl.deleteShader(fragment);
+    release();
     gl.deleteBuffer(buffer);
   };
   return { wake, dispose };

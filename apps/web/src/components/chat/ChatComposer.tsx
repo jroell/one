@@ -149,7 +149,7 @@ import {
 import { attachmentUploadBlockReason } from "../../lib/attachmentUploadState";
 import { useDictationShortcut } from "../../speech/useDictationShortcut";
 import { useDictationSubmissionShortcut } from "../../speech/useDictationSubmissionShortcut";
-import { publishVoiceBridge, retractVoiceBridge } from "~/one/voiceBridge";
+import { publishVoiceBridge, retractVoiceBridge, voiceLevel } from "~/one/voiceBridge";
 import { useEnvironmentSpeechInput } from "../../speech/useEnvironmentSpeechInput";
 import { ComposerSpeechButton, ComposerSpeechRecordingPill } from "./ComposerSpeechButton";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
@@ -463,6 +463,8 @@ export interface ChatComposerProps {
   onPageScrollKeyUp: (key: string) => void;
   onPageScrollRelease: () => void;
 
+  /** True for the main conversation's composer, the only one voice chat may drive. */
+  voiceChatHost?: boolean;
   editingQueuedAttachments: ReadonlyArray<{
     readonly attachment: ContractChatAttachment;
     readonly url: string | null;
@@ -610,6 +612,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setThreadError,
     onExpandImage,
     onFileOpen,
+    voiceChatHost = false,
     editingQueuedAttachments,
     removedEditingQueuedAttachments,
     onRemoveEditingQueuedAttachment,
@@ -2442,30 +2445,55 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current = (mode, intent, options) =>
       submitComposerStable(undefined, mode, intent, options);
   }, [submitComposerStable]);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes this composer's dictation controls to voice chat, which lives outside the composer tree
+  const voiceStart = useStableCallback(() => void speechInput.start());
+  const voiceSubmit = useStableCallback(() => void submitComposerRef.current());
+  const voiceCancel = useStableCallback(() => speechInput.cancel());
+  const publishesVoice = voiceChatHost && !hiddenThread;
+  const voiceAvailable = speechInput.available && !dictationDisabled && !isEditingQueuedMessage;
+  const voiceDraftEmpty =
+    prompt.trim().length === 0 && composerImages.length === 0 && composerFiles.length === 0;
+  const voicePhase = speechInput.state.phase;
+  const voiceError = speechInput.state.error;
+  const voiceHeard = speechInput.preview
+    ? `${speechInput.preview.committed}${speechInput.preview.tentative}`
+    : "";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the main composer's dictation controls to voice chat, which lives outside the composer tree
   useEffect(() => {
-    if (hiddenThread) return;
-    publishVoiceBridge(
-      voiceBridgeOwner,
-      {
-        available: speechInput.available,
-        phase: speechInput.state.phase,
-        error: speechInput.state.error,
-        heard: speechInput.preview
-          ? `${speechInput.preview.committed}${speechInput.preview.tentative}`
-          : "",
-        start: () => void speechInput.start(),
-        submit: () => void submitComposerRef.current(),
-        cancel: () => speechInput.cancel(),
-      },
-      speechInput.level,
-    );
-  });
+    if (!publishesVoice) return;
+    publishVoiceBridge(voiceBridgeOwner, {
+      threadKey: composerDraftTargetKey,
+      available: voiceAvailable,
+      draftEmpty: voiceDraftEmpty,
+      phase: voicePhase,
+      error: voiceError,
+      heard: voiceHeard,
+      start: voiceStart,
+      submit: voiceSubmit,
+      cancel: voiceCancel,
+    });
+  }, [
+    publishesVoice,
+    voiceBridgeOwner,
+    composerDraftTargetKey,
+    voiceAvailable,
+    voiceDraftEmpty,
+    voicePhase,
+    voiceError,
+    voiceHeard,
+    voiceStart,
+    voiceSubmit,
+    voiceCancel,
+  ]);
+  const voiceLevelNow = speechInput.level;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands the live microphone level to the ring's frame loop without a render
+  useEffect(() => {
+    if (publishesVoice) voiceLevel.current = voiceLevelNow;
+  }, [publishesVoice, voiceLevelNow]);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- withdraws the controls when this composer unmounts or is hidden
   useEffect(() => {
-    if (hiddenThread) return;
+    if (!publishesVoice) return;
     return () => retractVoiceBridge(voiceBridgeOwner);
-  }, [hiddenThread, voiceBridgeOwner]);
+  }, [publishesVoice, voiceBridgeOwner]);
   useDictationSubmissionShortcut({
     enabled: voiceInputActive && !speechInput.preparing,
     formRef: composerFormRef,

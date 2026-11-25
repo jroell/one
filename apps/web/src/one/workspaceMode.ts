@@ -36,9 +36,8 @@ function getWorkspaceMode(): WorkspaceMode {
   return currentMode;
 }
 
-function commit(mode: WorkspaceMode) {
+function store(mode: WorkspaceMode) {
   currentMode = mode;
-  applyToDocument(mode);
   try {
     window.localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, mode);
   } catch {
@@ -47,19 +46,29 @@ function commit(mode: WorkspaceMode) {
   for (const listener of listeners) listener();
 }
 
-/** Switches the mode. Where the browser supports it, the two layouts cross-fade. */
+/**
+ * Switches the mode. The choice takes effect at once, so a quick second
+ * switch always lands on the last one chosen; where the browser supports it,
+ * the two layouts cross-fade.
+ */
 export function setWorkspaceMode(mode: WorkspaceMode): void {
   if (mode === currentMode) return;
+  store(mode);
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reducedMotion || typeof document.startViewTransition !== "function") {
-    commit(mode);
+    applyToDocument(currentMode);
     return;
   }
   document.documentElement.dataset.oneModeTransition = "";
-  const transition = document.startViewTransition(() => commit(mode));
-  void transition.finished.finally(() => {
+  // The layout follows whichever mode is current when the browser is ready to swap.
+  const transition = document.startViewTransition(() => applyToDocument(currentMode));
+  const settle = () => {
+    applyToDocument(currentMode);
     delete document.documentElement.dataset.oneModeTransition;
-  });
+  };
+  // A second switch skips this cross-fade; the browser reports that as a rejection, which is expected.
+  transition.ready.catch(() => {});
+  transition.finished.then(settle, settle);
 }
 
 export function toggleWorkspaceMode(): void {

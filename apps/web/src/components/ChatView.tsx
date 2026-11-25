@@ -214,7 +214,9 @@ import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
+import { ChatWelcome } from "~/one/OneEmptyState";
 import { OneVoiceStage } from "~/one/OneVoiceStage";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
@@ -2113,6 +2115,7 @@ export default function ChatView(props: ChatViewProps) {
         detailsCardInlineOpen: threadPanelInlineOpen,
       }).detailsCardMode,
   );
+  const workspaceMode = useWorkspaceMode();
   const threadPanelOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(
       state.threadPanelVisibilityByThreadKey,
@@ -3515,6 +3518,7 @@ export default function ChatView(props: ChatViewProps) {
     <PanelLayoutControls
       {...panelToggleControlProps}
       showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
+      showWorkspaceModeControls={!embedded}
     />
   );
   const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
@@ -3555,6 +3559,7 @@ export default function ChatView(props: ChatViewProps) {
         )}
         data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
         data-chat-column
+        data-one-working={isWorking ? "" : undefined}
         style={
           {
             "--chat-header-height": embedded ? "0px" : "var(--workspace-topbar-height)",
@@ -3653,6 +3658,11 @@ export default function ChatView(props: ChatViewProps) {
                 <OneVoiceStage
                   threadRef={isServerThread ? activeThreadRef : null}
                   isWorking={isWorking}
+                  needsUser={
+                    activePendingApproval !== null ||
+                    activePendingUserInput !== null ||
+                    activeThreadShell?.hasPendingUserInput === true
+                  }
                   draftMessages={timelineMessages}
                 />
               )}
@@ -3809,11 +3819,17 @@ export default function ChatView(props: ChatViewProps) {
                             : undefined
                         }
                       >
-                        <DraftHeroHeadline
-                          draftId={draftId}
-                          activeProjectRef={activeProjectRef}
-                          activeProjectTitle={activeProject?.title ?? null}
-                        />
+                        {workspaceMode === "chat" && !embedded ? (
+                          <div className="flex justify-center pb-6">
+                            <ChatWelcome />
+                          </div>
+                        ) : (
+                          <DraftHeroHeadline
+                            draftId={draftId}
+                            activeProjectRef={activeProjectRef}
+                            activeProjectTitle={activeProject?.title ?? null}
+                          />
+                        )}
                       </div>
                     </div>
                   ) : null}
@@ -3860,6 +3876,7 @@ export default function ChatView(props: ChatViewProps) {
                             ) : null}
                             {!composerMounted ? null : (
                               <ChatComposer
+                                voiceChatHost={!embedded}
                                 canOperateThread={canOperateThread}
                                 reportedModelSelection={reportedModelSelection}
                                 multipleModelSelections={multipleModelSelections}

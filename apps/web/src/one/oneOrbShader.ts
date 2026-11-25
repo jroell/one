@@ -27,6 +27,9 @@ uniform float uReveal;
 const float RADIUS = 1.0;
 const vec2 BAND = vec2(0.085, 0.27);
 
+/* 1 below "low", 0 above "high". smoothstep itself is undefined when its edges descend. */
+float fall(float high, float low, float x) { return 1.0 - smoothstep(low, high, x); }
+
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 float noise(vec2 p) {
@@ -59,10 +62,10 @@ float embers(vec2 uv) {
       (hash(vec2(seed, 3.0)) - 0.5) * 1.5 + 0.06 * sin(uTime * 0.6 + seed),
       climb * 2.0 - 1.0
     );
-    float fade = smoothstep(0.0, 0.2, climb) * smoothstep(1.0, 0.55, climb);
+    float fade = smoothstep(0.0, 0.2, climb) * fall(1.0, 0.55, climb);
     float flicker = 0.6 + 0.4 * sin(uTime * (2.0 + hash(vec2(seed, 4.0)) * 3.0) + seed);
     float size = 0.006 + 0.008 * hash(vec2(seed, 5.0));
-    glow += smoothstep(size, 0.0, length(uv - at)) * fade * flicker;
+    glow += fall(size, 0.0, length(uv - at)) * fade * flicker;
   }
   return glow;
 }
@@ -100,9 +103,9 @@ vec3 ringNormal(vec3 p) {
 float stripLight(vec3 d, float azimuth, float width, float low, float high) {
   float a = atan(d.x, d.z) - azimuth;
   a = abs(atan(sin(a), cos(a)));
-  return smoothstep(width, width * 0.35, a)
+  return fall(width, width * 0.35, a)
     * smoothstep(low, low + 0.18, d.y)
-    * smoothstep(high, high - 0.18, d.y);
+    * fall(high, high - 0.18, d.y);
 }
 
 vec3 studio(vec3 d) {
@@ -115,12 +118,12 @@ vec3 studio(vec3 d) {
   // it, which gives the streaked highlights of a polished jewel.
   float behind = smoothstep(0.05, 0.6, -d.z);
   float slats = smoothstep(0.35, 0.75, 0.5 + 0.5 * sin(atan(d.x, -d.z) * 7.0 + 0.8));
-  float rise = smoothstep(-0.55, 0.15, d.y) * smoothstep(0.95, 0.35, d.y);
+  float rise = smoothstep(-0.55, 0.15, d.y) * fall(0.95, 0.35, d.y);
   c += mix(uHi, vec3(1.0), 0.45) * behind * slats * rise * 2.1;
   c += uMid * behind * rise * 0.35;
   c += uMid * exp(-abs(d.y + 0.08) * 9.0) * 0.5;
-  c += uMid * smoothstep(-0.35, -1.0, d.y) * 0.7;
-  float sweep = smoothstep(0.2, 0.0, abs(d.x * 0.8 + d.y * 0.6 - sin(uTime * 2.4) * 1.3));
+  c += uMid * fall(-0.35, -1.0, d.y) * 0.7;
+  float sweep = fall(0.2, 0.0, abs(d.x * 0.8 + d.y * 0.6 - sin(uTime * 2.4) * 1.3));
   c += vec3(1.0) * sweep * uPulse * 1.8;
   return c;
 }
@@ -173,13 +176,13 @@ void main() {
     float lit = smoothstep(front - 0.42, front - 0.02, around);
     float settled = smoothstep(0.55, 1.0, uReveal);
     color *= mix(1.0 - lit, 1.0, settled) * mix(0.0, 1.0, smoothstep(0.02, 0.2, uReveal));
-    float flame = smoothstep(0.07, 0.0, abs(around - front)) * (1.0 - settled);
+    float flame = fall(0.07, 0.0, abs(around - front)) * (1.0 - settled);
     color += mix(uHi, vec3(1.0), 0.6) * flame * 2.2;
     color += uMid * (1.0 - lit) * pow(1.0 - facing, 2.0) * (1.0 - settled) * 0.9;
     alpha = 1.0;
   }
 
-  float edge = hit ? 1.0 : smoothstep(pixel, 0.0, nearest);
+  float edge = hit ? 1.0 : fall(pixel, 0.0, nearest);
   if (!hit && edge > 0.0) {
     color = mix(uMid, uHi, 0.5);
     alpha = edge;
@@ -196,7 +199,7 @@ void main() {
   halo *= smoothstep(0.0, 0.5, uReveal);
   halo *= mix(0.55, 1.0, uDark);
   // The glow must reach zero before the edge of the canvas, or the square shows.
-  halo *= smoothstep(1.0, 0.62, length(uv));
+  halo *= fall(1.0, 0.62, length(uv));
   vec3 haloColor = mix(uMid, uHi, 0.35);
   float outAlpha = alpha + (1.0 - alpha) * halo;
   vec3 outColor = color * alpha + haloColor * halo * (1.0 - alpha);

@@ -17,6 +17,7 @@ import { Toggle } from "../ui/toggle";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { VoiceChatButton } from "~/one/VoiceChatButton";
 import { WorkspaceModeSwitch } from "~/one/WorkspaceModeSwitch";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 
 /** Matches the right inset of `ThreadPanelHeaderControl`. */
 const THREAD_PANEL_HEADER_INSET_PX = 12;
@@ -25,6 +26,8 @@ export interface PanelLayoutControlsProps {
   showThreadPanelControl?: boolean;
   showTerminalControl?: boolean;
   showRightPanelControl?: boolean;
+  /** The conversation header also offers the Code/Chat switch and voice chat. */
+  showWorkspaceModeControls?: boolean;
   terminalAvailable: boolean;
   terminalOpen: boolean;
   terminalShortcutLabel: string | null;
@@ -45,6 +48,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   showThreadPanelControl = true,
   showTerminalControl = true,
   showRightPanelControl = true,
+  showWorkspaceModeControls = false,
   terminalAvailable,
   terminalOpen,
   terminalShortcutLabel,
@@ -61,6 +65,8 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   onToggleRightPanel,
 }: PanelLayoutControlsProps) {
   const gt = useGT();
+  // Chat mode keeps only the toggles of panels that are open, so they can still be closed.
+  const chatMode = useWorkspaceMode() === "chat" && showWorkspaceModeControls;
   const threadPanelToggle = (
     <Toggle
       className="relative shrink-0 [-webkit-app-region:no-drag]"
@@ -95,14 +101,14 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
       className="flex h-full shrink-0 items-center gap-1 [-webkit-app-region:no-drag]"
       data-panel-layout-controls
     >
-      {showRightPanelControl ? (
+      {showWorkspaceModeControls ? (
         <>
           <VoiceChatButton />
           <WorkspaceModeSwitch className="mr-1" />
         </>
       ) : null}
-      {showThreadPanelControl ? threadPanelControl : null}
-      {showTerminalControl ? (
+      {showThreadPanelControl && !chatMode ? threadPanelControl : null}
+      {showTerminalControl && (!chatMode || terminalOpen) ? (
         <Tooltip>
           <TooltipTrigger render={<span className="flex shrink-0" />}>
             <Toggle
@@ -126,7 +132,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
           </TooltipPopup>
         </Tooltip>
       ) : null}
-      {showRightPanelControl ? (
+      {showRightPanelControl && (!chatMode || rightPanelOpen) ? (
         <Tooltip>
           <TooltipTrigger render={<span className="flex shrink-0" />}>
             <Toggle

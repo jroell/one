@@ -82,8 +82,10 @@ html[data-theme-id]:not([data-theme-id=""]) {
    The gold values are shared with One Platform so the two apps match. */
 html:not([data-theme-id]),
 html[data-theme-id=""] {
-  --primary: #b98f1f;
-  --primary-foreground: #1a1304;
+  /* Light surfaces: this gold is deep enough to read as text (labels, links)
+     and to carry white text as a fill. The ring keeps the brighter brand gold. */
+  --primary: #7f5f0c;
+  --primary-foreground: #ffffff;
   --ring: #b98f1f;
   --stage-art-top: oklch(0.8 0.13 82);
   --stage-art-mid: oklch(0.62 0.145 62);
@@ -226,7 +228,9 @@ html[data-theme-id=""] {
   transition: box-shadow 260ms var(--one-ease-out);
 }
 
-[data-slot="composer-shell"]:focus-within [data-slot="composer-host"] {
+/* A notice joined to the composer draws the outline of the pair, so the host stays bare then. */
+[data-slot="composer-shell"]:not(:has([data-composer-banner-surface="attached"])):focus-within
+  [data-slot="composer-host"] {
   box-shadow:
     0 0 0 1px color-mix(in oklch, var(--one-brand) 38%, transparent),
     0 0 0 5px color-mix(in oklch, var(--one-brand) 10%, transparent),
@@ -271,7 +275,7 @@ html[data-theme-id=""] {
   position: absolute;
   top: 2px;
   bottom: 2px;
-  left: 2px;
+  inset-inline-start: 2px;
   width: calc(50% - 2px);
   border-radius: 999px;
   background: var(--popover);
@@ -288,6 +292,10 @@ html[data-theme-id=""] {
 
 .one-mode-switch[data-one-mode-switch="chat"] .one-mode-switch-thumb {
   translate: 100% 0;
+}
+
+.one-mode-switch[data-one-mode-switch="chat"]:dir(rtl) .one-mode-switch-thumb {
+  translate: -100% 0;
 }
 
 /* The thumb flattens a little under the finger, like pressing a gel button. */
@@ -320,6 +328,20 @@ html[data-theme-id=""] {
   box-shadow: inset 0 0 0 2px var(--ring);
 }
 
+@media (forced-colors: active) {
+  .one-mode-switch-option:focus-visible,
+  .one-chip:focus-visible,
+  .one-voice-orb-button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .one-mode-switch-option[aria-checked="true"] {
+    outline: 1px solid ButtonText;
+    outline-offset: -3px;
+  }
+}
+
 @media (hover: hover) {
   .one-mode-switch-option:hover {
     color: var(--foreground);
@@ -338,7 +360,7 @@ html[data-theme-id=""] {
 
 @media (pointer: coarse) {
   .one-mode-switch {
-    height: 2.25rem;
+    height: 2.75rem;
   }
 
   .one-mode-switch-option {
@@ -346,9 +368,21 @@ html[data-theme-id=""] {
   }
 }
 
+/* Reduced motion keeps the feedback of a press (color, outline) and drops the movement. */
 @media (prefers-reduced-motion: reduce) {
-  .one-mode-switch-thumb {
+  .one-mode-switch-thumb,
+  .one-mark-host .one-mark,
+  .one-chip,
+  .one-voice-orb-button,
+  .one-reflection {
     transition: none;
+  }
+
+  .one-mode-switch:active .one-mode-switch-thumb,
+  .one-mark-host:active .one-mark,
+  .one-chip:active,
+  .one-voice-orb-button:not([aria-disabled="true"]):active {
+    scale: 1;
   }
 }
 
@@ -360,8 +394,7 @@ html[data-one-mode="chat"] {
   --chat-content-max-width: 43rem;
 }
 
-html[data-one-mode="chat"] [data-thread-details-panel],
-html[data-one-mode="chat"] [data-panel-layout-controls] > :not(.one-mode-switch, .one-voice-entry) {
+html[data-one-mode="chat"] [data-thread-details-panel] {
   display: none;
 }
 
@@ -385,8 +418,8 @@ html[data-one-mode="chat"] [data-chat-composer-main-surface] {
   border-radius: 1.625rem;
 }
 
-/* A slow wash of the brand color behind the conversation. It is two fixed
-   gradients on one composited layer, so it costs no layout and no blur. */
+/* A still wash of the brand color behind the conversation: two gradients,
+   painted once. */
 html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
   content: "";
   position: absolute;
@@ -404,28 +437,8 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
       color-mix(in oklch, var(--one-ring-hi) 9%, transparent),
       transparent 72%
     );
-  background-size: 120% 120%;
   background-repeat: no-repeat;
   opacity: 0.9;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
-    animation: one-chat-wash 26s ease-in-out infinite alternate;
-  }
-}
-
-@keyframes one-chat-wash {
-  from {
-    background-position:
-      0% 0%,
-      100% 0%;
-  }
-  to {
-    background-position:
-      60% 20%,
-      30% 30%;
-  }
 }
 
 /* ----------------------------------------------------------- chat welcome */
@@ -738,4 +751,72 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
     opacity: 0;
     scale: 0 1;
   }
+}
+
+/* ------------------------------------------------------------- live work */
+
+@property --one-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* While the agent works, a light travels around the edge of the composer. */
+[data-one-working] [data-one-reflect] > .one-reflection {
+  opacity: 1;
+  background: conic-gradient(
+    from var(--one-angle),
+    transparent 0deg,
+    transparent 250deg,
+    color-mix(in oklch, var(--one-brand) 55%, transparent) 310deg,
+    var(--one-ring-hi) 345deg,
+    transparent 360deg
+  );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-working] [data-one-reflect] > .one-reflection {
+    animation: one-orbit 3.6s linear infinite;
+  }
+}
+
+@keyframes one-orbit {
+  to {
+    --one-angle: 360deg;
+  }
+}
+
+/* A request for approval is the one thing on screen that needs the person. */
+[data-v2-item-type="approval_request"] {
+  margin-block: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.875rem;
+  background-color: color-mix(in oklch, var(--warning) 7%, transparent);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px color-mix(in oklch, var(--warning) 34%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-v2-item-type="approval_request"] {
+    animation: one-attention 2.6s ease-in-out infinite;
+  }
+}
+
+@keyframes one-attention {
+  50% {
+    box-shadow:
+      inset 0 1px 0 0 var(--one-glass-rim-top),
+      inset 0 0 0 1px color-mix(in oklch, var(--warning) 60%, transparent),
+      0 0 22px -6px color-mix(in oklch, var(--warning) 55%, transparent);
+  }
+}
+
+/* What you said: a small pane of glass. */
+[data-user-message-bubble] {
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim);
 }

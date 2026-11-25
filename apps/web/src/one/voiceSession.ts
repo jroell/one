@@ -8,12 +8,14 @@ export type VoiceStage = "off" | "listening" | "sending" | "thinking" | "speakin
 
 export type VoiceSessionState = Readonly<{
   stage: VoiceStage;
+  /** The thread (or draft) this conversation belongs to. Voice chat never follows you to another thread. */
+  threadKey: string | null;
   /** The newest assistant message when the current question was sent, so only a newer one is read aloud. */
   baselineMessageId: string | null;
 }>;
 
 export type VoiceSessionEvent =
-  | { readonly type: "start" }
+  | { readonly type: "start"; readonly threadKey: string }
   | { readonly type: "stop" }
   | { readonly type: "sent"; readonly latestAssistantMessageId: string | null }
   | { readonly type: "working" }
@@ -21,7 +23,11 @@ export type VoiceSessionEvent =
   | { readonly type: "spoken" }
   | { readonly type: "failed" };
 
-export const VOICE_SESSION_OFF: VoiceSessionState = { stage: "off", baselineMessageId: null };
+export const VOICE_SESSION_OFF: VoiceSessionState = {
+  stage: "off",
+  threadKey: null,
+  baselineMessageId: null,
+};
 
 export function reduceVoiceSession(
   state: VoiceSessionState,
@@ -29,12 +35,14 @@ export function reduceVoiceSession(
 ): VoiceSessionState {
   switch (event.type) {
     case "start":
-      return state.stage === "off" ? { stage: "listening", baselineMessageId: null } : state;
+      return state.stage === "off"
+        ? { stage: "listening", threadKey: event.threadKey, baselineMessageId: null }
+        : state;
     case "stop":
       return VOICE_SESSION_OFF;
     case "sent":
       return state.stage === "listening"
-        ? { stage: "sending", baselineMessageId: event.latestAssistantMessageId }
+        ? { ...state, stage: "sending", baselineMessageId: event.latestAssistantMessageId }
         : state;
     case "working":
       return state.stage === "sending" ? { ...state, stage: "thinking" } : state;
@@ -43,10 +51,14 @@ export function reduceVoiceSession(
       // A turn that ends with nothing new to read goes straight back to listening.
       return { ...state, stage: event.hasNewReply ? "speaking" : "listening" };
     case "spoken":
-      return state.stage === "speaking" ? { stage: "listening", baselineMessageId: null } : state;
+      return state.stage === "speaking"
+        ? { ...state, stage: "listening", baselineMessageId: null }
+        : state;
     case "failed":
       // Nothing was heard or the send was refused: listen again rather than hang.
-      return state.stage === "sending" ? { stage: "listening", baselineMessageId: null } : state;
+      return state.stage === "sending"
+        ? { ...state, stage: "listening", baselineMessageId: null }
+        : state;
   }
 }
 
