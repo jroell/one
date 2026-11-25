@@ -1976,6 +1976,7 @@
   "074c1660aac1c7cf": "Växla temaredigerare",
   "589b8f1cb1900c1e": "Byt till läget Kod",
   "22b875a8e984309c": "Byt till läget Chatt",
+  "17f4716bb48099e0": "Starta eller avsluta röstchatt",
   "02c340f8d0bb7649": "Aktuellt",
   "b8ec049821ce511c": "Behörigheter: {label}",
   "f0d4573b2e03e2a7": "Behörigheter",
@@ -3092,6 +3093,8 @@
   "ee9c314794aef79a": "Läge för arbetsytan",
   "a52dae3815612511": "Skicka eller rensa ditt utkast först",
   "e9c7a57ae9a3057f": "Röstchatten skickar det du säger för sig, utan utkastet.",
+  "7aff475938cd7c54": "Röstchatt är inte tillgänglig här",
+  "a57ed4f49c4c8a70": "Öppna en tråd du kan skriva i och ställ in röstinmatning i Inställningar.",
   "9c867852bab1ce60": "Urklipps-API:t är inte tillgängligt vid kopiering av felrapporten.",
   "a270f51c3f95de49": "Kunde inte kopiera felrapporten till urklipp.",
   "09675b4ac9f858dc": "Ett oväntat routerfel uppstod.",
@@ -7963,15 +7966,14 @@
   "e1fcc4b74faaae02": "Ta bort kortkommando…",
   "efa55bbb1d3aa45e": "Granska ändringar",
   "3e02b74615e20d82": "Manuell konfiguration",
-  "a6f5adb3a4be3a81": [
-    "Stäng av inspelning i One för att stoppa den. Ta bort kortkommandot från ",
+  "b435434fee319fbf": [
+    "Turn capture off in One to stop it. Remove the shortcut from ",
     {
       "i": 1,
       "k": "_gt_value_1",
       "v": "v"
     },
-    " ",
-    "för att frigöra tangenterna."
+    " to free up the keys."
   ],
   "4bf700ad94c0c486": "Jag har lagt till kortkommandot",
   "bcdea6ebe1a65e63": "ChatGPT-konto att ansluta",
@@ -8908,6 +8910,7 @@
   "1ffd8427452372e1": "Utseende: växla mellan",
   "3a3bb4a7551a87cc": "Temaredigerare: växla",
   "99a286a5b75dd07d": "Arbetsyta: byt mellan Kod och Chatt",
+  "c551b97e1ca99184": "Röstchatt: starta eller avsluta",
   "f777fa08fe578866": "Inmatningsfält: Lägg undan",
   "572ce4044ccc9f88": "Inmatningsfält: värd",
   "c54860d3ccda086e": "Inmatningsfält: växla värd",

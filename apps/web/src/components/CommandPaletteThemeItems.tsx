@@ -1,6 +1,7 @@
 import { BUILT_IN_THEMES } from "@t3tools/shared/themePalettes";
 import { msg, T, useGT, useMessages } from "gt-react";
 import {
+  AudioLinesIcon,
   CodeXmlIcon,
   MessagesSquareIcon,
   MonitorIcon,
@@ -27,6 +28,7 @@ import {
   ThemePreviewCircle,
 } from "./settings/ThemePreviewCircles";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { toggleVoiceChat } from "../one/startVoiceChat";
 import { toggleWorkspaceMode, useWorkspaceMode } from "../one/workspaceMode";
 
 export const APPEARANCE_OPTIONS = [
@@ -198,5 +200,23 @@ export function useCommandPaletteThemeItems() {
     },
   };
 
-  return { changeThemeItem, changeAppearanceItem, themeEditorItem, workspaceModeItem };
+  const voiceChatItem: CommandPaletteActionItem = {
+    kind: "action",
+    value: "action:voice-chat",
+    searchTerms: ["voice", "talk", "speak", "microphone", "conversation", "chat"],
+    title: gt("Start or end voice chat"),
+    icon: <AudioLinesIcon className={ITEM_ICON_CLASS} />,
+    shortcutCommand: "voiceChat.toggle",
+    run: async () => {
+      toggleVoiceChat();
+    },
+  };
+
+  return {
+    changeThemeItem,
+    changeAppearanceItem,
+    themeEditorItem,
+    workspaceModeItem,
+    voiceChatItem,
+  };
 }

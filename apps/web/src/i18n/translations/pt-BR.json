@@ -1976,6 +1976,7 @@
   "074c1660aac1c7cf": "Alternar editor de temas",
   "589b8f1cb1900c1e": "Mudar para o modo Código",
   "22b875a8e984309c": "Mudar para o modo Chat",
+  "17f4716bb48099e0": "Iniciar ou encerrar o chat por voz",
   "02c340f8d0bb7649": "Atual",
   "b8ec049821ce511c": "Permissões: {label}",
   "f0d4573b2e03e2a7": "Permissões",
@@ -3092,6 +3093,8 @@
   "ee9c314794aef79a": "Modo do workspace",
   "a52dae3815612511": "Primeiro envie ou limpe seu rascunho",
   "e9c7a57ae9a3057f": "O chat por voz envia o que você diz separadamente, sem o rascunho.",
+  "7aff475938cd7c54": "O chat por voz não está disponível aqui",
+  "a57ed4f49c4c8a70": "Abra uma conversa em que você possa escrever e configure a entrada de voz em Ajustes.",
   "9c867852bab1ce60": "A API da área de transferência não está disponível ao copiar o relatório de erro.",
   "a270f51c3f95de49": "Falha ao copiar o relatório de erro para a área de transferência.",
   "09675b4ac9f858dc": "Ocorreu um erro inesperado no roteador.",
@@ -7957,15 +7960,14 @@
   "e1fcc4b74faaae02": "Remover atalho…",
   "efa55bbb1d3aa45e": "Revisar alterações",
   "3e02b74615e20d82": "Configuração manual",
-  "a6f5adb3a4be3a81": [
-    "Desative a captura no One para pará-la. Remova o atalho de ",
+  "b435434fee319fbf": [
+    "Turn capture off in One to stop it. Remove the shortcut from ",
     {
       "i": 1,
       "k": "_gt_value_1",
       "v": "v"
     },
-    " ",
-    "para liberar as teclas."
+    " to free up the keys."
   ],
   "4bf700ad94c0c486": "Já adicionei o atalho",
   "bcdea6ebe1a65e63": "Conta do ChatGPT a conectar",
@@ -8900,6 +8902,7 @@
   "1ffd8427452372e1": "Aparência: alternar ciclicamente",
   "3a3bb4a7551a87cc": "Editor de temas: alternar",
   "99a286a5b75dd07d": "Workspace: alternar entre Código e Chat",
+  "c551b97e1ca99184": "Chat por voz: iniciar ou encerrar",
   "f777fa08fe578866": "Editor: guardar",
   "572ce4044ccc9f88": "Editor: host",
   "c54860d3ccda086e": "Editor: alternar host",

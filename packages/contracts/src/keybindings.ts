@@ -91,6 +91,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "appearance.cycle",
   "themeEditor.toggle",
   "workspaceMode.toggle",
+  "voiceChat.toggle",
   "composer.stash",
   "composer.sendAlternate",
   "composer.sendBackground",

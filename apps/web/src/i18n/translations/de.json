@@ -1975,6 +1975,7 @@
   "074c1660aac1c7cf": "Design-Editor umschalten",
   "589b8f1cb1900c1e": "Zum Code-Modus wechseln",
   "22b875a8e984309c": "Zum Chat-Modus wechseln",
+  "17f4716bb48099e0": "Sprachchat starten oder beenden",
   "02c340f8d0bb7649": "Aktuell",
   "b8ec049821ce511c": "Berechtigungen: {label}",
   "f0d4573b2e03e2a7": "Berechtigungen",
@@ -3093,6 +3094,8 @@
   "ee9c314794aef79a": "Modus des Arbeitsbereichs",
   "a52dae3815612511": "Sende oder lösche zuerst deinen Entwurf",
   "e9c7a57ae9a3057f": "Der Sprachchat sendet das Gesagte für sich allein, ohne den Entwurf.",
+  "7aff475938cd7c54": "Sprachchat ist hier nicht verfügbar",
+  "a57ed4f49c4c8a70": "Öffne einen Thread, in dem du schreiben kannst, und richte die Spracheingabe in den Einstellungen ein.",
   "9c867852bab1ce60": "Die Zwischenablage-API ist beim Kopieren des Fehlerberichts nicht verfügbar.",
   "a270f51c3f95de49": "Der Fehlerbericht konnte nicht in die Zwischenablage kopiert werden.",
   "09675b4ac9f858dc": "Ein unerwarteter Router-Fehler ist aufgetreten.",
@@ -7958,15 +7961,14 @@
   "e1fcc4b74faaae02": "Tastenkürzel entfernen…",
   "efa55bbb1d3aa45e": "Änderungen prüfen",
   "3e02b74615e20d82": "Manuelle Einrichtung",
-  "a6f5adb3a4be3a81": [
-    "Deaktiviere die Aufnahme in One, um sie zu beenden. Entferne das Tastenkürzel aus ",
+  "b435434fee319fbf": [
+    "Turn capture off in One to stop it. Remove the shortcut from ",
     {
       "i": 1,
       "k": "_gt_value_1",
       "v": "v"
     },
-    ", ",
-    "um die Tasten freizugeben."
+    " to free up the keys."
   ],
   "4bf700ad94c0c486": "Ich habe das Tastenkürzel hinzugefügt",
   "bcdea6ebe1a65e63": "Zu verbindendes ChatGPT-Konto",
@@ -8902,6 +8904,7 @@
   "1ffd8427452372e1": "Darstellung: Wechseln",
   "3a3bb4a7551a87cc": "Design-Editor: Umschalten",
   "99a286a5b75dd07d": "Arbeitsbereich: Zwischen Code und Chat wechseln",
+  "c551b97e1ca99184": "Sprachchat: Starten oder beenden",
   "f777fa08fe578866": "Eingabefeld: Ablegen",
   "572ce4044ccc9f88": "Eingabefeld: Host",
   "c54860d3ccda086e": "Eingabefeld: Host wechseln",

@@ -558,8 +558,13 @@ function OpenCommandPaletteDialog(props: {
   );
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const providersByEnvironment = useEnvironmentProviders();
-  const { changeThemeItem, changeAppearanceItem, themeEditorItem, workspaceModeItem } =
-    useCommandPaletteThemeItems();
+  const {
+    changeThemeItem,
+    changeAppearanceItem,
+    themeEditorItem,
+    workspaceModeItem,
+    voiceChatItem,
+  } = useCommandPaletteThemeItems();
   const portForwardItem = useCommandPalettePortForwardItem({
     activeThread: activeThread ?? null,
     query: deferredQuery,
@@ -1684,6 +1689,7 @@ function OpenCommandPaletteDialog(props: {
 
   actionItems.push(themeEditorItem);
   actionItems.push(workspaceModeItem);
+  actionItems.push(voiceChatItem);
 
   if (environments.some((environment) => environment.serverConfig !== null)) {
     actionItems.push({

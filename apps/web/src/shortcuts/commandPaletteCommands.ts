@@ -16,6 +16,7 @@ import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { type CommandHandler, type CommandScopeOptions, registerCommands } from "./dispatcher";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
+import { toggleVoiceChat } from "../one/startVoiceChat";
 import { toggleWorkspaceMode } from "../one/workspaceMode";
 
 function consume(event: KeyboardEvent): void {
@@ -85,6 +86,11 @@ export function installCommandPaletteCommands(
           ),
           timeout: 1500,
         });
+      },
+      "voiceChat.toggle": (event) => {
+        consume(event);
+        if (event.repeat) return;
+        toggleVoiceChat();
       },
       "workspaceMode.toggle": (event) => {
         consume(event);

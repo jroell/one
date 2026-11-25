@@ -1976,6 +1976,7 @@
   "074c1660aac1c7cf": "Toggle theme editor",
   "589b8f1cb1900c1e": "Switch to Code mode",
   "22b875a8e984309c": "Switch to Chat mode",
+  "17f4716bb48099e0": "Start or end voice chat",
   "02c340f8d0bb7649": "Current",
   "b8ec049821ce511c": "Permissions: {label}",
   "f0d4573b2e03e2a7": "Permissions",
@@ -3092,6 +3093,8 @@
   "ee9c314794aef79a": "Workspace mode",
   "a52dae3815612511": "Send or clear your draft first",
   "e9c7a57ae9a3057f": "Voice chat sends what you say on its own, without the draft.",
+  "7aff475938cd7c54": "Voice chat is not available here",
+  "a57ed4f49c4c8a70": "Open a thread you can write in and set up voice input in Settings.",
   "9c867852bab1ce60": "Clipboard API is unavailable while copying error-report.",
   "a270f51c3f95de49": "Failed to copy error-report to the clipboard.",
   "09675b4ac9f858dc": "An unexpected router error occurred.",
@@ -7965,15 +7968,14 @@
   "e1fcc4b74faaae02": "Remove shortcut…",
   "efa55bbb1d3aa45e": "Review changes",
   "3e02b74615e20d82": "Manual setup",
-  "a6f5adb3a4be3a81": [
+  "b435434fee319fbf": [
     "Turn capture off in One to stop it. Remove the shortcut from ",
     {
       "i": 1,
       "k": "_gt_value_1",
       "v": "v"
     },
-    " ",
-    "to free up the keys."
+    " to free up the keys."
   ],
   "4bf700ad94c0c486": "I've added the shortcut",
   "bcdea6ebe1a65e63": "ChatGPT account to connect",
@@ -8910,6 +8912,7 @@
   "1ffd8427452372e1": "Appearance: Cycle",
   "3a3bb4a7551a87cc": "Theme Editor: Toggle",
   "99a286a5b75dd07d": "Workspace: Switch between Code and Chat",
+  "c551b97e1ca99184": "Voice chat: Start or end",
   "f777fa08fe578866": "Composer: Stash",
   "572ce4044ccc9f88": "Composer: Host",
   "c54860d3ccda086e": "Composer: Cycle Host",

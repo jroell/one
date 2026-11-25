@@ -1976,6 +1976,7 @@
   "074c1660aac1c7cf": "Mostrar u ocultar el editor de temas",
   "589b8f1cb1900c1e": "Cambiar al modo Código",
   "22b875a8e984309c": "Cambiar al modo Chat",
+  "17f4716bb48099e0": "Iniciar o terminar el chat de voz",
   "02c340f8d0bb7649": "Actual",
   "b8ec049821ce511c": "Permisos: {label}",
   "f0d4573b2e03e2a7": "Permisos",
@@ -3092,6 +3093,8 @@
   "ee9c314794aef79a": "Modo del espacio de trabajo",
   "a52dae3815612511": "Primero envía o borra tu borrador",
   "e9c7a57ae9a3057f": "El chat de voz envía lo que dices por separado, sin el borrador.",
+  "7aff475938cd7c54": "El chat de voz no está disponible aquí",
+  "a57ed4f49c4c8a70": "Abre un hilo en el que puedas escribir y configura la entrada de voz en Ajustes.",
   "9c867852bab1ce60": "La API del portapapeles no está disponible al copiar el informe de error.",
   "a270f51c3f95de49": "No se pudo copiar el informe de error al portapapeles.",
   "09675b4ac9f858dc": "Se produjo un error inesperado en el enrutador.",
@@ -7957,15 +7960,14 @@
   "e1fcc4b74faaae02": "Quitar atajo…",
   "efa55bbb1d3aa45e": "Revisar cambios",
   "3e02b74615e20d82": "Configuración manual",
-  "a6f5adb3a4be3a81": [
-    "Desactiva la captura en One para detenerla. Quita el atajo de ",
+  "b435434fee319fbf": [
+    "Turn capture off in One to stop it. Remove the shortcut from ",
     {
       "i": 1,
       "k": "_gt_value_1",
       "v": "v"
     },
-    " ",
-    "para liberar las teclas."
+    " to free up the keys."
   ],
   "4bf700ad94c0c486": "Ya he añadido el atajo",
   "bcdea6ebe1a65e63": "Cuenta de ChatGPT que conectar",
@@ -8900,6 +8902,7 @@
   "1ffd8427452372e1": "Apariencia: alternar",
   "3a3bb4a7551a87cc": "Editor de temas: alternar",
   "99a286a5b75dd07d": "Espacio de trabajo: cambiar entre Código y Chat",
+  "c551b97e1ca99184": "Chat de voz: iniciar o terminar",
   "f777fa08fe578866": "Cuadro de mensaje: stash",
   "572ce4044ccc9f88": "Cuadro de mensaje: host",
   "c54860d3ccda086e": "Cuadro de mensaje: cambiar de host",

@@ -53,7 +53,7 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-function getVoiceBridge(): VoiceBridge | null {
+export function getVoiceBridge(): VoiceBridge | null {
   return bridge;
 }
 

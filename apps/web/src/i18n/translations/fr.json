@@ -1976,6 +1976,7 @@
   "074c1660aac1c7cf": "Afficher/masquer l’éditeur de thème",
   "589b8f1cb1900c1e": "Passer en mode Code",
   "22b875a8e984309c": "Passer en mode Discussion",
+  "17f4716bb48099e0": "Démarrer ou terminer le chat vocal",
   "02c340f8d0bb7649": "Actuel",
   "b8ec049821ce511c": "Autorisations : {label}",
   "f0d4573b2e03e2a7": "Autorisations",
@@ -3092,6 +3093,8 @@
   "ee9c314794aef79a": "Mode de l’espace de travail",
   "a52dae3815612511": "Envoyez ou effacez d'abord votre brouillon",
   "e9c7a57ae9a3057f": "Le chat vocal envoie ce que vous dites séparément, sans le brouillon.",
+  "7aff475938cd7c54": "Le chat vocal n'est pas disponible ici",
+  "a57ed4f49c4c8a70": "Ouvrez un fil dans lequel vous pouvez écrire et configurez la saisie vocale dans les Réglages.",
   "9c867852bab1ce60": "L’API Presse-papiers n’est pas disponible pour copier le rapport d’erreur.",
   "a270f51c3f95de49": "Impossible de copier le rapport d’erreur dans le presse-papiers.",
   "09675b4ac9f858dc": "Une erreur de routage inattendue s’est produite.",
@@ -7958,15 +7961,14 @@
   "e1fcc4b74faaae02": "Supprimer le raccourci…",
   "efa55bbb1d3aa45e": "Vérifier les modifications",
   "3e02b74615e20d82": "Configuration manuelle",
-  "a6f5adb3a4be3a81": [
-    "Désactivez la capture dans One pour l’arrêter. Supprimez le raccourci de ",
+  "b435434fee319fbf": [
+    "Turn capture off in One to stop it. Remove the shortcut from ",
     {
       "i": 1,
       "k": "_gt_value_1",
       "v": "v"
     },
-    " ",
-    "pour libérer les touches."
+    " to free up the keys."
   ],
   "4bf700ad94c0c486": "J’ai ajouté le raccourci",
   "bcdea6ebe1a65e63": "Compte ChatGPT à connecter",
@@ -8901,6 +8903,7 @@
   "1ffd8427452372e1": "Apparence : alterner",
   "3a3bb4a7551a87cc": "Éditeur de thème : afficher/masquer",
   "99a286a5b75dd07d": "Espace de travail : basculer entre Code et Discussion",
+  "c551b97e1ca99184": "Chat vocal : démarrer ou terminer",
   "f777fa08fe578866": "Zone de saisie : mettre de côté",
   "572ce4044ccc9f88": "Zone de saisie : hôte",
   "c54860d3ccda086e": "Zone de saisie : changer d’hôte",

@@ -32,7 +32,7 @@ function applyToDocument(mode: WorkspaceMode) {
 
 applyToDocument(currentMode);
 
-function getWorkspaceMode(): WorkspaceMode {
+export function getWorkspaceMode(): WorkspaceMode {
   return currentMode;
 }
 
