@@ -1,0 +1,215 @@
+import { describe, expect, it, vi } from "vite-plus/test";
+
+import { installOneReflections, REFLECT_PROXIMITY_PX } from "./reflections";
+
+/**
+ * Installs the global listener with frames under the test's control, and builds surfaces at known
+ * places: a plain one at (100, 100) 200 x 50, and one inside a working chat column.
+ */
+function setup() {
+  const original = window.matchMedia.bind(window);
+  const media = vi
+    .spyOn(window, "matchMedia")
+    .mockImplementation((query) => original(query.includes("hover: hover") ? "all" : query));
+
+  const frames = new Map<number, FrameRequestCallback>();
+  let nextFrame = 0;
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  const caf = vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+    frames.delete(id);
+  });
+
+  const stage = document.createElement("div");
+  const surface = (parent: HTMLElement, left: number, top: number) => {
+    const element = document.createElement("div");
+    element.dataset.oneReflect = "";
+    element.style.cssText = `position:fixed;left:${left}px;top:${top}px;width:200px;height:50px`;
+    const child = document.createElement("span");
+    child.textContent = "composer";
+    element.append(child);
+    parent.append(element);
+    return {
+      element,
+      child,
+      setProperty: vi.spyOn(element.style, "setProperty"),
+      measured: vi.spyOn(element, "getBoundingClientRect"),
+    };
+  };
+  const plain = surface(stage, 100, 100);
+  const working = document.createElement("div");
+  working.dataset.oneWorking = "";
+  stage.append(working);
+  const insideWorking = surface(working, 100, 300);
+  const elsewhere = document.createElement("div");
+  stage.append(elsewhere);
+  document.body.append(stage);
+  const uninstall = installOneReflections();
+
+  return {
+    plain,
+    insideWorking,
+    elsewhere,
+    frameRequests: raf,
+    /** Moves the pointer to a page position; the event targets `target`. */
+    move: (target: Element, x: number, y: number, pointerType = "mouse") =>
+      target.dispatchEvent(
+        new PointerEvent("pointermove", { bubbles: true, clientX: x, clientY: y, pointerType }),
+      ),
+    /** Runs the frame callbacks that were requested. */
+    flush: () => {
+      const due = [...frames.values()];
+      frames.clear();
+      for (const callback of due) callback(0);
+    },
+    [Symbol.dispose]: () => {
+      uninstall();
+      stage.remove();
+      raf.mockRestore();
+      caf.mockRestore();
+      media.mockRestore();
+    },
+  };
+}
+
+const writtenTo = (surface: { setProperty: { mock: { calls: unknown[][] } } }) =>
+  surface.setProperty.mock.calls.map(([name, value]) => `${String(name)}=${String(value)}`);
+
+describe("the pointer reflection on a surface", () => {
+  it("writes each custom property at most once per frame however many moves arrive", () => {
+    using env = setup();
+    for (let step = 0; step < 20; step++) env.move(env.plain.child, 110 + step, 125);
+    expect(env.frameRequests).toHaveBeenCalledTimes(1);
+    expect(writtenTo(env.plain)).toEqual([]);
+
+    env.flush();
+    expect(writtenTo(env.plain)).toEqual(["--one-mx=29px", "--one-my=25px"]);
+  });
+
+  it("writes only the property whose rounded value changed", () => {
+    using env = setup();
+    env.move(env.plain.child, 120, 125);
+    env.flush();
+    env.plain.setProperty.mockClear();
+
+    env.move(env.plain.child, 120.4, 125.2);
+    env.flush();
+    expect(writtenTo(env.plain)).toEqual([]);
+
+    env.move(env.plain.child, 150, 125);
+    env.flush();
+    expect(writtenTo(env.plain)).toEqual(["--one-mx=50px"]);
+  });
+
+  it("reads no layout on pointer moves after the first measurement", () => {
+    using env = setup();
+    for (let step = 0; step < 30; step++) {
+      env.move(env.plain.child, 110 + step, 120);
+      env.flush();
+    }
+    expect(env.plain.measured).toHaveBeenCalledTimes(1);
+  });
+
+  it("measures a surface again after a scroll or a window resize", () => {
+    using env = setup();
+    env.move(env.plain.child, 110, 120);
+    env.flush();
+    expect(env.plain.measured).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event("scroll"));
+    env.move(env.plain.child, 111, 120);
+    env.flush();
+    expect(env.plain.measured).toHaveBeenCalledTimes(2);
+
+    window.dispatchEvent(new Event("resize"));
+    env.move(env.plain.child, 112, 120);
+    env.flush();
+    expect(env.plain.measured).toHaveBeenCalledTimes(3);
+  });
+
+  it("measures a surface again each time the pointer enters it", () => {
+    using env = setup();
+    env.move(env.plain.child, 110, 120);
+    env.move(env.elsewhere, 600, 600);
+    env.move(env.plain.child, 111, 120);
+    env.flush();
+    expect(env.plain.measured).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows the pointer to the position inside a surface that moved without a scroll or resize", () => {
+    using env = setup();
+    env.move(env.plain.child, 120, 125);
+    env.flush();
+    env.plain.element.style.left = "200px";
+    env.move(env.elsewhere, 600, 600);
+
+    env.move(env.plain.child, 320, 125);
+    env.flush();
+    expect(writtenTo(env.plain).at(-1)).toBe("--one-mx=120px");
+  });
+});
+
+describe("the pointer reflection while the agent works", () => {
+  it("leaves a surface inside the working column alone", () => {
+    using env = setup();
+    for (let step = 0; step < 10; step++) env.move(env.insideWorking.child, 110 + step, 325);
+    env.flush();
+    expect(env.frameRequests).not.toHaveBeenCalled();
+    expect(writtenTo(env.insideWorking)).toEqual([]);
+    expect(env.insideWorking.measured).not.toHaveBeenCalled();
+  });
+
+  it("stops writing to a surface when its column starts working, even for a move already waiting for its frame", () => {
+    using env = setup();
+    env.move(env.plain.child, 120, 125);
+    env.flush();
+    env.plain.setProperty.mockClear();
+
+    env.move(env.plain.child, 160, 125);
+    env.plain.element.parentElement?.setAttribute("data-one-working", "");
+    env.flush();
+    expect(writtenTo(env.plain)).toEqual([]);
+
+    env.move(env.plain.child, 170, 125);
+    env.flush();
+    expect(writtenTo(env.plain)).toEqual([]);
+  });
+});
+
+describe("the pointer reflection away from a surface", () => {
+  it("does nothing when the pointer is over no surface it knows", () => {
+    using env = setup();
+    env.move(env.elsewhere, 600, 600);
+    env.flush();
+    expect(env.frameRequests).not.toHaveBeenCalled();
+    expect(env.plain.measured).not.toHaveBeenCalled();
+  });
+
+  it("keeps following the pointer just outside a surface it has seen, and stops further away", () => {
+    using env = setup();
+    env.move(env.plain.child, 110, 125);
+    env.flush();
+    env.plain.setProperty.mockClear();
+    env.frameRequests.mockClear();
+
+    env.move(env.elsewhere, 100 - REFLECT_PROXIMITY_PX + 4, 125);
+    env.flush();
+    expect(writtenTo(env.plain)).toEqual([`--one-mx=${-REFLECT_PROXIMITY_PX + 4}px`]);
+
+    env.plain.setProperty.mockClear();
+    env.frameRequests.mockClear();
+    env.move(env.elsewhere, 100 - REFLECT_PROXIMITY_PX - 40, 125);
+    env.flush();
+    expect(env.frameRequests).not.toHaveBeenCalled();
+    expect(writtenTo(env.plain)).toEqual([]);
+  });
+
+  it("ignores touch pointers", () => {
+    using env = setup();
+    env.move(env.plain.child, 120, 125, "touch");
+    env.flush();
+    expect(env.frameRequests).not.toHaveBeenCalled();
+  });
+});

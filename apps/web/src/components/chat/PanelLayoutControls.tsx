@@ -32,6 +32,8 @@ export interface PanelLayoutControlsProps {
   terminalOpen: boolean;
   terminalShortcutLabel: string | null;
   threadPanelOpen: boolean;
+  /** Whether the details popover is open; chat mode shows this, not the inline card's state. */
+  threadPanelPopoverOpen?: boolean;
   threadPanelPresentation: ThreadPanelPresentation;
   threadPanelPopoverHandle?: ReturnType<typeof PopoverCreateHandle>;
   threadPanelShortcutLabel: string | null;
@@ -53,6 +55,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   terminalOpen,
   terminalShortcutLabel,
   threadPanelOpen,
+  threadPanelPopoverOpen = false,
   threadPanelPresentation,
   threadPanelPopoverHandle,
   threadPanelShortcutLabel,
@@ -67,11 +70,13 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   const gt = useGT();
   // Chat mode keeps only the toggles of panels that are open, so they can still be closed.
   const chatMode = useWorkspaceMode() === "chat" && showWorkspaceModeControls;
+  // Chat mode hides the inline details card, so its control opens the popover at every width.
+  const presentation = chatMode ? "popover" : threadPanelPresentation;
   const threadPanelToggle = (
     <Toggle
       className="relative shrink-0 [-webkit-app-region:no-drag]"
-      pressed={threadPanelOpen}
-      onPressedChange={threadPanelPresentation === "popover" ? undefined : onToggleThreadPanel}
+      pressed={chatMode ? threadPanelPopoverOpen : threadPanelOpen}
+      onPressedChange={presentation === "popover" ? undefined : onToggleThreadPanel}
       aria-label={gt("Toggle thread details panel")}
       variant="ghost"
       size="sm"
@@ -82,7 +87,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   const threadPanelControl = (
     <Tooltip>
       <TooltipTrigger render={<span className="flex shrink-0" data-thread-panel-toggle />}>
-        {threadPanelPresentation === "popover" ? (
+        {presentation === "popover" ? (
           <PopoverTrigger handle={threadPanelPopoverHandle} render={threadPanelToggle} />
         ) : (
           threadPanelToggle
@@ -107,7 +112,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
           <WorkspaceModeSwitch className="mr-1" />
         </>
       ) : null}
-      {showThreadPanelControl && !chatMode ? threadPanelControl : null}
+      {showThreadPanelControl ? threadPanelControl : null}
       {showTerminalControl && (!chatMode || terminalOpen) ? (
         <Tooltip>
           <TooltipTrigger render={<span className="flex shrink-0" />}>

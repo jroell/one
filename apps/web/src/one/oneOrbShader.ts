@@ -176,16 +176,23 @@ void main() {
     color += vec3(1.0) * pow(max(dot(n, keyHalf), 0.0), 140.0) * 2.4;
     color = color / (1.0 + color * 0.36);
     color = pow(color, vec3(0.82));
-    // Opening: the metal stays black until a line of fire has run around the
-    // band. The body resolves behind the flame front.
-    float around = fract(atan(toRing(p).z, toRing(p).x) / 6.2831853 + 0.25);
+    // Opening: the metal stays dark until fire has run around the band. It starts at one point
+    // and runs both ways, so the two fronts meet on the far side and there is no seam where lit
+    // metal would sit against unlit. The body resolves behind each front.
+    float turn = fract(atan(toRing(p).z, toRing(p).x) / 6.2831853 + 0.25);
+    float around = 1.0 - abs(turn * 2.0 - 1.0);
     float front = uReveal * 1.5;
     float lit = smoothstep(front - 0.42, front - 0.02, around);
     float settled = smoothstep(0.55, 1.0, uReveal);
-    color *= mix(1.0 - lit, 1.0, settled) * mix(0.0, 1.0, smoothstep(0.02, 0.2, uReveal));
+    // Unlit metal keeps a trace of rim light, so the band reads as dark metal, not a hole.
+    float unlit = mix(1.0 - lit * 0.94, 1.0, settled);
+    color *= unlit * mix(0.0, 1.0, smoothstep(0.02, 0.2, uReveal));
     float flame = fall(0.07, 0.0, abs(around - front)) * (1.0 - settled);
     color += mix(uHi, vec3(1.0), 0.6) * flame * 2.2;
     color += uMid * (1.0 - lit) * pow(1.0 - facing, 2.0) * (1.0 - settled) * 0.9;
+    // The flame is the brightest thing in the opening; roll it off so it glows instead of
+    // clipping to flat white.
+    color = color / (1.0 + max(color - 0.92, 0.0) * 1.6);
     alpha = 1.0;
   }
 

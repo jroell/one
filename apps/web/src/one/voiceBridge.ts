@@ -1,6 +1,8 @@
 import type { VoiceInputPhase } from "@t3tools/client-runtime/voice-input";
 import { useSyncExternalStore } from "react";
 
+import { dispatchVoiceSession, getVoiceSession } from "./voiceSession";
+
 /**
  * What the main composer offers for dictation. The composer owns voice input
  * (models, consent, the draft); voice chat only drives it through here.
@@ -14,13 +16,16 @@ export type VoiceBridge = Readonly<{
   continuesDraft: (draftKey: string) => boolean;
   /** Dictation can start: voice input is set up and this composer may send. */
   available: boolean;
+  /** No transcription source is chosen yet, so starting opens Voice settings instead of recording. */
+  needsSetup: boolean;
   /** Nothing is typed or attached, so a spoken question is sent on its own. */
   draftEmpty: boolean;
   phase: VoiceInputPhase;
   error: string | null;
   /** Words heard so far in this recording. */
   heard: string;
-  start: () => void;
+  /** Begins recording. A start that is still waiting on a status check gives up once `signal` aborts. */
+  start: (signal?: AbortSignal) => void;
   /** Stops recording, waits for the transcript, and sends it. */
   submit: () => void;
   cancel: () => void;
@@ -31,6 +36,7 @@ export const voiceLevel = { current: 0 };
 
 let bridge: VoiceBridge | null = null;
 let owner: string | null = null;
+let committed: { readonly owner: string; readonly threadKey: string } | null = null;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -44,7 +50,42 @@ export function publishVoiceBridge(ownerKey: string, next: VoiceBridge): void {
   emit();
 }
 
+/**
+ * Called by the composer in the commit that makes `threadKey` its thread, before any
+ * passive effect publishes that thread's controls. A conversation that belongs to
+ * another thread ends here, in the same commit, so nothing queued for it can still
+ * reach the new thread. The draft the thread was sent from is the same conversation.
+ */
+export function commitVoiceThread(
+  ownerKey: string,
+  threadKey: string,
+  continuesDraft: (draftKey: string) => boolean,
+): void {
+  committed = { owner: ownerKey, threadKey };
+  const current = getVoiceSession();
+  if (current.stage === "off" || current.threadKey === null || current.threadKey === threadKey)
+    return;
+  const sameConversation =
+    current.startedAsDraft && current.stage !== "listening" && continuesDraft(current.threadKey);
+  dispatchVoiceSession(sameConversation ? { type: "promoted", threadKey } : { type: "stop" });
+}
+
+/** The thread the hosting composer has committed, or null before one has or after it left. */
+export function getCommittedVoiceThreadKey(): string | null {
+  return committed?.threadKey ?? null;
+}
+
+/**
+ * Runs `action` only while the composer still shows `threadKey`. Controls published
+ * for one thread stay in a queued frame or timer after the composer moved on; this
+ * keeps them from acting on the thread it moved to.
+ */
+export function whileCommitted(ownerKey: string, threadKey: string, action: () => void): void {
+  if (committed?.owner === ownerKey && committed.threadKey === threadKey) action();
+}
+
 export function retractVoiceBridge(ownerKey: string): void {
+  if (committed?.owner === ownerKey) committed = null;
   if (owner !== ownerKey) return;
   owner = null;
   bridge = null;

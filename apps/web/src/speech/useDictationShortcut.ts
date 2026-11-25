@@ -8,6 +8,7 @@ import { useClientSettings } from "../hooks/useSettings";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
 import { registerCommandHandlers, type CommandRunContext } from "../shortcuts/commandRegistry";
+import { isOpeningPlaying } from "../shortcuts/dispatcher";
 
 const HOLD_THRESHOLD_MS = 300;
 
@@ -163,6 +164,8 @@ export function useDictationShortcut(input: ShortcutInput) {
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      // The first key press on a fresh launch lifts the opening and does nothing else.
+      if (isOpeningPlaying()) return;
       if (!ownsShortcut(id.current)) return;
       if (event.isComposing || event.keyCode === 229) return;
       const { speech } = current.current;
@@ -238,6 +241,10 @@ export function useDictationShortcut(input: ShortcutInput) {
     const disposeRow = registerCommandHandlers({
       "composer.dictation": { run: toggle, canRun: canToggle },
     });
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (isOpeningPlaying()) return;
+      finish(event);
+    };
     const onBlur = () => finish(null);
     const relay = (event: KeyboardEvent) => {
       relayedFrom.set(event, id.current);
@@ -249,7 +256,7 @@ export function useDictationShortcut(input: ShortcutInput) {
       blur: onBlur,
     });
     window.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("keyup", finish, true);
+    window.addEventListener("keyup", onKeyUp, true);
     window.addEventListener("blur", onBlur);
     return () => {
       disposed = true;
@@ -258,7 +265,7 @@ export function useDictationShortcut(input: ShortcutInput) {
       disposeRow();
       unsubscribe?.();
       window.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("keyup", finish, true);
+      window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", onBlur);
     };
   }, [mode, subscribeKeys]);

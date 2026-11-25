@@ -6,6 +6,7 @@ import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { SettingsRow } from "~/components/settings/settingsLayout";
 import { useSearchableSetting } from "~/components/settings/settingsSearch";
 import { replayOpening, setOpeningPreferences, useOpeningPreferences } from "./openingPreferences";
+import { unlockOpeningSound } from "./openingSound";
 
 /** Settings rows for the opening: play it, mute it, watch it again. */
 export function OneOpeningSettings() {
@@ -13,6 +14,12 @@ export function OneOpeningSettings() {
   const searchableSetting = useSearchableSetting();
   const preferences = useOpeningPreferences();
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  // The sound starts later, in the opening's own effect, when the click that asked for it is
+  // over; the browser may only allow audio during that click, so it is unlocked here.
+  const playNow = () => {
+    if (preferences.sound) unlockOpeningSound();
+    replayOpening();
+  };
   return (
     <>
       <SettingsRow
@@ -27,7 +34,7 @@ export function OneOpeningSettings() {
         }
         control={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="xs" disabled={reducedMotion} onClick={replayOpening}>
+            <Button variant="outline" size="xs" disabled={reducedMotion} onClick={playNow}>
               {gt("Play it now")}
             </Button>
             <Switch

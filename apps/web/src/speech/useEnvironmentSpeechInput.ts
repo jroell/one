@@ -386,8 +386,11 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     },
   );
 
-  const start = useStableCallback(async () => {
-    if (latestRef.current.input.disabled || (setup.open && setup.downloading)) return;
+  const start = useStableCallback(async (options?: { readonly signal?: AbortSignal }) => {
+    // A caller that has given up on this start (voice chat closed) must never get a microphone from it.
+    const abandoned = () => options?.signal?.aborted === true;
+    if (abandoned() || latestRef.current.input.disabled || (setup.open && setup.downloading))
+      return;
     if (!grantId) {
       if (destination.offerFirstRunSetup && latestRef.current.input.offerSetup !== false)
         await navigate({ to: "/settings/voice", hash: "voice-transcription-destination" });
@@ -440,11 +443,18 @@ export function useEnvironmentSpeechInput(input: HookInput) {
         return null;
       });
       if (!stillCurrent() || !latestStatus) return;
+      // Setup and the unsupported notice still show for an abandoned start; only the microphone stays closed.
       await handleStatus(latestStatus);
-      if (!latestStatus.supported || latestStatus.state === "missing-model" || !stillCurrent())
+      if (
+        !latestStatus.supported ||
+        latestStatus.state === "missing-model" ||
+        !stillCurrent() ||
+        abandoned()
+      )
         return;
     }
 
+    if (abandoned()) return;
     await session.start(createTarget(), (latestStatus) => void handleStatus(latestStatus));
   });
 

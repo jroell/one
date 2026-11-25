@@ -10,18 +10,27 @@ export const OPENING_SEEN_KEY = "one:opening-seen";
 const listeners = new Set<() => void>();
 const replayListeners = new Set<() => void>();
 
-function readOff(key: string): boolean {
+/** Whether the stored choice is on; `undefined` when storage cannot be read, which is not "unset". */
+function readOn(key: string): boolean | undefined {
   try {
-    return window.localStorage.getItem(key) === "off";
+    return window.localStorage.getItem(key) !== "off";
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+/** Reads both choices; one that cannot be read keeps the value this session already holds. */
+function readPreferences(held: OpeningPreferences): OpeningPreferences {
+  return {
+    animation: readOn(ANIMATION_KEY) ?? held.animation,
+    sound: readOn(SOUND_KEY) ?? held.sound,
+  };
 }
 
 let snapshot: OpeningPreferences =
   typeof window === "undefined"
     ? { animation: true, sound: true }
-    : { animation: !readOff(ANIMATION_KEY), sound: !readOff(SOUND_KEY) };
+    : readPreferences({ animation: true, sound: true });
 
 export function getOpeningPreferences(): OpeningPreferences {
   return snapshot;
@@ -47,7 +56,7 @@ export function setOpeningPreferences(next: Partial<OpeningPreferences>): void {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   // Another window may have changed a choice while nothing here was listening.
-  const fresh = { animation: !readOff(ANIMATION_KEY), sound: !readOff(SOUND_KEY) };
+  const fresh = readPreferences(snapshot);
   if (fresh.animation !== snapshot.animation || fresh.sound !== snapshot.sound) {
     snapshot = fresh;
     queueMicrotask(() => {
@@ -57,7 +66,7 @@ function subscribe(listener: () => void): () => void {
   // Another window changed a choice: read both again.
   const onStorage = (event: StorageEvent) => {
     if (event.key !== ANIMATION_KEY && event.key !== SOUND_KEY) return;
-    snapshot = { animation: !readOff(ANIMATION_KEY), sound: !readOff(SOUND_KEY) };
+    snapshot = readPreferences(snapshot);
     for (const each of listeners) each();
   };
   window.addEventListener("storage", onStorage);

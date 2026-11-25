@@ -3,7 +3,12 @@ import { CodeXmlIcon, MessagesSquareIcon } from "lucide-react";
 import type { KeyboardEvent } from "react";
 
 import { cn } from "~/lib/utils";
-import { setWorkspaceMode, useWorkspaceMode, type WorkspaceMode } from "./workspaceMode";
+import {
+  setWorkspaceMode,
+  toggleWorkspaceMode,
+  useWorkspaceMode,
+  type WorkspaceMode,
+} from "./workspaceMode";
 
 /** Two-way switch between the coding workspace and the chat layout. */
 export function WorkspaceModeSwitch({ className }: { readonly className?: string }) {
@@ -25,8 +30,7 @@ export function WorkspaceModeSwitch({ className }: { readonly className?: string
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
     event.preventDefault();
-    const next: WorkspaceMode = mode === "code" ? "chat" : "code";
-    setWorkspaceMode(next);
+    const next = toggleWorkspaceMode();
     event.currentTarget.querySelector<HTMLButtonElement>(`[data-mode="${next}"]`)?.focus();
   };
 
@@ -51,7 +55,7 @@ export function WorkspaceModeSwitch({ className }: { readonly className?: string
             tabIndex={selected ? 0 : -1}
             data-mode={option.mode}
             className="one-mode-switch-option"
-            onClick={() => setWorkspaceMode(option.mode)}
+            onClick={() => setWorkspaceMode(option.mode, { transition: true })}
           >
             <option.icon aria-hidden="true" className="size-3.5" />
             <span className="one-mode-switch-label">{option.label}</span>

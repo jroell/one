@@ -1,31 +1,37 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useGT } from "gt-react";
 import { XIcon } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { toastManager } from "~/components/ui/toast";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { useThreadVisibleTurnItems } from "~/state/entities";
 import { OneOrb, type OneOrbState } from "./OneOrb";
-import { useVoiceBridge, voiceLevel, type VoiceBridge } from "./voiceBridge";
-import { applyVoiceChatStyle, getVoiceChatStyle } from "./voiceChatPreferences";
 import {
+  getCommittedVoiceThreadKey,
+  useVoiceBridge,
+  voiceLevel,
+  type VoiceBridge,
+} from "./voiceBridge";
+import { applyVoiceChatStyle, getVoiceChatStyle, replyLanguage } from "./voiceChatPreferences";
+import {
+  beginMicrophone,
   createSilenceDetector,
   dispatchVoiceSession,
   getVoiceSession,
-  holdMicrophone,
+  replyAnchor,
+  selectReply,
+  settleMicrophone,
   speakableText,
+  speechDeadlineMs,
   useVoiceSession,
+  type VoiceMessage,
   type VoiceStage,
 } from "./voiceSession";
 import { useWorkspaceMode } from "./workspaceMode";
 
-export type VoiceStageMessage = Readonly<{
-  id: string;
-  role: "user" | "assistant" | "system";
-  text: string;
-  streaming: boolean;
-}>;
+export type VoiceStageMessage = VoiceMessage;
 
 const ORB_STATE: Record<Exclude<VoiceStage, "off">, OneOrbState> = {
   listening: "listening",
@@ -38,8 +44,14 @@ const ORB_STATE: Record<Exclude<VoiceStage, "off">, OneOrbState> = {
 const REPLY_GRACE_MS = 4_000;
 /** How long a send may sit without starting a turn before voice chat listens again. */
 const SEND_STALL_MS = 6_000;
-/** How long the microphone may take to begin before voice chat closes (setup needed or refused). */
+/** How long the microphone may take to begin before voice chat closes (setup needed, refused or unavailable). */
 const START_REFUSED_MS = 2_500;
+/** How long a spoken question may sit in recording, transcription or cleanup before it is given up on. */
+const SEND_OPERATION_MS = 60_000;
+/** How long speech may take to begin before an idle synthesizer is taken to have dropped it. */
+const SPEECH_START_MS = 4_000;
+/** How long the first deep-voice reply waits for the device to list its voices. */
+const VOICES_WAIT_MS = 1_500;
 
 let mountedStages = 0;
 
@@ -104,18 +116,24 @@ function ActiveVoiceStage({
   const messages: ReadonlyArray<VoiceStageMessage> =
     threadRef === null
       ? draftMessages
-      : turnItems.flatMap((row) =>
-          row.item.type === "assistant_message"
-            ? [
-                {
-                  id: row.item.id,
-                  role: "assistant" as const,
-                  text: row.item.text,
-                  streaming: row.item.streaming,
-                },
-              ]
-            : [],
-        );
+      : turnItems.flatMap((row): VoiceStageMessage[] => {
+          const item = row.item;
+          if (item.type === "user_message") {
+            return [{ id: item.id, role: "user", text: item.text, streaming: false }];
+          }
+          if (item.type === "assistant_message") {
+            return [
+              {
+                id: item.id,
+                role: "assistant",
+                text: item.text,
+                streaming: item.streaming,
+                commentary: item.phase === "commentary" || item.delivery === "async",
+              },
+            ];
+          }
+          return [];
+        });
 
   // Only the composer of the thread this conversation started in may be driven.
   // A draft that has sent its first question becomes a saved thread under a new key:
@@ -145,26 +163,36 @@ function ActiveVoiceStage({
   const ownRecordingRef = useRef(false);
   /** Whether that recording has been seen running, so a return to idle means it finished. */
   const ownRecordingSeenRef = useRef(false);
+  /** The recorder was already in its error phase when this operation began, so that error is not its own. */
+  const ownStartedInErrorRef = useRef(false);
   const draftToastShownRef = useRef(false);
+  /** The microphone has been asked to start in this conversation, so an error on it is this conversation's. */
+  const [attempted, setAttempted] = useState(false);
 
-  const latestAssistant = messages.findLast((message) => message.role === "assistant") ?? null;
-  const reply =
-    latestAssistant !== null && latestAssistant.id !== session.baselineMessageId
-      ? latestAssistant
+  const answer =
+    (stage === "sending" || stage === "thinking") && session.sentAfter !== null
+      ? selectReply(messages, session.sentAfter)
       : null;
-  const replyReady = reply !== null && !reply.streaming;
-  const replyLength = reply?.text.length ?? 0;
-  const latest = useRef({ bridge, reply, latestAssistantId: latestAssistant?.id ?? null });
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge and reply to the frame loop, timers and speech effect below
+  const answerText = answer === null ? "" : speakableText(answer.text);
+  const answerReady = answer !== null && !answer.streaming && answerText.length > 0;
+  const answerId = answer?.id ?? null;
+  const latest = useRef({ bridge, messages });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge and messages to the frame loop, timers and speech effect below
   useEffect(() => {
-    latest.current = { bridge, reply, latestAssistantId: latestAssistant?.id ?? null };
+    latest.current = { bridge, messages };
   });
 
   const submit = () => {
     const current = latest.current;
     // The pause detector and the ring button can both fire in one frame; only the first sends.
     if (!current.bridge || getVoiceSession().stage !== "listening") return;
-    dispatchVoiceSession({ type: "sent", latestAssistantMessageId: current.latestAssistantId });
+    // A frame queued before the composer moved to another thread must not send that thread's draft.
+    const committedKey = getCommittedVoiceThreadKey();
+    if (committedKey !== null && committedKey !== getVoiceSession().threadKey) {
+      dispatchVoiceSession({ type: "stop" });
+      return;
+    }
+    dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages) });
     current.bridge.submit();
   };
   const submitRef = useRef(submit);
@@ -179,8 +207,10 @@ function ActiveVoiceStage({
   const blockedOnUser = needsUser;
   // Something typed or attached since the last turn would ride along with the next spoken question.
   const draftInTheWay = stage === "listening" && bridge?.phase === "idle" && !bridge.draftEmpty;
+  // A layout effect, so the conversation is over in the commit that removed its thread or mode,
+  // before any frame or timer queued for it can run.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the shared voice session when the thread, composer or mode it belongs to is gone
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!(orphaned || blockedOnUser || draftInTheWay)) return;
     if (draftInTheWay && !draftToastShownRef.current) {
       // Development runs effects twice; the person should still see one notice.
@@ -194,11 +224,36 @@ function ActiveVoiceStage({
     dispatchVoiceSession({ type: "stop" });
   }, [orphaned, blockedOnUser, draftInTheWay, gt]);
 
+  const reclaimFocus = useStableCallback(() => {
+    const stageElement = stageRef.current;
+    const active = document.activeElement;
+    if (!stageElement || (active !== null && stageElement.contains(active))) return;
+    if (
+      active === null ||
+      active === document.body ||
+      active.closest('[data-chat-composer-form="true"]') !== null
+    ) {
+      orbButtonRef.current?.focus();
+    }
+  });
+
+  // One function starts the microphone, for the first attempt and for a retry alike: it registers
+  // how to cancel it before starting, so ending voice chat always reaches the recording it began.
+  const beginRecording = useStableCallback((target: VoiceBridge) => {
+    startRequestedRef.current = true;
+    ownRecordingRef.current = true;
+    ownRecordingSeenRef.current = false;
+    ownStartedInErrorRef.current = target.phase === "error";
+    setAttempted(true);
+    beginMicrophone((signal) => target.start(signal), target.cancel);
+  });
+
   // Listening: start the composer's recording once, then send when the speaker pauses.
   const recordingPhase = bridge?.phase ?? "idle";
   const bridgeReady = bridge?.available === true;
   // A turn that was already running is not ours: wait for it instead of talking over it.
   const waitingForThread = stage === "listening" && isWorking && recordingPhase === "idle";
+  const sendFailed = session.error !== null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the microphone when the listening stage begins; the recorder is outside React
   useEffect(() => {
     if (stage !== "listening") {
@@ -206,27 +261,25 @@ function ActiveVoiceStage({
       return;
     }
     // One request per listening turn: a refused start (setup needed, mic blocked) must not retry in a loop.
-    if (!bridgeReady || waitingForThread || recordingPhase !== "idle") return;
+    // A failed send waits for the person to choose Try again.
+    if (!bridgeReady || waitingForThread || recordingPhase !== "idle" || sendFailed) return;
     if (startRequestedRef.current) return;
     // The stop effect above may have just ended the conversation in this same commit.
     if (orphaned || blockedOnUser || draftInTheWay || getVoiceSession().stage !== "listening")
       return;
     const current = latest.current.bridge;
     if (!current) return;
-    startRequestedRef.current = true;
-    ownRecordingRef.current = true;
-    ownRecordingSeenRef.current = false;
-    // Held from the request itself, so ending voice chat also stops a start that is still pending.
-    holdMicrophone(current.cancel);
-    current.start();
+    beginRecording(current);
   }, [
     stage,
     bridgeReady,
     waitingForThread,
     recordingPhase,
+    sendFailed,
     orphaned,
     blockedOnUser,
     draftInTheWay,
+    beginRecording,
   ]);
 
   // This session owns exactly one recorder operation at a time: the one its own start
@@ -241,27 +294,41 @@ function ActiveVoiceStage({
       ownRecordingSeenRef.current = true;
       return;
     }
+    // A retry begun from an error sees that same error until its own recording starts.
+    if (recordingPhase === "error" && ownStartedInErrorRef.current && !ownRecordingSeenRef.current)
+      return;
     ownRecordingRef.current = false;
     ownRecordingSeenRef.current = false;
-    holdMicrophone(null);
-  }, [recordingPhase]);
+    settleMicrophone();
+    // Dictation hands focus to the composer as it finishes.
+    reclaimFocus();
+  }, [recordingPhase, reclaimFocus]);
 
-  // The microphone never started (voice input needs setup, or the request was refused):
-  // close voice chat and leave any setup screen it opened alone.
-  const startRefused =
-    stage === "listening" && bridgeReady && !waitingForThread && recordingPhase === "idle";
+  // The microphone never started (voice input needs setup, was refused, or is no longer
+  // available): close voice chat and leave any setup screen it opened alone.
+  const micStalled =
+    stage === "listening" && !waitingForThread && recordingPhase === "idle" && !sendFailed;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- times out a microphone request that never began; cleared as soon as recording starts
   useEffect(() => {
-    if (!startRefused) return;
+    if (!micStalled) return;
     const timer = window.setTimeout(() => {
-      // Nothing was ever recording, so there is nothing to cancel. Dropping the hold first
-      // leaves a slow status check free to open voice setup after voice chat has closed.
+      // Nothing was ever recording, so there is nothing to cancel. Settling first tells a slow status
+      // check not to open the microphone, yet leaves it free to open voice setup.
       ownRecordingRef.current = false;
-      holdMicrophone(null);
+      settleMicrophone();
+      if (latest.current.bridge?.available !== true) {
+        toastManager.add({
+          type: "info",
+          title: gt("Voice chat ended"),
+          description: gt(
+            "Voice input is no longer available. Check Voice settings, then start again.",
+          ),
+        });
+      }
       dispatchVoiceSession({ type: "stop" });
     }, START_REFUSED_MS);
     return () => window.clearTimeout(timer);
-  }, [startRefused]);
+  }, [micStalled, gt]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- samples the live microphone level each frame, which React state would re-render on
   useEffect(() => {
@@ -286,8 +353,10 @@ function ActiveVoiceStage({
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- advances the spoken turn from the thread's work state, which lives outside this component
   useEffect(() => {
     if (stage !== "sending") return;
-    if (recordingPhase === "error") dispatchVoiceSession({ type: "failed" });
-    else if (isWorking && recordingPhase === "idle") dispatchVoiceSession({ type: "working" });
+    if (recordingPhase === "error") {
+      const message = latest.current.bridge?.error;
+      dispatchVoiceSession(message ? { type: "failed", message } : { type: "failed" });
+    } else if (isWorking && recordingPhase === "idle") dispatchVoiceSession({ type: "working" });
   }, [stage, isWorking, recordingPhase]);
 
   // A send that never starts a turn (nothing to send, no provider) must not leave the ring spinning.
@@ -299,70 +368,143 @@ function ActiveVoiceStage({
     return () => window.clearTimeout(timer);
   }, [sendStalled]);
 
-  // Thinking: read the reply once the turn is over and the reply has finished streaming.
-  // A turn that ends without one gets a short grace period, then voice chat listens again.
-  const turnOver = stage === "thinking" && !isWorking;
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- waits for the finished reply of the turn; the timer covers a turn that ends with nothing to read
+  // A question stuck in recording, transcription or cleanup has its own deadline, ending in an
+  // error with Try again. The send timeout above only runs while the recorder is idle.
+  const sendingPhase =
+    stage === "sending" && recordingPhase !== "idle" && recordingPhase !== "error"
+      ? recordingPhase
+      : null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a spoken question whose recorder operation never finishes
   useEffect(() => {
-    if (!turnOver) return;
-    // The length is read here so a reply whose text arrives after its item re-runs this check.
-    if (
-      replyReady &&
-      replyLength > 0 &&
-      speakableText(latest.current.reply?.text ?? "").length > 0
-    ) {
-      dispatchVoiceSession({ type: "replied", hasNewReply: true });
+    if (sendingPhase === null) return;
+    const timer = window.setTimeout(() => {
+      if (ownRecordingRef.current) latest.current.bridge?.cancel();
+      dispatchVoiceSession({ type: "failed", message: gt("Voice input took too long") });
+    }, SEND_OPERATION_MS);
+    return () => window.clearTimeout(timer);
+  }, [sendingPhase, gt]);
+
+  // Sending or thinking: read the answer once the turn is over and it has finished streaming.
+  // The finished answer can be seen without any frame that showed the thread working.
+  // A turn that ends without one gets a short grace period, then voice chat listens again.
+  const answerSettled =
+    !isWorking && (stage === "thinking" || (stage === "sending" && recordingPhase === "idle"));
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- waits for the finished answer to the question that was sent; the timer covers a turn that ends with nothing to read
+  useEffect(() => {
+    if (!answerSettled) return;
+    if (answerReady && answerId !== null) {
+      dispatchVoiceSession({ type: "replied", reply: { id: answerId, text: answerText } });
       return;
     }
+    // A send that is still waiting to start a turn has its own timeout above.
+    if (stage !== "thinking") return;
     const timer = window.setTimeout(
-      () => dispatchVoiceSession({ type: "replied", hasNewReply: false }),
+      () => dispatchVoiceSession({ type: "replied", reply: null }),
       REPLY_GRACE_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [turnOver, replyReady, replyLength]);
+  }, [answerSettled, stage, answerReady, answerId, answerText]);
 
   // Speaking: read the reply aloud once, from the text it had when reading began.
-  const speakingReplyId = stage === "speaking" ? (reply?.id ?? null) : null;
+  const speakingReplyId = stage === "speaking" ? (session.reply?.id ?? null) : null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drives the browser speech synthesizer, an external system, for the speaking stage
   useEffect(() => {
     if (speakingReplyId === null) return;
-    const synthesis = typeof window === "undefined" ? undefined : window.speechSynthesis;
-    const text = speakableText(latest.current.reply?.text ?? "");
-    if (!synthesis || typeof SpeechSynthesisUtterance === "undefined" || text.length === 0) {
-      dispatchVoiceSession({ type: "spoken" });
+    const current = getVoiceSession();
+    const spoken = current.reply;
+    if (spoken === null || spoken.id !== speakingReplyId) return;
+    // A reply belongs to the thread it was asked in; never read it over another thread.
+    const committedKey = getCommittedVoiceThreadKey();
+    if (committedKey !== null && committedKey !== current.threadKey) {
+      dispatchVoiceSession({ type: "stop" });
       return;
     }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = document.documentElement.lang || navigator.language;
-    applyVoiceChatStyle(utterance, synthesis.getVoices(), getVoiceChatStyle());
+    const synthesis = typeof window === "undefined" ? undefined : window.speechSynthesis;
+    if (!synthesis || typeof SpeechSynthesisUtterance === "undefined" || spoken.text.length === 0) {
+      dispatchVoiceSession({ type: "spoken", replyId: spoken.id });
+      return;
+    }
     let finished = false;
+    let started = false;
+    let startWatch: number | undefined;
+    let deadline: number | undefined;
+    let voicesWait: number | undefined;
+    let onVoices: (() => void) | undefined;
     const finish = () => {
+      // A late event of this reading must not end another turn's.
       if (finished) return;
       finished = true;
-      dispatchVoiceSession({ type: "spoken" });
+      dispatchVoiceSession({ type: "spoken", replyId: spoken.id });
     };
-    utterance.onboundary = () => {
-      speechPulseRef.current = 0.62;
+    const speak = () => {
+      if (finished) return;
+      const utterance = new SpeechSynthesisUtterance(spoken.text);
+      utterance.lang = replyLanguage(
+        spoken.text,
+        document.documentElement.lang || navigator.language,
+      );
+      applyVoiceChatStyle(utterance, synthesis.getVoices(), getVoiceChatStyle());
+      utterance.onstart = () => {
+        started = true;
+      };
+      utterance.onboundary = () => {
+        speechPulseRef.current = 0.62;
+      };
+      utterance.onend = finish;
+      utterance.onerror = finish;
+      synthesis.cancel();
+      synthesis.speak(utterance);
+      // Some engines drop an utterance without any event. Idle and never started means it is not coming.
+      startWatch = window.setTimeout(() => {
+        if (!started && !synthesis.speaking && !synthesis.pending) finish();
+      }, SPEECH_START_MS);
+      deadline = window.setTimeout(finish, speechDeadlineMs(spoken.text));
     };
-    utterance.onend = finish;
-    utterance.onerror = finish;
-    synthesis.cancel();
-    synthesis.speak(utterance);
+    // The deep voice is chosen from the device's voice list, which is empty until the device reports it.
+    if (getVoiceChatStyle() === "conqueror" && synthesis.getVoices().length === 0) {
+      onVoices = () => {
+        synthesis.removeEventListener("voiceschanged", onVoices as () => void);
+        window.clearTimeout(voicesWait);
+        speak();
+      };
+      synthesis.addEventListener("voiceschanged", onVoices);
+      voicesWait = window.setTimeout(onVoices, VOICES_WAIT_MS);
+    } else {
+      speak();
+    }
     return () => {
       finished = true;
+      window.clearTimeout(startWatch);
+      window.clearTimeout(deadline);
+      window.clearTimeout(voicesWait);
+      if (onVoices) synthesis.removeEventListener("voiceschanged", onVoices);
       synthesis.cancel();
     };
   }, [speakingReplyId]);
 
-  // Opening takes focus and keeps it; closing releases the microphone and gives focus back.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- owns keyboard focus and the Escape key while the voice dialog is open, and releases the recorder when it closes
+  // The device lists its voices lazily; asking when voice chat opens gives it time to answer.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- primes the browser's voice list, an external system
   useEffect(() => {
+    window.speechSynthesis?.getVoices();
+  }, []);
+
+  const stageRendered = bridge !== null;
+  // Opening takes focus; closing releases the microphone and gives focus back. While open, what
+  // the layer covers is inert, so keyboard and screen readers meet only what can be seen.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- owns keyboard focus, the covered content and the Escape key while the voice dialog is open
+  useEffect(() => {
+    if (!stageRendered) return;
+    const stageElement = stageRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     orbButtonRef.current?.focus();
+    const covered = [...(stageElement?.parentElement?.children ?? [])].filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && element !== stageElement && !element.inert,
+    );
+    for (const element of covered) element.inert = true;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       // A menu, select or dialog opened over voice chat closes first.
-      const stageElement = stageRef.current;
       const layers = document.querySelectorAll(
         "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]",
       );
@@ -371,39 +513,54 @@ function ActiveVoiceStage({
       event.stopPropagation();
       dispatchVoiceSession({ type: "stop" });
     };
-    // Dictation hands focus back to the composer under the dialog when it finishes; take it back.
-    // Focus that moves into another dialog (voice setup, a menu) is left alone.
-    const onFocusIn = (event: FocusEvent) => {
-      const stageElement = stageRef.current;
-      if (!stageElement || !(event.target instanceof Element)) return;
-      if (stageElement.contains(event.target)) return;
-      const otherLayer = event.target.closest(
-        "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]",
-      );
-      if (otherLayer !== null) return;
-      orbButtonRef.current?.focus();
-    };
     window.addEventListener("keydown", onKeyDown, true);
-    document.addEventListener("focusin", onFocusIn);
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
-      document.removeEventListener("focusin", onFocusIn);
+      for (const element of covered) element.inert = false;
       // A development re-run of this effect must not move focus while the dialog stays open.
       if (getVoiceSession().stage !== "off") return;
-      if (opener?.isConnected && opener.closest("[inert]") === null) opener.focus();
+      const usable =
+        opener !== null &&
+        opener !== document.body &&
+        opener.isConnected &&
+        opener.closest("[inert]") === null;
+      // The launcher can be gone (another mode, another thread): the composer is where the person was writing.
+      (usable
+        ? opener
+        : document.querySelector<HTMLElement>(
+            '[data-chat-composer-form="true"] [data-testid="composer-editor"]',
+          )
+      )?.focus();
     };
-  }, []);
+  }, [stageRendered]);
+
+  // Dictation hands focus to the composer when it finishes, and each stage changes what the
+  // layer shows. Take focus back when it was dropped into the composer or nowhere; leave it
+  // wherever else the person chose to put it.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- returns keyboard focus to the voice dialog after a stage change
+  useEffect(() => {
+    if (stage !== "off") reclaimFocus();
+  }, [stage, reclaimFocus]);
 
   if (bridge === null) return null;
 
-  const micError = stage === "listening" && bridge.phase === "error" ? bridge.error : null;
+  const recorderFailed = stage === "listening" && attempted && bridge.phase === "error";
+  const micFailed = recorderFailed || (stage === "listening" && sendFailed);
+  const micError = micFailed ? (recorderFailed ? bridge.error : session.error) : null;
+  const unavailable =
+    stage === "listening" &&
+    !micFailed &&
+    !waitingForThread &&
+    !bridge.available &&
+    bridge.phase === "idle";
   const preparing =
     stage === "listening" && (bridge.phase === "idle" || bridge.phase === "preparing");
-  const status =
-    micError !== null
-      ? gt("Voice input stopped")
-      : waitingForThread
-        ? gt("Waiting for the current reply")
+  const status = micFailed
+    ? gt("Voice input stopped")
+    : waitingForThread
+      ? gt("Waiting for the current reply")
+      : unavailable
+        ? gt("Voice input is not available")
         : stage === "listening"
           ? preparing
             ? gt("Getting the microphone ready")
@@ -414,11 +571,13 @@ function ActiveVoiceStage({
   const caption =
     stage === "listening"
       ? (micError ?? bridge.heard)
-      : reply
-        ? speakableText(reply.text)
-        : stage === "sending"
-          ? bridge.heard
-          : "";
+      : stage === "speaking"
+        ? (session.reply?.text ?? "")
+        : answerText.length > 0
+          ? answerText
+          : stage === "sending"
+            ? bridge.heard
+            : "";
   const orbLabel =
     stage === "listening"
       ? gt("Send what I said")
@@ -428,36 +587,24 @@ function ActiveVoiceStage({
 
   const onOrbPress = () => {
     if (stage === "listening" && bridge.phase === "recording" && ownRecordingRef.current) submit();
-    else if (stage === "speaking") dispatchVoiceSession({ type: "spoken" });
-  };
-
-  // Tab stays inside the dialog: the page behind it is covered.
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Tab") return;
-    const focusable = [
-      ...event.currentTarget.querySelectorAll<HTMLElement>("button:not([disabled])"),
-    ];
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (!first || !last) return;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
+    else if (stage === "speaking") {
+      dispatchVoiceSession(
+        session.reply ? { type: "spoken", replyId: session.reply.id } : { type: "spoken" },
+      );
     }
+  };
+  const retry = () => {
+    dispatchVoiceSession({ type: "retried" });
+    beginRecording(bridge);
   };
 
   return (
     <div
       ref={stageRef}
       role="dialog"
-      aria-modal="true"
       aria-label={gt("Voice chat")}
       data-one-voice-stage={stage}
       className="one-voice-stage"
-      onKeyDown={onKeyDown}
     >
       <div className="one-voice-stage-body">
         <button
@@ -477,13 +624,19 @@ function ActiveVoiceStage({
         <p className="one-voice-status" role="status" aria-live="polite">
           {status}
         </p>
-        <p className="one-voice-caption" data-kind={stage === "listening" ? "heard" : "reply"}>
+        <p
+          className="one-voice-caption"
+          data-kind={stage === "listening" ? "heard" : "reply"}
+          role="region"
+          aria-label={gt("Voice chat transcript")}
+          tabIndex={caption.length > 0 ? 0 : undefined}
+        >
           {caption}
         </p>
       </div>
       <div className="one-voice-stage-actions">
-        {micError !== null ? (
-          <Button variant="outline" size="sm-pill" onClick={() => bridge.start()}>
+        {micFailed ? (
+          <Button variant="outline" size="sm-pill" onClick={retry}>
             {gt("Try the microphone again")}
           </Button>
         ) : null}

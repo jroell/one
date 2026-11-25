@@ -6,13 +6,54 @@
  */
 /** How long the browser may hold the sound before the opening goes on without it. */
 const RESUME_DEADLINE_MS = 600;
+/** How long an unlocked context waits for the opening to take it before it is closed. */
+const UNLOCK_HOLD_MS = 5000;
+
+let unlocked: { readonly context: AudioContext; readonly expiry: number } | null = null;
+
+function audioContextClass(): typeof AudioContext | undefined {
+  return typeof window === "undefined" ? undefined : window.AudioContext;
+}
+
+/**
+ * Creates and resumes the audio context. Call it inside the click or key press that asks for a
+ * replay: some browsers unlock audio only during a user gesture, and the opening starts its
+ * sound later, in an effect, where the gesture is gone. The next `playOpeningSound` takes this
+ * context; one nobody takes is closed after a few seconds.
+ */
+export function unlockOpeningSound(): void {
+  const AudioContextClass = audioContextClass();
+  if (!AudioContextClass) return;
+  try {
+    if (!unlocked) {
+      const context = new AudioContextClass();
+      const expiry = window.setTimeout(() => {
+        if (unlocked?.context !== context) return;
+        unlocked = null;
+        void context.close().catch(() => {});
+      }, UNLOCK_HOLD_MS);
+      unlocked = { context, expiry };
+    }
+    void unlocked.context.resume().catch(() => {});
+  } catch {
+    // The opening plays silently when the browser refuses audio.
+  }
+}
+
+function takeUnlockedContext(): AudioContext | null {
+  if (!unlocked) return null;
+  const { context, expiry } = unlocked;
+  unlocked = null;
+  window.clearTimeout(expiry);
+  return context.state === "closed" ? null : context;
+}
 
 export function playOpeningSound(ignitionSeconds: number): () => void {
-  const AudioContextClass = typeof window === "undefined" ? undefined : window.AudioContext;
+  const AudioContextClass = audioContextClass();
   if (!AudioContextClass) return () => {};
   let context: AudioContext;
   try {
-    context = new AudioContextClass();
+    context = takeUnlockedContext() ?? new AudioContextClass();
   } catch {
     return () => {};
   }

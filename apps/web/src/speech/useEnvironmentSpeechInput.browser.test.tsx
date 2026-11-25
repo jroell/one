@@ -42,6 +42,8 @@ const mocks = vi.hoisted(() => ({
   primaryEnvironmentId: "primary-env",
   statusRequests: [] as string[],
   statusUnavailable: false,
+  /** While set, the speech status check does not answer until it is released. */
+  statusGate: null as Deferred.Deferred<void> | null,
   statusTier: "accelerated" as "cpu" | "accelerated",
   modelState: "ready" as "ready" | "missing-model",
   statusModelId: "test-model",
@@ -123,8 +125,9 @@ vi.mock("./runEnvironmentSpeech", () => ({ runEnvironmentSpeech: Effect.runPromi
 vi.mock("../components/ui/toast", () => ({ toastManager: { add: vi.fn() } }));
 vi.mock("@t3tools/client-runtime/voice-input", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@t3tools/client-runtime/voice-input")>()),
-  getEnvironmentSpeechStatus: (prepared: PreparedConnection) =>
-    Effect.sync(() => {
+  getEnvironmentSpeechStatus: (prepared: PreparedConnection) => {
+    const gate = mocks.statusGate;
+    const status = Effect.sync(() => {
       mocks.statusRequests.push(prepared.environmentId);
       if (mocks.statusUnavailable) throw new Error("Temporarily offline");
       return {
@@ -140,7 +143,9 @@ vi.mock("@t3tools/client-runtime/voice-input", async (importOriginal) => ({
         modelUnloadTimeout: "min_15",
         gpuDevices: [],
       };
-    }),
+    });
+    return gate ? Effect.andThen(Deferred.await(gate), status) : status;
+  },
   downloadEnvironmentSpeechModel: (_prepared: PreparedConnection, modelId: string) =>
     Effect.promise(async () => {
       const cancelled = await mocks.download(modelId);
@@ -239,6 +244,7 @@ function setup(options: { readonly destination?: string | null } = {}) {
   mocks.prepared.clear();
   mocks.statusRequests = [];
   mocks.statusUnavailable = false;
+  mocks.statusGate = null;
   mocks.modelState = "ready";
   mocks.statusTier = "accelerated";
   mocks.statusModelId = "test-model";
@@ -1014,4 +1020,29 @@ it("drops a queued submission for a non-persistent draft when switching owners",
   });
   await vi.waitFor(() => expect(mocks.voice.state.phase).toBe("idle"));
   expect(submit).not.toHaveBeenCalled();
+});
+
+it("never opens the microphone for a start that was abandoned while its status check was still running", async () => {
+  setup({ destination: "env-a" });
+  // The cached status says a model is missing, so starting forces a fresh status check first.
+  mocks.modelState = "missing-model";
+  await using _screen = await render(<Probe />);
+  await vi.waitFor(() => expect(mocks.statusRequests).toEqual(["env-a"]));
+  mocks.modelState = "ready";
+  const gate = Deferred.makeUnsafe<void>();
+  mocks.statusGate = gate;
+  const abandon = new AbortController();
+
+  let started!: Promise<void>;
+  await act(() => {
+    started = mocks.voice.start({ signal: abandon.signal });
+  });
+  abandon.abort();
+  // The slow check now answers that voice input is ready.
+  Deferred.doneUnsafe(gate, Effect.void);
+  await act(() => started);
+
+  expect(mocks.statusRequests).toEqual(["env-a", "env-a"]);
+  expect(mocks.microphoneRequests).toEqual([]);
+  expect(mocks.voice.state.phase).toBe("idle");
 });

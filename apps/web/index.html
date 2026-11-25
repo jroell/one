@@ -695,6 +695,21 @@
           document.documentElement.dataset.oneOpening = "";
         }
       } catch {}
+      // Registered before any app code, so it runs before every other window listener: while the
+      // opening plays, the key or click that skips it reaches nothing else. The opening hears
+      // "one:opening-skip" instead.
+      for (const type of ["keydown", "pointerdown"]) {
+        window.addEventListener(
+          type,
+          (event) => {
+            if (document.documentElement.dataset.oneOpening === undefined) return;
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            window.dispatchEvent(new Event("one:opening-skip"));
+          },
+          true,
+        );
+      }
     </script>
     <style>
       /* Only the plain boot placeholder goes black. A boot error keeps its own readable colors. */

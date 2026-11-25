@@ -27,9 +27,124 @@ const OPEN_ANGLE = 0.48;
 
 const MAX_PIXEL_RATIO = 2;
 const LARGE_RING_PX = 300;
-const LARGE_RING_PIXEL_RATIO = 1.5;
-/** About 30 frames a second while the ring is at rest. */
-const RESTING_FRAME_MS = 30;
+/**
+ * Backing-store scale ceilings for a large ring, best first. A ring starts at the first and
+ * moves down one step each time it falls behind (see `trackFrameTime`); it never moves back up.
+ */
+export const LARGE_RING_PIXEL_RATIOS = [1.5, 1.25, 1] as const;
+
+/**
+ * Wait between frames while the ring sits at rest. The slow smoke and sway move a few pixels
+ * a second, so ten frames a second show the same motion for a third of the shading cost.
+ */
+export const RESTING_FRAME_MS = 50;
+/** Longest step of the animation clock. A frame that arrives late must not make the ring jump. */
+const MAX_FRAME_SECONDS = 0.05;
+/** The same limit for a resting frame, which arrives `RESTING_FRAME_MS` after the last one. */
+const MAX_RESTING_FRAME_SECONDS = 0.25;
+
+/** A frame slower than this is below about 40 frames a second. */
+export const SLOW_FRAME_MS = 24;
+/** Consecutive slow frames before the ring renders at the next lower scale. */
+export const SLOW_FRAMES_BEFORE_STEP_DOWN = 10;
+/** A gap this long is a pause (hidden tab, scrolled away), not a slow frame. */
+const PAUSE_FRAME_MS = 250;
+
+/** How close a pose value must be to its target before the ring counts as settled. */
+const SETTLED_ANGLE = 0.005;
+const SETTLED_LEVEL = 0.02;
+
+/** The values the ring eases toward a pose. `spin` is the turn angle without the sway. */
+export type OrbMotion = Readonly<{
+  spin: number;
+  sway: number;
+  tilt: number;
+  pulse: number;
+  energy: number;
+  aura: number;
+  reveal: number;
+}>;
+
+/** The nearest angle where the ring rests open; the band looks the same every half turn. */
+function restAngle(spin: number): number {
+  return OPEN_ANGLE + Math.PI * Math.round((spin - OPEN_ANGLE) / Math.PI);
+}
+
+/** Where the glow settles for a pose: its base, the idle breathing and the live sound level. */
+function energyTarget(state: OneOrbState, time: number, level: number): number {
+  const breathing = state === "idle" ? 0.035 * (1 + Math.sin(time * 1.3)) : 0;
+  return Math.min(1, POSES[state].baseEnergy + breathing + Math.min(1, Math.max(0, level)));
+}
+
+/** True when nothing is still easing toward the pose, so only the slow smoke and sway move. */
+function isOrbSettled(motion: OrbMotion, state: OneOrbState, time: number, level: number): boolean {
+  const pose = POSES[state];
+  return (
+    motion.reveal >= 1 &&
+    level <= 0 &&
+    pose.spinSpeed === 0 &&
+    Math.abs(restAngle(motion.spin) - motion.spin) < SETTLED_ANGLE &&
+    Math.abs(motion.sway - pose.sway) < SETTLED_ANGLE &&
+    Math.abs(motion.tilt - pose.tilt) < SETTLED_ANGLE &&
+    Math.abs(motion.pulse - pose.pulse) < SETTLED_LEVEL &&
+    Math.abs(motion.aura - pose.aura) < SETTLED_LEVEL &&
+    Math.abs(motion.energy - energyTarget(state, time, level)) < SETTLED_LEVEL
+  );
+}
+
+/** Milliseconds to wait before the next frame: zero for full speed, longer for a settled idle ring. */
+export function frameIntervalMs(
+  motion: OrbMotion,
+  state: OneOrbState,
+  time: number,
+  level: number,
+): number {
+  return state === "idle" && isOrbSettled(motion, state, time, level) ? RESTING_FRAME_MS : 0;
+}
+
+/** How a frame loop is doing against the frame budget. */
+export type FrameBudget = Readonly<{
+  /** Index into `LARGE_RING_PIXEL_RATIOS`. */
+  step: number;
+  /** Slow frames in a row. */
+  slowFrames: number;
+}>;
+
+export const FRAME_BUDGET_START: FrameBudget = { step: 0, slowFrames: 0 };
+
+/** Folds in the time one full-speed frame took. After enough slow ones in a row the scale steps down. */
+export function trackFrameTime(budget: FrameBudget, frameMs: number): FrameBudget {
+  if (frameMs <= SLOW_FRAME_MS || frameMs >= PAUSE_FRAME_MS) {
+    return budget.slowFrames === 0 ? budget : { ...budget, slowFrames: 0 };
+  }
+  const slowFrames = budget.slowFrames + 1;
+  if (slowFrames < SLOW_FRAMES_BEFORE_STEP_DOWN) return { ...budget, slowFrames };
+  return { step: Math.min(budget.step + 1, LARGE_RING_PIXEL_RATIOS.length - 1), slowFrames: 0 };
+}
+
+/** The highest backing-store scale for a ring. A large ring has pixels to spare, so it uses less. */
+export function pixelRatioCap(clientWidth: number, step: number): number {
+  if (clientWidth <= LARGE_RING_PX) return MAX_PIXEL_RATIO;
+  return LARGE_RING_PIXEL_RATIOS[Math.min(step, LARGE_RING_PIXEL_RATIOS.length - 1)] ?? 1;
+}
+
+/** Whether a frame may draw. Anything that cannot be seen, or has no GPU context, draws nothing. */
+export function canDrawFrame(view: {
+  /** Null until the intersection observer reports for the first time. */
+  readonly visible: boolean | null;
+  readonly documentHidden: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly contextAvailable: boolean;
+}): boolean {
+  return (
+    view.contextAvailable &&
+    view.visible === true &&
+    !view.documentHidden &&
+    view.width > 0 &&
+    view.height > 0
+  );
+}
 
 /** Resolves any CSS color (including oklch and color-mix) to linear-ish RGB through a 1px canvas. */
 function createColorReader(): (color: string) => [number, number, number] {
@@ -66,10 +181,71 @@ export type OneOrbRenderer = Readonly<{
   dispose: () => void;
 }>;
 
+const UNIFORM_NAMES = {
+  res: "uRes",
+  time: "uTime",
+  hi: "uHi",
+  mid: "uMid",
+  lo: "uLo",
+  energy: "uEnergy",
+  spin: "uSpin",
+  tilt: "uTilt",
+  pulse: "uPulse",
+  dark: "uDark",
+  aura: "uAura",
+  reveal: "uReveal",
+} as const;
+
+/** Everything the GPU holds for the ring. A lost context takes all of it. */
+type GlResources = Readonly<{
+  program: WebGLProgram;
+  vertex: WebGLShader;
+  fragment: WebGLShader;
+  buffer: WebGLBuffer;
+  uniforms: Readonly<Record<keyof typeof UNIFORM_NAMES, WebGLUniformLocation | null>>;
+}>;
+
+/** Compiles the ring and loads its triangle. Returns null on a compile or link failure. */
+function createResources(gl: WebGLRenderingContext): GlResources | null {
+  const vertex = compile(gl, gl.VERTEX_SHADER, ONE_ORB_VERTEX_SHADER);
+  const fragment = compile(gl, gl.FRAGMENT_SHADER, ONE_ORB_FRAGMENT_SHADER);
+  const program = vertex && fragment ? gl.createProgram() : null;
+  const fail = () => {
+    if (program) gl.deleteProgram(program);
+    if (vertex) gl.deleteShader(vertex);
+    if (fragment) gl.deleteShader(fragment);
+    return null;
+  };
+  if (!vertex || !fragment || !program) return fail();
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return fail();
+  gl.useProgram(program);
+  const buffer = gl.createBuffer();
+  if (!buffer) return fail();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const position = gl.getAttribLocation(program, "aPos");
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+  const uniforms = Object.fromEntries(
+    Object.entries(UNIFORM_NAMES).map(([key, name]) => [key, gl.getUniformLocation(program, name)]),
+  ) as GlResources["uniforms"];
+  return { program, vertex, fragment, buffer, uniforms };
+}
+
+function releaseResources(gl: WebGLRenderingContext, resources: GlResources) {
+  gl.deleteProgram(resources.program);
+  gl.deleteShader(resources.vertex);
+  gl.deleteShader(resources.fragment);
+  gl.deleteBuffer(resources.buffer);
+}
+
 /**
- * Draws the ring on a canvas until disposed. It renders only while the canvas
- * is on screen and the tab is visible, and draws single frames under reduced
- * motion. Returns null (after calling onUnsupported) when WebGL is unavailable.
+ * Draws the ring on a canvas until disposed, only while it can be seen, slowly while it rests.
+ * Returns null (after onUnsupported) without WebGL. A lost context keeps the canvas and
+ * rebuilds the ring on restore.
  */
 export function startOneOrb(
   canvas: HTMLCanvasElement,
@@ -77,7 +253,11 @@ export function startOneOrb(
     readonly getState: () => OneOrbState;
     /** Live sound level, 0 to 1, read every frame. */
     readonly getLevel: () => number;
+    /** WebGL is missing, or the shaders would not compile or link. The canvas will not draw. */
     readonly onUnsupported: () => void;
+    /** The GPU context was lost. Show a stand-in until `onContextRestored`; the canvas stays mounted. */
+    readonly onContextLost?: () => void;
+    readonly onContextRestored?: () => void;
     /** Plays the opening once: the ring ignites out of the dark over this many seconds. */
     readonly openingSeconds?: number;
   },
@@ -87,69 +267,34 @@ export function startOneOrb(
     input.onUnsupported();
     return null;
   }
-  const vertex = compile(gl, gl.VERTEX_SHADER, ONE_ORB_VERTEX_SHADER);
-  const fragment = compile(gl, gl.FRAGMENT_SHADER, ONE_ORB_FRAGMENT_SHADER);
-  const program = vertex && fragment ? gl.createProgram() : null;
-  const release = () => {
-    if (program) gl.deleteProgram(program);
-    if (vertex) gl.deleteShader(vertex);
-    if (fragment) gl.deleteShader(fragment);
-  };
-  if (!vertex || !fragment || !program) {
-    release();
+  // A canvas whose context was lost before this started (the effect restarted mid-loss) waits for the restore.
+  let contextLost = gl.isContextLost();
+  let resources = contextLost ? null : createResources(gl);
+  if (!resources && !contextLost) {
     input.onUnsupported();
     return null;
   }
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    release();
-    input.onUnsupported();
-    return null;
-  }
-  gl.useProgram(program);
-  const buffer = gl.createBuffer();
-  if (!buffer) {
-    release();
-    input.onUnsupported();
-    return null;
-  }
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const position = gl.getAttribLocation(program, "aPos");
-  gl.enableVertexAttribArray(position);
-  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-  const uniform = (name: string) => gl.getUniformLocation(program, name);
-  const uniforms = {
-    res: uniform("uRes"),
-    time: uniform("uTime"),
-    hi: uniform("uHi"),
-    mid: uniform("uMid"),
-    lo: uniform("uLo"),
-    energy: uniform("uEnergy"),
-    spin: uniform("uSpin"),
-    tilt: uniform("uTilt"),
-    pulse: uniform("uPulse"),
-    dark: uniform("uDark"),
-    aura: uniform("uAura"),
-    reveal: uniform("uReveal"),
-  };
 
   const readColor = createColorReader();
   const applyColors = () => {
+    if (!resources) return;
     const style = getComputedStyle(canvas);
-    gl.uniform3fv(uniforms.hi, readColor(style.getPropertyValue("--one-ring-hi")));
-    gl.uniform3fv(uniforms.mid, readColor(style.getPropertyValue("--one-ring-mid")));
-    gl.uniform3fv(uniforms.lo, readColor(style.getPropertyValue("--one-ring-lo")));
-    gl.uniform1f(uniforms.dark, document.documentElement.classList.contains("dark") ? 1 : 0);
+    gl.uniform3fv(resources.uniforms.hi, readColor(style.getPropertyValue("--one-ring-hi")));
+    gl.uniform3fv(resources.uniforms.mid, readColor(style.getPropertyValue("--one-ring-mid")));
+    gl.uniform3fv(resources.uniforms.lo, readColor(style.getPropertyValue("--one-ring-lo")));
+    gl.uniform1f(
+      resources.uniforms.dark,
+      document.documentElement.classList.contains("dark") ? 1 : 0,
+    );
   };
-  applyColors();
 
+  let budget = FRAME_BUDGET_START;
   const resize = () => {
-    // A large ring has pixels to spare; full density there costs four times the shading for no visible gain.
-    const cap = canvas.clientWidth > LARGE_RING_PX ? LARGE_RING_PIXEL_RATIO : MAX_PIXEL_RATIO;
-    const ratio = Math.min(window.devicePixelRatio || 1, cap);
+    if (!resources) return;
+    const ratio = Math.min(
+      window.devicePixelRatio || 1,
+      pixelRatioCap(canvas.clientWidth, budget.step),
+    );
     const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
     if (canvas.width !== width || canvas.height !== height) {
@@ -157,13 +302,16 @@ export function startOneOrb(
       canvas.height = height;
     }
     gl.viewport(0, 0, width, height);
-    gl.uniform2f(uniforms.res, width, height);
+    gl.uniform2f(resources.uniforms.res, width, height);
   };
+  applyColors();
   resize();
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let frame = 0;
-  let visible = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  /** Null until the intersection observer has answered: a ring in a hidden element must not draw first. */
+  let visible: boolean | null = null;
   let last = performance.now();
   let time = 0;
   let spin = OPEN_ANGLE;
@@ -175,21 +323,78 @@ export function startOneOrb(
   let reveal = openingSeconds > 0 ? 0 : 1;
   const openingStarted = performance.now();
   let aura = openingSeconds > 0 ? 1 : POSES[input.getState()].aura;
+  const motion = (): OrbMotion => ({ spin, sway, tilt, pulse, energy, aura, reveal });
 
-  let lastDrawn = 0;
+  let lastDrawn = Number.NEGATIVE_INFINITY;
+  /** When the previous full-speed frame started, or null when the loop was not running at full speed. */
+  let lastFullSpeedFrame: number | null = null;
+
+  const cancelScheduled = () => {
+    if (frame !== 0) cancelAnimationFrame(frame);
+    frame = 0;
+    clearTimeout(timer);
+    timer = undefined;
+    lastFullSpeedFrame = null;
+  };
+  /** Asks for the next frame after `delayMs`; a frame or timer already pending is kept. */
+  const schedule = (delayMs = 0) => {
+    if (frame !== 0 || timer !== undefined) return;
+    if (visible !== true || document.hidden || !resources) return;
+    if (delayMs > 0) {
+      timer = setTimeout(() => {
+        timer = undefined;
+        schedule();
+      }, delayMs);
+    } else {
+      frame = requestAnimationFrame(draw);
+    }
+  };
   const draw = (now: number) => {
     frame = 0;
-    // A ring at rest moves slowly, so half the frames show the same motion at half the cost.
-    const resting = input.getState() === "idle" && reveal >= 1;
-    if (resting && now - lastDrawn < RESTING_FRAME_MS) {
-      schedule();
+    // The state can change after the frame was queued: check again that anything can be seen.
+    if (
+      !resources ||
+      !canDrawFrame({
+        visible,
+        documentHidden: document.hidden,
+        width: canvas.clientWidth,
+        height: canvas.clientHeight,
+        contextAvailable: !contextLost,
+      })
+    ) {
+      lastFullSpeedFrame = null;
       return;
     }
-    lastDrawn = now;
-    const delta = Math.min(0.05, (now - last) / 1000);
-    last = now;
-    const pose = POSES[input.getState()];
+    const state = input.getState();
+    const level = Math.min(1, Math.max(0, input.getLevel()));
     const still = reducedMotion.matches;
+    const interval = still ? 0 : frameIntervalMs(motion(), state, time, level);
+    const wait = interval - (now - lastDrawn);
+    if (interval > 0 && wait > 0) {
+      lastFullSpeedFrame = null;
+      schedule(wait);
+      return;
+    }
+    if (interval === 0 && !still) {
+      // Frame to frame time, not the time spent in the draw call: GL commands return at once and
+      // the browser slows the frames when the GPU falls behind.
+      if (lastFullSpeedFrame !== null) {
+        const next = trackFrameTime(budget, now - lastFullSpeedFrame);
+        const steppedDown = next.step !== budget.step;
+        budget = next;
+        if (steppedDown) resize();
+      }
+      lastFullSpeedFrame = now;
+    } else {
+      lastFullSpeedFrame = null;
+    }
+    lastDrawn = now;
+    const delta = Math.min(
+      interval > 0 ? MAX_RESTING_FRAME_SECONDS : MAX_FRAME_SECONDS,
+      (now - last) / 1000,
+    );
+    last = now;
+    const pose = POSES[state];
     if (still) {
       tilt = pose.tilt;
       pulse = 0;
@@ -202,8 +407,7 @@ export function startOneOrb(
       if (pose.spinSpeed > 0) {
         spin += delta * pose.spinSpeed;
       } else {
-        const rest = OPEN_ANGLE + Math.PI * Math.round((spin - OPEN_ANGLE) / Math.PI);
-        spin += (rest - spin) * (1 - Math.exp(-delta * 3));
+        spin += (restAngle(spin) - spin) * (1 - Math.exp(-delta * 3));
       }
       // The opening runs on the wall clock, so a slow first frame cannot leave the ring half lit
       // when the cover lifts.
@@ -214,12 +418,11 @@ export function startOneOrb(
       sway += (pose.sway - sway) * ease;
       tilt += (pose.tilt - tilt) * ease;
       pulse += (pose.pulse - pulse) * ease;
-      const breathing = input.getState() === "idle" ? 0.035 * (1 + Math.sin(time * 1.3)) : 0;
-      const level = Math.min(1, Math.max(0, input.getLevel()));
-      const target = Math.min(1, pose.baseEnergy + breathing + level);
+      const target = energyTarget(state, time, level);
       // Rise fast, fall slowly, so speech reads as a swell rather than a flicker.
       energy += (target - energy) * (1 - Math.exp(-delta * (target > energy ? 18 : 5)));
     }
+    const { uniforms } = resources;
     gl.uniform1f(uniforms.time, time);
     gl.uniform1f(uniforms.spin, spin + sway * Math.sin(time * 0.55));
     gl.uniform1f(uniforms.tilt, tilt);
@@ -230,21 +433,25 @@ export function startOneOrb(
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    if (!still) schedule();
-  };
-  const schedule = () => {
-    if (frame === 0 && visible && !document.hidden) {
-      frame = requestAnimationFrame(draw);
-    }
+    if (!still) schedule(frameIntervalMs(motion(), input.getState(), time, level));
   };
   const wake = () => {
     last = performance.now();
+    lastDrawn = Number.NEGATIVE_INFINITY;
+    lastFullSpeedFrame = null;
+    clearTimeout(timer);
+    timer = undefined;
     schedule();
+  };
+  /** Draws when the ring can be seen again, and stops the queued frame when it cannot. */
+  const syncWithVisibility = () => {
+    if (visible === true && !document.hidden) wake();
+    else cancelScheduled();
   };
 
   const visibility = new IntersectionObserver(([entry]) => {
     visible = entry?.isIntersecting ?? true;
-    wake();
+    syncWithVisibility();
   });
   visibility.observe(canvas);
   const stopObservingSize = observeResize(canvas, () => {
@@ -259,36 +466,68 @@ export function startOneOrb(
     attributes: true,
     attributeFilter: ["class", "style", "data-theme-id"],
   });
-  const onWake = () => wake();
-  // Moving the window to a screen with another pixel density changes the buffer size, not the CSS size.
+  // Moving the window to a screen with another pixel density changes the buffer size, not the CSS
+  // size. A query for the current density only fires once, so it is armed again after each change.
+  let densityQuery: MediaQueryList | null = null;
   const onDensityChange = () => {
     resize();
     wake();
+    watchDensity();
   };
-  window.addEventListener("resize", onDensityChange);
-  document.addEventListener("visibilitychange", onWake);
-  reducedMotion.addEventListener("change", onWake);
-  const onContextLost = (event: Event) => {
-    event.preventDefault();
-    input.onUnsupported();
+  const watchDensity = () => {
+    densityQuery?.removeEventListener("change", onDensityChange);
+    densityQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    densityQuery.addEventListener("change", onDensityChange);
   };
-  canvas.addEventListener("webglcontextlost", onContextLost);
-  schedule();
+  watchDensity();
+  document.addEventListener("visibilitychange", syncWithVisibility);
+  reducedMotion.addEventListener("change", wake);
 
   let disposed = false;
   const dispose = () => {
     if (disposed) return;
     disposed = true;
-    window.removeEventListener("resize", onDensityChange);
-    if (frame !== 0) cancelAnimationFrame(frame);
+    cancelScheduled();
     visibility.disconnect();
     stopObservingSize();
     themeObserver.disconnect();
-    document.removeEventListener("visibilitychange", onWake);
-    reducedMotion.removeEventListener("change", onWake);
+    densityQuery?.removeEventListener("change", onDensityChange);
+    document.removeEventListener("visibilitychange", syncWithVisibility);
+    reducedMotion.removeEventListener("change", wake);
     canvas.removeEventListener("webglcontextlost", onContextLost);
-    release();
-    gl.deleteBuffer(buffer);
+    canvas.removeEventListener("webglcontextrestored", onContextRestored);
+    if (resources) releaseResources(gl, resources);
+    resources = null;
   };
+  const onContextLost = (event: Event) => {
+    // Without this the browser never restores the context.
+    event.preventDefault();
+    contextLost = true;
+    cancelScheduled();
+    // The GPU objects went with the context; deleting them now would do nothing.
+    resources = null;
+    // A canvas that left the page cannot be shown again, so nothing is left to restore.
+    if (!canvas.isConnected) {
+      dispose();
+      return;
+    }
+    input.onContextLost?.();
+  };
+  const onContextRestored = () => {
+    const rebuilt = createResources(gl);
+    if (!rebuilt) {
+      input.onUnsupported();
+      return;
+    }
+    resources = rebuilt;
+    contextLost = false;
+    applyColors();
+    resize();
+    input.onContextRestored?.();
+    wake();
+  };
+  canvas.addEventListener("webglcontextlost", onContextLost);
+  canvas.addEventListener("webglcontextrestored", onContextRestored);
+  if (contextLost) input.onContextLost?.();
   return { wake, dispose };
 }

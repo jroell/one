@@ -19,6 +19,7 @@ import {
 } from "./threadDetailsCardLayout";
 import { observeResize } from "../../lib/observeResize";
 import { requestWorkspaceFocus } from "../../lib/workspaceFocus";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 
 export function ThreadDetailsCard({
   threadRef,
@@ -40,7 +41,8 @@ export function ThreadDetailsCard({
   const detailsArea = workspaceAreaProps("details", 3, gt("Thread details"));
   const canvas = useChatCanvas();
   const preferredPlacement = canvas?.preferredDetailsCard ?? null;
-  const placement = canvas?.detailsCardPlacement ?? null;
+  // Chat mode has no inline card: the header control and the command open the popover at every width.
+  const placement = useWorkspaceMode() === "chat" ? null : (canvas?.detailsCardPlacement ?? null);
   const mode = placement ? "inline" : "popover";
   const topInset = canvas?.detailsCardTopInset ?? 0;
   const inlineOpen = useRightPanelStore((state) =>

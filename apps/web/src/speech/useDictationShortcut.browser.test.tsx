@@ -1,4 +1,7 @@
-import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
+import {
+  compileResolvedKeybindingsConfig,
+  DEFAULT_RESOLVED_KEYBINDINGS,
+} from "@t3tools/shared/keybindings";
 import { createRef, type RefObject } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { render } from "../../test/render";
@@ -17,14 +20,16 @@ function Probe({
   targetRef,
   subscribeKeys,
   ownsFocus,
+  keybindings = DEFAULT_RESOLVED_KEYBINDINGS,
 }: {
+  keybindings?: ShortcutInput["keybindings"];
   speech: ShortcutInput["speech"];
   targetRef?: RefObject<HTMLElement | null>;
   subscribeKeys?: ShortcutInput["subscribeKeys"];
   ownsFocus?: () => boolean;
 }) {
   useDictationShortcut({
-    keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
+    keybindings,
     speech,
     disabled: false,
     terminalOpen: false,
@@ -382,4 +387,30 @@ it("starts dictation from the palette in the annotation editor only if it owned 
   expect(runRegisteredCommand("composer.dictation", context)).toBe(true);
   expect(annotation.start).toHaveBeenCalledOnce();
   expect(main.start).toHaveBeenCalledOnce();
+});
+
+it("does not start dictation from a bare key pressed while the opening plays, and starts once it has lifted", async () => {
+  const speech = actions(true);
+  const bareKey = () =>
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "d", code: "KeyD", cancelable: true }),
+    );
+  await using _screen = await render(
+    <Probe
+      speech={speech}
+      keybindings={compileResolvedKeybindingsConfig([{ key: "d", command: "composer.dictation" }])}
+    />,
+  );
+  // index.html sets this before app code runs; the opening removes it as it lifts.
+  document.documentElement.dataset.oneOpening = "";
+  try {
+    expect(bareKey()).toBe(true);
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "d", code: "KeyD" }));
+    expect(speech.start).not.toHaveBeenCalled();
+  } finally {
+    delete document.documentElement.dataset.oneOpening;
+  }
+
+  expect(bareKey()).toBe(false);
+  expect(speech.start).toHaveBeenCalledOnce();
 });

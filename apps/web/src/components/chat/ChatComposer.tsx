@@ -149,8 +149,17 @@ import {
 import { attachmentUploadBlockReason } from "../../lib/attachmentUploadState";
 import { useDictationShortcut } from "../../speech/useDictationShortcut";
 import { useDictationSubmissionShortcut } from "../../speech/useDictationSubmissionShortcut";
-import { publishVoiceBridge, retractVoiceBridge, voiceLevel } from "~/one/voiceBridge";
-import { useEnvironmentSpeechInput } from "../../speech/useEnvironmentSpeechInput";
+import {
+  commitVoiceThread,
+  publishVoiceBridge,
+  retractVoiceBridge,
+  voiceLevel,
+  whileCommitted,
+} from "~/one/voiceBridge";
+import {
+  useEnvironmentSpeechInput,
+  useVoiceTranscriptionDestination,
+} from "../../speech/useEnvironmentSpeechInput";
 import { ComposerSpeechButton, ComposerSpeechRecordingPill } from "./ComposerSpeechButton";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { shortcutLabelForCommand, type ShortcutMatchContext } from "../../keybindings";
@@ -2445,7 +2454,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current = (mode, intent, options) =>
       submitComposerStable(undefined, mode, intent, options);
   }, [submitComposerStable]);
-  const voiceStart = useStableCallback(() => void speechInput.start());
+  const voiceStart = useStableCallback(
+    (signal?: AbortSignal) => void speechInput.start(signal ? { signal } : undefined),
+  );
   const voiceSubmit = useStableCallback(() => void submitComposerRef.current());
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
   // True when the draft with this key was sent and became the thread this composer now writes to.
@@ -2467,6 +2478,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !isEditingQueuedMessage &&
     !isComposerApprovalState &&
     activePendingProgress === null;
+  // No transcription source is chosen yet: starting voice input opens Voice settings instead of recording.
+  const transcriptionDestination = useVoiceTranscriptionDestination();
+  const voiceNeedsSetup =
+    transcriptionDestination.grantId === null &&
+    transcriptionDestination.offerFirstRunSetup === true;
   const voiceDraftEmpty =
     prompt.trim().length === 0 &&
     composerImages.length + composerFiles.length === 0 &&
@@ -2480,20 +2496,31 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const voiceHeard = speechInput.preview
     ? `${speechInput.preview.committed}${speechInput.preview.tentative}`
     : "";
+  // The composer is reused when the route moves to another saved thread. This runs in the commit that
+  // shows the new thread, before the passive effect that publishes its controls, so a conversation
+  // that belongs to the old thread ends before anything queued for it can send the new thread's draft.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells voice chat which thread this composer has committed, synchronously with the commit
+  useLayoutEffect(() => {
+    if (!publishesVoice) return;
+    commitVoiceThread(voiceBridgeOwner, composerDraftTargetKey, voiceContinuesDraft);
+  }, [publishesVoice, voiceBridgeOwner, composerDraftTargetKey, voiceContinuesDraft]);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the main composer's dictation controls to voice chat, which lives outside the composer tree
   useEffect(() => {
     if (!publishesVoice) return;
+    // Each control acts only while this thread is still the one the composer shows.
     publishVoiceBridge(voiceBridgeOwner, {
       threadKey: composerDraftTargetKey,
       isDraft: routeKind === "draft",
       continuesDraft: voiceContinuesDraft,
       available: voiceAvailable,
+      needsSetup: voiceNeedsSetup,
       draftEmpty: voiceDraftEmpty,
       phase: voicePhase,
       error: voiceError,
       heard: voiceHeard,
-      start: voiceStart,
-      submit: voiceSubmit,
+      start: (signal) =>
+        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => voiceStart(signal)),
+      submit: () => whileCommitted(voiceBridgeOwner, composerDraftTargetKey, voiceSubmit),
       cancel: voiceCancel,
     });
   }, [
@@ -2502,6 +2529,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerDraftTargetKey,
     routeKind,
     voiceAvailable,
+    voiceNeedsSetup,
     voiceDraftEmpty,
     voicePhase,
     voiceError,

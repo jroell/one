@@ -32,27 +32,25 @@ export function OneOpening() {
   const [phase, setPhase] = useState<Phase>(() => (shouldPlayOpening() ? "playing" : "done"));
   /** Counts plays, so a replay mounts a fresh ring that ignites again. */
   const [play, setPlay] = useState(0);
+  const coverRef = useRef<HTMLDivElement | null>(null);
   const skipRef = useRef<HTMLButtonElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- runs the opening's timers, sound and skip listeners, all outside React, while the overlay is up
   useEffect(() => {
-    const app = document.getElementById("root");
     // The key dispatcher runs no command while the attribute is set, so a key that skips the
     // opening cannot also run a command. A replay from Settings sets it again.
     if (phase === "playing") document.documentElement.dataset.oneOpening = "";
     else delete document.documentElement.dataset.oneOpening;
-    if (phase === "done") {
-      if (app) app.inert = false;
-      // After a replay from Settings, focus goes back to the button that started it.
+    if (phase === "done") return;
+    if (phase === "leaving") {
+      // The app is usable again as soon as the cover starts to fade, so focus returns now, not
+      // when the fade ends. A control the user has focused since is left alone.
       const opener = openerRef.current;
       openerRef.current = null;
-      if (opener?.isConnected) opener.focus();
-      return;
-    }
-    if (phase === "leaving") {
-      // The app is usable again as soon as the cover starts to fade.
-      if (app) app.inert = false;
+      const active = document.activeElement;
+      const focusLost = !active || active === document.body || coverRef.current?.contains(active);
+      if (opener?.isConnected && focusLost) opener.focus();
       const timer = window.setTimeout(() => setPhase("done"), LEAVE_MS);
       return () => window.clearTimeout(timer);
     }
@@ -61,12 +59,26 @@ export function OneOpening() {
     } catch {
       // Without session storage the opening simply plays again next load.
     }
-    // The cover hides the app, so the app takes no focus, keys or clicks until it lifts.
+    // After a replay from Settings, focus goes back to the button that started it.
     openerRef.current =
       document.activeElement instanceof HTMLElement && document.activeElement !== document.body
         ? document.activeElement
         : null;
-    if (app) app.inert = true;
+    // The cover hides the app, so everything else (the app root and portaled dialogs such as
+    // Settings) takes no focus, keys or clicks until it lifts. Only what this changes is restored.
+    const cover = coverRef.current;
+    const locked = new Set<HTMLElement>();
+    const lock = (node: Node | null) => {
+      if (!(node instanceof HTMLElement) || node === cover || node.inert) return;
+      node.inert = true;
+      locked.add(node);
+    };
+    for (const child of Array.from(document.body.children)) lock(child);
+    lock(document.getElementById("root"));
+    const portals = new MutationObserver((records) => {
+      for (const record of records) for (const added of record.addedNodes) lock(added);
+    });
+    portals.observe(document.body, { childList: true });
     skipRef.current?.focus();
     let stopSound = () => {};
     try {
@@ -79,22 +91,28 @@ export function OneOpening() {
       setPhase("leaving");
     };
     const timer = window.setTimeout(leave, HOLD_MS);
-    // Any key or click lifts the cover, and that key or click goes no further.
+    // Any key or click lifts the cover, and that key or click goes no further, not even to the
+    // other listeners on the window.
     const skip = (event: Event) => {
       event.preventDefault();
-      event.stopPropagation();
+      event.stopImmediatePropagation();
       leave();
     };
     window.addEventListener("keydown", skip, { once: true, capture: true });
     window.addEventListener("pointerdown", skip, { once: true, capture: true });
+    // index.html listens before every other window listener and takes the skipping key or click
+    // for itself, so no listener that was registered before this one can act on it.
+    window.addEventListener("one:opening-skip", leave, { once: true });
     return () => {
       // However this effect ends (skip, timeout, unmount, hot reload), the app must be usable again.
       delete document.documentElement.dataset.oneOpening;
-      if (app) app.inert = false;
+      portals.disconnect();
+      for (const node of locked) node.inert = false;
       window.clearTimeout(timer);
       stopSound();
       window.removeEventListener("keydown", skip, { capture: true });
       window.removeEventListener("pointerdown", skip, { capture: true });
+      window.removeEventListener("one:opening-skip", leave);
     };
   }, [phase]);
 
@@ -110,13 +128,17 @@ export function OneOpening() {
   );
 
   if (phase === "done") return null;
-  // Outside the app root, which is inert while the cover is up.
+  // Outside the app root, which is inert while the cover is up. Once it starts to fade it is
+  // no longer a modal dialog: the app behind it is live, so the cover leaves the tree and the focus order.
   return createPortal(
     <div
+      ref={coverRef}
       className="one-opening"
       data-phase={phase}
       role="dialog"
-      aria-modal="true"
+      aria-modal={phase === "playing" ? "true" : undefined}
+      aria-hidden={phase === "leaving" ? "true" : undefined}
+      inert={phase === "leaving"}
       aria-label={gt("One is opening")}
     >
       <OneOrb key={play} opening className="one-opening-ring" />

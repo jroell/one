@@ -12,7 +12,8 @@ import { getWorkspaceMode, setWorkspaceMode } from "./workspaceMode";
  */
 export function startVoiceChat(voice: VoiceBridge): void {
   // A dictation already under way belongs to the editor; voice chat must not take it over and send it.
-  if (voice.phase !== "idle") return;
+  // A recorder stopped by an error is nobody's: the new conversation clears it and starts fresh.
+  if (voice.phase !== "idle" && voice.phase !== "error") return;
   if (!voice.draftEmpty) {
     toastManager.add({
       type: "info",
@@ -21,6 +22,19 @@ export function startVoiceChat(voice: VoiceBridge): void {
     });
     return;
   }
+  if (voice.needsSetup) {
+    // One notice per attempt: the stable id makes a second click update this toast, not stack another.
+    toastManager.add({
+      id: "voice-chat-needs-transcription",
+      type: "info",
+      title: m(msg("Voice chat needs a transcription source")),
+      description: m(msg("Choose one under Transcribe with, then start voice chat again.")),
+    });
+    // Starting without a source opens Voice settings at the transcription row; there is nothing to listen to yet.
+    voice.start();
+    return;
+  }
+  if (voice.phase === "error") voice.cancel();
   dispatchVoiceSession({ type: "start", threadKey: voice.threadKey, isDraft: voice.isDraft });
 }
 

@@ -103,6 +103,10 @@ import { useOpenPrLink } from "~/lib/openPullRequestLink";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
 import { OneEmptyState } from "~/one/OneEmptyState";
+import { useWorkspaceMode } from "~/one/workspaceMode";
+import { quietLiveWork } from "~/one/chatQuietWork";
+import { ChatArrivalContext, chatArrivalProps, useChatArrival } from "~/one/chatArrival";
+import { ChatOutline } from "~/one/ChatOutline";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { type HandoffTimelineRun } from "./V2LifecycleRow";
 import { TimelineSystemDivider } from "./TimelineSystemDivider";
@@ -762,8 +766,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const pendingApprovalRequestIds = new Set(
     pendingApprovals.filter(isVisiblePendingApproval).map((approval) => approval.requestId),
   );
+  const chatMode = useWorkspaceMode() === "chat";
+  // Chat mode keeps a running turn's reads and commands behind the working line.
+  const rowEntries =
+    chatMode && isWorking && latestRun?.turnEnded !== true
+      ? quietLiveWork(timelineEntries, pendingApprovalRequestIds)
+      : timelineEntries;
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
-    timelineEntries,
+    timelineEntries: rowEntries,
     pendingApprovalRequestIds,
     latestRun,
     usageLimitRunId,
@@ -783,6 +793,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
     revealedMessageId,
   });
   const rows = useStableRows(rawRows, listIdentityKey);
+  const arrival = useChatArrival(
+    listIdentityKey,
+    rows.flatMap((row) =>
+      row.kind === "message" && row.message.role !== "system"
+        ? [{ id: row.id, role: row.message.role }]
+        : [],
+    ),
+    chatMode && !prefersReducedMotion,
+  );
   const matchedApprovalRequestIds = new Set<string>();
   for (const row of pendingApprovalRequestIds.size > 0 ? rows : []) {
     const entries =
@@ -1419,13 +1438,21 @@ const ConversationTimeline = memo(function ConversationTimeline({
           data-timeline-root="true"
         >
           <AudioPreviewUnmountContext value={onAudioUnmount}>
-            <TimelineRowContent row={item} />
+            <ChatArrivalContext value={arrival}>
+              <TimelineRowContent row={item} />
+            </ChatArrivalContext>
           </AudioPreviewUnmountContext>
         </div>
       </div>
     </TimelineRowCtx>
   );
-  const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
+  // The list redraws rows from this; a finished arrival animation must reach them.
+  const listExtraData = {
+    identity: listIdentityKey,
+    rowCount: rows.length,
+    sharedState,
+    arrivalFresh: arrival.fresh,
+  };
   const timelineListFooter = (
     <TimelineListFooter
       composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}
@@ -1452,6 +1479,26 @@ const ConversationTimeline = memo(function ConversationTimeline({
     const scrollNode = listRef.current?.getScrollableNode();
     if (scrollNode) forwardWheelToTimeline(event, scrollNode);
   };
+  const selectMinimapItem = (item: (typeof minimapItems)[number]) => {
+    navigateTimeline();
+    void listRef.current?.scrollToIndex({
+      index: item.rowIndex,
+      animated: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
+    });
+  };
+  const minimap = (
+    <TimelineMinimap
+      items={minimapItems}
+      hasPersistentGutter={minimapHasPersistentGutter}
+      hitStrip={minimapHitStrip}
+      currentIndex={minimapCurrentIndex}
+      atEnd={minimapAtEnd}
+      stripMap={minimapStripMap}
+      onWheel={forwardMinimapWheel}
+      onSelect={selectMinimapItem}
+    />
+  );
 
   if (showsEmptyState) {
     if (hideEmptyPlaceholder) {
@@ -1541,23 +1588,19 @@ const ConversationTimeline = memo(function ConversationTimeline({
               ListHeaderComponent={listHeader}
               ListFooterComponent={timelineListFooter}
             />
-            <TimelineMinimap
-              items={minimapItems}
-              hasPersistentGutter={minimapHasPersistentGutter}
-              hitStrip={minimapHitStrip}
-              currentIndex={minimapCurrentIndex}
-              atEnd={minimapAtEnd}
-              stripMap={minimapStripMap}
-              onWheel={forwardMinimapWheel}
-              onSelect={(item) => {
-                navigateTimeline();
-                void listRef.current?.scrollToIndex({
-                  index: item.rowIndex,
-                  animated: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-                  viewOffset: TIMELINE_MINIMAP_TARGET_OFFSET,
-                });
-              }}
-            />
+            {chatMode ? (
+              <div className="one-chat-nav">
+                <ChatOutline
+                  items={minimapItems}
+                  currentIndex={minimapCurrentIndex}
+                  onSelect={selectMinimapItem}
+                  onWheel={forwardMinimapWheel}
+                />
+                {minimap}
+              </div>
+            ) : (
+              minimap
+            )}
           </TooltipScrollDismissArea>
         </TimelineRowActivityCtx>
       </MarkdownFindContext>
@@ -1675,8 +1718,10 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
     (row.kind === "work-toggle" || row.kind === "work-live" || row.kind === "thinking") &&
     row.expanded === true;
 
+  const arrival = use(ChatArrivalContext);
   return (
     <div
+      {...chatArrivalProps(arrival, row.kind === "message" ? row.id : null)}
       className={cn(
         isWorkLogRow || isSubagentGroup
           ? undefined

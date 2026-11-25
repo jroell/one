@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { applyVoiceChatStyle } from "./voiceChatPreferences";
+import { applyVoiceChatStyle, replyLanguage } from "./voiceChatPreferences";
 
 function voice(name: string, lang: string): SpeechSynthesisVoice {
   return { name, lang, default: false, localService: true, voiceURI: name };
@@ -38,5 +38,23 @@ describe("voice chat reading style", () => {
     applyVoiceChatStyle(spoken, voices, "natural");
     expect(spoken.voice).toBeNull();
     expect(spoken.pitch).toBe(1);
+  });
+});
+
+describe("language a reply is read in", () => {
+  it("reads in the page language unless the reply is plainly written in another script", () => {
+    expect(replyLanguage("Light bends inside each drop.", "en-US")).toBe("en-US");
+    expect(replyLanguage("光は水滴の中で曲がります。ありがとう。", "en-US")).toBe("ja");
+    expect(replyLanguage("Свет преломляется в каждой капле.", "en-US")).toBe("ru");
+  });
+
+  it("keeps the page language when it is one of the languages written in that script", () => {
+    expect(replyLanguage("Світло заломлюється в кожній краплі.", "uk-UA")).toBe("uk-UA");
+  });
+
+  it("keeps the page language when one word in another script is quoted inside the reply", () => {
+    expect(replyLanguage("The Japanese word 水 means water, and it is read mizu.", "en-GB")).toBe(
+      "en-GB",
+    );
   });
 });

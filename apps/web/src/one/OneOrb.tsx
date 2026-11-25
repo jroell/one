@@ -12,7 +12,7 @@ export const OPENING_SECONDS = 3.2;
 /**
  * The One ring as a live object: it rocks slowly at rest, faces you while
  * listening, spins while the agent thinks, and swells with sound.
- * Falls back to the flat mark when WebGL is unavailable.
+ * Shows the flat mark when WebGL is unavailable, and while a lost context waits to be restored.
  */
 export function OneOrb({
   state = "idle",
@@ -30,7 +30,8 @@ export function OneOrb({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<OneOrbRenderer | null>(null);
   const stateRef = useRef(state);
-  const [unsupported, setUnsupported] = useState(false);
+  // "lost" is a GPU context the browser may restore; "unsupported" is final.
+  const [availability, setAvailability] = useState<"live" | "lost" | "unsupported">("live");
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands the new state to the WebGL render loop, which runs outside React
   useEffect(() => {
@@ -45,7 +46,10 @@ export function OneOrb({
     const renderer = startOneOrb(canvas, {
       getState: () => stateRef.current,
       getLevel: () => levelRef?.current ?? 0,
-      onUnsupported: () => setUnsupported(true),
+      onUnsupported: () => setAvailability("unsupported"),
+      onContextLost: () => setAvailability((current) => (current === "live" ? "lost" : current)),
+      onContextRestored: () =>
+        setAvailability((current) => (current === "lost" ? "live" : current)),
       ...(opening ? { openingSeconds: OPENING_SECONDS } : {}),
     });
     rendererRef.current = renderer;
@@ -57,11 +61,13 @@ export function OneOrb({
 
   return (
     <div className={cn("relative aspect-square", className)} data-one-orb={state}>
-      {unsupported ? (
-        <OneMark className="absolute inset-[18%] size-[64%]" />
-      ) : (
-        <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 size-full" />
-      )}
+      {/* The canvas stays mounted under the fallback: a lost context comes back to the same canvas. */}
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className={cn("absolute inset-0 size-full", availability !== "live" && "invisible")}
+      />
+      {availability !== "live" ? <OneMark className="absolute inset-[18%] size-[64%]" /> : null}
     </div>
   );
 }

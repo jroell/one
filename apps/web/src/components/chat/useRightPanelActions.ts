@@ -25,6 +25,7 @@ import {
   useRightPanelStore,
 } from "../../rightPanelStore";
 import { requestWorkspaceContentFocus, requestWorkspaceFocus } from "../../lib/workspaceFocus";
+import { getWorkspaceMode } from "~/one/workspaceMode";
 import { setActivePreviewTab } from "../../previewStateStore";
 import { isBrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
@@ -250,7 +251,10 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   const toggleThreadPanel = () => {
     if (!activeThreadRef) return;
     const store = useRightPanelStore.getState();
-    if (threadPanelPresentation === "inline") {
+    // Chat mode hides the inline card, so an explicit open there is the popover, at every width.
+    const presentation: ThreadPanelPresentation =
+      !embedded && getWorkspaceMode() === "chat" ? "popover" : threadPanelPresentation;
+    if (presentation === "inline") {
       const open = selectThreadPanelOpen(
         store.threadPanelVisibilityByThreadKey,
         activeThreadRef,
@@ -260,7 +264,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       else if (document.activeElement?.closest('[data-workspace-area="details"]'))
         requestWorkspaceContentFocus();
     }
-    store.toggleThreadPanel(activeThreadRef, threadPanelPresentation);
+    store.toggleThreadPanel(activeThreadRef, presentation);
   };
   const toggleThreadPanelStable = useStableCallback(toggleThreadPanel);
   const toggleRightPanelMaximized = () => {

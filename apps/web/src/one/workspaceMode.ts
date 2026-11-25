@@ -32,6 +32,12 @@ function applyToDocument(mode: WorkspaceMode) {
 
 applyToDocument(currentMode);
 
+/** The last mode asked for. While a cross-fade is pending it is ahead of `currentMode`. */
+let requestedMode: WorkspaceMode = currentMode;
+/** Numbers the cross-fades, so each one clears only its own marker. */
+let lastTransition = 0;
+
+/** The mode the layout shows now. */
 export function getWorkspaceMode(): WorkspaceMode {
   return currentMode;
 }
@@ -46,33 +52,77 @@ function store(mode: WorkspaceMode) {
   for (const listener of listeners) listener();
 }
 
+/** Chat mode hides the inline thread details card, so focus inside it moves to the mode switch. */
+function keepFocusOutOfHiddenDetails(mode: WorkspaceMode) {
+  if (mode !== "chat") return;
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !active.closest('[data-thread-details-panel="inline"]'))
+    return;
+  document
+    .querySelector<HTMLElement>('[data-one-mode-switch] [data-mode="chat"]')
+    ?.focus({ preventScroll: true });
+}
+
+/** The layout and the store change in one update, so React never shows a mode the page does not. */
+function commit(mode: WorkspaceMode) {
+  keepFocusOutOfHiddenDetails(mode);
+  applyToDocument(mode);
+  if (mode !== currentMode) store(mode);
+}
+
+function clearTransitionMarker(token: number) {
+  if (document.documentElement.dataset.oneModeTransition === String(token)) {
+    delete document.documentElement.dataset.oneModeTransition;
+  }
+}
+
 /**
- * Switches the mode. The choice takes effect at once, so a quick second
- * switch always lands on the last one chosen; where the browser supports it,
- * the two layouts cross-fade.
+ * Switches the mode at once. With `transition`, the layouts cross-fade where the browser allows,
+ * and the store and page change together when it swaps, so code that needs the mode straight away
+ * (voice chat starting) must not ask for one. A quick second switch lands on the last mode chosen.
  */
-export function setWorkspaceMode(mode: WorkspaceMode): void {
-  if (mode === currentMode) return;
-  store(mode);
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reducedMotion || typeof document.startViewTransition !== "function") {
-    applyToDocument(currentMode);
+export function setWorkspaceMode(
+  mode: WorkspaceMode,
+  options: { readonly transition?: boolean } = {},
+): void {
+  const crossFade =
+    options.transition === true &&
+    typeof document.startViewTransition === "function" &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!crossFade) {
+    requestedMode = mode;
+    commit(mode);
     return;
   }
-  document.documentElement.dataset.oneModeTransition = "";
-  // The layout follows whichever mode is current when the browser is ready to swap.
-  const transition = document.startViewTransition(() => applyToDocument(currentMode));
+  if (mode === requestedMode) return;
+  requestedMode = mode;
+  const token = ++lastTransition;
+  document.documentElement.dataset.oneModeTransition = String(token);
+  // The swap follows whichever mode was asked for last when the browser is ready for it.
+  const swap = () => commit(requestedMode);
+  let transition: ViewTransition;
+  try {
+    transition = document.startViewTransition(swap);
+  } catch {
+    // The browser refused the cross-fade: switch without one, and leave no marker behind.
+    swap();
+    clearTransitionMarker(token);
+    return;
+  }
   const settle = () => {
-    applyToDocument(currentMode);
-    delete document.documentElement.dataset.oneModeTransition;
+    swap();
+    clearTransitionMarker(token);
   };
   // A second switch skips this cross-fade; the browser reports that as a rejection, which is expected.
   transition.ready.catch(() => {});
   transition.finished.then(settle, settle);
 }
 
-export function toggleWorkspaceMode(): void {
-  setWorkspaceMode(currentMode === "chat" ? "code" : "chat");
+/** Flips the mode from the one asked for last, so two quick flips end where they started. */
+export function toggleWorkspaceMode(): WorkspaceMode {
+  const next = requestedMode === "chat" ? "code" : "chat";
+  setWorkspaceMode(next, { transition: true });
+  return next;
 }
 
 // Each window keeps its own mode while it is open. The stored value only decides how
