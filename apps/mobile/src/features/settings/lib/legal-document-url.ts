@@ -1,4 +1,4 @@
-const DEFAULT_MARKETING_SITE_URL = "https://github.com/jroell/t3code";
+const DEFAULT_MARKETING_SITE_URL = "https://github.com/jroell/one";
 
 function resolveMarketingSiteUrl(override: string | undefined): URL {
   try {

@@ -2956,7 +2956,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       icon: "icons",
       category: "Development",
       synopsis: "One harness to rule all your coding agents",
-      maintainer: "Jason Roell <https://github.com/jroell/t3code>",
+      maintainer: "Jason Roell <https://github.com/jroell/one>",
       protocols: [
         {
           name: "One",
@@ -3968,7 +3968,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     description:
       "One is an open-source desktop app for coding agents. Work with your existing agent subscriptions, review code changes, and run commands in your projects. Connect from desktop, web, or mobile to continue working remotely.",
     license: "MIT",
-    homepage: "https://github.com/jroell/t3code",
+    homepage: "https://github.com/jroell/one",
     author: "Jason Roell",
     main: "apps/desktop/dist-electron/boot.cjs",
     build: yield* createBuildConfig(

@@ -30,6 +30,6 @@ export const APP_DISPLAY_NAME =
   injectedDesktopAppBranding?.displayName ??
   formatAppDisplayName({ baseName: APP_BASE_NAME, stageLabel: APP_STAGE_LABEL });
 export const APP_VERSION = import.meta.env.APP_VERSION || "0.0.0";
-export const DESKTOP_DOWNLOAD_URL = "https://github.com/jroell/t3code/releases";
+export const DESKTOP_DOWNLOAD_URL = "https://github.com/jroell/one/releases";
 // Points to the One mobile companion build instructions.
-export const MOBILE_APP_URL = "https://github.com/jroell/t3code#mobile-companion";
+export const MOBILE_APP_URL = "https://github.com/jroell/one#mobile-companion";
