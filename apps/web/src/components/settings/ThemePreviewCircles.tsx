@@ -46,6 +46,8 @@ const STANDARD_THEME_PREVIEW_COLORS: Record<
     accentSurface: "#f4f4f5",
     messageSurface: "#e4e4e7",
     ...SHARED_STANDARD_THEME_PREVIEW_COLORS.light,
+    accent: "#b98f1f",
+    messageAction: "#b98f1f",
   },
   dark: {
     sidebar: "#0f0f10",
@@ -53,13 +55,14 @@ const STANDARD_THEME_PREVIEW_COLORS: Record<
     accentSurface: "#27272a",
     messageSurface: "#27272a",
     ...SHARED_STANDARD_THEME_PREVIEW_COLORS.dark,
+    accent: "#d9b450",
+    messageAction: "#d9b450",
   },
 };
 
 export const STANDARD_THEME_CARDS: ReadonlyArray<ThemeCardDefinition> = [
   {
     id: "default",
-    // oxlint-disable-next-line t3code/no-untranslated-copy -- product name
     label: "One",
     previews: (["light", "dark"] as const).map((mode) => ({
       mode,

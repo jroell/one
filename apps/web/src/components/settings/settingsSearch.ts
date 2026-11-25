@@ -367,6 +367,18 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("transparent transparency solid menus dialogs composer")],
   },
   {
+    id: "setting-opening-animation",
+    title: msg("Opening animation"),
+    to: "/settings/appearance",
+    searchTerms: [msg("startup splash intro ring launch motion")],
+  },
+  {
+    id: "setting-opening-sound",
+    title: msg("Opening sound"),
+    to: "/settings/appearance",
+    searchTerms: [msg("startup audio mute volume intro")],
+  },
+  {
     id: "diff-color-scheme",
     title: msg("Diff colors"),
     to: "/settings/diffs",

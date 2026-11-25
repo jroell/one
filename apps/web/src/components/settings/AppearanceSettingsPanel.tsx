@@ -38,6 +38,7 @@ import { AdvancedSettings } from "./AdvancedSettings";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 import { TypographySection } from "./TypographySettings";
 import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
+import { OneOpeningSettings } from "~/one/OneOpeningSettings";
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
   artwork: msg("Artwork"),
@@ -383,6 +384,7 @@ export function AppearanceSettingsPanel() {
             </div>
           }
         />
+        <OneOpeningSettings />
         <SettingsRow
           {...searchableSetting("math-rendering")}
           description={gt(
