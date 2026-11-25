@@ -104,7 +104,8 @@ export function PullRequestComposer({
         {pendingComments.length > 0 ? (
           <span
             aria-hidden
-            className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-info px-1 text-3xs font-semibold tabular-nums text-white"
+            data-one-badge-count=""
+            className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-3xs font-semibold tabular-nums"
           >
             {pendingComments.length}
           </span>

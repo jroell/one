@@ -1,5 +1,7 @@
 import { msg, useGT, useMessages } from "gt-react";
 
+import { InlineButton } from "../ui/button";
+
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -7,6 +9,8 @@ import {
 } from "../WorkspaceBreadcrumb";
 import { SETTINGS_DETAIL_PAGE_PARENTS } from "./settingsDetailPages";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
+import { useSettingsBreadcrumbTail } from "./settingsBreadcrumbTail";
+import { trimTrailingSlashes } from "./useSettingsPathname";
 
 const SETTINGS_LABEL = msg("Settings");
 
@@ -17,15 +21,16 @@ const SETTINGS_BREADCRUMB_LABELS: Readonly<Record<string, string>> = {
 };
 
 function settingsBreadcrumbLabel(pathname: string): string | null {
-  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
-  return SETTINGS_BREADCRUMB_LABELS[normalizedPathname] ?? null;
+  return SETTINGS_BREADCRUMB_LABELS[trimTrailingSlashes(pathname)] ?? null;
 }
 
 export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
   const gt = useGT();
   const m = useMessages();
   const sectionLabel = settingsBreadcrumbLabel(pathname);
-  const parentPath = SETTINGS_DETAIL_PAGE_PARENTS[pathname.replace(/\/+$/, "") || "/"];
+  const parentPath = SETTINGS_DETAIL_PAGE_PARENTS[trimTrailingSlashes(pathname)];
+  // A page opened inside this section (one provider) adds its name after the section's.
+  const tail = useSettingsBreadcrumbTail();
 
   return (
     <WorkspaceBreadcrumb ariaLabel={gt("Settings breadcrumb")}>
@@ -43,9 +48,23 @@ export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
           ) : null}
         </>
       ) : null}
-      <WorkspaceBreadcrumbItem current className="truncate">
-        {m(sectionLabel ?? SETTINGS_LABEL)}
+      <WorkspaceBreadcrumbItem current={tail === null} className="truncate">
+        {tail === null ? (
+          m(sectionLabel ?? SETTINGS_LABEL)
+        ) : (
+          <InlineButton tone="muted" onClick={tail.onUp}>
+            {m(sectionLabel ?? SETTINGS_LABEL)}
+          </InlineButton>
+        )}
       </WorkspaceBreadcrumbItem>
+      {tail === null ? null : (
+        <>
+          <WorkspaceBreadcrumbSeparator />
+          <WorkspaceBreadcrumbItem current className="truncate">
+            {tail.label}
+          </WorkspaceBreadcrumbItem>
+        </>
+      )}
     </WorkspaceBreadcrumb>
   );
 }

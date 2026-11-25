@@ -3,6 +3,7 @@ import { Spinner } from "~/components/ui/spinner";
 import {
   AlertTriangleIcon,
   CheckIcon,
+  ChevronRightIcon,
   ArrowUpCircleIcon,
   CopyIcon,
   DownloadIcon,
@@ -710,7 +711,6 @@ interface ProviderInstanceCardProps {
   readonly driverOption: ProviderClientDefinition | undefined;
   readonly liveProvider: ServerProvider | undefined;
   readonly mode: "list" | "editor";
-  readonly selected?: boolean | undefined;
   readonly onSelect?: (() => void) | undefined;
   readonly readOnly?: boolean | undefined;
   readonly canWriteSettings?: boolean;
@@ -784,7 +784,6 @@ export function ProviderInstanceCard({
   driverOption,
   liveProvider,
   mode,
-  selected = false,
   onSelect,
   readOnly = false,
   canWriteSettings = true,
@@ -1176,22 +1175,20 @@ export function ProviderInstanceCard({
       <div
         data-slot="settings-row"
         className={cn(
-          "group relative flex min-h-18 items-center gap-3 px-3 py-3 transition-colors sm:px-4",
-          selected ? "bg-foreground/[0.06]" : "hover:bg-muted/25",
+          "group relative flex min-h-18 items-center gap-3 px-3 py-3 transition-colors hover:bg-muted/25 sm:px-4",
         )}
       >
         <div
           className={cn(
             "pointer-events-none flex min-w-0 flex-1 items-start gap-3 rounded-md text-left transition-opacity",
-            !enabled && !selected && "opacity-60 group-hover:opacity-100",
+            !enabled && "opacity-60 group-hover:opacity-100",
           )}
         >
           <button
             type="button"
             className="pointer-events-auto absolute inset-0 cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             onClick={onSelect}
-            aria-label={gt("Select {provider}", { provider: displayName })}
-            aria-pressed={selected}
+            aria-label={gt("Open {provider}", { provider: displayName })}
           />
           {titleIconNode}
           <span className="min-w-0 flex-1">
@@ -1253,6 +1250,7 @@ export function ProviderInstanceCard({
               aria-label={gt("Enable {provider}", { provider: displayName })}
             />
           </ManagedControl>
+          <ChevronRightIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         </span>
       </div>
     );
@@ -1443,10 +1441,7 @@ export function ProviderInstanceCard({
         <div
           inert={readOnly}
           aria-disabled={readOnly || undefined}
-          className={cn(
-            "border-t border-(--settings-hairline) pt-6",
-            readOnly && "opacity-50 select-none",
-          )}
+          className={readOnly ? "opacity-50 select-none" : undefined}
         >
           <FoldedSettingsSection
             key={instanceId}

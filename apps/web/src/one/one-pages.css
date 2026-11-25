@@ -471,6 +471,7 @@
 }
 
 [data-one-code-welcome] .one-chat-welcome-lead {
+  margin-inline: auto;
   margin-top: 0.375rem;
   max-width: 28rem;
   overflow: hidden;
@@ -480,15 +481,28 @@
   color: var(--one-text-quiet);
 }
 
-/* An even grid: every starter the same width, label at the left and keycap at the right edge.
-   Four chips of different widths wrap into rows that do not line up. */
+/* One starter layout for the empty thread and the new-thread draft: four equal chips in a row
+   when the welcome is wide, two by two when it is not. The label sits at the left, the keycap at
+   the right edge. The welcome is the container, so a narrow pane gets the narrow layout. */
+[data-one-code-welcome] {
+  container: welcome / inline-size;
+  max-width: 56rem;
+}
+
 [data-one-code-welcome] .one-chat-starters {
   display: grid;
   width: 100%;
   max-width: 30rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14.5rem), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
   margin-top: 1.75rem;
+}
+
+@container welcome (min-width: 50rem) {
+  [data-one-code-welcome] .one-chat-starters {
+    max-width: none;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 [data-one-code-welcome] .one-chip {
@@ -645,14 +659,10 @@
   padding-inline-end: calc(var(--workspace-controls-right) + 1px);
 }
 
-/* A new thread's draft: the same welcome, with the project picker in the headline. It sits
-   above the centered composer, so it is compact, and its three starters share one row. */
-[data-one-code-welcome][data-draft] {
-  max-width: 46rem;
-}
-
+/* A new thread's draft: the same welcome, with the project picker in the headline. Its starters
+   use the empty thread's grid, so the two screens differ only in the headline. */
 [data-one-code-welcome][data-draft] .one-chat-welcome-orb {
-  width: 4.5rem;
+  width: 5.5rem;
 }
 
 .one-chat-welcome-heading {
@@ -683,26 +693,37 @@
   color: var(--one-text-quiet);
 }
 
-[data-one-code-welcome][data-draft] .one-chat-starters {
-  max-width: 44rem;
-  margin-top: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
-}
-
-/* On a phone the draft keeps the headline, project and composer: the ring shrinks and the
-   starters go, so nothing slides under the header. */
-@media (max-width: 639px) {
-  [data-one-code-welcome][data-draft] .one-chat-welcome-orb {
-    width: 3.5rem;
-  }
-
-  [data-one-code-welcome][data-draft] .one-chat-starters {
-    display: none;
-  }
-}
-
 /* The line under the title: what the list holds, quiet and tabular so counts do not jitter. */
 [data-one-page-subtitle] {
   color: var(--one-text-quiet);
   font-variant-numeric: tabular-nums;
+}
+
+/* A filled count carries white ink, so it takes the solid status fill, not the lighter one the
+   page uses for shapes: the solid pair stays above 4.5:1 in both themes. */
+[data-one-badge-count] {
+  background-color: var(--ui-info-solid);
+  color: var(--ui-on-solid);
+}
+
+/* On a phone there is no keyboard to show: the starters keep their labels only. */
+@media (max-width: 480px) {
+  [data-one-code-welcome] .one-chip kbd {
+    display: none;
+  }
+
+  /* The thread header gives the title the whole row: the project crumb is in the sidebar. */
+  [aria-label="Thread breadcrumb"] > ol > li:not([aria-current="page"]) {
+    display: none;
+  }
+
+  /* The composer's checkout, branch and access chips keep their icons; the words open in the
+     chip's own menu. */
+  [class~="group/composer-context"] [data-composer-label="true"] {
+    max-width: 0;
+  }
+
+  [class~="group/composer-context"] [data-composer-label-motion="true"] {
+    opacity: 0;
+  }
 }

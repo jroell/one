@@ -346,21 +346,24 @@ describe("surface levels in a chosen theme", () => {
     root.dataset.themeId = "test-theme";
     root.style.setProperty("--app-theme-surface-raised", "rgb(40, 14, 14)");
     root.style.setProperty("--app-theme-surface-overlay", "rgb(14, 14, 60)");
+    root.style.setProperty("--app-theme-message-action", "rgb(200, 150, 20)");
     const probe = document.createElement("div");
     probe.className = "dropdown-glass";
     document.body.append(probe);
     try {
       expect(resolved("var(--ui-surface-raised)")).toBe(resolved("rgb(40, 14, 14)"));
       expect(resolved("var(--ui-surface-overlay)")).toBe(resolved("rgb(14, 14, 60)"));
-      expect(getComputedStyle(probe).backgroundColor).toBe(
-        resolved("color-mix(in srgb, rgb(14, 14, 60) var(--glass-opacity), transparent)"),
-      );
+      const [r, g, b, a] = rgba(getComputedStyle(probe).backgroundColor);
+      expect(b, "the glass takes its blue from the theme's raised color").toBeGreaterThan(r + 5);
+      expect(a, "and stays translucent at the default glass opacity").toBeLessThan(1);
+      expect(g).toBeLessThan(b + 25);
     } finally {
       probe.remove();
       root.classList.remove("dark");
       delete root.dataset.themeId;
       root.style.removeProperty("--app-theme-surface-raised");
       root.style.removeProperty("--app-theme-surface-overlay");
+      root.style.removeProperty("--app-theme-message-action");
     }
   });
 });
@@ -479,32 +482,43 @@ function hue([r, g, b]: [number, number, number]): number {
 
 describe("modal glass", () => {
   it.each(["light", "dark"] as const)(
-    "text on the modal frame and on a card is at least 4.5:1 over the worst backdrop, black or white, in %s",
+    "text on the modal frame and on a card is at least 4.5:1 over the darkest and lightest likely backdrop in %s",
     (scheme) =>
       inScheme(scheme, async () => {
         await using screen = await render(
-          <div data-app-modal="">
-            <div data-testid="card" style={{ background: "var(--ui-card-surface)" }}>
-              Card
+          <>
+            <div className="dialog-backdrop" data-testid="scrim" />
+            <div data-app-modal="">
+              <div data-testid="card" style={{ background: "var(--glass-card-fill)" }}>
+                Card
+              </div>
             </div>
-          </div>,
+          </>,
           { router: false },
         );
         const frame = getComputedStyle(screen.container.querySelector("[data-app-modal]")!);
         const card = getComputedStyle(screen.getByTestId("card").element());
+        const scrim = getComputedStyle(screen.getByTestId("scrim").element());
         expect(frame.backdropFilter, "the frame blurs what is behind it").toMatch(
           /blur\(.+saturate\(/,
         );
+        expect(
+          getComputedStyle(screen.getByTestId("card").element()).backdropFilter,
+          "a card inside the frame has no blur of its own",
+        ).toBe("none");
 
-        // The page's own color, and a mid tone halfway toward the opposite end, as an image or a code
-        // block behind the modal would give.
+        // Backdrop, then the scrim with the warm light at its brightest, then the frame, then a card.
+        const ambient = resolved(
+          `color-mix(in oklab, var(--one-brand) ${scheme === "dark" ? 20 : 12}%, transparent)`,
+        );
         const backdrops =
           scheme === "light"
-            ? ["rgb(252 252 252)", "rgb(140 140 140)"]
-            : ["rgb(0 0 0)", "rgb(120 120 120)"];
+            ? ["rgb(252 252 252)", "rgb(120 120 120)"]
+            : ["rgb(0 0 0)", "rgb(150 150 150)"];
         for (const backdrop of backdrops) {
-          const onFrame = composite([frame.backgroundColor], backdrop);
-          const onCard = composite([frame.backgroundColor, card.backgroundColor], backdrop);
+          const behind = composite([scrim.backgroundColor, ambient], backdrop);
+          const onFrame = composite([frame.backgroundColor], behind);
+          const onCard = composite([frame.backgroundColor, card.backgroundColor], behind);
           for (const [surface, name] of [
             [onFrame, "frame"],
             [onCard, "card"],
@@ -520,24 +534,52 @@ describe("modal glass", () => {
       }),
   );
 
-  it("the frame follows the user's glass opacity and is translucent, and a card is a tint rather than an opaque grey", async () => {
+  it.each(["light", "dark"] as const)(
+    "the scrim lets most of the app show through and the frame tint leans warm, red above green above blue, in %s",
+    (scheme) =>
+      inScheme(scheme, async () => {
+        await using screen = await render(
+          <>
+            <div className="dialog-backdrop" data-testid="scrim" />
+            <div data-app-modal="" />
+          </>,
+          { router: false },
+        );
+        const [, , , scrimAlpha] = rgba(
+          getComputedStyle(screen.getByTestId("scrim").element()).backgroundColor,
+        );
+        expect(scrimAlpha, "the scrim dims far less than a flat black").toBeLessThanOrEqual(0.36);
+        expect(getComputedStyle(screen.getByTestId("scrim").element()).backgroundImage).toContain(
+          "radial-gradient",
+        );
+        const [r, g, b] = rgba(
+          getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor,
+        );
+        expect(r, "red leads green").toBeGreaterThan(g);
+        expect(g, "green leads blue").toBeGreaterThan(b);
+      }),
+  );
+
+  it("the frame follows the user's glass opacity: translucent by default, opaque at 100%, and a card is a faint tint", async () => {
     document.documentElement.classList.add("dark");
-    document.documentElement.style.setProperty("--glass-opacity", "50%");
     try {
       await using screen = await render(
         <div data-app-modal="">
-          <div data-testid="card" style={{ background: "var(--ui-card-surface)" }} />
+          <div data-testid="card" style={{ background: "var(--glass-card-fill)" }} />
         </div>,
         { router: false },
       );
-      const [, , , frameAlpha] = rgba(
-        getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor,
-      );
-      const [, , , cardAlpha] = rgba(
-        getComputedStyle(screen.getByTestId("card").element()).backgroundColor,
-      );
-      expect(frameAlpha).toBeCloseTo(0.5, 1);
-      expect(cardAlpha).toBeLessThan(0.1);
+      const frame = screen.container.querySelector<HTMLElement>("[data-app-modal]")!;
+      const alpha = () => rgba(getComputedStyle(frame).backgroundColor)[3];
+      document.documentElement.style.setProperty("--glass-opacity", "80%");
+      expect(alpha()).toBeCloseTo(0.72, 1);
+      document.documentElement.style.setProperty("--glass-opacity", "50%");
+      expect(alpha(), "the least opaque fill still carries text").toBeCloseTo(0.4, 1);
+      document.documentElement.style.setProperty("--glass-opacity", "100%");
+      expect(alpha()).toBeCloseTo(1, 1);
+      expect(
+        rgba(getComputedStyle(screen.getByTestId("card").element()).backgroundColor)[3],
+      ).toBeLessThan(0.1);
     } finally {
       document.documentElement.classList.remove("dark");
       document.documentElement.style.removeProperty("--glass-opacity");
@@ -555,8 +597,8 @@ describe("modal glass", () => {
       const [r, g, b] = rgba(
         getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor,
       );
-      expect(g - r, "green leads red").toBeGreaterThan(15);
-      expect(g - b).toBeGreaterThan(15);
+      expect(g - r, "green leads red").toBeGreaterThan(8);
+      expect(g - b, "green leads blue").toBeGreaterThan(8);
     } finally {
       root.classList.remove("dark");
       delete root.dataset.themeId;

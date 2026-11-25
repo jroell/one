@@ -329,6 +329,10 @@ function buildChart(
   return { columns, scale, stepX, series };
 }
 
+function seriesName(band: ChartSeries, gt: ReturnType<typeof useGT>): string {
+  return band.provider === null ? gt("Others") : PROVIDER_PRESENTATION[band.provider].label;
+}
+
 function UsageChartTooltip({
   tooltipRef,
   label,
@@ -359,13 +363,12 @@ function UsageChartTooltip({
         return (
           <div key={band.key} className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-1.5 text-muted-foreground">
-              {presentation === null ? (
-                <span
-                  aria-hidden
-                  className="size-3 rounded-full"
-                  style={{ background: band.color }}
-                />
-              ) : (
+              <span
+                aria-hidden
+                className="usage-tooltip-swatch"
+                style={{ background: band.color }}
+              />
+              {presentation === null ? null : (
                 <ProviderInstanceIcon
                   driverKind={presentation.driverKind}
                   displayName={bandLabel}
@@ -398,6 +401,7 @@ function UsageChartPlot({
   format,
   formatTooltipPeriod,
   label,
+  unit,
   bars,
   children,
 }: {
@@ -409,6 +413,8 @@ function UsageChartPlot({
   readonly formatTooltipPeriod: (period: string) => string;
   /** The chart's name for assistive tech; the plot takes the arrow keys. */
   readonly label: string;
+  /** What one step of the arrow keys moves by. */
+  readonly unit: "day" | "hour";
   /** Daily bars instead of an area plot: the bars' segments, one array per day. */
   readonly bars?:
     | {
@@ -419,7 +425,11 @@ function UsageChartPlot({
   readonly children?: React.ReactNode;
 }) {
   const gt = useGT();
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  // The pointer and the keyboard each hold their own selection; the pointer wins while it is on the
+  // plot, and leaving it hands the tooltip back to the keyboard's day.
+  const [pointerIndex, setPointerIndex] = useState<number | null>(null);
+  const [keyIndex, setKeyIndex] = useState<number | null>(null);
+  const hoverIndex = pointerIndex ?? keyIndex;
   const plotRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoverPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -475,15 +485,28 @@ function UsageChartPlot({
         : Math.floor(fraction * periods.length);
     hoverPositionRef.current = { x: localX, y: localY };
     positionTooltip();
-    setHoverIndex(Math.min(periods.length - 1, Math.max(0, index)));
+    setPointerIndex(Math.min(periods.length - 1, Math.max(0, index)));
   };
 
-  /** Arrow keys walk the days, Home and End jump to the ends, Escape lets go. */
-  const handleKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  const slotPosition = (index: number) => {
     const plot = plotRef.current;
-    if (plot === null || periods.length === 0) return;
+    if (plot === null) return null;
     const last = periods.length - 1;
-    const current = hoverIndex ?? (event.key === "ArrowLeft" ? last + 1 : -1);
+    const slot =
+      bars === undefined ? (last === 0 ? 0 : index / last) : (index + 0.5) / periods.length;
+    return { x: slot * plot.clientWidth, y: plot.clientHeight * 0.2 };
+  };
+
+  /** Arrow keys walk the periods, Home and End jump to the ends, Escape lets go. */
+  const handleKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (periods.length === 0) return;
+    if (event.key === "Escape") {
+      setKeyIndex(null);
+      if (pointerIndex === null) hoverPositionRef.current = null;
+      return;
+    }
+    const last = periods.length - 1;
+    const current = keyIndex ?? (event.key === "ArrowLeft" ? last + 1 : -1);
     const next =
       event.key === "ArrowRight"
         ? Math.min(last, current + 1)
@@ -494,18 +517,25 @@ function UsageChartPlot({
             : event.key === "End"
               ? last
               : null;
-    if (event.key === "Escape") {
-      hoverPositionRef.current = null;
-      setHoverIndex(null);
-      return;
-    }
     if (next === null) return;
     event.preventDefault();
-    const slot =
-      bars === undefined ? (last === 0 ? 0 : next / last) : (next + 0.5) / periods.length;
-    hoverPositionRef.current = { x: slot * plot.clientWidth, y: plot.clientHeight * 0.2 };
-    setHoverIndex(next);
+    hoverPositionRef.current = slotPosition(next);
+    setKeyIndex(next);
   };
+
+  const keyPeriod = keyIndex === null ? undefined : periods[keyIndex];
+  const announcement =
+    keyPeriod === undefined || keyIndex === null
+      ? ""
+      : gt("{period}: {values}. Total {total}", {
+          period: formatTooltipPeriod(keyPeriod),
+          values: series
+            .map(
+              (band) => `${seriesName(band, gt)} ${format(seriesValue(band, columns[keyIndex]))}`,
+            )
+            .join(", "),
+          total: format(columns[keyIndex]?.total ?? 0),
+        });
 
   const hoveredPeriod = hoverIndex === null ? undefined : periods[hoverIndex];
 
@@ -514,20 +544,27 @@ function UsageChartPlot({
       ref={plotRef}
       role="group"
       aria-label={label}
-      aria-description={gt("Use the left and right arrow keys to move between days")}
+      aria-description={
+        unit === "hour"
+          ? gt("Use the left and right arrow keys to move between hours")
+          : gt("Use the left and right arrow keys to move between days")
+      }
       tabIndex={0}
       className="usage-plot relative min-h-56 flex-1"
       onMouseMove={handleMove}
       onMouseLeave={() => {
-        hoverPositionRef.current = null;
-        setHoverIndex(null);
+        setPointerIndex(null);
+        hoverPositionRef.current = keyIndex === null ? null : slotPosition(keyIndex);
       }}
       onKeyDown={handleKey}
       onBlur={() => {
-        hoverPositionRef.current = null;
-        setHoverIndex(null);
+        setKeyIndex(null);
+        if (pointerIndex === null) hoverPositionRef.current = null;
       }}
     >
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
       {bars === undefined ? (
         <svg
           className="h-full w-full"
@@ -569,6 +606,11 @@ function UsageChartPlot({
                 key={period}
                 className="usage-bars-day"
                 data-hover={hoverIndex === index ? "" : undefined}
+                style={
+                  {
+                    "--usage-stack": `${(bars.segments[index] ?? []).reduce((sum, segment) => sum + segment.heightPercent, 0)}%`,
+                  } as React.CSSProperties
+                }
               >
                 {(bars.segments[index] ?? []).map((segment) => (
                   <span
@@ -683,6 +725,7 @@ export function UsageProviderChart({
           format={format}
           formatTooltipPeriod={formatTooltipPeriod}
           label={chartLabel}
+          unit={resolution === "hour" ? "hour" : "day"}
           bars={bars}
         >
           {scale.ticks.map((tick) => {

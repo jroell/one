@@ -37,6 +37,10 @@ function textFromBlocks(
   }
   if (!isRecord(value)) return null;
   if (value.type === "text" && typeof value.text === "string") return value.text;
+  // The ACP wrapper around one content block. Its text is the tool's own, never decoded again.
+  if (value.type === "content" && Object.keys(value).length === 2 && "content" in value) {
+    return textFromBlocks(value.content, depth + 1, imageBlocks);
+  }
   if (value.type === "image") return imageBlocks.includes(value) ? "" : "[image]";
   if (value.type === "resource_link" && typeof value.uri === "string") return value.uri;
   if (value.type === "resource" && isRecord(value.resource)) {

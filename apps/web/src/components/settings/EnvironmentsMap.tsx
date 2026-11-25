@@ -208,7 +208,9 @@ function routeKindLabel(kind: ConnectionRouteKind, gt: GT): string {
     case "relay":
       return "T3 Connect";
     case "loopback":
-      return gt("This device");
+      return gt("Local", {
+        $context: "kind of network route: this machine's own loopback address",
+      });
     case "lan":
       return "LAN";
     case "tailnet":
@@ -1176,11 +1178,11 @@ function environmentStatusText(
     case "loading":
       return gt("Loading links…");
     case "error":
-      return gt("Links could not be loaded");
+      return gt("Links not loaded");
     case "off":
-      return gt("Linked environments is off");
+      return gt("Linking is off");
     case "unknown":
-      return gt("Links not readable from here");
+      return gt("Links not readable");
     case "loaded":
       return gt("{count, plural, =0 {No links out} one {# link out} other {# links out}}", {
         count: linkCount,
@@ -1347,7 +1349,7 @@ interface LinkDrag {
   readonly overId: string | null;
 }
 
-const FleetScene = memo(function FleetScene({
+export const FleetScene = memo(function FleetScene({
   graph,
   stacks,
   layout,
@@ -2202,12 +2204,21 @@ const FleetScene = memo(function FleetScene({
                 />
               </span>
               <span className={cn("min-w-0 flex-1 pr-1.5", dimmed && "opacity-70")}>
+                {node.thisDevice ? (
+                  <span
+                    data-fleet-this-device=""
+                    className="mb-0.5 flex w-fit rounded-sm bg-muted px-1 text-2xs leading-4 font-medium text-muted-foreground"
+                  >
+                    {gt("This device")}
+                  </span>
+                ) : null}
                 <span className="line-clamp-2 text-xs leading-4 font-semibold [overflow-wrap:anywhere]">
                   {node.label}
                 </span>
                 <span
+                  data-fleet-state=""
                   className={cn(
-                    "block truncate text-2xs leading-4",
+                    "line-clamp-2 text-2xs leading-4",
                     node.outgoing === "error" && node.phase === "connected"
                       ? "text-destructive"
                       : "text-muted-foreground",

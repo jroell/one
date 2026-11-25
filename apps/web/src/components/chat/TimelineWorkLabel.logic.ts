@@ -42,3 +42,8 @@ export function splitObjectPath(object: string): { dir: string; base: string } {
   if (slash <= 0 || slash === object.length - 1) return { dir: "", base: object };
   return { dir: object.slice(0, slash + 1), base: object.slice(slash + 1) };
 }
+
+/** A path under a user's home folder reads as `~/…`, the way settings show it. Display only. */
+export function abbreviateHomePath(path: string): string {
+  return path.replace(/^\/(?:Users|home)\/[^/\s]+(?=\/)/, "~");
+}

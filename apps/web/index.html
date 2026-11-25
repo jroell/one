@@ -451,6 +451,16 @@
         --boot-ring-mid: var(--boot-accent, #d9b450);
       }
 
+      /* On white the standard ring's dark bands read as mud, so light renders it brighter and
+         with shallower shading, over a warmer glow. */
+      html:not(.dark) #boot-shell-card {
+        --boot-ring-mid: var(--boot-accent, #c9a02c);
+        --boot-ring-hi: color-mix(in oklch, var(--boot-ring-mid) 48%, white);
+        --boot-ring-lo: color-mix(in oklch, var(--boot-ring-mid) 82%, black);
+        --boot-ring-deep: color-mix(in oklch, var(--boot-ring-mid) 62%, black);
+        --boot-glow: 20%;
+      }
+
       /* A still glow behind the ring, so it sits on something. */
       #boot-shell-card::before {
         content: "";
@@ -460,9 +470,54 @@
         pointer-events: none;
         background: radial-gradient(
           closest-side,
-          color-mix(in oklch, var(--boot-ring-mid) 13%, transparent),
+          color-mix(in oklch, var(--boot-ring-mid) var(--boot-glow, 13%), transparent),
           transparent
         );
+      }
+
+      /* After a second and a half, a hairline says the app is still on its way. */
+      #boot-shell-bar {
+        position: absolute;
+        bottom: -6px;
+        left: 50%;
+        width: 120px;
+        height: 2px;
+        margin-left: -60px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: color-mix(in srgb, currentColor 10%, transparent);
+        opacity: 0;
+        animation: boot-bar-in 400ms ease-out 1500ms forwards;
+      }
+
+      #boot-shell-bar::before {
+        content: "";
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--boot-ring-mid);
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        #boot-shell-bar::before {
+          animation: boot-bar 1400ms cubic-bezier(0.45, 0, 0.25, 1) infinite;
+        }
+      }
+
+      @keyframes boot-bar-in {
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes boot-bar {
+        from {
+          translate: -100% 0;
+        }
+        to {
+          translate: 250% 0;
+        }
       }
 
       #boot-shell-logo {
@@ -783,6 +838,9 @@
         :is(#boot-shell-logo, #boot-shell-name) {
         visibility: hidden;
       }
+      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-bar {
+        display: none;
+      }
       html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-card::before {
         display: none;
       }
@@ -900,6 +958,7 @@
             </g>
           </svg>
           <p id="boot-shell-name">One</p>
+          <div id="boot-shell-bar" aria-hidden="true"></div>
           <p id="boot-shell-progress" role="status" aria-live="polite"></p>
         </div>
       </div>

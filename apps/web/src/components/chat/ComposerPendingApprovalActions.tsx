@@ -5,7 +5,7 @@ import {
 } from "@t3tools/contracts";
 import { msg, useGT, useMessages } from "gt-react";
 import { memo } from "react";
-import { EllipsisIcon, TriangleAlertIcon } from "lucide-react";
+import { ChevronDownIcon, EllipsisIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -116,7 +116,10 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
             }
           >
             {presentation === "inline" ? (
-              gt("More", { $context: "button that opens more approval options" })
+              <>
+                {gt("More", { $context: "button that opens more approval options" })}
+                <ChevronDownIcon aria-hidden className="size-3" />
+              </>
             ) : (
               <EllipsisIcon />
             )}

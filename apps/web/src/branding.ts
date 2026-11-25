@@ -30,6 +30,8 @@ export const APP_DISPLAY_NAME =
   injectedDesktopAppBranding?.displayName ??
   formatAppDisplayName({ baseName: APP_BASE_NAME, stageLabel: APP_STAGE_LABEL });
 export const APP_VERSION = import.meta.env.APP_VERSION || "0.0.0";
+/** The day this bundle was built, as YYYY-MM-DD, or null when the build did not record one. */
+export const APP_BUILD_DATE: string | null = import.meta.env.APP_BUILD_DATE || null;
 export const DESKTOP_DOWNLOAD_URL = "https://github.com/jroell/one/releases";
 // Points to the One mobile companion build instructions.
 export const MOBILE_APP_URL = "https://github.com/jroell/one#mobile-companion";

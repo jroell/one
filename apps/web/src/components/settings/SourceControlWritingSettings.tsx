@@ -39,6 +39,7 @@ import { toastManager } from "../ui/toast";
 import { Button } from "../ui/button";
 import {
   SETTINGS_PICKER_TRIGGER_CLASSNAME,
+  SettingsPickerField,
   SettingResetButton,
   SettingsRow,
   SettingsSection,
@@ -359,59 +360,63 @@ export function SourceControlWritingSettingsSection() {
               ) : (
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {(usesReviewGuideModel || mixedReviewGuideModel) && canEnableReviewGuideModel ? (
-                    <ProviderModelPicker
-                      environmentId={environmentId}
-                      activeInstanceId={reviewGuideSelection.instanceId}
-                      model={reviewGuideSelection.model}
-                      lockedProvider={null}
-                      instanceEntries={instanceEntries}
-                      modelOptionsByInstance={reviewGuideModelOptionsByInstance}
-                      triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                      triggerAriaLabel={gt("Review guide model")}
-                      {...(mixedReviewGuideModel ? { triggerLabel: gt("Mixed") } : {})}
-                      getModelDisabledReason={writerModelDisabledReason}
-                      onInstanceModelChange={(instanceId, model) => {
-                        const reason = writerModelDisabledReason(instanceId, model);
-                        if (reason) {
-                          toastManager.add({
-                            type: "error",
-                            title: gt("Review guide model not saved"),
-                            description: reason,
+                    <SettingsPickerField label={gt("Model")}>
+                      <ProviderModelPicker
+                        environmentId={environmentId}
+                        activeInstanceId={reviewGuideSelection.instanceId}
+                        model={reviewGuideSelection.model}
+                        lockedProvider={null}
+                        instanceEntries={instanceEntries}
+                        modelOptionsByInstance={reviewGuideModelOptionsByInstance}
+                        triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                        triggerAriaLabel={gt("Review guide model")}
+                        {...(mixedReviewGuideModel ? { triggerLabel: gt("Mixed") } : {})}
+                        getModelDisabledReason={writerModelDisabledReason}
+                        onInstanceModelChange={(instanceId, model) => {
+                          const reason = writerModelDisabledReason(instanceId, model);
+                          if (reason) {
+                            toastManager.add({
+                              type: "error",
+                              title: gt("Review guide model not saved"),
+                              description: reason,
+                            });
+                            return;
+                          }
+                          updateSettings({
+                            reviewGuideModelSelection: pickModelSelection(
+                              mixedReviewGuideModel ? null : reviewGuideSelection,
+                              instanceId,
+                              model,
+                            ),
                           });
-                          return;
-                        }
-                        updateSettings({
-                          reviewGuideModelSelection: pickModelSelection(
-                            mixedReviewGuideModel ? null : reviewGuideSelection,
-                            instanceId,
-                            model,
-                          ),
-                        });
-                      }}
-                    />
+                        }}
+                      />
+                    </SettingsPickerField>
                   ) : null}
                   {usesReviewGuideModel &&
                   canEnableReviewGuideModel &&
                   !mixedReviewGuideModel &&
                   reviewGuideInstanceEntry ? (
-                    <TraitsPicker
-                      provider={reviewGuideInstanceEntry.driverKind}
-                      models={reviewGuideInstanceEntry.models}
-                      model={reviewGuideSelection.model}
-                      modelOptions={reviewGuideSelection.options ?? []}
-                      allowPromptInjectedEffort={false}
-                      includePlanAgent={selectsPlanAgent(reviewGuideSelection.options)}
-                      triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                      onModelOptionsChange={(options) =>
-                        updateSettings({
-                          reviewGuideModelSelection: createModelSelection(
-                            reviewGuideSelection.instanceId,
-                            reviewGuideSelection.model,
-                            options,
-                          ),
-                        })
-                      }
-                    />
+                    <SettingsPickerField label={gt("Effort")}>
+                      <TraitsPicker
+                        provider={reviewGuideInstanceEntry.driverKind}
+                        models={reviewGuideInstanceEntry.models}
+                        model={reviewGuideSelection.model}
+                        modelOptions={reviewGuideSelection.options ?? []}
+                        allowPromptInjectedEffort={false}
+                        includePlanAgent={selectsPlanAgent(reviewGuideSelection.options)}
+                        triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                        onModelOptionsChange={(options) =>
+                          updateSettings({
+                            reviewGuideModelSelection: createModelSelection(
+                              reviewGuideSelection.instanceId,
+                              reviewGuideSelection.model,
+                              options,
+                            ),
+                          })
+                        }
+                      />
+                    </SettingsPickerField>
                   ) : null}
                   <Switch
                     mixed={mixedReviewGuideModel}
@@ -558,69 +563,73 @@ export function SourceControlWritingSettingsSection() {
                   </span>
                 ) : null}
                 {usesDedicatedModel && canEnableDedicatedModel ? (
-                  <ProviderModelPicker
-                    environmentId={environmentId}
-                    activeInstanceId={activeSelection.instanceId}
-                    model={activeSelection.model}
-                    lockedProvider={null}
-                    instanceEntries={writerEntries}
-                    modelOptionsByInstance={modelOptionsByInstance}
-                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                    triggerAriaLabel={gt("Source control writer model")}
-                    {...(mixedWriterModel ? { triggerLabel: gt("Mixed") } : {})}
-                    {...(environmentId
-                      ? {
-                          onOpenProviderSetup: (instanceId: ProviderInstanceId) => {
-                            void navigate({
-                              to: "/settings/providers",
-                              search: { environmentId, instanceId },
-                            });
-                          },
+                  <SettingsPickerField label={gt("Model")}>
+                    <ProviderModelPicker
+                      environmentId={environmentId}
+                      activeInstanceId={activeSelection.instanceId}
+                      model={activeSelection.model}
+                      lockedProvider={null}
+                      instanceEntries={writerEntries}
+                      modelOptionsByInstance={modelOptionsByInstance}
+                      triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                      triggerAriaLabel={gt("Source control writer model")}
+                      {...(mixedWriterModel ? { triggerLabel: gt("Mixed") } : {})}
+                      {...(environmentId
+                        ? {
+                            onOpenProviderSetup: (instanceId: ProviderInstanceId) => {
+                              void navigate({
+                                to: "/settings/providers",
+                                search: { environmentId, instanceId },
+                              });
+                            },
+                          }
+                        : {})}
+                      getModelDisabledReason={writerModelDisabledReason}
+                      onInstanceModelChange={(instanceId, model) => {
+                        const reason = writerModelDisabledReason(instanceId, model);
+                        if (reason) {
+                          toastManager.add({
+                            type: "error",
+                            title: gt("Source control writer model not saved"),
+                            description: reason,
+                          });
+                          return;
                         }
-                      : {})}
-                    getModelDisabledReason={writerModelDisabledReason}
-                    onInstanceModelChange={(instanceId, model) => {
-                      const reason = writerModelDisabledReason(instanceId, model);
-                      if (reason) {
-                        toastManager.add({
-                          type: "error",
-                          title: gt("Source control writer model not saved"),
-                          description: reason,
+                        updateSettings({
+                          sourceControlWriterModelSelection: pickModelSelection(
+                            mixedWriterModel ? null : activeSelection,
+                            instanceId,
+                            model,
+                          ),
                         });
-                        return;
-                      }
-                      updateSettings({
-                        sourceControlWriterModelSelection: pickModelSelection(
-                          mixedWriterModel ? null : activeSelection,
-                          instanceId,
-                          model,
-                        ),
-                      });
-                    }}
-                  />
+                      }}
+                    />
+                  </SettingsPickerField>
                 ) : null}
                 {usesDedicatedModel &&
                 canEnableDedicatedModel &&
                 !mixedWriterModel &&
                 writerInstanceEntry ? (
-                  <TraitsPicker
-                    provider={writerInstanceEntry.driverKind}
-                    models={writerInstanceEntry.models}
-                    model={activeSelection.model}
-                    modelOptions={activeSelection.options ?? []}
-                    allowPromptInjectedEffort={false}
-                    includePlanAgent={selectsPlanAgent(activeSelection.options)}
-                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                    onModelOptionsChange={(options) =>
-                      updateSettings({
-                        sourceControlWriterModelSelection: createModelSelection(
-                          activeSelection.instanceId,
-                          activeSelection.model,
-                          options,
-                        ),
-                      })
-                    }
-                  />
+                  <SettingsPickerField label={gt("Effort")}>
+                    <TraitsPicker
+                      provider={writerInstanceEntry.driverKind}
+                      models={writerInstanceEntry.models}
+                      model={activeSelection.model}
+                      modelOptions={activeSelection.options ?? []}
+                      allowPromptInjectedEffort={false}
+                      includePlanAgent={selectsPlanAgent(activeSelection.options)}
+                      triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                      onModelOptionsChange={(options) =>
+                        updateSettings({
+                          sourceControlWriterModelSelection: createModelSelection(
+                            activeSelection.instanceId,
+                            activeSelection.model,
+                            options,
+                          ),
+                        })
+                      }
+                    />
+                  </SettingsPickerField>
                 ) : null}
                 <Switch
                   checked={usesDedicatedModel}

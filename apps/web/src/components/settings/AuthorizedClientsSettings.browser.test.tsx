@@ -4,7 +4,7 @@ import {
   type ManagedPolicySummary,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
@@ -93,7 +93,9 @@ describe("RevokeOtherClientsAction", () => {
 
     await screen.getByRole("button", { name: "Revoke others" }).click();
     expect(onRevoke).not.toHaveBeenCalled();
-    await expect.element(page.getByText("Sign out every other client?")).toBeVisible();
+    await expect
+      .element(screen.getByRole("status"))
+      .toMatchTextContent("Sign out every other client?");
 
     await screen.getByRole("button", { name: "Cancel" }).click();
     expect(onRevoke).not.toHaveBeenCalled();
@@ -101,6 +103,37 @@ describe("RevokeOtherClientsAction", () => {
     await screen.getByRole("button", { name: "Revoke others" }).click();
     await screen.getByRole("button", { name: "Revoke others" }).click();
     expect(onRevoke).toHaveBeenCalledOnce();
+  });
+
+  it("keeps keyboard focus through the question: Cancel opens focused, and Cancel or Revoke returns to the launcher", async () => {
+    const onRevoke = vi.fn();
+    await using screen = await render(
+      <RevokeOtherClientsAction
+        clientSessions={[{ current: true }, { current: false }] as never}
+        isRevoking={false}
+        onRevoke={onRevoke}
+      />,
+    );
+    const launcher = () => screen.getByRole("button", { name: "Revoke others" });
+    const cancel = () => screen.getByRole("button", { name: "Cancel" });
+
+    await vi.waitFor(() => launcher().element());
+    (launcher().element() as HTMLElement).focus();
+    await userEvent.keyboard("{Enter}");
+    await expect.element(cancel()).toHaveFocus();
+    await expect
+      .element(screen.getByRole("status"))
+      .toMatchTextContent("Sign out every other client?");
+
+    await userEvent.keyboard("{Enter}");
+    await expect.element(launcher()).toHaveFocus();
+    await expect.element(screen.getByRole("status")).toHaveTextContent("");
+    expect(onRevoke).not.toHaveBeenCalled();
+
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{Tab}{Enter}");
+    expect(onRevoke).toHaveBeenCalledOnce();
+    await expect.element(launcher()).toHaveFocus();
   });
 
   it("has nothing to revoke while this is the only client", async () => {

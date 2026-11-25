@@ -116,7 +116,7 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   height: 32px !important;
   min-height: 32px !important;
   padding-block: 0 !important;
-  padding-inline: 8px 12px !important;
+  padding-inline: 8px 16px !important;
 }
 
 [data-diffs-header]:hover {

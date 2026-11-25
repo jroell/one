@@ -3409,7 +3409,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               `${thread.environmentId}:${thread.projectId}`,
                             ) ?? null
                           }
-                          environmentLabel={environmentLabelById.get(thread.environmentId) ?? null}
+                          environmentLabel={
+                            environmentLabelById.size > 1 ||
+                            (primaryEnvironmentId !== null &&
+                              thread.environmentId !== primaryEnvironmentId)
+                              ? (environmentLabelById.get(thread.environmentId) ?? null)
+                              : null
+                          }
                           environmentMachine={
                             environmentMachineById.get(thread.environmentId) ?? "server"
                           }
@@ -3539,6 +3545,27 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     )}
                   >
                     {(() => {
+                      // When every row is in one project, name it once above the list, not on
+                      // every row. A list of folders already does.
+                      const soleProject = (() => {
+                        if (projectFolders !== null) return null;
+                        const projects = new Map<string, EnvironmentThreadShell>();
+                        let rows = 0;
+                        for (const item of sidebarListItems) {
+                          if (item.kind !== "thread") continue;
+                          const listed = threadByKey.get(item.key);
+                          if (listed === undefined) continue;
+                          rows += 1;
+                          projects.set(`${listed.environmentId}:${listed.projectId}`, listed);
+                        }
+                        const [only] = projects.values();
+                        if (projects.size !== 1 || rows < 2 || only === undefined) return null;
+                        const key = `${only.environmentId}:${only.projectId}` as const;
+                        return {
+                          project: projectByKey.get(key) ?? null,
+                          name: projectDisplayNameByKey.get(key) ?? null,
+                        };
+                      })();
                       const renderThreadRow = (
                         thread: EnvironmentThreadShell,
                         section: SidebarSection,
@@ -3631,13 +3658,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               environmentMachineById.get(thread.environmentId) ?? "server"
                             }
                             project={
-                              projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ??
-                              null
+                              soleProject !== null
+                                ? null
+                                : (projectByKey.get(
+                                    `${thread.environmentId}:${thread.projectId}`,
+                                  ) ?? null)
                             }
                             projectDisplayName={
-                              projectDisplayNameByKey.get(
-                                `${thread.environmentId}:${thread.projectId}`,
-                              ) ?? null
+                              soleProject !== null
+                                ? null
+                                : (projectDisplayNameByKey.get(
+                                    `${thread.environmentId}:${thread.projectId}`,
+                                  ) ?? null)
                             }
                             providerEntryByInstanceId={
                               providerEntriesByEnvironment.get(thread.environmentId) ??
@@ -3678,6 +3710,23 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           onNavigateToDraft={navigateToDraft}
                           onDraftContextMenu={handleDraftContextMenu}
                         />,
+                        ...(soleProject?.name
+                          ? [
+                              <li
+                                key="sole-project"
+                                data-sidebar-sole-project=""
+                                className="flex list-none items-center gap-1.5 px-(--sidebar-row-content-inset) pt-1 pb-0.5 text-xs font-medium text-secondary-label"
+                              >
+                                {soleProject.project ? (
+                                  <ProjectFavicon
+                                    project={soleProject.project}
+                                    className="size-3.5 shrink-0"
+                                  />
+                                ) : null}
+                                <span className="min-w-0 truncate">{soleProject.name}</span>
+                              </li>,
+                            ]
+                          : []),
                       ];
                       for (const item of sidebarListItems) {
                         if (item.kind === "thread") {

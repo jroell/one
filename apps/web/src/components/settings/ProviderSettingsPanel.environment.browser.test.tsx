@@ -172,6 +172,7 @@ vi.mock(import("../ProviderUpdatesAction"), async (original) => ({
 
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { EnvironmentProviderSettings } from "./ProviderSettingsPanel";
+import { SettingsBreadcrumb } from "./SettingsBreadcrumb";
 
 const environmentId = EnvironmentId.make("remote-device");
 const codexId = ProviderInstanceId.make("codex");
@@ -469,17 +470,34 @@ describe("EnvironmentProviderSettings routing", () => {
 });
 
 describe("EnvironmentProviderSettings provider list", () => {
-  it("selects a provider when its row is clicked near the edge", async () => {
+  it("opens a provider as its own page from a click near its row's edge, and the trail returns to the list", async () => {
     await setup();
     await setProviders([provider()]);
-    await using _screen = await render(panel());
-    const select = page.getByRole("button", { name: "Select Claude" });
-    await expect.element(select).toHaveAttribute("aria-pressed", "false");
-    const row = page.elementLocator(select.element().closest('[data-slot="settings-row"]')!);
+    await using _screen = await render(
+      <>
+        <SettingsBreadcrumb pathname="/settings/providers" />
+        {panel()}
+      </>,
+      { router: "/settings/providers" },
+    );
+    const open = page.getByRole("button", { name: "Open Claude" });
+    const row = page.elementLocator(open.element().closest('[data-slot="settings-row"]')!);
+    // The list is rows to open, not an editor beside them.
+    expect(document.querySelector("[data-provider-detail]")).toBeNull();
+    await expect.element(page.getByText("Display name")).not.toBeInTheDocument();
 
     await userEvent.click(row, { position: { x: 3, y: 3 } });
 
-    await expect.element(select).toHaveAttribute("aria-pressed", "true");
+    const trail = page.getByRole("navigation", { name: "Settings breadcrumb" });
+    await expect.element(page.getByText("Display name")).toBeVisible();
+    await expect.element(trail).toMatchTextContent("Providers");
+    await expect.element(trail).toMatchTextContent("Claude");
+    await expect.element(open).not.toBeInTheDocument();
+
+    await userEvent.click(trail.getByRole("button", { name: "Providers" }));
+
+    await expect.element(open).toBeVisible();
+    await expect.element(page.getByText("Display name")).not.toBeInTheDocument();
   });
 });
 

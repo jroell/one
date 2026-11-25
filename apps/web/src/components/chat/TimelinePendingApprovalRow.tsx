@@ -4,6 +4,8 @@ import {
 } from "@t3tools/client-runtime/state/thread-requests";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { ShieldIcon } from "lucide-react";
+import { useTurnItemDetail } from "../../state/queries";
+import { approvalPreviewFor } from "./approvalHunk";
 import { memo, use } from "react";
 import { type PendingApproval } from "../../session-logic";
 import { InlineButton } from "../ui/button";
@@ -101,13 +103,78 @@ function ApprovalSubjectLine({
   );
 }
 
+/** The first hunk of the exact change being approved, so the card shows what it asks for. */
+function ApprovalHunk({
+  subject,
+  onShowFullDiff,
+}: {
+  readonly subject: ApprovalSubject;
+  readonly onShowFullDiff: (() => void) | null;
+}) {
+  const gt = useGT();
+  const { activeThreadEnvironmentId, turnItemSource } = use(TimelineRowCtx);
+  // The wire item keeps no patch to stay small, so the exact matched item is fetched, as the
+  // diff panel does for "Show full diff".
+  const detail = useTurnItemDetail(
+    subject.diffStr === null && subject.diffTarget
+      ? { environmentId: activeThreadEnvironmentId, ...subject.diffTarget }
+      : null,
+    turnItemSource?.detail,
+  );
+  const fetched = detail.data?.item?.type === "file_change" ? detail.data.item : null;
+  const preview = approvalPreviewFor({
+    diffStr: subject.diffStr ?? fetched?.diffStr,
+    oldStr: fetched?.oldStr,
+    newStr: fetched?.newStr,
+  });
+  if (preview === null) return null;
+  return (
+    <div className="mt-1 min-w-0" data-approval-hunk="">
+      <div role="group" aria-label={gt("Change preview")} data-approval-hunk-lines="">
+        {preview.lines.map((line, index) => (
+          // A preview is a fixed, short list that never reorders.
+          // oxlint-disable-next-line react/no-array-index-key
+          <div key={index} data-kind={line.kind}>
+            <span aria-hidden data-approval-hunk-number="">
+              {line.number}
+            </span>
+            <span aria-hidden data-approval-hunk-sign="">
+              {line.kind === "add" ? "+" : line.kind === "delete" ? "−" : ""}
+            </span>
+            <code>{line.text || " "}</code>
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+        {preview.hidden > 0 ? (
+          <span>
+            {gt("{count, plural, one {{count} more line} other {{count} more lines}}", {
+              count: preview.hidden,
+            })}
+          </span>
+        ) : null}
+        {onShowFullDiff ? (
+          <InlineButton tone="muted" onClick={onShowFullDiff}>
+            <T>Show full diff</T>
+          </InlineButton>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalRow({
   approval,
 }: {
   approval: PendingApproval;
 }) {
-  const { respondingRequestIds, canOperateThread, onRespondToApproval, workspaceRoot } =
-    use(TimelineRowCtx);
+  const {
+    respondingRequestIds,
+    canOperateThread,
+    onRespondToApproval,
+    workspaceRoot,
+    onOpenToolDiff,
+  } = use(TimelineRowCtx);
   const subject = use(ApprovalSubjectContext).get(approval.requestId);
   const m = useMessages();
   const presentation = APPROVAL_PRESENTATION[approval.requestKind];
@@ -152,6 +219,16 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
         {subject && !isGenericFileChangePrompt(approval.detail) ? (
           <span className="text-muted-foreground select-text wrap-anywhere">{approval.detail}</span>
         ) : null}
+        {subject ? (
+          <ApprovalHunk
+            subject={subject}
+            onShowFullDiff={
+              onOpenToolDiff && subject.diffTarget
+                ? () => onOpenToolDiff(subject.diffTarget!)
+                : null
+            }
+          />
+        ) : null}
         {approval.reason ? (
           <span className="text-muted-foreground select-text wrap-anywhere">{approval.reason}</span>
         ) : null}
@@ -160,7 +237,7 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
             <>
               <span className="inline-flex items-center gap-1 text-warning">
                 <ShieldIcon aria-hidden className="size-3 shrink-0" />
-                <T>Waiting for approval</T>
+                <T>Needs approval</T>
               </span>
               {onRespondToApproval ? (
                 <ComposerPendingApprovalActions

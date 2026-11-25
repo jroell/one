@@ -155,6 +155,7 @@ import {
   retractVoiceBridge,
   voiceLevel,
   whileCommitted,
+  type VoiceSendReport,
 } from "~/one/voiceBridge";
 import {
   useEnvironmentSpeechInput,
@@ -384,8 +385,8 @@ export interface ChatComposerHandle {
 
 interface SubmitComposerOptions {
   readonly afterDictation?: boolean;
-  /** Told the message id when the turn request goes out with it; never when the send is abandoned. */
-  readonly onMessageSent?: (messageId: string) => void;
+  /** How a voice chat question went; set only by voice chat's own send. */
+  readonly voice?: VoiceSendReport;
 }
 
 export interface ChatComposerProps {
@@ -496,7 +497,7 @@ export interface ChatComposerProps {
     submissionIntent?: ComposerSubmissionIntent,
     directAnnotation?: undefined,
     detachedOverride?: undefined,
-    onMessageSent?: (messageId: string) => void,
+    voice?: VoiceSendReport,
   ) => void;
   captureDetachedSend?: () => (
     e?: { preventDefault: () => void },
@@ -510,7 +511,7 @@ export interface ChatComposerProps {
       readonly prompt: string;
       readonly sendContext: ReturnType<ChatComposerHandle["getSendContext"]>;
     },
-    onMessageSent?: (messageId: string) => void,
+    voice?: VoiceSendReport,
   ) => void;
   onResume: () => void;
   onInterrupt: () => void;
@@ -2325,13 +2326,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       options?: SubmitComposerOptions,
     ) => void
   >(() => {});
-  const submitComposer = (
+  const submitComposerNow = (
+    handoff: { done: boolean },
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
     options?: SubmitComposerOptions,
   ) => {
-    const onMessageSent = options?.onMessageSent;
+    const voice = options?.voice;
     if (voiceInputActive && !options?.afterDictation) {
       event?.preventDefault();
       const queuedOwnerKey = attachmentTargetKey;
@@ -2349,13 +2351,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       const capturedSendContext =
         capturedDetachedSend !== null ? (composerRef.current?.getSendContext() ?? null) : null;
       const capturedSubmissionTarget = submissionTarget;
+      handoff.done = true;
       submitAfterDictation((transcribedText) => {
         const stillLive =
           composerMountedRef.current && attachmentTargetKeyRef.current === queuedOwnerKey;
         if (stillLive) {
           submitComposerRef.current(dispatchMode, submissionIntent, {
             afterDictation: true,
-            ...(onMessageSent ? { onMessageSent } : {}),
+            ...(voice ? { voice } : {}),
           });
           return;
         }
@@ -2365,6 +2368,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           pendingDraftWork.has(queuedOwnerKey) ||
           countPreparingComposerImages(queuedOwnerKey) > 0
         ) {
+          voice?.notSent("none");
           return;
         }
         const liveTarget = resolveLiveComposerDraftTarget(capturedDraftTarget);
@@ -2400,7 +2404,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   prompt: transcribedText,
                 },
               },
-              onMessageSent,
+              voice,
             );
             return true;
           },
@@ -2446,6 +2450,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       submissionTarget,
       event,
       onSend: (sendEvent) => {
+        handoff.done = true;
         providerInputRejectedRef.current = false;
         onSend(
           sendEvent,
@@ -2459,7 +2464,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           submissionIntent,
           undefined,
           undefined,
-          onMessageSent,
+          voice,
         );
         return !providerInputRejectedRef.current;
       },
@@ -2472,6 +2477,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
     return true;
   };
+  // A voice chat send that ends here without reaching `onSend` still owes voice chat an answer.
+  const submitComposer = (
+    event?: { preventDefault: () => void },
+    dispatchMode?: ComposerDispatchMode,
+    submissionIntent?: ComposerSubmissionIntent,
+    options?: SubmitComposerOptions,
+  ) => {
+    const handoff = { done: false };
+    const result = submitComposerNow(handoff, event, dispatchMode, submissionIntent, options);
+    if (options?.voice && !handoff.done) options.voice.notSent("none");
+    return result;
+  };
   const submitComposerStable = useStableCallback(submitComposer);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed submission handler to the asynchronous dictation completion
   useLayoutEffect(() => {
@@ -2481,8 +2498,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const voiceStart = useStableCallback((signal?: AbortSignal) =>
     speechInput.startWithResult(signal ? { signal } : undefined),
   );
-  const voiceSubmit = useStableCallback((onSent: (messageId: string) => void) => {
-    submitComposerRef.current(undefined, undefined, { onMessageSent: onSent });
+  const voiceSubmit = useStableCallback((report: VoiceSendReport) => {
+    submitComposerRef.current(undefined, undefined, { voice: report });
   });
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
   // True when the draft with this key was sent and became the thread this composer now writes to.
@@ -2550,8 +2567,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         (await whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () =>
           voiceStart(signal),
         )) ?? "declined",
-      submit: (onSent) =>
-        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => voiceSubmit(onSent)),
+      submit: (report) =>
+        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => voiceSubmit(report)),
       cancel: voiceCancel,
     });
   }, [

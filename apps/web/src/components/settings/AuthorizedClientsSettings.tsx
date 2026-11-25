@@ -601,15 +601,35 @@ export function RevokeOtherClientsAction({
 }) {
   const gt = useGT();
   const [confirming, setConfirming] = useState(false);
+  // The button that had focus leaves the page with its branch. The next button to mount takes
+  // focus: Cancel when the question opens, the launcher when it closes.
+  const focusNextRef = useRef(false);
+  const takeFocus = (node: HTMLButtonElement | null) => {
+    if (node === null || !focusNextRef.current) return;
+    focusNextRef.current = false;
+    node.focus();
+  };
   const canRevoke = !isRevoking && canRevokeOtherClients(clientSessions);
+  const prompt = gt("Sign out every other client?");
   return (
     <div className="flex min-h-11 items-center justify-end gap-2 border-t border-(--settings-hairline) px-3 sm:px-4">
+      <span role="status" className="sr-only">
+        {confirming ? prompt : ""}
+      </span>
       {confirming ? (
         <>
-          <span className="me-auto text-xs text-(--settings-description)">
-            {gt("Sign out every other client?")}
+          <span aria-hidden className="me-auto text-xs text-(--settings-description)">
+            {prompt}
           </span>
-          <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+          <Button
+            ref={takeFocus}
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              focusNextRef.current = true;
+              setConfirming(false);
+            }}
+          >
             <T>Cancel</T>
           </Button>
           <Button
@@ -617,6 +637,7 @@ export function RevokeOtherClientsAction({
             variant="destructive-outline"
             disabled={!canRevoke}
             onClick={() => {
+              focusNextRef.current = true;
               setConfirming(false);
               onRevoke();
             }}
@@ -626,10 +647,14 @@ export function RevokeOtherClientsAction({
         </>
       ) : (
         <Button
+          ref={takeFocus}
           size="sm"
           variant="ghost-destructive"
           disabled={!canRevoke}
-          onClick={() => setConfirming(true)}
+          onClick={() => {
+            focusNextRef.current = true;
+            setConfirming(true);
+          }}
         >
           {isRevoking ? gt("Revoking…") : gt("Revoke others")}
         </Button>

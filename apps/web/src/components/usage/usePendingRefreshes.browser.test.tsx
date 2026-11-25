@@ -69,10 +69,35 @@ describe("usePendingRefreshes", () => {
     await screen.getByRole("button", { name: "refresh A" }).click();
     await expect.element(screen.getByLabelText("state")).toHaveTextContent("busy");
 
-    // The user selects only machines that are disconnected: the old refresh is not theirs.
     await screen.rerender(<Harness requests={requests} selected={[]} />);
     await expect.element(screen.getByLabelText("state")).toHaveTextContent("idle");
     await screen.rerender(<Harness requests={requests} selected={["B"]} />);
     await expect.element(screen.getByLabelText("state")).toHaveTextContent("idle");
+
+    await act(async () => {
+      a.settle();
+      await a.promise;
+    });
+  });
+
+  it("still shows a refresh as pending after the page closes and reopens, until it settles", async () => {
+    const held = deferred();
+    const requests = { reopen: held.promise };
+    const first = await render(<Harness requests={requests} selected={["reopen"]} />, {
+      router: false,
+    });
+    await first.getByRole("button", { name: "refresh reopen" }).click();
+    await first[Symbol.asyncDispose]();
+
+    await using second = await render(<Harness requests={{}} selected={["reopen"]} />, {
+      router: false,
+    });
+    await expect.element(second.getByLabelText("state")).toHaveTextContent("busy");
+
+    await act(async () => {
+      held.settle();
+      await held.promise;
+    });
+    await expect.element(second.getByLabelText("state")).toHaveTextContent("idle");
   });
 });

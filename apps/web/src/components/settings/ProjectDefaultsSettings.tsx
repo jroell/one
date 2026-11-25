@@ -32,6 +32,7 @@ import { useSearchableSetting } from "./settingsSearch";
 import { useSettingsScope } from "./SettingsScopeContext";
 import {
   SETTINGS_PICKER_TRIGGER_CLASSNAME,
+  SettingsPickerField,
   SettingResetButton,
   SettingsRow,
   SettingsSection,
@@ -170,45 +171,49 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       control={
         selection ? (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-            <ProviderModelPicker
-              environmentId={representative?.environmentId ?? null}
-              activeInstanceId={selection.instanceId}
-              model={selection.model}
-              lockedProvider={null}
-              instanceEntries={entries}
-              modelOptionsByInstance={modelOptions}
-              triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-              {...(mixedModel
-                ? {
-                    triggerLabel: automaticModel
-                      ? gt("Automatic (mixed)")
-                      : gt("Mixed", { $context: "values differ across targets" }),
-                  }
-                : {})}
-              getModelDisabledReason={modelDisabledReason}
-              onOpenProviderSetup={(instanceId) => {
-                if (representative)
-                  void navigate({
-                    to: "/settings/providers",
-                    search: { environmentId: representative.environmentId, instanceId },
-                  });
-              }}
-              onInstanceModelChange={(instanceId, model) =>
-                setModel(pickModelSelection(mixedModel ? null : selection, instanceId, model))
-              }
-            />
-            {!mixedModel && !presentation.providerNote && !effortDisabledReason && activeEntry ? (
-              <TraitsPicker
-                provider={activeEntry.driverKind}
-                models={activeEntry.models}
+            <SettingsPickerField label={gt("Model")}>
+              <ProviderModelPicker
+                environmentId={representative?.environmentId ?? null}
+                activeInstanceId={selection.instanceId}
                 model={selection.model}
-                modelOptions={selection.options ?? []}
-                allowPromptInjectedEffort={false}
+                lockedProvider={null}
+                instanceEntries={entries}
+                modelOptionsByInstance={modelOptions}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                onModelOptionsChange={(options) =>
-                  setModel(createModelSelection(selection.instanceId, selection.model, options))
+                {...(mixedModel
+                  ? {
+                      triggerLabel: automaticModel
+                        ? gt("Automatic (mixed)")
+                        : gt("Mixed", { $context: "values differ across targets" }),
+                    }
+                  : {})}
+                getModelDisabledReason={modelDisabledReason}
+                onOpenProviderSetup={(instanceId) => {
+                  if (representative)
+                    void navigate({
+                      to: "/settings/providers",
+                      search: { environmentId: representative.environmentId, instanceId },
+                    });
+                }}
+                onInstanceModelChange={(instanceId, model) =>
+                  setModel(pickModelSelection(mixedModel ? null : selection, instanceId, model))
                 }
               />
+            </SettingsPickerField>
+            {!mixedModel && !presentation.providerNote && !effortDisabledReason && activeEntry ? (
+              <SettingsPickerField label={gt("Effort")}>
+                <TraitsPicker
+                  provider={activeEntry.driverKind}
+                  models={activeEntry.models}
+                  model={selection.model}
+                  modelOptions={selection.options ?? []}
+                  allowPromptInjectedEffort={false}
+                  triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                  onModelOptionsChange={(options) =>
+                    setModel(createModelSelection(selection.instanceId, selection.model, options))
+                  }
+                />
+              </SettingsPickerField>
             ) : null}
           </div>
         ) : (
@@ -289,58 +294,62 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       control={
         fallbackSelection ? (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-            <ProviderModelPicker
-              environmentId={representative?.environmentId ?? null}
-              activeInstanceId={fallbackSelection.instanceId}
-              model={fallbackSelection.model}
-              lockedProvider={null}
-              instanceEntries={entries}
-              modelOptionsByInstance={fallbackModelOptions}
-              triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-              triggerAriaLabel={gt("Fallback model")}
-              {...(mixedFallback
-                ? { triggerLabel: gt("Mixed", { $context: "values differ across targets" }) }
-                : settings.fallbackModelSelection === null
-                  ? { triggerLabel: gt("None", { $context: "no fallback model" }) }
-                  : {})}
-              getModelDisabledReason={modelDisabledReason}
-              onInstanceModelChange={(instanceId, model) => {
-                const reason = modelDisabledReason(instanceId, model);
-                if (reason) {
-                  toastManager.add({
-                    type: "error",
-                    title: gt("Fallback model not saved"),
-                    description: reason,
-                  });
-                  return;
-                }
-                updateSettings({
-                  fallbackModelSelection: pickModelSelection(
-                    mixedFallback ? null : settings.fallbackModelSelection,
-                    instanceId,
-                    model,
-                  ),
-                });
-              }}
-            />
-            {settings.fallbackModelSelection !== null && fallbackEntry && !mixedFallback ? (
-              <TraitsPicker
-                provider={fallbackEntry.driverKind}
-                models={fallbackEntry.models}
+            <SettingsPickerField label={gt("Model")}>
+              <ProviderModelPicker
+                environmentId={representative?.environmentId ?? null}
+                activeInstanceId={fallbackSelection.instanceId}
                 model={fallbackSelection.model}
-                modelOptions={fallbackSelection.options ?? []}
-                allowPromptInjectedEffort={false}
+                lockedProvider={null}
+                instanceEntries={entries}
+                modelOptionsByInstance={fallbackModelOptions}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                onModelOptionsChange={(options) =>
+                triggerAriaLabel={gt("Fallback model")}
+                {...(mixedFallback
+                  ? { triggerLabel: gt("Mixed", { $context: "values differ across targets" }) }
+                  : settings.fallbackModelSelection === null
+                    ? { triggerLabel: gt("None", { $context: "no fallback model" }) }
+                    : {})}
+                getModelDisabledReason={modelDisabledReason}
+                onInstanceModelChange={(instanceId, model) => {
+                  const reason = modelDisabledReason(instanceId, model);
+                  if (reason) {
+                    toastManager.add({
+                      type: "error",
+                      title: gt("Fallback model not saved"),
+                      description: reason,
+                    });
+                    return;
+                  }
                   updateSettings({
-                    fallbackModelSelection: createModelSelection(
-                      fallbackSelection.instanceId,
-                      fallbackSelection.model,
-                      options,
+                    fallbackModelSelection: pickModelSelection(
+                      mixedFallback ? null : settings.fallbackModelSelection,
+                      instanceId,
+                      model,
                     ),
-                  })
-                }
+                  });
+                }}
               />
+            </SettingsPickerField>
+            {settings.fallbackModelSelection !== null && fallbackEntry && !mixedFallback ? (
+              <SettingsPickerField label={gt("Effort")}>
+                <TraitsPicker
+                  provider={fallbackEntry.driverKind}
+                  models={fallbackEntry.models}
+                  model={fallbackSelection.model}
+                  modelOptions={fallbackSelection.options ?? []}
+                  allowPromptInjectedEffort={false}
+                  triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                  onModelOptionsChange={(options) =>
+                    updateSettings({
+                      fallbackModelSelection: createModelSelection(
+                        fallbackSelection.instanceId,
+                        fallbackSelection.model,
+                        options,
+                      ),
+                    })
+                  }
+                />
+              </SettingsPickerField>
             ) : null}
           </div>
         ) : (

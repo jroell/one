@@ -1,6 +1,8 @@
 import type { RuntimeRequestId } from "@t3tools/contracts";
+import { turnItemDetailRevision } from "@t3tools/client-runtime/work-log/item-detail";
 import { createContext } from "react";
 
+import type { ToolCallDiffTarget } from "~/diffPanelStore";
 import type { TimelineEntry } from "~/session-logic";
 
 /** What a file change approval asks to change, read from the file change item it names. */
@@ -10,6 +12,10 @@ export interface ApprovalSubject {
   readonly moreFiles: number;
   readonly additions: number | null;
   readonly deletions: number | null;
+  /** The matched change's own patch, when the item carries one. */
+  readonly diffStr: string | null;
+  /** Opens the full diff for exactly this change. */
+  readonly diffTarget: ToolCallDiffTarget | null;
 }
 
 const NO_SUBJECTS: ReadonlyMap<RuntimeRequestId, ApprovalSubject> = new Map();
@@ -40,6 +46,12 @@ export function deriveApprovalSubjects(
         moreFiles: Math.max(0, files - 1),
         additions: item.additions ?? null,
         deletions: item.deletions ?? null,
+        diffStr: item.diffStr?.trim() ? item.diffStr : null,
+        diffTarget: {
+          threadId: entry.entry.projectedItem?.sourceThreadId ?? item.threadId,
+          itemId: entry.entry.projectedItem?.sourceItemId ?? item.id,
+          revision: turnItemDetailRevision(item),
+        },
       });
     } else if (
       item.type === "approval_request" &&

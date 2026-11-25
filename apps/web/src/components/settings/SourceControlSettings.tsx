@@ -127,25 +127,30 @@ function SourceControlItemMark({
 }: {
   readonly item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem;
 }) {
-  const dotClassName = itemStatusDot(item);
   const icon = sourceControlItemIcon(item);
 
   if (!icon) {
-    return <span className={cn("size-2 shrink-0 rounded-full", dotClassName)} aria-hidden />;
+    return <span className={cn("size-2 shrink-0 rounded-full", itemStatusDot(item))} aria-hidden />;
   }
 
-  return (
-    <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
-      {icon}
-      <span
-        className={cn(
-          "pointer-events-none absolute -left-0.5 -top-0.5 size-2 rounded-full ring-2 ring-background",
-          dotClassName,
-        )}
-        aria-hidden
-      />
-    </span>
-  );
+  return <span className="inline-flex size-5 shrink-0 items-center justify-center">{icon}</span>;
+}
+
+/** What the row's tool is doing, as one chip beside its name. */
+function itemStatusChip(
+  item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem,
+  resolve: MessageResolver,
+): { readonly label: string; readonly variant: "success" | "warning" | "secondary" } | null {
+  if (isVcsNotReady(item)) return { label: resolve(msg("Coming soon")), variant: "warning" };
+  if (item.status !== "available") {
+    return { label: resolve(msg("Not available")), variant: "warning" };
+  }
+  if (!isProviderDiscoveryItem(item)) {
+    return { label: resolve(msg("Available")), variant: "success" };
+  }
+  const auth = authPresentation(item.auth, resolve);
+  if (item.auth.status === "authenticated") return { label: auth.label, variant: "success" };
+  return auth.badge ? { label: auth.label, variant: auth.badge } : null;
 }
 
 function itemSummary({
@@ -250,14 +255,10 @@ function itemSummary({
     );
   }
 
-  return (
-    <span>
-      <T>Available</T>
-    </span>
-  );
+  return null;
 }
 
-function DiscoveryItemRow({
+export function DiscoveryItemRow({
   item,
   offered,
   children,
@@ -275,8 +276,9 @@ function DiscoveryItemRow({
   const gt = useGT();
   const version = optionLabel(item.version);
   const auth = isProviderDiscoveryItem(item) ? item.auth : null;
-  const authStatus = auth ? authPresentation(auth, messages) : null;
   const authAccount = auth ? optionLabel(auth.account) : null;
+  const statusChip = itemStatusChip(item, messages);
+  const summary = itemSummary({ item, auth, authAccount, resolve: messages });
   const [isExpanded, setIsExpanded] = useState(false);
   const hasDetails = children !== undefined;
   const searchTargetId = useSettingsSearchTargetId();
@@ -288,33 +290,29 @@ function DiscoveryItemRow({
   if (seenSearchTargetId !== searchTargetId) setSeenSearchTargetId(searchTargetId);
 
   return (
-    <div
-      className={cn(
-        "first:rounded-t-xl last:rounded-b-xl transition-colors hover:bg-muted/20",
-        isVcsNotReady(item) && "opacity-80",
-      )}
-    >
+    <div className={cn("first:rounded-t-xl last:rounded-b-xl transition-colors hover:bg-muted/20")}>
       <div className="px-3 py-3 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <SourceControlItemMark item={item} />
               <span className="truncate text-sm font-medium text-foreground">{item.label}</span>
-              {version ? <code className="text-xs text-muted-foreground">{version}</code> : null}
-              {isVcsNotReady(item) ? (
-                <Badge variant="warning" size="sm">
-                  <T>Coming Soon</T>
-                </Badge>
+              {version ? (
+                <span className="text-xs tabular-nums text-(--settings-description)">
+                  {version}
+                </span>
               ) : null}
-              {authStatus?.badge ? (
-                <Badge variant={authStatus.badge} size="sm">
-                  {authStatus.label}
+              {statusChip ? (
+                <Badge variant={statusChip.variant} size="sm">
+                  {statusChip.label}
                 </Badge>
               ) : null}
             </div>
-            <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs leading-normal text-muted-foreground/80">
-              {itemSummary({ item, auth, authAccount, resolve: messages })}
-            </p>
+            {summary ? (
+              <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs leading-normal text-(--settings-description)">
+                {summary}
+              </p>
+            ) : null}
           </div>
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">
             {hasDetails ? (
@@ -348,12 +346,6 @@ function DiscoveryItemRow({
                   <T>Offer when adding or publishing a project</T>
                 </TooltipPopup>
               </Tooltip>
-            ) : !isVcsNotReady(item) ? (
-              <Switch
-                checked={item.status === "available"}
-                disabled
-                aria-label={`${item.label} availability`}
-              />
             ) : null}
           </div>
         </div>

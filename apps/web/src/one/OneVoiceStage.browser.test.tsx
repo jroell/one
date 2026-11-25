@@ -12,6 +12,7 @@ import {
   publishVoiceBridge,
   retractVoiceBridge,
   voiceLevel,
+  type VoiceSendReport,
 } from "./voiceBridge";
 import { getVoiceChatStyle, setVoiceChatStyle, useVoiceChatStyle } from "./voiceChatPreferences";
 import {
@@ -22,7 +23,10 @@ import {
 } from "./voiceSession";
 import { setWorkspaceMode } from "./workspaceMode";
 
-const saved = vi.hoisted(() => ({ rows: [] as ReadonlyArray<unknown> }));
+const saved = vi.hoisted(() => ({
+  rows: [] as ReadonlyArray<unknown>,
+  runs: [] as ReadonlyArray<{ id: string; userMessageId: string; status: string }>,
+}));
 // A saved thread's turn items come from the app's state; the test supplies them directly.
 vi.mock(import("../state/entities"), async (original) => {
   const actual = await original();
@@ -30,6 +34,10 @@ vi.mock(import("../state/entities"), async (original) => {
     ...actual,
     useThreadVisibleTurnItems: ((ref: ScopedThreadRef | null) =>
       ref === null ? actual.useThreadVisibleTurnItems(null) : saved.rows) as never,
+    useQuietThreadProjection: ((ref: ScopedThreadRef | null) =>
+      ref === null
+        ? actual.useQuietThreadProjection(null)
+        : { environmentId: "env-1", projection: { runs: saved.runs } }) as never,
   };
 });
 const SAVED_THREAD = { environmentId: "env-1", threadId: "thread-a" } as unknown as ScopedThreadRef;
@@ -65,6 +73,7 @@ type MicrophonePhase =
 /** Stands in for the main composer's dictation: the microphone is the boundary being faked. */
 function setup() {
   saved.rows = [];
+  saved.runs = [];
   const microphone = {
     phase: "idle" as MicrophonePhase,
     threadKey: "thread-a",
@@ -79,7 +88,7 @@ function setup() {
     /** A start that was requested and has not begun recording (the permission prompt is open). */
     pendingStart: false,
     /** Told the message id when the composer sends the transcript; the real composer's own send is tested with the app. */
-    onSent: null as ((messageId: string) => void) | null,
+    report: null as VoiceSendReport | null,
     holdStarts: false,
     /** The start waits on a speech status check that has not answered yet; the recorder reports idle. */
     pendingStatus: null as AbortSignal | null,
@@ -129,9 +138,9 @@ function setup() {
         publish();
         return Promise.resolve("started");
       },
-      submit: (onSent) => {
+      submit: (report) => {
         microphone.submits += 1;
-        microphone.onSent = onSent;
+        microphone.report = report;
         microphone.phase = "transcribing";
         publish();
       },
@@ -152,8 +161,14 @@ function setup() {
     /** The transcript arrived and the composer sent it under `messageId`, as it does after dictation. */
     finishTranscribing: (messageId: string = QUESTION.id) =>
       act(() => {
-        microphone.onSent?.(messageId);
-        microphone.onSent = null;
+        microphone.report?.sent(messageId);
+        microphone.phase = "idle";
+        publish();
+      }),
+    /** The composer finished dictation without a request: it reports how the send ended instead. */
+    endSend: (end: (report: VoiceSendReport) => void) =>
+      act(() => {
+        if (microphone.report) end(microphone.report);
         microphone.phase = "idle";
         publish();
       }),
@@ -806,6 +821,10 @@ function savedQuestion(itemId: string, messageId: string, text: string, runId: s
   };
 }
 
+function savedRun(id: string, userMessageId: string, status: string) {
+  return { id, userMessageId, status };
+}
+
 function savedReply(itemId: string, text: string, runId: string) {
   return {
     position: 0,
@@ -831,8 +850,10 @@ it("voice chat reads the reply to a question the composer sent with an effort pr
     "run-1",
   );
   saved.rows = [question];
+  saved.runs = [savedRun("run-1", "message-1", "running")];
   await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
   saved.rows = [question, savedReply("item-2", "Light bends inside each drop.", "run-1")];
+  saved.runs = [savedRun("run-1", "message-1", "completed")];
   await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
 
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
@@ -857,20 +878,120 @@ it("voice chat does not read another client's answer to a prompt with the same w
     savedReply("item-10", "It is noon.", "run-other"),
   ];
   saved.rows = other;
+  saved.runs = [savedRun("run-other", "message-9", "completed")];
   await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
   expect(voice.spoken).toEqual([]);
 
   const own = savedQuestion("item-1", "message-1", "why is the sky blue", "run-1");
   saved.rows = [...other, own];
+  saved.runs = [...saved.runs, savedRun("run-1", "message-1", "running")];
   await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
   saved.rows = [...other, own, savedReply("item-2", "Light bends inside each drop.", "run-1")];
+  saved.runs = [saved.runs[0]!, savedRun("run-1", "message-1", "completed")];
   await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
 
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
   expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
     "Light bends inside each drop.",
   ]);
+});
+
+const stageOf = (screen: { getByRole: (role: "dialog", options: { name: string }) => unknown }) =>
+  (screen.getByRole("dialog", { name: "Voice chat" }) as { element: () => Element }).element();
+
+it("voice chat keeps waiting for a question queued behind a running turn, and reads its late answer", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+  const other = savedQuestion("item-9", "message-9", "what time is it", "run-other");
+  const queued = savedQuestion("item-1", "message-q", "why is the sky blue", "run-q");
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  // Another client's turn is running when the question goes in, so the question queues behind it.
+  saved.rows = [other, queued];
+  saved.runs = [
+    savedRun("run-other", "message-9", "running"),
+    savedRun("run-q", "message-q", "queued"),
+  ];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+
+  // The other turn ends and the queued one has not started: nothing of ours is over.
+  saved.runs = [
+    savedRun("run-other", "message-9", "completed"),
+    savedRun("run-q", "message-q", "queued"),
+  ];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(10_000));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+
+  saved.rows = [other, queued, savedReply("item-2", "Light bends inside each drop.", "run-q")];
+  saved.runs = [
+    savedRun("run-other", "message-9", "completed"),
+    savedRun("run-q", "message-q", "completed"),
+  ];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "speaking");
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
+    "Light bends inside each drop.",
+  ]);
+});
+
+it("voice chat does not move to thinking when another client's run starts before its own request exists", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.movePhase("idle");
+  saved.rows = [savedQuestion("item-9", "message-9", "what time is it", "run-other")];
+  saved.runs = [savedRun("run-other", "message-9", "running")];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "sending");
+
+  // Its own request goes out and shows up in the thread: now the turn is its own.
+  await voice.finishTranscribing("message-1");
+  saved.rows = [
+    ...saved.rows,
+    savedQuestion("item-1", "message-1", "why is the sky blue", "run-1"),
+  ];
+  saved.runs = [...saved.runs, savedRun("run-1", "message-1", "queued")];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+});
+
+it("voice chat listens again with the server's reason when the turn request is rejected", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing("message-1");
+  await voice.endSend((report) => report.rejected("Attachment 'a.png' cannot be sent."));
+
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+  expect(screen.getByText("Attachment 'a.png' cannot be sent.").element()).toBeVisible();
+  expect(screen.getByRole("button", { name: "Try the microphone again" }).element()).toBeVisible();
+});
+
+it("voice chat says a question that became a side chat has no reply to read, and listens again", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.endSend((report) => report.notSent("side-chat"));
+
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+  expect(
+    screen.getByText("That went to a side chat, so there is no reply to read here").element(),
+  ).toBeVisible();
 });
 
 it("voice chat does not read a later row from a run it already read, and listens again instead", async () => {

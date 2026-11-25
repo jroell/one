@@ -10,13 +10,14 @@ import { AppRoot } from "~/AppRoot";
 // The route loads ChatView lazily, and its first transform takes seconds; import it here.
 import "~/components/ChatView";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
-import { getVoiceBridge } from "~/one/voiceBridge";
+import { getVoiceBridge, type VoiceSendReport } from "~/one/voiceBridge";
 import { getRouter } from "~/router";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { draftFanoutSelectionsAtom } from "./chatViewSend";
 import {
   ENVIRONMENT_ID,
   dispatchedCommands,
+  rejectPendingCommand,
   emitThreadEvent,
   installFakeEnvironment,
   isThreadSubscribed,
@@ -46,9 +47,16 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
 }));
 
 /** The thread view the way voice chat finds it: the real composer, with the spoken words typed in. */
-async function openThread(name: string, followUpBehavior: "queue" | "steer") {
+async function openThread(
+  name: string,
+  followUpBehavior: "queue" | "steer",
+  holdTurnRequests = false,
+) {
   const thread = threadWithHistory(name, 1);
-  const environment = installFakeEnvironment([thread], { acceptCommands: true });
+  const environment = installFakeEnvironment([thread], {
+    acceptCommands: true,
+    holdCommand: (command) => holdTurnRequests && command.type === "message.dispatch",
+  });
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,
     onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
@@ -87,26 +95,41 @@ function dispatchedMessages() {
   );
 }
 
+/** A report that records which call the composer made, so a test waits for the composer's own answer. */
+function voiceReport(): VoiceSendReport & { readonly calls: Array<readonly [string, unknown]> } {
+  const calls: Array<readonly [string, unknown]> = [];
+  return {
+    calls,
+    sent: (messageId) => void calls.push(["sent", messageId]),
+    rejected: (message) => void calls.push(["rejected", message]),
+    notSent: (destination) => void calls.push(["notSent", destination]),
+  };
+}
+
 async function speak(words: string) {
   const editor = page.getByTestId("composer-editor");
   await userEvent.click(editor);
-  await userEvent.type(editor, words);
+  if (words !== "") await userEvent.type(editor, words);
+  return submitVoice();
+}
+
+function submitVoice() {
   const bridge = getVoiceBridge();
   if (bridge === null) throw new Error("The main composer published no voice controls");
-  const onSent = vi.fn<(messageId: string) => void>();
-  bridge.submit(onSent);
-  return onSent;
+  const report = voiceReport();
+  bridge.submit(report);
+  return report;
 }
 
 it("voice chat learns the id of the message the composer sends to an idle thread", async () => {
   await using _app = await openThread("voice-idle", "queue");
 
-  const onSent = await speak("why is the sky blue");
+  const report = await speak("why is the sky blue");
 
   await vi.waitFor(() => expect(dispatchedMessages()).toHaveLength(1));
   const [sent] = dispatchedMessages();
   expect(sent).toMatchObject({ text: "why is the sky blue", mode: "start_immediately" });
-  expect(onSent).toHaveBeenCalledExactlyOnceWith(sent!.messageId);
+  expect(report.calls).toEqual([["sent", sent!.messageId]]);
 });
 
 it.each([
@@ -132,7 +155,7 @@ it.each([
     });
     await expect.element(page.getByText("Keep going", { exact: true })).toBeVisible();
 
-    const onSent = await speak("and the sunset");
+    const report = await speak("and the sunset");
 
     await vi.waitFor(() => expect(dispatchedMessages()).toHaveLength(1));
     const [sent] = dispatchedMessages();
@@ -141,24 +164,40 @@ it.each([
         ? { text: "and the sunset", mode: "queue_after_active" }
         : { text: "and the sunset", mode: "start_immediately", delivery: "steer" },
     );
-    expect(onSent).toHaveBeenCalledExactlyOnceWith(sent!.messageId);
+    expect(report.calls).toEqual([["sent", sent!.messageId]]);
   },
 );
 
-it("voice chat is told nothing when the composer ends the send before any turn request goes out", async () => {
+it("voice chat is told the composer sent nothing when the draft is empty", async () => {
   await using _app = await openThread("voice-empty", "queue");
-  const editor = page.getByTestId("composer-editor");
-  await userEvent.click(editor);
-  const bridge = getVoiceBridge();
-  if (bridge === null) throw new Error("The main composer published no voice controls");
-  const onSent = vi.fn<(messageId: string) => void>();
 
-  // Nothing was dictated, so the draft is empty and the composer sends nothing.
-  bridge.submit(onSent);
-  await vi.waitFor(() => expect(editor.element()).toBeVisible());
+  const report = await speak("");
 
+  await vi.waitFor(() => expect(report.calls).toEqual([["notSent", "none"]]));
   expect(dispatchedMessages()).toEqual([]);
-  expect(onSent).not.toHaveBeenCalled();
+});
+
+it("voice chat is told when the server refuses the turn request, after it learned the id", async () => {
+  await using _app = await openThread("voice-refused", "queue", true);
+
+  const report = await speak("why is the sky blue");
+  await vi.waitFor(() => expect(dispatchedMessages()).toHaveLength(1));
+  await rejectPendingCommand("Attachment 'sample.png' cannot be sent.");
+
+  await vi.waitFor(() => expect(report.calls).toHaveLength(2));
+  expect(report.calls).toEqual([
+    ["sent", dispatchedMessages()[0]!.messageId],
+    ["rejected", expect.stringContaining("Attachment 'sample.png' cannot be sent.")],
+  ]);
+});
+
+it("voice chat is told when the question became a side chat, with no turn request for its thread", async () => {
+  await page.viewport(1400, 900);
+  await using _app = await openThread("voice-side", "queue");
+
+  const report = await speak("/side what is this?");
+
+  await vi.waitFor(() => expect(report.calls).toEqual([["notSent", "side-chat"]]));
 });
 
 it("voice chat is not offered while the composer would fan the question out to several models", async () => {

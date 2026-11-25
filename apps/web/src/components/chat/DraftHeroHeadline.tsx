@@ -57,12 +57,15 @@ interface PickerItem {
 }
 
 interface DraftHeroHeadlineProps {
+  /** Lays the headline out as the empty thread's welcome does: the shared title, the project below. */
+  readonly welcome?: boolean;
   readonly draftId: DraftId | null;
   readonly activeProjectRef: ScopedProjectRef | null;
   readonly activeProjectTitle: string | null;
 }
 
 export function DraftHeroHeadline({
+  welcome = false,
   draftId,
   activeProjectRef,
   activeProjectTitle,
@@ -354,6 +357,21 @@ export function DraftHeroHeadline({
         machineLabel={environment?.label ?? null}
         serverVersion={environment?.serverConfig?.environment.serverVersion ?? null}
       />
+    );
+  }
+
+  if (welcome && hasResolvedProject && !isScratchDraft) {
+    return (
+      <>
+        <h1 className="one-chat-welcome-title">
+          <T>What are we building?</T>
+        </h1>
+        {/* The project is a quiet caption with its picker, and the way out of it sits beside it. */}
+        <p className="one-chat-welcome-lead pointer-events-auto flex flex-wrap items-center justify-center gap-x-2">
+          {projectSelector}
+          {orStartWithoutProject}
+        </p>
+      </>
     );
   }
 

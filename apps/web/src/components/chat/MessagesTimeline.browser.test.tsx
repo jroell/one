@@ -299,20 +299,31 @@ describe("MessagesTimeline work rows", () => {
     });
   });
 
-  it("puts the One ring beside a finished turn's final answer and nowhere else", async () => {
-    const runId = RunId.make("answer-run");
+  it("opens every assistant turn with one ring: on the worked-for line when there is one", async () => {
+    const withWork = RunId.make("work-run");
+    const withoutWork = RunId.make("plain-run");
     await using screen = await renderTimeline([
       message("Question", {}, "question"),
-      message("Progress", { role: "assistant", runId }, "progress"),
-      message("Final answer text", { role: "assistant", runId }, "final"),
+      message("Progress", { role: "assistant", runId: withWork }, "progress"),
+      message("Final answer text", { role: "assistant", runId: withWork }, "final"),
+      message("Follow up", {}, "follow-up"),
+      message("A plain reply", { role: "assistant", runId: withoutWork }, "plain"),
     ]);
-    await expect.element(screen.getByText("Final answer text", { exact: true })).toBeVisible();
-    const marks = screen.container.querySelectorAll("[data-one-answer-mark]");
-    expect(marks).toHaveLength(1);
-    const answer = marks[0]!.closest("[data-one-answer]")!;
-    expect(answer.textContent).toContain("Final answer text");
-    // The column holds for every assistant message, so the ring arriving moves no text.
-    expect(answer.hasAttribute("data-one-assistant")).toBe(true);
+    await expect.element(screen.getByText("A plain reply", { exact: true })).toBeVisible();
+    const marks = [...screen.container.querySelectorAll("[data-one-answer-mark]")];
+    expect(marks).toHaveLength(2);
+    const fold = screen.container.querySelector("[data-one-turn-start]")!;
+    expect(fold.querySelector("[data-one-answer-mark]")).not.toBeNull();
+    expect(fold.textContent).toMatch(/^Worked/);
+    // The turn that did no work has no fold, so its first reply carries the ring.
+    const reply = marks
+      .find((mark) => mark.closest("[data-one-answer]"))!
+      .closest("[data-one-answer]")!;
+    expect(reply.textContent).toContain("A plain reply");
+    // The answer under a fold carries none, and every assistant message keeps one column.
+    const finalAnswer = screen.getByText("Final answer text", { exact: true }).element();
+    expect(finalAnswer.closest("[data-one-answer]")).toBeNull();
+    expect(finalAnswer.closest("[data-one-assistant]")).not.toBeNull();
   });
 
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
@@ -2555,7 +2566,7 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
   await expect
     .element(screen.getByRole("group", { name: "Command approval" }))
     .not.toBeInTheDocument();
-  await vi.waitFor(() => expect(screen.text()).not.toContain("Waiting for approval"));
+  await vi.waitFor(() => expect(screen.text()).not.toContain("Needs approval"));
   await screen.getByRole("button", { expanded: false }).click();
   await expect
     .element(screen.getByRole("button", { name: approvals[0]!.detail!, exact: true }))

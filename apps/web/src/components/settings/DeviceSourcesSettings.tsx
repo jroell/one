@@ -668,6 +668,22 @@ function SourcePlatforms(props: { row: SourceRow }) {
   ).map((entry) => <PlatformIcon key={entry.platform} {...entry} row={props.row} known={known} />);
 }
 
+/** The platforms a source offers, or a plain word for why none are shown yet. */
+function SourcePlatformsOrStatus(props: { row: SourceRow }) {
+  const reported = props.row.environments.some(
+    (environment) => environment.added && environment.platforms !== undefined,
+  );
+  return reported ? (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <SourcePlatforms row={props.row} />
+    </div>
+  ) : (
+    <span className="shrink-0 text-xs text-muted-foreground">
+      <T>Not checked yet</T>
+    </span>
+  );
+}
+
 function PlatformIcon(props: {
   platform: DevicePlatform;
   label: string;
@@ -809,7 +825,7 @@ function PlatformIcon(props: {
   );
 }
 
-function DeviceSourceRow(props: { row: SourceRow }) {
+export function DeviceSourceRow(props: { row: SourceRow }) {
   const { row } = props;
   const several = row.environments.length > 1;
   const issues = row.environments.filter(
@@ -819,17 +835,24 @@ function DeviceSourceRow(props: { row: SourceRow }) {
   const problems = issues.filter((environment) => environment.status.tone !== "pending");
   const pending = issues.find((environment) => environment.status.tone === "pending");
   return (
-    <div className="flex items-center gap-3 border-t border-border/60 px-3 py-3 first:border-t-0 sm:px-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-sm font-medium">{row.title}</p>
+    <div className="flex min-h-14 items-center gap-3 border-t border-border/60 px-3 py-3 first:border-t-0 sm:px-4">
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex min-h-5 min-w-0 items-center gap-1.5">
+          <p data-settings-row-title="" className="truncate text-sm font-medium">
+            {row.title}
+          </p>
           {row.kind ? (
             <span className="shrink-0 rounded border border-border px-1 text-3xs uppercase tracking-wide text-muted-foreground">
               {row.kind}
             </span>
           ) : null}
         </div>
-        <p className="truncate text-xs text-muted-foreground">{row.description}</p>
+        <p
+          data-settings-row-description=""
+          className="text-xs text-pretty text-muted-foreground [overflow-wrap:anywhere]"
+        >
+          {row.description}
+        </p>
         {problems.map((environment) => (
           <p
             key={environment.environmentId}
@@ -874,9 +897,7 @@ function DeviceSourceRow(props: { row: SourceRow }) {
           {pending.status.label}
         </span>
       ) : (
-        <div className="flex shrink-0 items-center gap-0.5">
-          <SourcePlatforms row={row} />
-        </div>
+        <SourcePlatformsOrStatus row={row} />
       )}
       {row.actions ? <div className="flex shrink-0 items-center gap-1">{row.actions}</div> : null}
     </div>

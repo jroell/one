@@ -21,6 +21,10 @@ import {
   useClearNoMatchSearchOnEscape,
   useSettingsSearchHasNoResults,
 } from "../components/settings/SettingsSearchContext";
+import {
+  trimTrailingSlashes,
+  useSettingsPathname,
+} from "../components/settings/useSettingsPathname";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
 import { SettingsPageContainer } from "../components/settings/settingsLayout";
 import {
@@ -51,6 +55,13 @@ function RestoreDeviceDefaultsButton({ onRestored }: { onRestored: () => void })
     </Button>
   );
 }
+
+/** Pages that read one environment at a time, so the scope bar never offers all of them. */
+const SINGLE_ENVIRONMENT_PATHS: ReadonlySet<string> = new Set([
+  "/settings/providers",
+  "/settings/secrets",
+  "/settings/diagnostics",
+]);
 
 function SettingsScopeBoundary({ pathname, children }: { pathname: string; children: ReactNode }) {
   const { scope, connectedEnvironments } = useSettingsScope();
@@ -150,10 +161,10 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
 function SettingsContentLayout() {
   const gt = useGT();
   const contentArea = workspaceAreaProps("settings", 1, gt("Settings content"));
-  const location = useLocation();
+  const pathname = useSettingsPathname();
   const { search, environment } = useSettingsScope();
   const contentScopeKey =
-    location.pathname === "/settings/diagnostics" || location.pathname === "/settings/providers"
+    pathname === "/settings/diagnostics" || pathname === "/settings/providers"
       ? environment?.environmentId
       : JSON.stringify(search);
   const [restoreSignal, setRestoreSignal] = useState(0);
@@ -163,15 +174,15 @@ function SettingsContentLayout() {
   return (
     <AppRouteModal label={gt("Settings")} onEscape={clearSearchOnEscape}>
       <div className="relative flex min-h-0 flex-1">
-        <SettingsSidebarNav pathname={location.pathname} />
+        <SettingsSidebarNav pathname={pathname} />
         <div {...contentArea} className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header
             data-settings-header=""
             className="flex h-12 shrink-0 items-center gap-3 border-b ps-5 pe-2"
           >
-            <SettingsBreadcrumb pathname={location.pathname} />
+            <SettingsBreadcrumb pathname={pathname} />
             <div className="ms-auto flex shrink-0 items-center gap-1">
-              {location.pathname === "/settings/general" ? (
+              {pathname === "/settings/general" ? (
                 <RestoreDeviceDefaultsButton
                   onRestored={() => setRestoreSignal((value) => value + 1)}
                 />
@@ -185,7 +196,7 @@ function SettingsContentLayout() {
               inert={searchHasNoResults}
               className="min-h-0 flex flex-1 flex-col"
             >
-              <SettingsScopeBoundary pathname={location.pathname}>
+              <SettingsScopeBoundary pathname={pathname}>
                 <Outlet />
               </SettingsScopeBoundary>
             </div>
@@ -200,11 +211,11 @@ function SettingsContentLayout() {
 function SettingsRouteLayout() {
   const rawSearch = Route.useSearch();
   const navigate = Route.useNavigate();
-  const pathname = useLocation({ select: (location) => location.pathname });
+  const pathname = useSettingsPathname();
   return (
     <SettingsScopeProvider
       search={rawSearch}
-      singleEnvironment={pathname === "/settings/providers" || pathname === "/settings/secrets"}
+      singleEnvironment={SINGLE_ENVIRONMENT_PATHS.has(pathname)}
       deviceOnly={SETTINGS_DEVICE_ONLY_PATHS.has(pathname)}
       onChange={(next) => {
         // Send every axis so retain middleware recognizes "all" as an explicit target.
@@ -240,10 +251,13 @@ export const Route = createFileRoute("/_chat/settings")({
   validateSearch: validateSettingsRouteSearch,
   search: { middlewares: [retainSettingsScope] },
   beforeLoad: async ({ location }) => {
-    if (location.pathname === "/settings") {
+    // The router matches these addresses in any case and with a trailing slash, so the
+    // redirects must too.
+    const address = trimTrailingSlashes(location.pathname).toLowerCase();
+    if (address === "/settings") {
       throw redirect({ to: "/settings/general", replace: true });
     }
-    const moved = movedSettingsPath(location.pathname, location.hash);
+    const moved = movedSettingsPath(address, location.hash);
     if (moved) throw redirect({ to: moved, search: true, hash: true, replace: true });
   },
   component: SettingsRouteLayout,

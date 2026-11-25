@@ -297,6 +297,76 @@ function SidebarProviderStack(props: {
   );
 }
 
+function currentProviderEntry(
+  thread: SidebarThreadSummary,
+  entries: ReadonlyMap<string, SidebarProviderEntry>,
+): SidebarProviderEntry | null {
+  const stack = resolveThreadProviderStack(thread);
+  const instanceId = stack[stack.length - 1];
+  return instanceId === undefined ? null : (entries.get(instanceId) ?? null);
+}
+
+/** What a row says in words about where a thread runs, for the focused row's description. */
+function threadWhereDescription(
+  gt: ReturnType<typeof useGT>,
+  provider: SidebarProviderEntry | null,
+  machine: string | null,
+): string | null {
+  if (provider === null) return null;
+  return machine === null
+    ? gt("Runs on {provider}", { provider: provider.displayName })
+    : gt("Runs on {provider} on {machine}", { provider: provider.displayName, machine });
+}
+
+/**
+ * The quiet line under a thread's title: its project, the device when it tells rows apart,
+ * then anything the caller adds, then the provider glyph.
+ */
+function SidebarThreadWhere(props: {
+  thread: SidebarThreadSummary;
+  project: ProjectFaviconProject | null;
+  projectDisplayName: string | null;
+  environmentLabel: string | null;
+  environmentMachine: EnvironmentMachineKind;
+  providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
+  trailing?: ReactNode;
+  faviconClassName?: string;
+}) {
+  return (
+    <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-secondary-label text-xs">
+      {props.project ? (
+        <ProjectFavicon
+          project={props.project}
+          className={cn("size-3.5 shrink-0", props.faviconClassName)}
+        />
+      ) : null}
+      {props.projectDisplayName ? (
+        <span className="min-w-0 truncate">{props.projectDisplayName}</span>
+      ) : null}
+      {props.environmentLabel !== null ? (
+        <>
+          <span aria-hidden className="shrink-0 text-muted-foreground/50">
+            ·
+          </span>
+          <EnvironmentMachineIcon
+            aria-hidden
+            kind={props.environmentMachine}
+            className="size-3.5 shrink-0 text-icon-muted"
+          />
+          <span className="min-w-0 truncate">{props.environmentLabel}</span>
+        </>
+      ) : null}
+      <span className="min-w-0 flex-1" />
+      {props.trailing}
+      <SidebarProviderStack
+        thread={props.thread}
+        providerEntryByInstanceId={props.providerEntryByInstanceId}
+        labelled
+      />
+    </div>
+  );
+}
+
 function SidebarThreadTooltip({
   thread,
   project,
@@ -858,7 +928,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           }
         : status === "approval"
           ? {
-              label: gt("Approval", { $context: "thread status: needs approval" }),
+              label: gt("Needs approval", { $context: "thread status: needs approval" }),
               icon: "approval" as const,
               className: "text-warning-foreground",
             }
@@ -1350,42 +1420,38 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     runningTerminalIds.length === 0 &&
     resolveThreadProviderStack(thread).length === 0;
   const cardMetaLine = cardMetaEmpty ? null : (
-    <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-secondary-label text-xs">
-      {props.project ? (
-        <ProjectFavicon project={props.project} className="size-3.5 shrink-0" />
-      ) : null}
-      {props.projectDisplayName ? (
-        <span className="min-w-0 truncate">{props.projectDisplayName}</span>
-      ) : null}
-      {props.environmentLabel !== null ? (
+    <SidebarThreadWhere
+      thread={thread}
+      project={props.project}
+      projectDisplayName={props.projectDisplayName}
+      environmentLabel={props.environmentLabel}
+      environmentMachine={props.environmentMachine}
+      providerEntryByInstanceId={props.providerEntryByInstanceId}
+      trailing={
         <>
-          <span aria-hidden className="shrink-0 text-muted-foreground/50">
-            ·
-          </span>
-          <EnvironmentMachineIcon
-            aria-hidden
-            kind={props.environmentMachine}
-            className="size-3.5 shrink-0 text-icon-muted"
-          />
-          <span className="min-w-0 truncate">{props.environmentLabel}</span>
+          {terminalStatusIcon}
+          {prBadge}
+          {issueBadge}
+          {diff ? (
+            <span className="shrink-0 font-mono">
+              <span className="text-diff-addition-foreground">
+                +{formatDiffCount(diff.insertions)}
+              </span>{" "}
+              <span className="text-diff-deletion-foreground">
+                −{formatDiffCount(diff.deletions)}
+              </span>
+            </span>
+          ) : null}
         </>
-      ) : null}
-      <span className="min-w-0 flex-1" />
-      {terminalStatusIcon}
-      {prBadge}
-      {issueBadge}
-      {diff ? (
-        <span className="shrink-0 font-mono">
-          <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
-          <span className="text-diff-deletion-foreground">−{formatDiffCount(diff.deletions)}</span>
-        </span>
-      ) : null}
-      <SidebarProviderStack
-        thread={thread}
-        providerEntryByInstanceId={props.providerEntryByInstanceId}
-        labelled
-      />
-    </div>
+      }
+    />
+  );
+  // The focused row's description: the harness, and the device when the row names one.
+  const whereDescriptionId = `sidebar-row-where:${threadKey}`;
+  const whereDescription = threadWhereDescription(
+    gt,
+    currentProviderEntry(thread, props.providerEntryByInstanceId),
+    props.environmentLabel,
   );
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
@@ -1615,8 +1681,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       // The hints are the rendered heights inside py-0.5. Revealing the open thread measures rows
       // that have not rendered yet, so a hint off by a pixel lands it a pixel short per row above.
       className={cn(
-        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_56px]",
-        cardMetaEmpty && "[contain-intrinsic-size:auto_36px]",
+        // The skipped height is the row's own, inside the 2px padding: h-13, or two 7px insets
+        // around one 20px line when there is no meta line.
+        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(13)]",
+        cardMetaEmpty && "[contain-intrinsic-size:auto_--spacing(8.5)]",
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1633,6 +1701,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               aria-current={accessibility.current}
               data-testid="sidebar-row-card"
               aria-busy={isRegeneratingTitle || undefined}
+              aria-describedby={whereDescription === null ? undefined : whereDescriptionId}
               className={rowSurfaceClassName}
               onClick={handleClick}
               onDoubleClick={handleDoubleClick}
@@ -1801,6 +1870,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               {props.sweepAction !== null ? dragDestination : null}
             </div>
             {cardMetaLine}
+            {whereDescription === null ? null : (
+              <span id={whereDescriptionId} className="sr-only">
+                {whereDescription}
+              </span>
+            )}
           </div>
         </TooltipTrigger>
         {detailsTooltip}
@@ -1866,6 +1940,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
   onFileDropThreads: (threadRef: ScopedThreadRef, files: File[]) => void;
 }) {
   const messages = useMessages();
+  const gt = useGT();
   const thread =
     useThreadShell(scopeThreadRef(props.thread.environmentId, props.thread.id)) ?? props.thread;
   const accessibility = resolveSidebarRowAccessibility({
@@ -1937,6 +2012,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
     },
     addFolders: () => {},
   });
+  const searchWhereDescription = threadWhereDescription(gt, providerEntry, props.environmentLabel);
   return (
     <li
       ref={props.isHighlighted ? scrollHighlightedResultIntoView : undefined}
@@ -1955,7 +2031,11 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
               tabIndex={-1}
               aria-selected={props.isHighlighted}
               aria-current={accessibility.current}
-              aria-describedby={`${props.resultId}-pr`}
+              aria-describedby={
+                searchWhereDescription === null
+                  ? `${props.resultId}-pr`
+                  : `${props.resultId}-pr ${props.resultId}-where`
+              }
               aria-label={accessibility.label}
               {...dragListeners}
               onMouseMove={props.onHighlight}
@@ -1976,7 +2056,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                 );
               }}
               className={cn(
-                "group/sidebar-row group/v2-row flex min-h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1 text-left text-sm outline-none",
+                "group/sidebar-row group/v2-row flex min-h-13 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.75 text-left text-sm outline-none",
                 props.isHighlighted || props.isRouteActive
                   ? "bg-sidebar-row-active text-sidebar-foreground"
                   : "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground",
@@ -1986,18 +2066,6 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
             />
           }
         >
-          {props.project ? (
-            <ProjectFavicon
-              project={props.project}
-              className={cn(
-                "size-4 shrink-0 transition-opacity",
-                props.isSettled &&
-                  !props.isRouteActive &&
-                  !props.isHighlighted &&
-                  "opacity-40 grayscale group-hover/sidebar-row:opacity-100 group-hover/sidebar-row:grayscale-0",
-              )}
-            />
-          ) : null}
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-2.5">
               <span
@@ -2034,6 +2102,26 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                 <RelativeTimeLabel timestamp={resolveThreadActivityTimestamp(thread)} />
               </span>
             </span>
+            <SidebarThreadWhere
+              thread={thread}
+              project={props.project}
+              projectDisplayName={props.projectDisplayName}
+              environmentLabel={props.environmentLabel}
+              environmentMachine={props.environmentMachine}
+              providerEntryByInstanceId={props.providerEntryByInstanceId}
+              faviconClassName={cn(
+                "transition-opacity",
+                props.isSettled &&
+                  !props.isRouteActive &&
+                  !props.isHighlighted &&
+                  "opacity-40 grayscale group-hover/sidebar-row:opacity-100 group-hover/sidebar-row:grayscale-0",
+              )}
+            />
+            {searchWhereDescription === null ? null : (
+              <span id={`${props.resultId}-where`} className="sr-only">
+                {searchWhereDescription}
+              </span>
+            )}
             {props.searchMatch ? (
               <ThreadSearchMatchExcerpt
                 match={{

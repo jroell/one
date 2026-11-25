@@ -193,6 +193,24 @@ export function SettingsSearchTarget({
 export const SETTINGS_PICKER_TRIGGER_CLASSNAME =
   "min-w-0 max-w-none shrink-0 border-input bg-background font-normal text-foreground shadow-xs/5 hover:bg-accent/50 dark:bg-input/32 [&_svg[data-composer-control-chevron]]:stroke-[1.75] [&_svg[data-composer-control-chevron]]:opacity-70";
 
+/** A composer-style picker with a caption, so two pickers in one row say what each one sets. */
+export function SettingsPickerField({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div data-settings-picker-field="" className="flex min-w-0 flex-col gap-1">
+      <span className="text-2xs leading-none font-medium text-(--settings-description)">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 export function PolicyTooltip({ children }: { readonly children: string }) {
   const gt = useGT();
   return (

@@ -603,6 +603,8 @@ type MessagesTimelineRowContent =
       runId: RunId;
       label: string;
       expanded: boolean;
+      /** The first row of an assistant turn, so it carries the turn's mark. */
+      startsTurn?: true;
     }
   | {
       kind: "attempt-fold";
@@ -646,6 +648,8 @@ type MessagesTimelineRowContent =
       groupedWithPrevious?: boolean;
       /** Set when the message above is a steer too, so the label shows once. */
       continuesSteer?: boolean;
+      /** The first row of an assistant turn, so it carries the turn's mark. */
+      startsTurn?: true;
     }
   | {
       kind: "assistant-meta";
@@ -2452,7 +2456,11 @@ export function deriveMessagesTimelineRows(
   const result = attachTrailingToolGroupsToAssistant(
     attachCreatedThreadSummaries(nextRows, timelineEntries, collapsedFoldMemberIds),
   );
+  const turnStarts = assistantTurnStartIndexes(result);
   return result.map((row, index) => {
+    if (turnStarts.has(index) && (row.kind === "turn-fold" || row.kind === "message")) {
+      return { ...row, startsTurn: true as const };
+    }
     if (timelineRowIsWorkLog(row) && timelineRowIsWorkLog(result[index + 1])) {
       return { ...row, continuesWorkLog: true };
     }
@@ -2465,6 +2473,36 @@ export function deriveMessagesTimelineRows(
     if (!groupedWithNext && !groupedWithPrevious) return row;
     return { ...row, groupedWithNext, groupedWithPrevious, continuesSteer };
   });
+}
+
+/**
+ * The first fold or assistant message of each run opens that turn, so steered and interrupted
+ * turns mark their start the same way as finished ones. Rows without a run start a turn when
+ * the row above is not an assistant message.
+ */
+function assistantTurnStartIndexes(rows: ReadonlyArray<MessagesTimelineRow>): ReadonlySet<number> {
+  const starts = new Set<number>();
+  const seenRuns = new Set<string>();
+  rows.forEach((row, index) => {
+    const runId =
+      row.kind === "turn-fold"
+        ? row.runId
+        : row.kind === "message" && row.message.role === "assistant"
+          ? (row.message.runId ?? null)
+          : undefined;
+    if (runId === undefined) return;
+    if (runId === null) {
+      const previous = rows[index - 1];
+      if (!(previous?.kind === "message" && previous.message.role === "assistant")) {
+        starts.add(index);
+      }
+      return;
+    }
+    if (seenRuns.has(runId)) return;
+    seenRuns.add(runId);
+    starts.add(index);
+  });
+  return starts;
 }
 
 function timelineRowIsOwnUserMessage(
@@ -2841,6 +2879,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bf.createdAt &&
         a.label === bf.label &&
         a.expanded === bf.expanded &&
+        (a.kind === "turn-fold" ? a.startsTurn : undefined) ===
+          (bf.kind === "turn-fold" ? bf.startsTurn : undefined) &&
         anchors.length === nextAnchors.length &&
         anchors.every((id, index) => id === nextAnchors[index])
       );
@@ -2946,7 +2986,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.revertTurnCount === bm.revertTurnCount &&
         a.groupedWithNext === bm.groupedWithNext &&
         a.groupedWithPrevious === bm.groupedWithPrevious &&
-        a.continuesSteer === bm.continuesSteer
+        a.continuesSteer === bm.continuesSteer &&
+        a.startsTurn === bm.startsTurn
       );
     }
   }

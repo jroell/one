@@ -6,6 +6,7 @@ import {
   dispatchVoiceSession,
   getVoiceSession,
   hasPendingBlockingRequest,
+  ownTurnState,
   pendingFeedbackCardIds,
   reduceVoiceSession,
   replyAnchor,
@@ -330,6 +331,57 @@ describe("which answer belongs to the question voice chat sent", () => {
       readRuns: ["r2"],
       messageId: "m3",
     });
+  });
+});
+
+describe("where the spoken question's own turn stands", () => {
+  const question = message("item-1", "user", { messageId: "m1", runId: "r-own" });
+  const projectedRun = (id: string, userMessageId: string, status: string) => ({
+    id,
+    userMessageId,
+    status,
+  });
+
+  it("knows nothing until the question itself is in the thread, whatever else is running", () => {
+    const other = message("item-9", "user", { messageId: "m9", runId: "r-other" });
+    expect(ownTurnState([other], [projectedRun("r-other", "m9", "running")], "m1")).toBe("unknown");
+    expect(ownTurnState([question], [], null)).toBe("unknown");
+  });
+
+  it("stays open while the question's run waits behind another run, and ends with its own run", () => {
+    const behind = [
+      projectedRun("r-other", "m9", "completed"),
+      projectedRun("r-own", "m1", "queued"),
+    ];
+    expect(ownTurnState([question], behind, "m1")).toBe("open");
+    expect(ownTurnState([question], [projectedRun("r-own", "m1", "running")], "m1")).toBe("open");
+    expect(ownTurnState([question], [projectedRun("r-own", "m1", "completed")], "m1")).toBe(
+      "ended",
+    );
+    expect(ownTurnState([question], [projectedRun("r-own", "m1", "failed")], "m1")).toBe("ended");
+  });
+
+  it("follows a steer through the run it redirected", () => {
+    const steer = message("item-2", "user", { messageId: "m2", runId: "r-own", steer: true });
+    expect(ownTurnState([steer], [projectedRun("r-own", "m1", "running")], "m2")).toBe("open");
+    expect(ownTurnState([steer], [projectedRun("r-own", "m1", "completed")], "m2")).toBe("ended");
+  });
+
+  it("counts a question whose run is not listed yet as open", () => {
+    expect(ownTurnState([question], [], "m1")).toBe("open");
+  });
+
+  it("lets a send's own rejection end the question, but not another send's", () => {
+    const sending = run([
+      { type: "start", threadKey: "t1" },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s2" },
+      { type: "identified", submission: "s2", messageId: "m1" },
+      { type: "working" },
+    ]);
+    expect(reduceVoiceSession(sending, { type: "failed", submission: "s1" })).toBe(sending);
+    expect(
+      reduceVoiceSession(sending, { type: "failed", submission: "s2", message: "No" }),
+    ).toMatchObject({ stage: "listening", error: "No", messageId: null });
   });
 });
 

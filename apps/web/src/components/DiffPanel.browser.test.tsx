@@ -481,6 +481,28 @@ it("names the collapse button in text on a wide panel and only by icon on a narr
   await expect.element(narrow.screen.getByText(/^(Collapse|Expand) all files$/)).not.toBeVisible();
 });
 
+it("keeps wrap, whitespace and the file tree in one View menu as checkable items", async () => {
+  const wide = await renderTurnPatch(
+    ["diff --git a/a.txt b/a.txt", "--- a/a.txt", "+++ b/a.txt", "@@ -1 +1 @@", "-a", "+b", ""],
+    900,
+  );
+  using _context = wide.context;
+  await using _screen = wide.screen;
+  await expect.element(wide.screen.getByText(/^1 file$/)).toBeVisible();
+  await wide.screen.getByRole("button", { name: "View options" }).click();
+  const whitespace = page.getByRole("menuitemcheckbox", { name: "Hide whitespace changes" });
+  await expect.element(page.getByRole("menuitemcheckbox", { name: "Wrap lines" })).toBeVisible();
+  await expect
+    .element(page.getByRole("menuitemcheckbox", { name: "Show file tree" }))
+    .toBeVisible();
+  const before = whitespace.element().getAttribute("aria-checked");
+  await whitespace.click();
+  await wide.screen.getByRole("button", { name: "View options" }).click();
+  await expect
+    .element(page.getByRole("menuitemcheckbox", { name: "Hide whitespace changes" }))
+    .toHaveAttribute("aria-checked", before === "true" ? "false" : "true");
+});
+
 it("does not label a mode-only change to notes.db Binary", async () => {
   const { context, screen } = await renderTurnPatch([
     "diff --git a/notes.db b/notes.db",

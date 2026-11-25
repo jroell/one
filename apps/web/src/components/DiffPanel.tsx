@@ -96,6 +96,7 @@ import {
 } from "./ui/combobox";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
@@ -850,6 +851,7 @@ export default function DiffPanel({
   );
   const allDiffFilesCollapsed = areAllDiffFilesCollapsed(shownFileKeys, collapsedDiffFileKeys);
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
+  const summaryFileCount = lazySource?.files?.length ?? renderableFiles.length;
   const fileTreeEntries = diffFileTreeEntries(renderableFiles.filter(isFileShown));
   const codeViewReveal = useCodeViewFileReveal();
   // Lazy files that sat above the saved position load again only when asked for.
@@ -1449,6 +1451,27 @@ export default function DiffPanel({
             </Combobox>
           </div>
         )}
+        {summaryFileCount > 0 ? (
+          <span
+            className={cn(
+              "flex shrink-0 items-baseline gap-1.5 text-xs text-muted-foreground tabular-nums",
+              narrowHeaderHidden,
+            )}
+            data-one-diff-summary=""
+          >
+            <span>
+              {gt("{count, plural, one {{count} file} other {{count} files}}", {
+                count: summaryFileCount,
+              })}
+            </span>
+            <span aria-hidden>·</span>
+            <DiffStatLabel
+              additions={diffLineStat.additions}
+              deletions={diffLineStat.deletions}
+              layout="inline"
+            />
+          </span>
+        ) : null}
       </div>
       <div
         className={cn(
@@ -1456,16 +1479,6 @@ export default function DiffPanel({
           headerCommitSha !== null && "gap-0",
         )}
       >
-        {codeViewFiles.length > 0 || (isGitSelection && selectedGitSource?.files?.length) ? (
-          <span className={cn("contents", narrowHeaderHidden)}>
-            <DiffStatLabel
-              additions={diffLineStat.additions}
-              deletions={diffLineStat.deletions}
-              className="mr-1 text-2xs"
-              layout="inline"
-            />
-          </span>
-        ) : null}
         {canRefreshGitDiff && (
           <DiffHeaderAction
             label={isRefreshingDiff ? gt("Refreshing diff") : gt("Refresh diff")}
@@ -1512,100 +1525,59 @@ export default function DiffPanel({
             </Toggle>
           </ToggleGroup>
         </span>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Toggle
-                aria-label={
-                  wordWrap ? gt("Disable diff line wrapping") : gt("Enable diff line wrapping")
-                }
-                variant="ghost"
-                size="sm"
-                pressed={wordWrap}
-                onPressedChange={(pressed) => {
-                  setWordWrapOverride(Boolean(pressed));
-                }}
-              />
-            }
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button size="xs" variant="ghost" />}
+            aria-label={gt("View options", { $context: "diff toolbar menu" })}
           >
-            <TextWrapIcon className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipPopup side="top">
-            {wordWrap ? gt("Disable line wrapping") : gt("Enable line wrapping")}
-          </TooltipPopup>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Toggle
-                aria-label={
-                  diffIgnoreWhitespace
-                    ? gt("Show whitespace changes")
-                    : gt("Hide whitespace changes")
-                }
-                variant="ghost"
-                size="sm"
-                pressed={diffIgnoreWhitespace}
-                onPressedChange={(pressed) => {
-                  useDiffPanelSessionStore.getState().setIgnoreWhitespace(Boolean(pressed));
-                }}
-              />
-            }
-          >
-            <PilcrowIcon className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipPopup side="top">
-            {diffIgnoreWhitespace ? gt("Show whitespace changes") : gt("Hide whitespace changes")}
-          </TooltipPopup>
-        </Tooltip>
-        {testFileCount > 0 || diffFileKeys.length > 0 ? (
-          <span aria-hidden data-one-toolbar-sep="" />
-        ) : null}
-        {testFileCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Toggle
-                  aria-label={gt("Hide test files")}
-                  variant="ghost"
-                  size="sm"
-                  pressed={hideTestFiles}
-                  onPressedChange={(pressed) => setHideTestFiles(Boolean(pressed))}
-                />
+            <T context="diff toolbar menu">View</T>
+            <ChevronDownIcon className="size-3.5 shrink-0 opacity-70" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuCheckboxItem
+              checked={wordWrap}
+              onCheckedChange={(checked) => setWordWrapOverride(Boolean(checked))}
+            >
+              <span className="flex items-center gap-2">
+                <TextWrapIcon className="size-3.5" />
+                {gt("Wrap lines")}
+              </span>
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={diffIgnoreWhitespace}
+              onCheckedChange={(checked) =>
+                useDiffPanelSessionStore.getState().setIgnoreWhitespace(Boolean(checked))
               }
             >
-              <FlaskConicalOffIcon className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipPopup side="top">
-              {hideTestFiles
-                ? gt(
-                    "{count, plural, one {Show {count} hidden test file} other {Show {count} hidden test files}}",
-                    { count: testFileCount },
-                  )
-                : gt("Hide test files")}
-            </TooltipPopup>
-          </Tooltip>
-        )}
-        {diffFileKeys.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Toggle
-                  aria-label={fileTreeOpen ? gt("Hide file tree") : gt("Show file tree")}
-                  variant="ghost"
-                  size="sm"
-                  pressed={fileTreeOpen}
-                  onPressedChange={(pressed) => setFileTreeOpen(Boolean(pressed))}
-                />
-              }
-            >
-              <FolderTreeIcon className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipPopup side="top">
-              {fileTreeOpen ? gt("Hide file tree") : gt("Show file tree")}
-            </TooltipPopup>
-          </Tooltip>
-        )}
+              <span className="flex items-center gap-2">
+                <PilcrowIcon className="size-3.5" />
+                {gt("Hide whitespace changes")}
+              </span>
+            </DropdownMenuCheckboxItem>
+            {testFileCount > 0 ? (
+              <DropdownMenuCheckboxItem
+                checked={hideTestFiles}
+                onCheckedChange={(checked) => setHideTestFiles(Boolean(checked))}
+              >
+                <span className="flex items-center gap-2">
+                  <FlaskConicalOffIcon className="size-3.5" />
+                  {gt("Hide test files")}
+                </span>
+              </DropdownMenuCheckboxItem>
+            ) : null}
+            {diffFileKeys.length > 0 ? (
+              <DropdownMenuCheckboxItem
+                checked={fileTreeOpen}
+                onCheckedChange={(checked) => setFileTreeOpen(Boolean(checked))}
+              >
+                <span className="flex items-center gap-2">
+                  <FolderTreeIcon className="size-3.5" />
+                  {gt("Show file tree")}
+                </span>
+              </DropdownMenuCheckboxItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </>
   );

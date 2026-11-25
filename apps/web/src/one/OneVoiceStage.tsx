@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { toastManager } from "~/components/ui/toast";
 import { useStableCallback } from "~/hooks/useStableCallback";
-import { useThreadVisibleTurnItems } from "~/state/entities";
+import { useQuietThreadProjection, useThreadVisibleTurnItems } from "~/state/entities";
 import { OneOrb, type OneOrbState } from "./OneOrb";
 import {
   getCommittedVoiceThreadKey,
@@ -22,6 +22,7 @@ import {
   getVoiceSession,
   hasPendingBlockingRequest,
   newVoiceSubmission,
+  ownTurnState,
   ownsMicrophone,
   pendingFeedbackCardIds,
   replyAnchor,
@@ -60,6 +61,7 @@ const SPEECH_ENGINE_START_MS = 6_000;
 const VOICES_WAIT_MS = 1_500;
 
 let mountedStages = 0;
+const NO_RUNS: ReadonlyArray<never> = [];
 
 /** Makes quiet speech visible on the ring without letting loud speech clip. */
 function displayLevel(level: number): number {
@@ -185,6 +187,14 @@ function ActiveVoiceStage({
   /** The microphone has been asked to start in this conversation, so an error on it is this conversation's. */
   const [attempted, setAttempted] = useState(false);
 
+  // A saved thread's turn is followed through its own question and run. A draft has no other work.
+  const runs = useQuietThreadProjection(threadRef)?.projection.runs ?? NO_RUNS;
+  const ownTurn =
+    threadRef === null
+      ? isWorking
+        ? "open"
+        : "ended"
+      : ownTurnState(messages, runs, session.messageId);
   const answer =
     (stage === "sending" || stage === "thinking") && session.sentAfter !== null
       ? selectReply(messages, session.sentAfter, {
@@ -198,10 +208,12 @@ function ActiveVoiceStage({
   const answerId = answer?.id ?? null;
   const answerRunId = answer?.runId ?? null;
   const tookTooLong = gt("Voice input took too long");
-  const latest = useRef({ bridge, messages, tookTooLong });
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge, messages and timeout message to the frame loop, timers and speech effect below
+  const notSent = gt("The question was not sent");
+  const sentToSideChat = gt("That went to a side chat, so there is no reply to read here");
+  const latest = useRef({ bridge, messages, tookTooLong, notSent, sentToSideChat });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge, messages and notices for the frame loop, timers and speech effect below
   useEffect(() => {
-    latest.current = { bridge, messages, tookTooLong };
+    latest.current = { bridge, messages, tookTooLong, notSent, sentToSideChat };
   });
 
   const submit = () => {
@@ -216,9 +228,22 @@ function ActiveVoiceStage({
     }
     const submission = newVoiceSubmission();
     dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages), submission });
-    current.bridge.submit((messageId) =>
-      dispatchVoiceSession({ type: "identified", submission, messageId }),
-    );
+    current.bridge.submit({
+      sent: (messageId) => dispatchVoiceSession({ type: "identified", submission, messageId }),
+      rejected: (message) =>
+        dispatchVoiceSession({
+          type: "failed",
+          submission,
+          message: message ?? latest.current.notSent,
+        }),
+      notSent: (destination) =>
+        dispatchVoiceSession({
+          type: "failed",
+          submission,
+          message:
+            destination === "side-chat" ? latest.current.sentToSideChat : latest.current.notSent,
+        }),
+    });
   };
   const submitRef = useRef(submit);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the frame loop calling the committed submit
@@ -383,11 +408,16 @@ function ActiveVoiceStage({
     if (recordingPhase === "error") {
       const message = latest.current.bridge?.error;
       dispatchVoiceSession(message ? { type: "failed", message } : { type: "failed" });
-    } else if (isWorking && recordingPhase === "idle") dispatchVoiceSession({ type: "working" });
-  }, [stage, isWorking, recordingPhase]);
+    } else if (ownTurn === "open" && recordingPhase === "idle") {
+      dispatchVoiceSession({ type: "working" });
+    }
+  }, [stage, ownTurn, recordingPhase]);
 
   // A send that never starts a turn (nothing to send, no provider) must not leave the ring spinning.
-  const sendStalled = stage === "sending" && !isWorking && recordingPhase === "idle";
+  const sendStalled =
+    stage === "sending" &&
+    recordingPhase === "idle" &&
+    (threadRef === null ? !isWorking : session.messageId === null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- times out a send that produced no turn; the timer is cleared when the turn starts
   useEffect(() => {
     if (!sendStalled) return;
@@ -413,7 +443,8 @@ function ActiveVoiceStage({
   // The finished answer can be seen without any frame that showed the thread working.
   // A turn that ends without one gets a short grace period, then voice chat listens again.
   const answerSettled =
-    !isWorking && (stage === "thinking" || (stage === "sending" && recordingPhase === "idle"));
+    ownTurn === "ended" &&
+    (stage === "thinking" || (stage === "sending" && recordingPhase === "idle"));
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- waits for the finished answer to the question that was sent; the timer covers a turn that ends with nothing to read
   useEffect(() => {
     if (!answerSettled) return;

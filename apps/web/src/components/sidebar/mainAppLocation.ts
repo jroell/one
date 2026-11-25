@@ -9,7 +9,9 @@ export function isAppModalPage(pathname: string) {
   return pathname === "/settings" || pathname.startsWith("/settings/") || pathname === "/usage";
 }
 
-export function isSidebarUtilityPage(pathname: string) {
+export function isSidebarUtilityPage(rawPathname: string) {
+  // The router matches paths without regard to case or a trailing slash, so this must too.
+  const pathname = rawPathname.toLowerCase().replace(/\/+$/, "");
   return (
     pathname.startsWith("/projects/") ||
     pathname === "/pull-requests" ||

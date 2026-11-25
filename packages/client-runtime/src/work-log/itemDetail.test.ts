@@ -214,3 +214,33 @@ describe("file search output text", () => {
     );
   });
 });
+
+describe("tool results wrapped in content blocks", () => {
+  const literal = '{"type":"text","text":""}';
+
+  it("unwraps a typed content block once, with real line breaks", () => {
+    const wrapped = [
+      { type: "content", content: { type: "text", text: '{\n  "name": "demo"\n}' } },
+    ];
+    expect(turnItemOutputText(toolItem(wrapped))).toBe('{\n  "name": "demo"\n}');
+  });
+
+  it("keeps literal JSON a real text block carries, and does not decode it a second time", () => {
+    for (const payload of [literal, '{"type":"text","text":"hello"}']) {
+      for (const output of [
+        { type: "text", text: payload },
+        [{ type: "content", content: { type: "text", text: payload } }],
+      ]) {
+        const text = turnItemOutputText(toolItem(output));
+        expect(JSON.parse(text ?? "")).toEqual(JSON.parse(payload));
+      }
+    }
+  });
+
+  it("reports no text for a result that really is empty", () => {
+    expect(turnItemOutputText(toolItem({ type: "text", text: "" }))).toBeNull();
+    expect(
+      turnItemOutputText(toolItem([{ type: "content", content: { type: "text", text: "" } }])),
+    ).toBeNull();
+  });
+});

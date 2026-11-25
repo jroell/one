@@ -107,30 +107,37 @@ function MicrophoneRow(props: {
   const hasActions = reorderable || props.onForget !== undefined;
   const { listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: props.id });
+  // The position number only means something among several, so one microphone gets no column
+  // for it and its name starts at the row's own padding.
+  const indexed = props.count > 1;
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         // Phones put the marker and controls on a second line so names stay readable.
-        "grid grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-x-2 py-1.5 ps-3 pe-1.5",
+        "grid items-center gap-x-2 py-1.5 ps-3 pe-1.5",
+        indexed ? "grid-cols-[1rem_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
         reorderable
           ? "@min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)_auto_auto]"
           : hasActions
-            ? "@min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)_auto]"
-            : "@min-[32rem]/settings-row:grid-cols-[1rem_auto_minmax(0,1fr)]",
+            ? "@min-[32rem]/settings-row:grid-cols-[auto_minmax(0,1fr)_auto]"
+            : "@min-[32rem]/settings-row:grid-cols-[auto_minmax(0,1fr)]",
         isDragging && "relative z-10 rounded-lg bg-background shadow-md",
       )}
     >
-      {props.count > 1 ? (
+      {indexed ? (
         <span className="text-xs tabular-nums text-muted-foreground">{props.position}</span>
-      ) : (
-        <span aria-hidden />
-      )}
+      ) : null}
       <span className="col-span-2 text-sm leading-5 break-words @min-[32rem]/settings-row:col-span-1">
         {name}
       </span>
-      <span className="col-start-2 flex @min-[32rem]/settings-row:col-start-auto">
+      <span
+        className={cn(
+          "flex @min-[32rem]/settings-row:col-start-auto",
+          indexed ? "col-start-2" : "col-start-1",
+        )}
+      >
         {props.inUse ? (
           <span className="rounded-sm bg-success/12 px-1 text-2xs text-success-foreground">
             <T>In use</T>

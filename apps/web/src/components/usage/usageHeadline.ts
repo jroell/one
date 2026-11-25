@@ -10,8 +10,9 @@ export interface LimitCandidate<Subject> {
 }
 
 /**
- * The limit to watch. Actual exhaustion comes first, read from the quota left so it needs no
- * clock; then the limit that runs out soonest at its pace so far; then the one with the least
+ * The limit to watch. Candidates carry the raw quota left, so a sliver of 0.4% never ties with an
+ * empty quota once it is rounded for display. Actual exhaustion comes first, read from it with no
+ * clock needed; then the limit that runs out soonest at its pace so far; then the one with the least
  * left. Ties keep the order the page lists them in.
  */
 export function tightestLimit<Subject>(
@@ -34,6 +35,8 @@ export interface WindowIdentity {
   readonly id: string;
   readonly kind: string;
   readonly label: string;
+  /** The window comes from one of the app's own providers; a source's own labels are never mapped. */
+  readonly native: boolean;
 }
 
 const NAME_CONTEXT = { $context: "usage window name inside a sentence" } as const;
@@ -75,6 +78,7 @@ export function inlineWindowName(
   window: WindowIdentity,
   resolve: MessageResolver = defaultResolver,
 ): string {
+  if (!window.native) return window.label;
   const [base = window.label, ...rest] = window.label.split(" · ");
   const known = BUILT_IN_WINDOWS.find(
     (entry) =>

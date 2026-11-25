@@ -66,28 +66,6 @@
   --ui-success-tint: color-mix(in oklch, var(--ui-success-fill) 9%, transparent);
   --ui-info-tint: color-mix(in oklch, var(--ui-info-fill) 9%, transparent);
 
-  /*
-   * The modal material. One blurred layer per modal (the frame), never one per card. Cards are a
-   * faint tint over the frame with a hairline. The frame reads the active theme's raised surface
-   * (the base surface on light) and the user's glass opacity setting.
-   */
-  --ui-modal-base: var(--ui-surface-base);
-  --ui-modal-surface: color-mix(
-    in srgb,
-    color-mix(in oklch, var(--one-brand) 2.5%, var(--ui-modal-base)) var(--glass-opacity),
-    transparent
-  );
-  --ui-modal-blur: blur(calc(var(--glass-blur) * 1.5))
-    saturate(calc(var(--glass-saturation) + 0.25));
-  --ui-card-surface: color-mix(in srgb, var(--ui-surface-overlay) 72%, transparent);
-  --ui-specular: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 55%) 0,
-    rgb(255 255 255 / 18%) 2.5rem,
-    transparent 9rem
-  );
-  --ui-warm-glow: color-mix(in oklch, var(--one-brand) 6%, transparent);
-
   --ui-radius: var(--control-radius, 0.5rem);
   --ui-radius-float: 0.75rem;
   --ui-radius-item: 0.5rem;
@@ -134,15 +112,6 @@
     --ui-warning-tint: color-mix(in oklch, var(--ui-warning-fill) 14%, transparent);
     --ui-success-tint: color-mix(in oklch, var(--ui-success-fill) 13%, transparent);
     --ui-info-tint: color-mix(in oklch, var(--ui-info-fill) 13%, transparent);
-    --ui-modal-base: var(--ui-surface-raised);
-    --ui-card-surface: color-mix(in srgb, var(--foreground) 3.5%, transparent);
-    --ui-specular: linear-gradient(
-      180deg,
-      rgb(255 255 255 / 9%) 0,
-      rgb(255 255 255 / 3%) 2.5rem,
-      transparent 9rem
-    );
-    --ui-warm-glow: color-mix(in oklch, var(--one-brand) 9%, transparent);
     --ui-focus: var(--ring);
     --ui-shade: rgb(0 0 0 / 55%);
     --ui-shade-deep: rgb(0 0 0 / 70%);
@@ -892,8 +861,7 @@ html[data-theme-id=""]:not(.dark) {
 
 /* ------------------------------------------------------- floating surfaces */
 
-/* One material for everything that floats: the glass from one.css, a 12px corner and a hairline
-   outside the rim so a menu holds its edge on any backdrop. Tooltips are the same glass, smaller. */
+/* Everything that floats shares the glass recipe below and a 12px corner. */
 [data-slot="menu-popup"],
 [data-slot="popover-popup"].dropdown-glass,
 [data-slot="select-popup"] > .dropdown-glass,
@@ -901,12 +869,6 @@ html[data-theme-id=""]:not(.dark) {
 [data-slot="autocomplete-positioner"] > .dropdown-glass,
 [data-slot="toast-viewport"] > .dropdown-glass {
   border-radius: var(--ui-radius-float);
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--one-glass-rim),
-    inset 0 -1px 0 0 var(--one-glass-rim-bottom),
-    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
-    var(--one-glass-shadow);
 }
 
 [data-slot="select-popup"] {
@@ -928,17 +890,7 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-slot="preview-card-popup"] {
-  border-color: transparent;
   border-radius: var(--ui-radius-float);
-  background-color: color-mix(in srgb, var(--popover) var(--glass-opacity), transparent);
-  background-image: var(--one-glass-sheen);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--one-glass-rim),
-    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
-    var(--one-glass-shadow);
 }
 
 [data-slot="tooltip-popup"] {
@@ -1253,6 +1205,15 @@ html[data-theme-id=""]:not(.dark) {
   background-color: var(--ui-select-tint);
 }
 
+/*
+ * Two rules for page code.
+ * Status: one chip shape. A thread, run, limit or connection state is a <Badge> with variant
+ * success, warning, error or info (a dot or icon first, sentence-case text: "Needs approval",
+ * "Awaiting input", "Runs out early"). Gray is the default variant for a state with no tone.
+ * Never a bare colored text span or a hand-drawn pill.
+ * Adding: a bordered, quiet "+ Add ..." button adds to a list (variant outline, size sm). The one
+ * filled gold button on a screen is its single primary action, and a screen has at most one.
+ */
 [data-slot="badge"] {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.005em;
@@ -1498,25 +1459,12 @@ html[data-theme-id=""]:not(.dark) {
 [data-slot="toast-viewport"] > .dropdown-glass {
   box-shadow:
     inset 2px 0 0 0 var(--ui-toast-accent),
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--one-glass-rim),
-    inset 0 -1px 0 0 var(--one-glass-rim-bottom),
-    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
-    var(--one-glass-shadow);
+    var(--glass-shadow-sm);
 }
 
 /* ------------------------------------------------------------ the surfaces */
 
-/* Dialogs and sheets sit one step above the page, menus and popovers two. The glass keeps its
-   opacity setting, so the steps show with the blur on or off. */
-.dialog-glass {
-  background-color: color-mix(in srgb, var(--ui-surface-raised) var(--glass-opacity), transparent);
-}
-
-.dropdown-glass {
-  background-color: color-mix(in srgb, var(--ui-surface-overlay) var(--glass-opacity), transparent);
-}
-
+/* Sheets sit one step above the page. Glass surfaces take their fill from the glass recipe below. */
 [data-slot="sheet-popup"] {
   background-color: var(--ui-surface-raised);
 }
@@ -1604,19 +1552,21 @@ html[data-theme-id=""]:not(.dark) {
 
 /* The palette's field is the palette's own top row: bare, 17px, a hairline under it, a brand caret.
    The glow and border the field styles draw would frame it a second time inside the dialog. */
-[data-slot="command-dialog-popup"] [data-slot="search-field"] {
+[data-slot="command-dialog-popup"] [data-slot="search-field"],
+[data-shortcuts-sheet] [data-slot="search-field"] {
   border-bottom: 1px solid var(--ui-edge);
 }
 
 /* The palette's field always has focus, so its hairline stays quiet instead of glowing. */
-[data-slot="command-dialog-popup"] [data-slot="search-field"]:focus-within {
+[data-slot="command-dialog-popup"] [data-slot="search-field"]:focus-within,
+[data-shortcuts-sheet] [data-slot="search-field"]:focus-within {
   border-bottom-color: var(--ui-edge-strong);
   box-shadow: none;
 }
 
-[data-slot="command-dialog-popup"]
+:is([data-slot="command-dialog-popup"], [data-shortcuts-sheet])
   [data-slot="input-control"]:not([data-unstyled]):not(:has(input:focus-visible)),
-[data-slot="command-dialog-popup"]
+:is([data-slot="command-dialog-popup"], [data-shortcuts-sheet])
   [data-slot="input-control"]:not([data-unstyled]):has(input:focus-visible) {
   border-color: transparent;
   background-color: transparent;
@@ -1700,51 +1650,6 @@ html[data-theme-id=""]:not(.dark) {
 
 .one-num {
   font-family: var(--font-sans, inherit);
-}
-
-/* ------------------------------------------------------------- modal material */
-
-/*
- * Settings, Usage and every other route modal are one pane of glass. The frame is the only blurred
- * layer: a warm translucent surface over the blurred app, a lit top edge, and a soft specular
- * wash along the top that reads as a reflection. The panes and cards inside it are transparent
- * or a faint tint, so the glass shows through them. The pointer-following reflection runs on the
- * frame's edge (data-one-reflect).
- */
-[data-app-modal] {
-  /* Fades and fills inside the modal blend into the frame's own color, not the page's. */
-  --background: color-mix(in oklch, var(--one-brand) 2.5%, var(--ui-modal-base));
-  --settings-page-bg: transparent;
-  --settings-panel-bg: var(--ui-card-surface);
-  background-color: var(--ui-modal-surface);
-  background-image:
-    var(--ui-specular), radial-gradient(52% 16rem at 14% 0, var(--ui-warm-glow), transparent 72%);
-  background-repeat: no-repeat;
-  -webkit-backdrop-filter: var(--ui-modal-blur);
-  backdrop-filter: var(--ui-modal-blur);
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--one-glass-rim),
-    var(--one-glass-shadow);
-}
-
-[data-app-modal] [data-settings-nav] {
-  background-color: color-mix(in srgb, var(--foreground) 2.5%, transparent);
-}
-
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  [data-app-modal] {
-    background-color: var(--ui-surface-raised);
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  [data-app-modal] {
-    background-color: var(--ui-surface-raised);
-    background-image: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
 }
 
 /* ------------------------------------------------------------- the shortcut sheet */
@@ -1863,4 +1768,323 @@ html[data-theme-id=""] {
   --success-foreground: var(--ui-success-fg);
   --info: var(--ui-info-fill);
   --info-foreground: var(--ui-info-fg);
+}
+
+/* =========================================================================== the glass */
+
+/*
+ * One glass recipe for every glass surface: the route modals (Settings, Usage), the palette, the
+ * shortcut sheet, popovers, menus, toasts and the project panel.
+ *   light      the scrim dims little and carries a warm ambient field, so there is color behind it
+ *   fill       smoked gold on dark, warm ivory on light, R > G > B on both; custom themes derive it
+ *              from their own surfaces and brand color
+ *   blur       one backdrop-filter, on the outermost layer only; panes and cards inside are fills
+ *   edge       a gradient rim, brightest top left, a faint warm bounce along the bottom
+ *   specular   a soft sheen band across the upper left, and a 3.5% grain against banding
+ *   shadow     a keyline, a contact line, a lift and a warm ambient layer
+ *   response   the pointer moves a glint across the frame (reflections.ts)
+ * Reduced transparency, and a glass opacity of 100%, give opaque surfaces.
+ */
+:root {
+  --glass-tint: color-mix(in oklab, var(--one-brand) 6%, var(--ui-surface-base));
+  /* 100% opacity is opaque; the default 80% is a 72% fill, so something shows through. */
+  --glass-fill-alpha: max(40%, calc(100% - (100% - var(--glass-opacity)) * 1.4));
+  --glass-tint-float: color-mix(in oklab, var(--one-brand) 6%, var(--ui-surface-overlay));
+  --glass-fill: color-mix(in srgb, var(--glass-tint) var(--glass-fill-alpha), transparent);
+  --glass-fill-float: color-mix(
+    in srgb,
+    var(--glass-tint-float) var(--glass-fill-alpha),
+    transparent
+  );
+  --glass-nav-fill: color-mix(in oklab, var(--one-brand) 6%, transparent);
+  --glass-card-fill: color-mix(in oklab, var(--ui-surface-overlay) 70%, transparent);
+  --glass-card-sheen: linear-gradient(180deg, rgb(255 255 255 / 60%), rgb(255 255 255 / 10%));
+  --glass-card-rim: rgb(255 255 255 / 90%);
+  --glass-card-shadow: 0 1px 2px rgb(60 40 10 / 8%), 0 10px 22px -14px rgb(60 40 10 / 22%);
+
+  --glass-rim-hi: rgb(255 255 255 / 95%);
+  --glass-rim-lo: rgb(255 255 255 / 38%);
+  --glass-rim-warm: color-mix(in oklab, var(--one-brand) 26%, transparent);
+  --glass-sheen: rgb(255 255 255 / 55%);
+  --glass-glint: rgb(255 255 255 / 50%);
+  --glass-glow: color-mix(in oklab, var(--one-brand) 7%, transparent);
+
+  --glass-shadow:
+    0 0 0 1px rgb(60 40 10 / 7%), 0 1px 2px rgb(60 40 10 / 7%),
+    0 14px 32px -10px rgb(60 40 10 / 16%), 0 48px 96px -24px rgb(60 40 10 / 20%);
+  --glass-shadow-sm:
+    0 0 0 1px rgb(60 40 10 / 8%), 0 1px 2px rgb(60 40 10 / 8%), 0 10px 24px -8px rgb(60 40 10 / 18%);
+
+  --glass-scrim: color-mix(in oklab, var(--one-brand) 5%, var(--ui-surface-base));
+  --glass-scrim-alpha: 34%;
+  --glass-ambient:
+    radial-gradient(
+      60% 50% at 18% 0%,
+      color-mix(in oklab, var(--one-brand) 12%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 40% at 92% 100%,
+      color-mix(in oklab, var(--one-brand) 8%, transparent),
+      transparent 70%
+    );
+
+  --glass-bf: blur(calc(var(--glass-blur) * 1.5)) saturate(calc(var(--glass-saturation) + 0.45))
+    brightness(1.03);
+  --glass-bf-frame: blur(calc(var(--glass-blur) * 1.75))
+    saturate(calc(var(--glass-saturation) + 0.55)) brightness(1.03);
+
+  --glass-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.035'/></svg>");
+
+  @variant dark {
+    --glass-tint: color-mix(in oklab, var(--one-brand) 15%, var(--ui-surface-raised));
+    --glass-tint-float: color-mix(in oklab, var(--one-brand) 14%, var(--ui-surface-overlay));
+    --glass-nav-fill: color-mix(in oklab, rgb(255 238 205) 3.2%, transparent);
+    --glass-card-fill: color-mix(in oklab, rgb(255 238 205) 4.2%, transparent);
+    --glass-card-sheen: linear-gradient(180deg, rgb(255 244 220 / 6%), rgb(255 244 220 / 2%));
+    --glass-card-rim: rgb(255 255 255 / 10%);
+    --glass-card-shadow: 0 1px 0 rgb(0 0 0 / 50%), 0 14px 26px -18px rgb(0 0 0 / 70%);
+
+    --glass-rim-hi: rgb(255 246 226 / 26%);
+    --glass-rim-lo: rgb(255 255 255 / 4%);
+    --glass-rim-warm: color-mix(in oklab, var(--one-brand) 24%, transparent);
+    --glass-sheen: rgb(255 244 220 / 6.5%);
+    --glass-glint: rgb(255 255 255 / 9%);
+    --glass-glow: color-mix(in oklab, var(--one-brand) 13%, transparent);
+
+    --glass-shadow:
+      0 0 0 1px rgb(0 0 0 / 55%), 0 1px 2px rgb(0 0 0 / 40%), 0 18px 40px -12px rgb(0 0 0 / 60%),
+      0 60px 120px -24px rgb(36 20 0 / 55%);
+    --glass-shadow-sm:
+      0 0 0 1px rgb(0 0 0 / 55%), 0 1px 2px rgb(0 0 0 / 40%), 0 12px 28px -10px rgb(0 0 0 / 65%);
+
+    --glass-scrim: color-mix(in oklab, var(--one-brand) 2%, black);
+    --glass-scrim-alpha: 30%;
+    --glass-ambient:
+      radial-gradient(
+        60% 50% at 18% 0%,
+        color-mix(in oklab, var(--one-brand) 20%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 40% at 92% 100%,
+        color-mix(in oklab, var(--one-brand) 13%, transparent),
+        transparent 70%
+      );
+  }
+}
+
+/* The scrim: it dims far less than a flat black, and carries a faint warm light field. */
+.dialog-backdrop {
+  background-color: color-mix(in srgb, var(--glass-scrim) var(--glass-scrim-alpha), transparent);
+  background-image: var(--glass-ambient);
+  -webkit-backdrop-filter: blur(4px) saturate(1.2);
+  backdrop-filter: blur(4px) saturate(1.2);
+}
+
+/* Every glass surface. */
+[data-app-modal],
+.dialog-glass,
+:root:not(.dark) .dialog-glass,
+.dropdown-glass,
+[data-slot="preview-card-popup"] {
+  --one-glass-shadow: var(--glass-shadow);
+  border-width: 0;
+  background-color: var(--glass-fill);
+  background-image:
+    linear-gradient(115deg, var(--glass-sheen) 0%, transparent 32%), var(--glass-grain);
+  background-repeat: no-repeat, repeat;
+  background-blend-mode: normal, soft-light;
+  -webkit-backdrop-filter: var(--glass-bf);
+  backdrop-filter: var(--glass-bf);
+  box-shadow: var(--glass-shadow);
+}
+
+.dropdown-glass,
+[data-slot="preview-card-popup"] {
+  background-color: var(--glass-fill-float);
+  box-shadow: var(--glass-shadow-sm);
+}
+
+[data-app-modal] {
+  background-image:
+    linear-gradient(115deg, var(--glass-sheen) 0%, transparent 32%),
+    radial-gradient(52% 16rem at 14% 0, var(--glass-glow), transparent 72%), var(--glass-grain);
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-blend-mode: normal, normal, soft-light;
+  -webkit-backdrop-filter: var(--glass-bf-frame);
+  backdrop-filter: var(--glass-bf-frame);
+}
+
+/* The edge: a 1px ring painted with a gradient, brightest top left, warm along the bottom. */
+[data-app-modal]::before,
+.dialog-glass::before,
+.dropdown-glass::before,
+[data-slot="preview-card-popup"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    155deg,
+    var(--glass-rim-hi) 0%,
+    var(--glass-rim-lo) 28%,
+    var(--glass-rim-lo) 72%,
+    var(--glass-rim-warm) 100%
+  );
+  box-shadow: none;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+/*
+ * Inside the modal the panes and cards are fills, not glass: no backdrop-filter of their own. The
+ * rail is a frostier step and a card a lighter one, each with its own lit top edge and a quieter
+ * rim. Cards and panels read these variables, so they follow without their own rules.
+ */
+[data-app-modal] {
+  --background: color-mix(in oklab, var(--one-brand) 2.5%, var(--glass-tint));
+  --settings-page-bg: transparent;
+  --settings-panel-bg: var(--glass-card-fill);
+  --settings-panel-shadow: var(--glass-card-shadow);
+}
+
+/* Settings panels and cards take the lighter card step. The shared glass tokens the Usage cards
+   read (sheen, top rim, side rim) keep their meaning; these rules use their own. */
+[data-app-modal] :is([data-slot="settings-group"][data-variant="grouped"], [data-settings-card]) {
+  background-image: var(--glass-card-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-card-rim),
+    inset 0 0 0 1px var(--settings-hairline),
+    var(--glass-card-shadow);
+}
+
+[data-app-modal] [data-settings-nav] {
+  background-color: var(--glass-nav-fill);
+}
+
+[data-app-modal]
+  :is(
+    [data-slot="settings-group"][data-variant="grouped"],
+    [data-settings-card],
+    .usage-panel
+  )::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    155deg,
+    var(--glass-card-rim) 0%,
+    transparent 45%,
+    var(--glass-rim-warm) 100%
+  );
+  opacity: 0.7;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+[data-app-modal] :is([data-slot="settings-group"][data-variant="grouped"], [data-settings-card]) {
+  position: relative;
+}
+
+/* The glint: a soft light the pointer moves across the frame. Its position is a translate, so a
+   pointer move repaints nothing. reflections.ts writes --one-mx and --one-my. */
+.one-glint {
+  position: absolute;
+  inset: 0;
+  z-index: 29;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--one-reflect-strength, 0);
+  transition: opacity 320ms var(--one-ease-out);
+}
+
+.one-glint::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44rem;
+  height: 44rem;
+  margin: -22rem 0 0 -22rem;
+  background: radial-gradient(closest-side, var(--glass-glint), transparent);
+  translate: var(--one-mx, 50%) var(--one-my, 0px);
+  will-change: translate;
+}
+
+/* An interactive card catches the same light: the sheen follows the pointer while it is over. */
+@media (hover: hover) {
+  [data-app-modal] :is([data-settings-card], [data-ui-tile], [data-ui-glint]):hover {
+    background-image:
+      radial-gradient(
+        14rem circle at var(--one-mx, 50%) var(--one-my, 0),
+        var(--glass-glint),
+        transparent 70%
+      ),
+      var(--glass-card-sheen);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-glint {
+    display: none;
+  }
+}
+
+/* The opaque fallbacks. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-app-modal],
+  .dialog-glass,
+  :root:not(.dark) .dialog-glass {
+    background-color: var(--glass-tint);
+  }
+
+  .dropdown-glass,
+  [data-slot="preview-card-popup"] {
+    background-color: var(--glass-tint-float);
+  }
+
+  [data-app-modal],
+  .dialog-glass,
+  :root:not(.dark) .dialog-glass,
+  .dropdown-glass,
+  [data-slot="preview-card-popup"] {
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .dialog-backdrop {
+    background-color: color-mix(in srgb, var(--glass-scrim) 60%, transparent);
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  [data-app-modal],
+  .dialog-glass {
+    background-color: var(--glass-tint);
+  }
+
+  .dropdown-glass,
+  [data-slot="preview-card-popup"] {
+    background-color: var(--glass-tint-float);
+  }
 }

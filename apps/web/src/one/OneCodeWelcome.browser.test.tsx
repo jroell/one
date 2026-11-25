@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -73,9 +73,11 @@ describe("code mode welcome", () => {
       </ReviewChangesContext>,
     );
     expect(screen.getByRole("button", { name: /Review changes/ }).elements()).toHaveLength(0);
+    // The set stays four: a file takes the place of the diff.
     expect(
       screen.getByRole("list", { name: "Ways to start" }).getByRole("button").elements(),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
+    expect(screen.getByRole("button", { name: /Open a file/ }).elements()).toHaveLength(1);
   });
 
   it("types @ into an empty composer so the file menu opens, and leaves a draft alone", async () => {
@@ -118,6 +120,8 @@ describe("code mode welcome", () => {
   });
 
   it("lays the starters out as an even grid with the keycap at each chip's right edge", async () => {
+    // Keycaps are hidden on a phone, so measure at a desktop width.
+    await page.viewport(1000, 800);
     reset();
     state.params = { environmentId: "env-1", threadId: "thread-1" };
     await using screen = await render(

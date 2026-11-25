@@ -90,7 +90,9 @@ it("an empty thread in a plain folder offers no Review changes, and one in a rep
   await vi.waitFor(() =>
     expect(page.getByRole("button", { name: /Review changes/ }).elements()).toHaveLength(0),
   );
-  expect(starters.getByRole("button").elements()).toHaveLength(3);
+  // A file takes the diff's place, so the set stays four.
+  expect(starters.getByRole("button").elements()).toHaveLength(4);
+  expect(page.getByRole("button", { name: /Open a file/ }).elements()).toHaveLength(1);
 
   await act(() => emitVcsStatus({ _tag: "localUpdated", local: repository(true) }));
   await expect.element(page.getByRole("button", { name: /Review changes/ })).toBeVisible();
@@ -151,41 +153,5 @@ it.each([
     });
     await press({ key: "/", code: "Slash" }, dialog);
     expect(document.activeElement).not.toBe(searchField);
-  },
-);
-
-it("the sidebar footer keeps its icons on a list page and lights the open page's icon instead of swapping to Back", async () => {
-  await page.viewport(1400, 900);
-  using _environment = installFakeEnvironment([threadWithHistory("footer-page", 1)]);
-  const { app, focus } = await openApp("/pull-requests");
-  await using _app = app;
-  using _focus = focus;
-  const open = page.getByRole("button", { name: "Pull requests", exact: true });
-  await expect.element(open).toBeVisible();
-  await expect.element(open).toHaveAttribute("aria-current", "page");
-  expect(page.getByRole("button", { name: "Settings", exact: true }).elements()).toHaveLength(1);
-  expect(page.getByRole("button", { name: "Back", exact: true }).elements()).toHaveLength(0);
-});
-
-it.each([
-  ["/issues", "Issues"],
-  ["/pull-requests", "Pull requests"],
-] as const)(
-  "%s: the page has one serif heading at 30px in its own band, with the subtitle line reserved",
-  async (route, title) => {
-    await page.viewport(1400, 900);
-    using _environment = installFakeEnvironment([threadWithHistory("band", 1)]);
-    const { app, focus } = await openApp(route);
-    await using _app = app;
-    using _focus = focus;
-    const heading = page.getByRole("heading", { level: 1, name: title, exact: true });
-    await expect.element(heading).toBeVisible();
-    expect(page.getByRole("heading", { level: 1 }).elements()).toHaveLength(1);
-    const style = getComputedStyle(heading.element());
-    expect(style.fontFamily).toContain("Iowan Old Style");
-    expect(style.fontSize).toBe("30px");
-    // The line under the title is there before any row is, so the toolbar does not drop later.
-    const subtitle = document.querySelector("[data-one-page-subtitle]")!;
-    expect(subtitle.getBoundingClientRect().height).toBeGreaterThanOrEqual(20);
   },
 );

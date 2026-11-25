@@ -14,7 +14,14 @@ import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environ
 import type { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { m as resolveMessage } from "../i18n/messages";
-import { FolderGit2Icon, FolderGitIcon, FolderIcon, PlusIcon, ScaleIcon } from "lucide-react";
+import {
+  FolderGit2Icon,
+  FolderGitIcon,
+  FolderIcon,
+  LockIcon,
+  PlusIcon,
+  ScaleIcon,
+} from "lucide-react";
 import {
   type Ref,
   type MouseEvent as ReactMouseEvent,
@@ -308,6 +315,18 @@ const RunContextSelector = memo(function RunContextSelector({
         data-composer-context-control
       >
         {triggerContent}
+        {isPanel ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={<span data-one-run-context-lock="" className="inline-flex shrink-0" />}
+            >
+              <LockIcon aria-hidden className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              <T>Fixed once the thread has started</T>
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
       </span>
     );
   }

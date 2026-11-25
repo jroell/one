@@ -1,3 +1,4 @@
+import { textContrast } from "../../../test/contrast";
 import { render } from "../../../test/render";
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
@@ -6,7 +7,12 @@ import "../../index.css";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
-import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import {
+  SettingsPageContainer,
+  SettingsPickerField,
+  SettingsRow,
+  SettingsSection,
+} from "./settingsLayout";
 
 function selectRow(title: string, value: string) {
   return (
@@ -99,6 +105,97 @@ describe("settings layout", () => {
     expect(new Set(controls.map((rect) => Math.round(rect.right))).size).toBe(1);
     expect(new Set(controls.map((rect) => Math.round(rect.height))).size).toBe(1);
     expect(screen.container.querySelectorAll("[data-settings-control]")).toHaveLength(5);
+  });
+
+  it("draws a text field white like its panel in light, with a placeholder that stays readable", async () => {
+    await using _screen = await render(
+      <div data-app-modal="">
+        <SettingsSection title="Provider">
+          <SettingsRow
+            title="Binary path"
+            control={
+              <Input nativeInput size="sm" aria-label="Binary path" placeholder="~/.codex" />
+            }
+          />
+        </SettingsSection>
+      </div>,
+      { container: wideContainer(), router: false },
+    );
+
+    const input = page.getByRole("textbox", { name: "Binary path" }).element();
+    const field = input.closest<HTMLElement>("[data-slot=input-control]")!;
+    const panel = field.closest<HTMLElement>("[data-slot=settings-group]")!;
+    expect(getComputedStyle(field).backgroundColor).toBe(getComputedStyle(panel).backgroundColor);
+    expect(textContrast(input, "::placeholder")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("widens a select that sits in a narrow wrapper beside its hidden input to the control column", async () => {
+    await using _screen = await render(
+      <SettingsSection title="Colors">
+        <SettingsRow
+          title="Diff colors"
+          control={
+            <div className="w-full sm:w-40">
+              <Select value="Auto" name="diffColors">
+                <SelectTrigger size="sm" aria-label="Diff colors">
+                  <SelectValue>Auto</SelectValue>
+                </SelectTrigger>
+                <SelectPopup>
+                  <SelectItem value="Auto">Auto</SelectItem>
+                </SelectPopup>
+              </Select>
+            </div>
+          }
+        />
+      </SettingsSection>,
+      { container: wideContainer(), router: false },
+    );
+
+    const trigger = page.getByRole("combobox", { name: "Diff colors" }).element();
+    expect(Math.round(trigger.getBoundingClientRect().width)).toBe(240);
+  });
+
+  it("captions a picker pair Model and Effort, gives each trigger a chevron, and leaves a lone picker uncaptioned", async () => {
+    const picker = (label: string) => (
+      <Button variant="outline" size="sm" aria-label={`${label} trigger`}>
+        <span data-composer-control-label>{label} value</span>
+      </Button>
+    );
+    await using screen = await render(
+      <SettingsSection title="Models">
+        <SettingsRow
+          title="Default model"
+          control={
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <SettingsPickerField label="Model">{picker("Model")}</SettingsPickerField>
+              <SettingsPickerField label="Effort">{picker("Effort")}</SettingsPickerField>
+            </div>
+          }
+        />
+        <SettingsRow
+          title="Fallback model"
+          control={
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <SettingsPickerField label="Model">{picker("Fallback")}</SettingsPickerField>
+            </div>
+          }
+        />
+      </SettingsSection>,
+      { container: wideContainer(), router: false },
+    );
+
+    const caption = (trigger: string) =>
+      page.getByRole("button", { name: trigger }).element().parentElement!.firstElementChild!;
+    expect(caption("Model trigger")).toBeVisible();
+    expect(caption("Model trigger").textContent).toBe("Model");
+    expect(caption("Effort trigger").textContent).toBe("Effort");
+    expect(getComputedStyle(caption("Fallback trigger")).display).toBe("none");
+    for (const name of ["Model trigger", "Effort trigger", "Fallback trigger"]) {
+      const trigger = page.getByRole("button", { name }).element();
+      expect(getComputedStyle(trigger, "::after").content, name).toBe('""');
+      expect(Math.round(trigger.getBoundingClientRect().width), name).toBe(240);
+    }
+    expect(screen.container.querySelectorAll("[data-settings-picker-field]")).toHaveLength(3);
   });
 
   it("sorts a danger row after the primary action of its section whatever the source order", async () => {

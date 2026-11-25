@@ -560,4 +560,10 @@ describe("branch naming defaults", () => {
   it("starts new branches under the One prefix for settings that never chose one", () => {
     expect(DEFAULT_SERVER_SETTINGS.branchNamePrefix).toBe("one");
   });
+
+  it("keeps an explicitly stored t3 prefix and resolves an omitted one to one", () => {
+    expect(decodeServerSettings({ branchNamePrefix: "t3" }).branchNamePrefix).toBe("t3");
+    expect(decodeServerSettings({ branchNamePrefix: " t3 " }).branchNamePrefix).toBe("t3");
+    expect(decodeServerSettings({}).branchNamePrefix).toBe("one");
+  });
 });

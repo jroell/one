@@ -378,6 +378,9 @@ export default defineConfig(({ command }) => {
       ),
       "import.meta.env.VITE_RELEASE_CHANNEL": JSON.stringify(configuredReleaseChannel),
       "import.meta.env.APP_VERSION": JSON.stringify(configuredAppVersion),
+      "import.meta.env.APP_BUILD_DATE": JSON.stringify(
+        process.env.APP_BUILD_DATE?.trim() || new Date().toISOString().slice(0, 10),
+      ),
     },
     resolve: {
       tsconfigPaths: true,

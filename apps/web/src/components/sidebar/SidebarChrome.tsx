@@ -2,7 +2,7 @@ import { ArrowLeftIcon, ArrowRightIcon, ChartNoAxesColumnIcon, SettingsIcon } fr
 import type { ReactNode } from "react";
 import { T, useGT } from "gt-react";
 import { memo } from "react";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
 
 import { useAtomValue } from "@effect/atom-react";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
@@ -225,13 +225,15 @@ function SidebarUtilityItem({
   onClick: () => void;
 }) {
   const gt = useGT();
+  // The lit icon is the way out of its page, and it says so.
+  const name = active ? gt("Back from {page}", { page: label }) : label;
   return (
     <SidebarMenuItem className="shrink-0">
       <Tooltip>
         <TooltipTrigger
           render={
             <SidebarMenuButton
-              aria-label={label}
+              aria-label={name}
               aria-current={active ? "page" : undefined}
               isActive={active}
               onClick={onClick}
@@ -242,7 +244,7 @@ function SidebarUtilityItem({
           }
         />
         <TooltipPopup side="top">
-          {active ? gt("{page}: click to go back", { page: label }) : label}
+          {name}
           {shortcutLabel ? ` (${shortcutLabel})` : ""}
         </TooltipPopup>
       </Tooltip>
@@ -256,10 +258,17 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
   const pathname = useLocation({ select: (location) => location.pathname });
+  // The matched route, not the typed path, says which list is open: "/Issues" is the same page.
+  const activePage = useRouterState({
+    select: (state) =>
+      state.matches.some((match) => match.routeId === "/_chat/pull-requests")
+        ? "pull-requests"
+        : state.matches.some((match) => match.routeId === "/_chat/issues")
+          ? "issues"
+          : null,
+  });
   // The footer keeps its four icons on every page, with the open page's icon lit; clicking it
   // goes back. Pages with no icon of their own (a project, workflows) keep the Back button.
-  const activePage =
-    pathname === "/pull-requests" ? "pull-requests" : pathname === "/issues" ? "issues" : null;
   const isOnUtilityPage = isSidebarUtilityPage(pathname) && activePage === null;
   const pullRequestsSupported = usePullRequestsSupported();
   const issuesSupported = useIssuesSupported();
@@ -317,7 +326,8 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             shortcutLabel={isDesktopApp ? formatShortcutLabel(DESKTOP_SETTINGS_SHORTCUT) : null}
             onClick={handleSettingsClick}
           />
-          {pullRequestsSupported ? (
+          {/* The open page keeps its icon, and so its exit, even if its capability goes away. */}
+          {pullRequestsSupported || activePage === "pull-requests" ? (
             <SidebarUtilityItem
               icon={<PullRequestGlyph.pullRequest />}
               label={gt("Pull requests")}
@@ -325,7 +335,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
               onClick={activePage === "pull-requests" ? handleBackClick : handlePullRequestsClick}
             />
           ) : null}
-          {issuesSupported ? (
+          {issuesSupported || activePage === "issues" ? (
             <SidebarUtilityItem
               icon={<IssueGlyph.issue />}
               label={gt("Issues", { $context: "sidebar link to the list of issues" })}

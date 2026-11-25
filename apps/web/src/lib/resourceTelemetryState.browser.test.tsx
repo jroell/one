@@ -202,6 +202,22 @@ describe("resource monitor retry", () => {
       .not.toBeInTheDocument();
   });
 
+  it("reads CPU in cores and shows no speed-limit figure when the host reports none", async () => {
+    using fixture = setup();
+    Object.assign(fixture.snapshot.groups.allT3, { currentCpuPercent: 194.1 });
+    await using screen = await render(
+      <RegistryContext.Provider value={fixture.registry}>
+        <ResourceTelemetryDiagnostics environmentId={environmentId} />
+      </RegistryContext.Provider>,
+    );
+    await screen.getByRole("button", { name: "Retry monitor" }).click();
+
+    await expect.element(screen.getByText("194.1%", { exact: true }).first()).toBeVisible();
+    await expect.element(screen.getByText(/1\.9 cores busy/)).toBeVisible();
+    await expect.element(screen.getByText("CPU speed limit not reported")).toBeVisible();
+    expect(screen.container.textContent).not.toContain("Unknown");
+  });
+
   it.each([false, true])(
     "refreshes the changed history window only in the retry environment (switch environment: %s)",
     async (switchEnvironment) => {

@@ -11,6 +11,8 @@ export const REFLECT_PROXIMITY_PX = 24;
 export const REMEASURE_MS = 250;
 
 const REFLECT_SELECTOR = "[data-one-reflect]";
+/** Interactive cards catch the pointer's light while it is over them, with no proximity halo. */
+const GLINT_SELECTOR = "[data-settings-card], [data-ui-tile], [data-ui-glint]";
 /** While the agent works the edge light travels around the surface on its own and ignores the pointer. */
 const WORKING_SELECTOR = "[data-one-working]";
 
@@ -44,6 +46,7 @@ export function installOneReflections(): () => void {
   let epoch = 0;
   let frame = 0;
   let active: HTMLElement | null = null;
+  let activeGlint: HTMLElement | null = null;
   let x = 0;
   let y = 0;
 
@@ -110,17 +113,13 @@ export function installOneReflections(): () => void {
     return null;
   };
 
-  const apply = () => {
-    frame = 0;
-    const element = active;
-    if (!element) return;
+  const write = (element: HTMLElement) => {
     const entry = tracked.get(element);
     if (!entry || !element.isConnected) {
       forget(element);
-      active = null;
-      return;
+      return false;
     }
-    if (element.closest(WORKING_SELECTOR)) return;
+    if (element.closest(WORKING_SELECTOR)) return true;
     const rect = rectOf(element, entry);
     const nextX = Math.round(x - rect.left);
     const nextY = Math.round(y - rect.top);
@@ -132,6 +131,13 @@ export function installOneReflections(): () => void {
       element.style.setProperty("--one-my", `${nextY}px`);
       entry.y = nextY;
     }
+    return true;
+  };
+
+  const apply = () => {
+    frame = 0;
+    if (active && !write(active)) active = null;
+    if (activeGlint && !write(activeGlint)) activeGlint = null;
   };
 
   const onPointerMove = (event: PointerEvent) => {
@@ -139,7 +145,14 @@ export function installOneReflections(): () => void {
     x = event.clientX;
     y = event.clientY;
     active = surfaceAt(event.target);
-    if (active && frame === 0) frame = requestAnimationFrame(apply);
+    const glint =
+      event.target instanceof Element ? event.target.closest<HTMLElement>(GLINT_SELECTOR) : null;
+    if (glint) {
+      const entry = track(glint);
+      if (glint !== activeGlint) entry.measuredIn = -1;
+    }
+    activeGlint = glint;
+    if ((active || activeGlint) && frame === 0) frame = requestAnimationFrame(apply);
   };
   const onLayoutChange = () => {
     epoch++;

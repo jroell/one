@@ -1,3 +1,4 @@
+import { OneMark } from "~/one/OneMark";
 import { T, useGT, useMessages, Var } from "gt-react";
 import type { SideThreadOpenIntent } from "@t3tools/client-runtime/side-thread";
 import type { ThreadRunSummary } from "@t3tools/client-runtime/state/models";
@@ -2023,7 +2024,15 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
   );
 
   return (
-    <div className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1">
+    <div
+      className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1"
+      data-one-turn-start={row.startsTurn ? "" : undefined}
+    >
+      {row.startsTurn ? (
+        <span aria-hidden data-one-answer-mark="">
+          <OneMark className="size-5" />
+        </span>
+      ) : null}
       <div className="relative flex items-center gap-1">
         <button
           type="button"

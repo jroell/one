@@ -134,6 +134,7 @@ import {
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { formatDiffCount } from "@t3tools/client-runtime/diff-count";
+import { formatCompactDiffCount } from "./chat/DiffStatLabel";
 import { ChangeBreakdownGrid } from "./pullRequest/ChangeBreakdownGrid";
 import { useOpenLink } from "~/browser/useOpenLink";
 
@@ -1728,7 +1729,7 @@ function CheckoutGitActionsControl({
             }
           >
             <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
-            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+            <span className="flex min-w-0 flex-1 items-baseline gap-1">
               <span className="shrink-0">
                 <T>Changes</T>
               </span>
@@ -1736,7 +1737,7 @@ function CheckoutGitActionsControl({
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className="pointer-events-auto min-w-0 truncate font-normal text-muted-foreground" />
+                      <span className="pointer-events-auto min-w-0 truncate text-xs font-normal text-muted-foreground" />
                     }
                   >
                     {changesBaseLabel}
@@ -1746,7 +1747,7 @@ function CheckoutGitActionsControl({
                   </TooltipPopup>
                 </Tooltip>
               ) : null}
-              <span className="ml-auto flex shrink-0 items-baseline gap-2 ps-2 font-mono tabular-nums">
+              <span className="ml-auto flex shrink-0 items-baseline gap-1 ps-0.5 font-mono text-2xs tabular-nums">
                 <span
                   className={
                     changesTotals.insertions
@@ -1754,7 +1755,7 @@ function CheckoutGitActionsControl({
                       : "text-muted-foreground"
                   }
                 >
-                  +{formatDiffCount(changesTotals.insertions)}
+                  +{formatCompactDiffCount(changesTotals.insertions)}
                 </span>
                 <span
                   className={
@@ -1763,7 +1764,7 @@ function CheckoutGitActionsControl({
                       : "text-muted-foreground"
                   }
                 >
-                  -{formatDiffCount(changesTotals.deletions)}
+                  -{formatCompactDiffCount(changesTotals.deletions)}
                 </span>
               </span>
             </span>

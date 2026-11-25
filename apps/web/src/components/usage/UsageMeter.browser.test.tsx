@@ -194,4 +194,16 @@ describe("UsageLimitsPooled meters", () => {
     await screen.rerender(<UsageLimitsPooled presentations={presentationsFor(40)} now={now} />);
     await expect.element(screen.getByText("All limits are comfortable.")).toBeVisible();
   });
+
+  it("puts the label right after a one-digit figure, with no reserved gap", async () => {
+    await using screen = await render(
+      <UsageLimitsPooled presentations={presentationsFor(98)} now={now} />,
+      { router: false },
+    );
+    const number = screen.container.querySelector<HTMLElement>(".usage-limit-number")!;
+    const unit = screen.container.querySelector<HTMLElement>(".usage-limit-unit")!;
+    expect(number.textContent).toBe("2%");
+    const gap = unit.getBoundingClientRect().left - number.getBoundingClientRect().right;
+    expect(gap).toBeLessThan(16);
+  });
 });

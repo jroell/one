@@ -1,5 +1,5 @@
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
-import { splitObjectPath, splitWorkLabel } from "./TimelineWorkLabel.logic";
+import { abbreviateHomePath, splitObjectPath, splitWorkLabel } from "./TimelineWorkLabel.logic";
 
 /** Verb in prose, object in the mono face, with the directory truncating before the name. */
 export function WorkLabelText(props: {
@@ -11,7 +11,7 @@ export function WorkLabelText(props: {
   // A command is not a path: it keeps its slashes and truncates at the end.
   const { dir, base } = /\s/.test(parts.object)
     ? { dir: "", base: parts.object }
-    : splitObjectPath(parts.object);
+    : splitObjectPath(abbreviateHomePath(parts.object));
   return (
     <span className="flex min-w-0 items-baseline gap-1.5" data-one-work-label="">
       {parts.before.trim() ? (

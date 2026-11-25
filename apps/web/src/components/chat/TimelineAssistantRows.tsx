@@ -43,9 +43,9 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
       <div
         className="relative min-w-0 px-1 py-0.5"
         data-one-assistant=""
-        data-one-answer={row.showAssistantMeta ? "" : undefined}
+        data-one-answer={row.startsTurn ? "" : undefined}
       >
-        {row.showAssistantMeta ? (
+        {row.startsTurn ? (
           <span aria-hidden data-one-answer-mark="">
             <OneMark className="size-5" />
           </span>

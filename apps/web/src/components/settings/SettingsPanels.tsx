@@ -114,6 +114,7 @@ import {
 } from "./SettingsPanels.logic";
 import {
   SETTINGS_PICKER_TRIGGER_CLASSNAME,
+  SettingsPickerField,
   SettingResetButton,
   SettingsPageContainer,
   SettingsRow,
@@ -2253,69 +2254,45 @@ export function ThreadsSettingsPanel() {
               </span>
             ) : (
               <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <ProviderModelPicker
-                  environmentId={environmentId}
-                  activeInstanceId={textGenInstanceId}
-                  model={textGenModel}
-                  lockedProvider={null}
-                  instanceEntries={textGenerationModelInstanceEntries}
-                  modelOptionsByInstance={textGenerationModelOptionsByInstance}
-                  triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                  {...(mixedTextGenerationModel ? { triggerLabel: gt("Mixed") } : {})}
-                  getModelDisabledReason={textGenerationModelDisabledReason}
-                  {...(environmentId
-                    ? {
-                        onOpenProviderSetup: (instanceId: ProviderInstanceId) => {
-                          void navigate({
-                            to: "/settings/providers",
-                            search: { environmentId, instanceId },
-                          });
-                        },
-                      }
-                    : {})}
-                  onInstanceModelChange={(instanceId, model) => {
-                    const reason = textGenerationModelDisabledReason(instanceId, model);
-                    if (reason) {
-                      toastManager.add({
-                        type: "error",
-                        title: gt("Text generation model not saved"),
-                        description: reason,
-                      });
-                      return;
-                    }
-                    updateSettings({
-                      textGenerationModelSelection: resolveAppModelSelectionState(
-                        {
-                          ...settings,
-                          textGenerationModelSelection: pickModelSelection(
-                            textGenerationModelSelection,
-                            instanceId,
-                            model,
-                          ),
-                        },
-                        textGenerationProviders,
-                      ),
-                    });
-                  }}
-                />
-                {textGenInstanceEntry ? (
-                  <TraitsPicker
-                    provider={textGenProvider}
-                    models={textGenInstanceEntry?.models ?? []}
+                <SettingsPickerField label={gt("Model")}>
+                  <ProviderModelPicker
+                    environmentId={environmentId}
+                    activeInstanceId={textGenInstanceId}
                     model={textGenModel}
-                    modelOptions={textGenModelOptions}
-                    allowPromptInjectedEffort={false}
-                    includePlanAgent={selectsPlanAgent(textGenModelOptions)}
+                    lockedProvider={null}
+                    instanceEntries={textGenerationModelInstanceEntries}
+                    modelOptionsByInstance={textGenerationModelOptionsByInstance}
                     triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                    onModelOptionsChange={(nextOptions) => {
+                    {...(mixedTextGenerationModel ? { triggerLabel: gt("Mixed") } : {})}
+                    getModelDisabledReason={textGenerationModelDisabledReason}
+                    {...(environmentId
+                      ? {
+                          onOpenProviderSetup: (instanceId: ProviderInstanceId) => {
+                            void navigate({
+                              to: "/settings/providers",
+                              search: { environmentId, instanceId },
+                            });
+                          },
+                        }
+                      : {})}
+                    onInstanceModelChange={(instanceId, model) => {
+                      const reason = textGenerationModelDisabledReason(instanceId, model);
+                      if (reason) {
+                        toastManager.add({
+                          type: "error",
+                          title: gt("Text generation model not saved"),
+                          description: reason,
+                        });
+                        return;
+                      }
                       updateSettings({
                         textGenerationModelSelection: resolveAppModelSelectionState(
                           {
                             ...settings,
-                            textGenerationModelSelection: createModelSelection(
-                              textGenInstanceId,
-                              textGenModel,
-                              nextOptions,
+                            textGenerationModelSelection: pickModelSelection(
+                              textGenerationModelSelection,
+                              instanceId,
+                              model,
                             ),
                           },
                           textGenerationProviders,
@@ -2323,6 +2300,34 @@ export function ThreadsSettingsPanel() {
                       });
                     }}
                   />
+                </SettingsPickerField>
+                {textGenInstanceEntry ? (
+                  <SettingsPickerField label={gt("Effort")}>
+                    <TraitsPicker
+                      provider={textGenProvider}
+                      models={textGenInstanceEntry?.models ?? []}
+                      model={textGenModel}
+                      modelOptions={textGenModelOptions}
+                      allowPromptInjectedEffort={false}
+                      includePlanAgent={selectsPlanAgent(textGenModelOptions)}
+                      triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                      onModelOptionsChange={(nextOptions) => {
+                        updateSettings({
+                          textGenerationModelSelection: resolveAppModelSelectionState(
+                            {
+                              ...settings,
+                              textGenerationModelSelection: createModelSelection(
+                                textGenInstanceId,
+                                textGenModel,
+                                nextOptions,
+                              ),
+                            },
+                            textGenerationProviders,
+                          ),
+                        });
+                      }}
+                    />
+                  </SettingsPickerField>
                 ) : null}
               </div>
             )

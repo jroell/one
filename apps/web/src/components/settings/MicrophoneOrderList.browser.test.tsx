@@ -27,4 +27,15 @@ describe("MicrophoneOrderList", () => {
       .element(pair.getByRole("button", { name: "Move System default down" }))
       .toBeEnabled();
   });
+
+  it("starts a single microphone's name at the row's own padding, with no empty index column", async () => {
+    await using single = await render(
+      <MicrophoneOrderList order={[{ kind: "default" }]} devices={[]} />,
+      { router: false },
+    );
+    const row = single.container.querySelector("li")!;
+    const name = single.getByText("System default").element();
+    const indent = name.getBoundingClientRect().left - row.getBoundingClientRect().left;
+    expect(indent).toBe(Number.parseFloat(getComputedStyle(row).paddingInlineStart));
+  });
 });

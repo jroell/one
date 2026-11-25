@@ -55,6 +55,7 @@ import {
   useToggleEnvironmentModelFavorite,
 } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
+import { useRegisterSettingsBreadcrumbTail } from "./settingsBreadcrumbTail";
 import { ensureLocalApi } from "../../localApi";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { cn } from "../../lib/utils";
@@ -318,6 +319,8 @@ function EnvironmentUnavailablePlaceholder({
 interface ProviderSettingsTarget {
   readonly environmentId?: EnvironmentId;
   readonly instanceId?: ProviderInstanceId;
+  /** Opens a provider as its own page, or goes back to the list when null. */
+  readonly onSelectInstance?: (instanceId: ProviderInstanceId | null) => void;
   readonly scoped?: boolean;
   readonly environmentIds?: readonly EnvironmentId[];
   readonly projectIds?: readonly ProjectId[];
@@ -476,6 +479,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
               ? target.instanceId
               : undefined
           }
+          onSelectInstance={target.onSelectInstance}
           projectIds={target.projectIds ?? []}
         />
       ) : null}
@@ -487,11 +491,13 @@ function RemoteSessionGatedProviderSettings({
   environment,
   deviceTabs,
   targetInstanceId,
+  onSelectInstance,
   projectIds,
 }: {
   readonly environment: EnvironmentPresentation;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
+  readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
   readonly projectIds: readonly ProjectId[];
 }) {
   const sessionState = useEnvironmentSessionState(environment.environmentId);
@@ -506,6 +512,7 @@ function RemoteSessionGatedProviderSettings({
       operateAccess={operateAccess}
       deviceTabs={deviceTabs}
       targetInstanceId={targetInstanceId}
+      onSelectInstance={onSelectInstance}
       projectIds={projectIds}
     />
   );
@@ -516,12 +523,14 @@ function AccessGatedProviderSettings({
   operateAccess,
   deviceTabs,
   targetInstanceId,
+  onSelectInstance,
   projectIds,
 }: {
   readonly environment: EnvironmentPresentation;
   readonly operateAccess: ProviderOperateAccess;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
+  readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
   readonly projectIds: readonly ProjectId[];
 }) {
   const access = classifyProviderEnvironmentAccess({
@@ -545,6 +554,7 @@ function AccessGatedProviderSettings({
       readOnly={access.kind === "read-only"}
       deviceTabs={deviceTabs}
       targetInstanceId={targetInstanceId}
+      onSelectInstance={onSelectInstance}
       projectIds={projectIds}
     />
   );
@@ -559,12 +569,15 @@ export function EnvironmentProviderSettings({
   readOnly = false,
   deviceTabs,
   targetInstanceId,
+  onSelectInstance,
   projectIds = NO_PROJECT_IDS,
 }: {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
+  /** Opens a provider as its own page, or goes back to the list when null. */
+  readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
   readonly projectIds?: readonly ProjectId[];
   readonly readOnly?: boolean;
 }) {
@@ -802,13 +815,19 @@ export function EnvironmentProviderSettings({
     }
   }
 
-  const targetInstanceMissing =
-    targetInstanceId !== undefined &&
-    selectedInstanceId === targetInstanceId &&
-    !rows.some((row) => row.instanceId === targetInstanceId);
-  const selectedRow =
-    rows.find((row) => row.instanceId === selectedInstanceId) ??
-    (targetInstanceMissing ? null : (rows[0] ?? null));
+  const selectedRow = rows.find((row) => row.instanceId === selectedInstanceId) ?? null;
+  const targetInstanceMissing = selectedInstanceId !== null && selectedRow === null;
+  const selectInstance = useStableCallback((instanceId: ProviderInstanceId | null) => {
+    setSelectedInstanceId(instanceId);
+    onSelectInstance?.(instanceId);
+  });
+  const backToList = useStableCallback(() => selectInstance(null));
+  useRegisterSettingsBreadcrumbTail(
+    selectedRow === null
+      ? null
+      : providerInstanceName(selectedRow.explicitInstance ?? { driver: selectedRow.driver }),
+    backToList,
+  );
 
   const persistInstance = async (
     instanceId: ProviderInstanceId,
@@ -968,7 +987,7 @@ export function EnvironmentProviderSettings({
     writeProjectOverride,
     updateModelPreferences: stableUpdateModelPreferences,
     toggleModelFavorite: stableToggleModelFavorite,
-    selectInstance: setSelectedInstanceId,
+    selectInstance,
   };
   // resolveModelPreferences falls back to a fresh `[]`; keep it stable for the rows.
   const favorites = settings.favorites.length > 0 ? settings.favorites : NO_FAVORITES;
@@ -988,7 +1007,6 @@ export function EnvironmentProviderSettings({
         isDefault={row.isDefault}
         isDirty={row.isDirty === true}
         mode={mode}
-        selected={mode === "list" && selectedRow?.instanceId === row.instanceId}
         readOnly={readOnly}
         canWriteSettings={canWriteSettings}
         liveProvider={serverProviders.find((candidate) => candidate.instanceId === row.instanceId)}
@@ -1016,6 +1034,40 @@ export function EnvironmentProviderSettings({
       />
     );
   };
+
+  const readOnlyNotice = readOnly ? (
+    <SettingsGroup divided={false} className="overflow-hidden">
+      <SettingsRow
+        title={gt("Limited permissions")}
+        description={gt(
+          "This session can view {environment}''s providers but can't change their settings.",
+          { environment: environmentLabel },
+        )}
+      />
+    </SettingsGroup>
+  ) : null;
+
+  // One provider opens as its own page; the list comes back through the header's trail.
+  if (selectedRow !== null) {
+    return (
+      <>
+        {deviceTabs ? (
+          <div className="flex min-h-11 min-w-0 items-center gap-2 px-3 sm:px-4">{deviceTabs}</div>
+        ) : null}
+        {readOnlyNotice}
+        {renderProviderInstance(selectedRow, "editor")}
+        {isAddInstanceDialogOpen && !readOnly ? (
+          <AddProviderInstanceDialog
+            open
+            environmentId={environmentId}
+            environmentLabel={environmentLabel}
+            onOpenChange={setIsAddInstanceDialogOpen}
+            onCreated={selectInstance}
+          />
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <>
@@ -1060,61 +1112,30 @@ export function EnvironmentProviderSettings({
         {deviceTabs ? (
           <div className="flex min-h-11 min-w-0 items-center gap-2 px-3 sm:px-4">{deviceTabs}</div>
         ) : null}
-        {readOnly ? (
-          <SettingsGroup divided={false} className="overflow-hidden">
-            <SettingsRow
-              title={gt("Limited permissions")}
-              description={gt(
-                "This session can view {environment}''s providers but can't change their settings.",
-                { environment: environmentLabel },
-              )}
-            />
-          </SettingsGroup>
-        ) : null}
-        <SettingsGroup
-          divided={false}
-          className={cn(
-            providerCardHeightClassName,
-            "overflow-hidden @min-[48rem]/providers:grid @min-[48rem]/providers:grid-cols-[17rem_minmax(0,1fr)]",
-          )}
-        >
-          <div className="border-b border-border/60 @min-[48rem]/providers:flex @min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-col @min-[48rem]/providers:self-start @min-[48rem]/providers:border-r @min-[48rem]/providers:border-b @min-[48rem]/providers:border-b-border/60">
-            <ScrollArea
-              scrollFade
-              chainVerticalScroll
-              className="@min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-1"
-            >
-              <div className="divide-y divide-border/50">
-                {rows.map((row) => renderProviderInstance(row, "list"))}
-                {canAddProvider ? (
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/25 hover:text-foreground focus-visible:bg-muted/25 focus-visible:text-foreground sm:px-4"
-                    onClick={() => setIsAddInstanceDialogOpen(true)}
-                  >
-                    <PlusIcon className="size-4 shrink-0" />
-                    <T>Add provider</T>
-                  </button>
-                ) : null}
-              </div>
-            </ScrollArea>
-          </div>
-
-          <div data-provider-detail className="min-w-0 @min-[48rem]/providers:min-h-0">
-            {selectedRow ? (
-              <ScrollArea scrollFade chainVerticalScroll className="@min-[48rem]/providers:h-full">
-                {/* Flat sections run dividers edge to edge and inset text like the list beside them. */}
-                <div className="space-y-6 py-4">
-                  {renderProviderInstance(selectedRow, "editor")}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="p-6 text-sm text-muted-foreground">
-                {targetInstanceMissing
-                  ? gt("This provider instance is no longer available on this device.")
-                  : gt("No providers configured.")}
-              </div>
-            )}
+        {readOnlyNotice}
+        <SettingsGroup divided={false} className="overflow-hidden">
+          <div className="divide-y divide-border/50">
+            {targetInstanceMissing ? (
+              <p className="px-3 py-3 text-sm text-(--settings-description) sm:px-4">
+                {gt("This provider instance is no longer available on this device.")}
+              </p>
+            ) : null}
+            {rows.length === 0 && !targetInstanceMissing ? (
+              <p className="px-3 py-3 text-sm text-(--settings-description) sm:px-4">
+                {gt("No providers configured.")}
+              </p>
+            ) : null}
+            {rows.map((row) => renderProviderInstance(row, "list"))}
+            {canAddProvider ? (
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left text-sm text-(--settings-description) transition-colors outline-none hover:bg-muted/25 hover:text-foreground focus-visible:bg-muted/25 focus-visible:text-foreground sm:px-4"
+                onClick={() => setIsAddInstanceDialogOpen(true)}
+              >
+                <PlusIcon className="size-4 shrink-0" />
+                <T>Add provider</T>
+              </button>
+            ) : null}
           </div>
         </SettingsGroup>
       </SettingsSection>
@@ -1219,7 +1240,7 @@ export function EnvironmentProviderSettings({
           environmentId={environmentId}
           environmentLabel={environmentLabel}
           onOpenChange={setIsAddInstanceDialogOpen}
-          onCreated={setSelectedInstanceId}
+          onCreated={selectInstance}
         />
       ) : null}
     </>
@@ -1270,7 +1291,6 @@ function ProviderInstanceRow({
   isDefault,
   isDirty,
   mode,
-  selected,
   readOnly,
   canWriteSettings,
   liveProvider,
@@ -1290,7 +1310,6 @@ function ProviderInstanceRow({
   readonly isDefault: boolean;
   readonly isDirty: boolean;
   readonly mode: "list" | "editor";
-  readonly selected: boolean;
   readonly readOnly: boolean;
   readonly canWriteSettings: boolean;
   readonly liveProvider: ServerProvider | undefined;
@@ -1356,7 +1375,6 @@ function ProviderInstanceRow({
       driverOption={driverOption}
       liveProvider={liveProvider}
       mode={mode}
-      selected={selected}
       onSelect={mode === "list" ? () => actions.selectInstance(instanceId) : undefined}
       readOnly={readOnly}
       runtime={

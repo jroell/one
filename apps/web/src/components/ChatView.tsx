@@ -216,6 +216,7 @@ import { shortcutLabelForCommand } from "../keybindings";
 import {
   ChatWelcome,
   CodeWelcome,
+  DraftHeadingContext,
   MainConversationContext,
   ReviewChangesContext,
 } from "~/one/OneEmptyState";
@@ -366,7 +367,7 @@ import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
-import { resolveThreadSyncPhase } from "../threadSync";
+import { resolveThreadSyncPhase, threadTranscriptMayLag } from "../threadSync";
 import { hasAvailableCompactionProvider } from "./chat/compaction.logic";
 import {
   deriveLatestContextWindowSnapshot,
@@ -582,6 +583,10 @@ export default function ChatView(props: ChatViewProps) {
     shellExists: serverThread !== null,
     status: threadStatus,
     hasError: threadSyncError !== null,
+  });
+  const transcriptMayLag = threadTranscriptMayLag({
+    shellExists: serverThread !== null,
+    status: threadStatus,
   });
   const threadDetailLoading = threadSyncPhase === "loading";
   // Held back briefly, so a quick sync does not flash a status line at the end of the timeline.
@@ -1746,6 +1751,10 @@ export default function ChatView(props: ChatViewProps) {
     backgroundSubmissionPending,
     hasWorktreeSetupCard: worktreeSetup !== null,
   });
+  // A new thread's composer sits where an empty thread's does, at the bottom, with the welcome
+  // above it, so sending the first message moves nothing, on a phone too.
+  const dockDraftComposer = isDraftHeroState && !embedded;
+  const draftHeroCentered = isDraftHeroState && !dockDraftComposer;
   const {
     transitionGroupRef: draftHeroTransitionGroupRef,
     composerAnchorRef: draftHeroComposerAnchorRef,
@@ -1924,7 +1933,8 @@ export default function ChatView(props: ChatViewProps) {
   const showComposerContextStrip =
     !embedded &&
     shouldShowComposerContextStrip({
-      isDraftHeroState,
+      // An empty thread has the same first send ahead of it as a draft, and the same strip.
+      isDraftHeroState: isDraftHeroState || (timelineEmpty && !isWorking),
       persistInActiveThreads: settings.persistComposerContextStrip,
       hasActiveProject: activeProject !== null && !showProviderSubagentBar,
       isGitRepo,
@@ -2439,7 +2449,7 @@ export default function ChatView(props: ChatViewProps) {
       '[data-chat-composer-stack="true"]',
     );
     const expandedComposerHeight =
-      isDraftHeroState && stack ? Math.ceil(stack.getBoundingClientRect().height) : nextHeight;
+      draftHeroCentered && stack ? Math.ceil(stack.getBoundingClientRect().height) : nextHeight;
     const mobileCollapsed = Boolean(
       stack?.querySelector('[data-chat-composer-mobile-collapsed="true"]'),
     );
@@ -2496,7 +2506,7 @@ export default function ChatView(props: ChatViewProps) {
 
     updateHeight();
     // The hero overlay fills the pane, so the composer's own growth only shows on its stack.
-    const stack = isDraftHeroState
+    const stack = draftHeroCentered
       ? composerOverlayElement.querySelector<HTMLElement>('[data-chat-composer-stack="true"]')
       : null;
     return observeResize(
@@ -2505,7 +2515,7 @@ export default function ChatView(props: ChatViewProps) {
     );
   }, [
     composerOverlayElement,
-    isDraftHeroState,
+    draftHeroCentered,
     publishComposerOverlayHeightStable,
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The scroll-to-bottom button changes the overlay's height without resizing the observed node first.
     showScrollToBottom,
@@ -3634,7 +3644,7 @@ export default function ChatView(props: ChatViewProps) {
             threadRef={activeThreadRef}
             preview={canvasPreview}
             detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
-            composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
+            composerOverlayElement={draftHeroCentered ? null : composerOverlayElement}
             data-chat-workspace-drop-target="true"
             onDragEnter={workspaceFileDropHandlers.onDragEnter}
             onDragOver={workspaceFileDropHandlers.onDragOver}
@@ -3679,127 +3689,140 @@ export default function ChatView(props: ChatViewProps) {
               )}
               <WorkspaceMutationIdContext value={workspaceMutationId}>
                 <MainConversationContext value={!embedded}>
-                  <ReviewChangesContext
-                    value={{
-                      available: isServerThread && diffAvailable,
-                      open: addDiffSurfaceStable,
-                    }}
+                  <DraftHeadingContext
+                    value={
+                      dockDraftComposer ? (
+                        <DraftHeroHeadline
+                          welcome
+                          draftId={draftId}
+                          activeProjectRef={activeProjectRef}
+                          activeProjectTitle={activeProject?.title ?? null}
+                        />
+                      ) : null
+                    }
                   >
-                    <ThreadTimeline
-                      pendingApprovals={pendingApprovals}
-                      heldApprovalRequestIds={heldApprovalRequestIds}
-                      respondingRequestIds={respondingRequestIds}
-                      onRespondToApproval={onRespondToApprovalStable}
-                      canOperateThread={canOperateThread}
-                      threadDetailRef={routeThreadDetailRef}
-                      entriesInput={timelineEntriesInput}
-                      draftEntries={isServerThread ? null : draftTimelineEntries}
-                      activeThreadKey={activeThreadKey}
-                      syncing={threadSyncPhase !== null}
-                      detailLoading={threadDetailLoading}
-                      citationRequest={citationRequest}
-                      citationHistory={citationHistory}
-                      onCiteAssistantText={citeAssistantTextStable}
-                      onReplyToResponse={replyToResponseStable}
-                      {...(activeProject && !runsOutsideHostCheckout
-                        ? {
-                            onRunShellCommand:
-                              parentPanel?.runShellCommand ?? runShellCommandStable,
-                          }
-                        : {})}
-                      isWorking={isWorking}
-                      runlessWorkActive={runlessWorkStartedAt !== null}
-                      isCompacting={isCompacting}
-                      awaitingUser={
-                        activePendingApproval !== null
-                          ? "approval"
-                          : activePendingUserInput !== null ||
-                              // A secret request has no runtime request; the shell carries it.
-                              activeThreadShell?.hasPendingUserInput === true
-                            ? "input"
+                    <ReviewChangesContext
+                      value={{
+                        available: isServerThread && diffAvailable,
+                        open: addDiffSurfaceStable,
+                      }}
+                    >
+                      <ThreadTimeline
+                        pendingApprovals={pendingApprovals}
+                        heldApprovalRequestIds={heldApprovalRequestIds}
+                        respondingRequestIds={respondingRequestIds}
+                        onRespondToApproval={onRespondToApprovalStable}
+                        canOperateThread={canOperateThread}
+                        threadDetailRef={routeThreadDetailRef}
+                        entriesInput={timelineEntriesInput}
+                        draftEntries={isServerThread ? null : draftTimelineEntries}
+                        activeThreadKey={activeThreadKey}
+                        syncing={threadSyncPhase !== null || transcriptMayLag}
+                        detailLoading={threadDetailLoading}
+                        citationRequest={citationRequest}
+                        citationHistory={citationHistory}
+                        onCiteAssistantText={citeAssistantTextStable}
+                        onReplyToResponse={replyToResponseStable}
+                        {...(activeProject && !runsOutsideHostCheckout
+                          ? {
+                              onRunShellCommand:
+                                parentPanel?.runShellCommand ?? runShellCommandStable,
+                            }
+                          : {})}
+                        isWorking={isWorking}
+                        runlessWorkActive={runlessWorkStartedAt !== null}
+                        isCompacting={isCompacting}
+                        awaitingUser={
+                          activePendingApproval !== null
+                            ? "approval"
+                            : activePendingUserInput !== null ||
+                                // A secret request has no runtime request; the shell carries it.
+                                activeThreadShell?.hasPendingUserInput === true
+                              ? "input"
+                              : null
+                        }
+                        awaitingRequestId={
+                          activePendingApproval?.requestId ??
+                          activePendingUserInput?.requestId ??
+                          null
+                        }
+                        activeTurnStartedAt={activeWorkStartedAt}
+                        providerStartingLabel={
+                          providerStartingRun?.providerStartingLabelMsg
+                            ? messages(providerStartingRun.providerStartingLabelMsg)
                             : null
-                      }
-                      awaitingRequestId={
-                        activePendingApproval?.requestId ??
-                        activePendingUserInput?.requestId ??
-                        null
-                      }
-                      activeTurnStartedAt={activeWorkStartedAt}
-                      providerStartingLabel={
-                        providerStartingRun?.providerStartingLabelMsg
-                          ? messages(providerStartingRun.providerStartingLabelMsg)
-                          : null
-                      }
-                      providerStarting={
-                        providerStartingRun?.providerStartingLabelMsg
-                          ? (providerStartingRun.providerStarting ?? null)
-                          : null
-                      }
-                      worktreeSetup={worktreeSetup}
-                      onCancelWorktreeSetup={onCancelWorktreeSetupStable}
-                      retryableWorkspacePreparationRunIds={retryableWorkspacePreparationRunIds}
-                      onRetryWorkspacePreparation={onRetryWorkspacePreparationStable}
-                      {...(draftId
-                        ? { onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocallyStable }
-                        : {})}
-                      {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
-                      isPreparingWorktree={isPreparingWorktree}
-                      footer={timelineFooter}
-                      listRef={legendListRef}
-                      runs={serverProjection?.runs ?? []}
-                      latestRun={activeActivityRun}
-                      usageLimitRunId={usageLimitRunId}
-                      announcedRun={announcedRun(activeActivityRun, serverProjection?.runs ?? [])}
-                      detailBehindShell={isDetailBehindShell(
-                        activeLatestRun,
-                        activeThreadShell?.latestRun ?? null,
-                      )}
-                      runningRunId={activeRunningTurnId}
-                      turnDiffSummaries={turnDiffSummaries}
-                      activeThreadEnvironmentId={
-                        displayedThreadRef?.environmentId ?? activeThread.environmentId
-                      }
-                      routeThreadKey={displayedTimelineKey}
-                      displayThreadKey={displayedTimelineKey}
-                      announceTurnStatus={!isProviderSubagent}
-                      onOpenToolDiff={parentPanel?.openToolDiff ?? onOpenToolDiffStable}
-                      // A fork would promote the side chat.
-                      {...(embedded ? {} : { onForkFromRun: onForkFromRunStable })}
-                      onOpenThread={onOpenRelatedThreadStable}
-                      parentThreadLink={parentThreadLink}
-                      workflowOpening={workflowOpening}
-                      supportsConversationRollback={supportsConversationRollback}
-                      threadStartCheckpointAvailable={threadStartCheckpointAvailable}
-                      availableRevertTurnCounts={availableRevertTurnCounts}
-                      onRevertToTurnCount={onRevertTimelineTurnStable}
-                      onUseArtifactTemplate={insertArtifactTemplateStable}
-                      onSendAppMessage={sendAppMessageStable}
-                      isRevertingCheckpoint={isRevertingCheckpoint}
-                      onImageExpand={onExpandTimelineImageStable}
-                      onFileOpen={openFileAttachmentStable}
-                      onFileDownload={downloadFileAttachmentStable}
-                      markdownCwd={gitCwd ?? undefined}
-                      resolvedTheme={resolvedTheme}
-                      timestampFormat={timestampFormat}
-                      workspaceRoot={activeWorkspaceRoot}
-                      skills={timelineSkills}
-                      anchorMessageId={timelineAnchorMessageId}
-                      onAnchorReady={onTimelineAnchorReadyStable}
-                      onAnchorSizeChanged={onTimelineAnchorSizeChangedStable}
-                      contentInsetEndAdjustment={composerTimelineInset}
-                      liveFollowEnabled={timelineLiveFollowEnabled}
-                      onIsAtEndChange={onIsAtEndChangeStable}
-                      onViewportAttach={attachTimelineViewport}
-                      onFooterGrow={onTimelineFooterGrowStable}
-                      hideEmptyPlaceholder={isDraftHeroState || threadDetailLoading}
-                      emptyPlaceholderInset={composerReservedHeight}
-                      topFadeEnabled={!hasTimelineTopBanner}
-                      {...(threadHistoryControls === undefined
-                        ? {}
-                        : { historyControls: threadHistoryControls })}
-                      composerRef={composerMounted ? composerRef : null}
-                    />
-                  </ReviewChangesContext>
+                        }
+                        providerStarting={
+                          providerStartingRun?.providerStartingLabelMsg
+                            ? (providerStartingRun.providerStarting ?? null)
+                            : null
+                        }
+                        worktreeSetup={worktreeSetup}
+                        onCancelWorktreeSetup={onCancelWorktreeSetupStable}
+                        retryableWorkspacePreparationRunIds={retryableWorkspacePreparationRunIds}
+                        onRetryWorkspacePreparation={onRetryWorkspacePreparationStable}
+                        {...(draftId
+                          ? { onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocallyStable }
+                          : {})}
+                        {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
+                        isPreparingWorktree={isPreparingWorktree}
+                        footer={timelineFooter}
+                        listRef={legendListRef}
+                        runs={serverProjection?.runs ?? []}
+                        latestRun={activeActivityRun}
+                        usageLimitRunId={usageLimitRunId}
+                        announcedRun={announcedRun(activeActivityRun, serverProjection?.runs ?? [])}
+                        detailBehindShell={isDetailBehindShell(
+                          activeLatestRun,
+                          activeThreadShell?.latestRun ?? null,
+                        )}
+                        runningRunId={activeRunningTurnId}
+                        turnDiffSummaries={turnDiffSummaries}
+                        activeThreadEnvironmentId={
+                          displayedThreadRef?.environmentId ?? activeThread.environmentId
+                        }
+                        routeThreadKey={displayedTimelineKey}
+                        displayThreadKey={displayedTimelineKey}
+                        announceTurnStatus={!isProviderSubagent}
+                        onOpenToolDiff={parentPanel?.openToolDiff ?? onOpenToolDiffStable}
+                        // A fork would promote the side chat.
+                        {...(embedded ? {} : { onForkFromRun: onForkFromRunStable })}
+                        onOpenThread={onOpenRelatedThreadStable}
+                        parentThreadLink={parentThreadLink}
+                        workflowOpening={workflowOpening}
+                        supportsConversationRollback={supportsConversationRollback}
+                        threadStartCheckpointAvailable={threadStartCheckpointAvailable}
+                        availableRevertTurnCounts={availableRevertTurnCounts}
+                        onRevertToTurnCount={onRevertTimelineTurnStable}
+                        onUseArtifactTemplate={insertArtifactTemplateStable}
+                        onSendAppMessage={sendAppMessageStable}
+                        isRevertingCheckpoint={isRevertingCheckpoint}
+                        onImageExpand={onExpandTimelineImageStable}
+                        onFileOpen={openFileAttachmentStable}
+                        onFileDownload={downloadFileAttachmentStable}
+                        markdownCwd={gitCwd ?? undefined}
+                        resolvedTheme={resolvedTheme}
+                        timestampFormat={timestampFormat}
+                        workspaceRoot={activeWorkspaceRoot}
+                        skills={timelineSkills}
+                        anchorMessageId={timelineAnchorMessageId}
+                        onAnchorReady={onTimelineAnchorReadyStable}
+                        onAnchorSizeChanged={onTimelineAnchorSizeChangedStable}
+                        contentInsetEndAdjustment={composerTimelineInset}
+                        liveFollowEnabled={timelineLiveFollowEnabled}
+                        onIsAtEndChange={onIsAtEndChangeStable}
+                        onViewportAttach={attachTimelineViewport}
+                        onFooterGrow={onTimelineFooterGrowStable}
+                        hideEmptyPlaceholder={draftHeroCentered || threadDetailLoading}
+                        emptyPlaceholderInset={composerReservedHeight}
+                        topFadeEnabled={!hasTimelineTopBanner}
+                        {...(threadHistoryControls === undefined
+                          ? {}
+                          : { historyControls: threadHistoryControls })}
+                        composerRef={composerMounted ? composerRef : null}
+                      />
+                    </ReviewChangesContext>
+                  </DraftHeadingContext>
                 </MainConversationContext>
               </WorkspaceMutationIdContext>
 
@@ -3825,7 +3848,7 @@ export default function ChatView(props: ChatViewProps) {
               inert={isRevertingCheckpoint}
               data-chat-composer-overlay="true"
               className={
-                isDraftHeroState
+                draftHeroCentered
                   ? "pointer-events-none absolute inset-0 z-20 flex items-center [@media(max-height:34rem)]:items-end"
                   : "pointer-events-none absolute inset-x-0 bottom-0 z-20 pt-1.5 sm:pt-2"
               }
@@ -3835,7 +3858,7 @@ export default function ChatView(props: ChatViewProps) {
                   data-chat-composer-stack="true"
                   className="group/composer-stack pointer-events-auto relative z-10 mx-auto w-full max-w-(--chat-content-max-width)"
                 >
-                  {isDraftHeroState ? (
+                  {draftHeroCentered ? (
                     <div className="absolute inset-x-0 bottom-full">
                       <div
                         className="pb-4 group-has-data-[composer-shoulder-tab]/composer-stack:pb-0"
@@ -3930,7 +3953,7 @@ export default function ChatView(props: ChatViewProps) {
                                 activeThreadRuns={serverProjection?.runs ?? EMPTY_RUNS}
                                 promptHistoryEntries={timelineEntries}
                                 forceExpandedOnMobile={
-                                  forceExpandedMobileComposer && isDraftHeroState
+                                  forceExpandedMobileComposer && draftHeroCentered
                                 }
                                 projectSelectionRequired={
                                   isLocalDraftThread && activeProject === null
@@ -3964,7 +3987,7 @@ export default function ChatView(props: ChatViewProps) {
                                 }
                                 isPreparingWorktree={isPreparingWorktree && !sendQueuesBehindSetup}
                                 bannerItems={
-                                  isDraftHeroState || composerBannerItems.length === 0
+                                  draftHeroCentered || composerBannerItems.length === 0
                                     ? EMPTY_COMPOSER_BANNER_ITEMS
                                     : composerBannerItems
                                 }
@@ -4139,7 +4162,7 @@ export default function ChatView(props: ChatViewProps) {
                           </div>
                         </div>
                       </ComposerSurface.Shell>
-                      {isDraftHeroState && composerBannerItems.length > 0 ? (
+                      {draftHeroCentered && composerBannerItems.length > 0 ? (
                         // Out of flow, like the headline, so a notice never moves the centered composer.
                         // Short windows pin the composer to the bottom, where an out-of-flow notice
                         // would fall off-screen, so there it takes space and lifts the composer.

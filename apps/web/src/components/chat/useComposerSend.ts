@@ -67,6 +67,7 @@ import { recordPromptSent } from "../GitHubStarPrompt";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { newMessageId, newThreadId } from "~/lib/utils";
+import type { VoiceSendReport } from "~/one/voiceBridge";
 import { readPendingWorkspaceDefault, useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import {
@@ -415,7 +416,7 @@ export function useComposerSend(input: ComposerSendInput) {
     respondingRequestIdsRef.current = respondingRequestIds;
   }, [pendingApprovals, respondingRequestIds]);
 
-  const onSend = async (
+  const sendMessage = async (
     e?: { preventDefault: () => void },
     dispatchMode: ComposerDispatchMode = "auto",
     submissionIntent: ComposerSubmissionIntent = "foreground",
@@ -427,8 +428,8 @@ export function useComposerSend(input: ComposerSendInput) {
       readonly prompt: string;
       readonly sendContext: ReturnType<NonNullable<ComposerHandleRef["current"]>["getSendContext"]>;
     },
-    /** Told the message id at the moment the turn request goes out with it; never when the send ends first. */
-    onMessageSent?: (messageId: string) => void,
+    /** How a voice chat question went, when this send is one. */
+    voice?: VoiceSendReport,
   ) => {
     e?.preventDefault();
     // What the user pressed send on; uploads below can take a while, and a redirect must not
@@ -620,6 +621,7 @@ export function useComposerSend(input: ComposerSendInput) {
       return true;
     };
     if (onSideChat && sendCtx && sideChatCommand && sideChatDisabledReason === null) {
+      voice?.notSent("side-chat");
       const replyTo =
         useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.replyTo ?? null;
       const prompt = withReplyReference(sideChatCommand.prompt, replyTo);
@@ -1576,7 +1578,7 @@ export function useComposerSend(input: ComposerSendInput) {
           )
         : null;
       if (backgroundThreadRef) beginBackgroundDraftSubmissionByRef(backgroundThreadRef);
-      onMessageSent?.(messageIdForSend);
+      voice?.sent(messageIdForSend);
       const startPromise = startThreadTurn({
         environmentId,
         input: {
@@ -1628,6 +1630,11 @@ export function useComposerSend(input: ComposerSendInput) {
       const startResult = await startPromise;
       if (startResult._tag === "Failure") {
         failure = startResult;
+        voice?.rejected(
+          isAtomCommandInterrupted(startResult)
+            ? null
+            : thrownErrorMessage(squashAtomCommandFailure(startResult), m),
+        );
       } else {
         turnStartSucceeded = true;
         if (checkoutPullRequestUrl) {
@@ -1791,6 +1798,24 @@ export function useComposerSend(input: ComposerSendInput) {
     }
   };
 
+  const onSend = async (...args: Parameters<typeof sendMessage>) => {
+    const voice = args[5];
+    if (voice === undefined) return sendMessage(...args);
+    let reported = false;
+    const watched: VoiceSendReport = {
+      sent: (messageId) => {
+        reported = true;
+        voice.sent(messageId);
+      },
+      rejected: voice.rejected,
+      notSent: (destination) => {
+        reported = true;
+        voice.notSent(destination);
+      },
+    };
+    await sendMessage(args[0], args[1], args[2], args[3], args[4], watched);
+    if (!reported) voice.notSent("none");
+  };
   const onSendLatest = useStableCallback(onSend);
   const sendWithEnvironmentRefresh = async (...args: Parameters<typeof onSend>) => {
     const refresh =

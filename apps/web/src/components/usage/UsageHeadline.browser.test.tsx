@@ -24,7 +24,7 @@ interface WindowSpec {
   readonly kind: "session" | "weekly" | "monthly";
   readonly usedPercent: number;
   readonly resetsInMs: number;
-  readonly windowMins: number;
+  readonly windowMins?: number;
 }
 
 function account(
@@ -54,7 +54,7 @@ function account(
         kind: spec.kind,
         usedPercent: spec.usedPercent,
         resetsAt: new Date(now + spec.resetsInMs).toISOString(),
-        windowDurationMins: spec.windowMins,
+        ...(spec.windowMins === undefined ? {} : { windowDurationMins: spec.windowMins }),
       })),
       ...(extra.zeroSpendCap ? { zeroSpendCap: true } : {}),
       ...(extra.credits ? { resetCredits: { availableCount: extra.credits } } : {}),
@@ -163,7 +163,7 @@ describe("UsageLimitsPooled headline", () => {
       router: false,
     });
     await expect
-      .element(screen.getByText("Acme API monthly is the one to watch: 0% left, 3d 0h to go."))
+      .element(screen.getByText("Acme API Monthly is the one to watch: 0% left, 3d 0h to go."))
       .toBeVisible();
     await expect.element(screen.getByText("2 limits across 2 providers")).toBeVisible();
   });
@@ -331,7 +331,7 @@ describe("UsageLimitsPooled headline ranking and labels", () => {
       router: false,
     });
     await expect
-      .element(screen.getByText("Acme API monthly is the one to watch: 0% left, 3d 0h to go."))
+      .element(screen.getByText("Acme API Monthly is the one to watch: 0% left, 3d 0h to go."))
       .toBeVisible();
   });
 
@@ -437,5 +437,74 @@ describe("UsageLimitsPooled $0 spend cap at both widths", () => {
     expect(shown(caption ?? null)).toBe(true);
     expect(caption?.textContent).toContain("$0 cap");
     expect(shown(card?.querySelector(".usage-legend-static") ?? null)).toBe(false);
+  });
+});
+
+describe("UsageLimitsPooled headline with raw quotas, source labels and pooled pace", () => {
+  const quota = (label: string, kind: string) => ({
+    id: "acme",
+    kind: "http",
+    label: "Acme API",
+    accounts: [],
+    quotaAccounts: [
+      {
+        id: "key",
+        label: "Key",
+        windows: [
+          {
+            id: "window",
+            label,
+            kind,
+            usedPercent: 100,
+            resetsAt: new Date(now + 3 * 24 * HOUR).toISOString(),
+          },
+        ],
+      },
+    ],
+  });
+
+  it("names an empty quota ahead of one that merely rounds to 0% left, both without a clock", async () => {
+    // 99.6% used shows as 0% left but is not empty; the native pool is listed first.
+    const providers = presentations(
+      [
+        account("codex", "Codex", [
+          { label: "Session", kind: "session", usedPercent: 99.6, resetsInMs: 3 * HOUR },
+        ]),
+      ],
+      [quota("Monthly", "monthly")],
+    );
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    await expect
+      .element(screen.getByText("Acme API Monthly is the one to watch: 0% left, 3d 0h to go."))
+      .toBeVisible();
+  });
+
+  it.each([
+    ["Weekly", "weekly"],
+    ["Subscription", "other"],
+  ])("keeps an external quota's own label %s as its source wrote it", async (label, kind) => {
+    const providers = presentations([], [quota(label, kind)]);
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    await expect
+      .element(screen.getByText(`Acme API ${label} is the one to watch: 0% left, 3d 0h to go.`))
+      .toBeVisible();
+  });
+
+  it("gives a pool with no shared clock no Runs out early chip", async () => {
+    // Mean use 85% against mean elapsed 70% would read as ahead of pace, yet the two accounts reset
+    // two hours apart, so the card has no pooled forecast to back the words.
+    const providers = presentations([
+      account("codex", "Half", [session(75, 150 * MINUTE)]),
+      account("codex", "Late", [session(95, 30 * MINUTE)]),
+    ]);
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    expect(screen.container.querySelector(".usage-limit .usage-projection")).toBeNull();
+    await expect.element(screen.getByText("Runs out early")).not.toBeInTheDocument();
   });
 });

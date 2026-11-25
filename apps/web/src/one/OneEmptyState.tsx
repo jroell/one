@@ -9,6 +9,7 @@ import {
   AtSignIcon,
   CircleHelpIcon,
   FileDiffIcon,
+  FileTextIcon,
   FileSearchIcon,
   GraduationCapIcon,
   LightbulbIcon,
@@ -47,6 +48,9 @@ function greetingFor(hour: number, gt: ReturnType<typeof useGT>): string {
  */
 export const MainConversationContext = createContext(false);
 
+/** A new thread's headline, naming its project, when the draft docks its composer. */
+export const DraftHeadingContext = createContext<ReactNode>(null);
+
 /**
  * The conversation's own way of opening the diff panel, with whether it can: a plain folder
  * with no repository has no diff, and the thread's regular control says so. Absent outside it.
@@ -60,8 +64,9 @@ export const ReviewChangesContext = createContext<{
 export function OneEmptyState() {
   const mode = useWorkspaceMode();
   const mainConversation = use(MainConversationContext);
+  const draftHeading = use(DraftHeadingContext);
   if (mode === "chat" && mainConversation) return <ChatWelcome />;
-  if (mainConversation) return <CodeWelcome />;
+  if (mainConversation) return <CodeWelcome {...(draftHeading ? { heading: draftHeading } : {})} />;
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <OneMark className="size-12 opacity-90" />
@@ -130,17 +135,22 @@ export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) 
       command: "projectSearch.toggle",
       run: () => dispatchCommandPalette({ _tag: "ToggleMode", mode: "content" }),
     },
-    ...(review?.available
-      ? [
-          {
-            id: "changes",
-            icon: FileDiffIcon,
-            label: gt("Review changes"),
-            command: "diff.toggle",
-            run: review.open,
-          } satisfies CodeStarter,
-        ]
-      : []),
+    // The third starter is the diff when the thread has one, else a file: the set is always four.
+    review?.available
+      ? {
+          id: "changes",
+          icon: FileDiffIcon,
+          label: gt("Review changes"),
+          command: "diff.toggle",
+          run: review.open,
+        }
+      : {
+          id: "open-file",
+          icon: FileTextIcon,
+          label: gt("Open a file"),
+          command: "filePicker.toggle",
+          run: () => dispatchCommandPalette({ _tag: "ToggleMode", mode: "files" }),
+        },
     {
       id: "palette",
       icon: SquareTerminalIcon,

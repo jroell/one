@@ -1,4 +1,5 @@
 import { binaryPatchPaths } from "./binaryPatchPaths";
+import { compareReviewFiles } from "./reviewFileOrder";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import type {
@@ -228,7 +229,7 @@ function reviewFileQueries({
 }
 
 function sortedReviewFiles(source: ReviewDiffPreviewSource | null) {
-  return source?.files?.toSorted((a, b) => filePathCollator.compare(a.path, b.path)) ?? [];
+  return source?.files?.toSorted(compareReviewFiles) ?? [];
 }
 
 type ReviewPatchTarget = Parameters<typeof reviewEnvironment.diffFilePatch>[0];

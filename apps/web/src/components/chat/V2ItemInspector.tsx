@@ -30,7 +30,6 @@ import { resolveExternalWebLinkHref } from "./externalLinkContextMenu";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ShellCommandBlock } from "./ShellCommandBlock";
 import { useInitialOutputReady, type TurnItemSource } from "./timelineRowContext";
-import { toolOutputDisplayText } from "./toolOutputDisplay";
 
 interface V2ItemInspectorProps {
   readonly onInitialOutputReady?: (() => void) | undefined;
@@ -135,7 +134,8 @@ function useFetchedTurnItem(
             ? gt("Output is no longer available.")
             : detail.error,
       empty: fetches && item !== wireItem,
-      itemType: item.type,
+      settledWithoutOutput:
+        item.type === "dynamic_tool" && item.status === "completed" && item.outputOmitted !== true,
     },
   };
 }
@@ -147,7 +147,7 @@ interface ToolOutputState {
   readonly pending: boolean;
   readonly error: string | null;
   readonly empty: boolean;
-  readonly itemType: string;
+  readonly settledWithoutOutput: boolean;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }
 
@@ -166,9 +166,8 @@ function ToolOutputImages(props: ToolOutputState) {
 }
 
 function ToolOutput(props: ToolOutputState) {
-  const text = props.output === null ? null : toolOutputDisplayText(props.output, props.itemType);
-  return text ? (
-    <StructuredValue value={text} highlightJson />
+  return props.output ? (
+    <StructuredValue value={props.output} highlightJson />
   ) : props.pending ? (
     <div className="text-muted-foreground italic">
       <T>Loading output…</T>
@@ -179,7 +178,7 @@ function ToolOutput(props: ToolOutputState) {
         Couldn&apos;t load output: <Var>{props.error}</Var>
       </T>
     </div>
-  ) : (props.empty || text === "") && props.images.length === 0 ? (
+  ) : (props.empty || props.settledWithoutOutput) && props.images.length === 0 ? (
     <div className="text-muted-foreground italic">
       <T>No output.</T>
     </div>

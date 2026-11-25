@@ -81,9 +81,10 @@ import {
   recalledProviderCount,
   recalledSnapshot,
   rememberProviderCount,
+  forgetEnvironmentSnapshots,
   rememberSnapshot,
   selectionKey,
-  snapshotKey,
+  usageViewKey,
 } from "./usageSkeletonMemory";
 import { UsageSwitch } from "./UsageSwitch";
 import { anyRefreshPending, usePendingRefreshes } from "./usePendingRefreshes";
@@ -230,11 +231,31 @@ export function UsagePage() {
   } = useUsage(window, selectedEnvironmentIds, hiddenProviders);
   // With nothing answered yet, the last settled figures for this view stand in, and the page
   // updates them in place.
-  const carried =
-    shown ??
-    recalledSnapshot<NonNullable<typeof shown>>(
-      snapshotKey(selectionKey(selectedEnvironmentIds, hiddenProviders), windowDays),
-    );
+  const contributors = selectedEnvironments
+    .filter((environment) => environment.canReadDiagnostics)
+    .map((environment) => ({
+      id: environment.environmentId,
+      modelFilter: JSON.stringify(
+        appAtomRegistry.get(serverEnvironment.usageModelFilterAtom(environment.environmentId)) ??
+          null,
+      ),
+    }));
+  const viewKey = usageViewKey({
+    contributors,
+    hiddenProviders,
+    windowDays,
+    timeZone: window.timeZone,
+    resolution: window.resolution,
+  });
+  const noAccess = environments
+    .filter((environment) => !environment.canReadDiagnostics)
+    .map((environment) => environment.environmentId)
+    .join(",");
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops kept figures that include an environment which lost diagnostics access
+  useEffect(() => {
+    for (const id of noAccess.split(",")) if (id !== "") forgetEnvironmentSnapshots(id);
+  }, [noAccess]);
+  const carried = shown ?? recalledSnapshot<NonNullable<typeof shown>>(viewKey);
   const merged = carried?.merged ?? answeredUsage;
   const shownWindow = carried?.window ?? window;
   const shownHourly = shownWindow.resolution === "hour";
@@ -610,7 +631,8 @@ export function UsagePage() {
                   refreshingUsage={refreshingUsage}
                   showChatGptSharing={showChatGptSharing}
                   selectionKey={selectionKey(selectedEnvironmentIds, hiddenProviders)}
-                  windowDays={windowDays}
+                  viewKey={viewKey}
+                  contributorIds={contributors.map((contributor) => contributor.id)}
                   onSelectModel={selectUsageModel}
                 />
               )}
@@ -661,7 +683,8 @@ function UsageOverview({
   refreshingUsage,
   showChatGptSharing,
   selectionKey: selection,
-  windowDays,
+  viewKey,
+  contributorIds,
   onSelectModel,
 }: {
   readonly merged: MergedUsage;
@@ -676,7 +699,8 @@ function UsageOverview({
   readonly refreshingUsage: boolean;
   readonly showChatGptSharing: boolean;
   readonly selectionKey: string;
-  readonly windowDays: number;
+  readonly viewKey: string;
+  readonly contributorIds: readonly string[];
   readonly onSelectModel: (key: string) => void;
 }) {
   const gt = useGT();
@@ -728,8 +752,8 @@ function UsageOverview({
     // Only a settled answer counts, and a settled zero is one.
     if (loadingPartial) return;
     rememberProviderCount(selection, providerCount);
-    rememberSnapshot(snapshotKey(selection, windowDays), { window: shownWindow, merged });
-  }, [selection, providerCount, loadingPartial, windowDays, shownWindow, merged]);
+    rememberSnapshot(viewKey, contributorIds, { window: shownWindow, merged });
+  }, [selection, providerCount, loadingPartial, viewKey, contributorIds, shownWindow, merged]);
 
   return (
     <div aria-busy={loadingPartial} className="usage-stack">
@@ -758,7 +782,7 @@ function UsageOverview({
                 ? formatUsd(merged.costUsd, locale)
                 : formatTokens(merged.totalTokens)}
             </p>
-            <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <p className="usage-hero-meta inline-flex items-center gap-1 text-xs">
               <span>
                 <span>
                   {gt("{count, plural, one {{formatted} sessions} other {{formatted} sessions}}", {

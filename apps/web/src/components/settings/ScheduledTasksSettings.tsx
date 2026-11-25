@@ -153,6 +153,7 @@ import {
   SettingsRow,
   SettingsSection,
   SETTINGS_PICKER_TRIGGER_CLASSNAME,
+  SettingsPickerField,
 } from "./settingsLayout";
 
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -1988,43 +1989,54 @@ function ScheduledTaskEditorForm({
 
           <Field label={gt("Model")}>
             <div className="flex flex-wrap items-center gap-1.5">
-              <ProviderModelPicker
-                environmentId={environmentId}
-                // The saved selection only seeds new threads; bound runs ignore it.
-                disabled={saving || !connected || draft.threadId !== ""}
-                activeInstanceId={shownInstanceId}
-                model={shownModel}
-                lockedProvider={null}
-                instanceEntries={instanceEntries}
-                modelOptionsByInstance={modelOptionsByInstance}
-                isComposerOwned={false}
-                triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                onInstanceModelChange={(instanceId, model) => {
-                  if (instanceId === activeSelection?.instanceId && model === activeSelection.model)
-                    return;
-                  setDraft((current) => ({
-                    ...current,
-                    modelSelection: createModelSelection(instanceId, model),
-                  }));
-                }}
-              />
-              {!draft.threadId && activeSelection && activeEntry ? (
-                <TraitsPicker
-                  provider={activeEntry.driverKind}
-                  models={activeEntry.models}
-                  model={activeModel}
-                  modelOptions={activeSelection.options ?? []}
-                  allowPromptInjectedEffort={false}
-                  includePlanAgent={selectsPlanAgent(activeSelection.options)}
-                  disabled={saving || !connected}
+              <SettingsPickerField label={gt("Model")}>
+                <ProviderModelPicker
+                  environmentId={environmentId}
+                  // The saved selection only seeds new threads; bound runs ignore it.
+                  disabled={saving || !connected || draft.threadId !== ""}
+                  activeInstanceId={shownInstanceId}
+                  model={shownModel}
+                  lockedProvider={null}
+                  instanceEntries={instanceEntries}
+                  modelOptionsByInstance={modelOptionsByInstance}
+                  isComposerOwned={false}
                   triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                  onModelOptionsChange={(options) =>
+                  onInstanceModelChange={(instanceId, model) => {
+                    if (
+                      instanceId === activeSelection?.instanceId &&
+                      model === activeSelection.model
+                    )
+                      return;
                     setDraft((current) => ({
                       ...current,
-                      modelSelection: createModelSelection(activeInstanceId, activeModel, options),
-                    }))
-                  }
+                      modelSelection: createModelSelection(instanceId, model),
+                    }));
+                  }}
                 />
+              </SettingsPickerField>
+              {!draft.threadId && activeSelection && activeEntry ? (
+                <SettingsPickerField label={gt("Effort")}>
+                  <TraitsPicker
+                    provider={activeEntry.driverKind}
+                    models={activeEntry.models}
+                    model={activeModel}
+                    modelOptions={activeSelection.options ?? []}
+                    allowPromptInjectedEffort={false}
+                    includePlanAgent={selectsPlanAgent(activeSelection.options)}
+                    disabled={saving || !connected}
+                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                    onModelOptionsChange={(options) =>
+                      setDraft((current) => ({
+                        ...current,
+                        modelSelection: createModelSelection(
+                          activeInstanceId,
+                          activeModel,
+                          options,
+                        ),
+                      }))
+                    }
+                  />
+                </SettingsPickerField>
               ) : null}
             </div>
           </Field>

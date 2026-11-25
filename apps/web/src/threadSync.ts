@@ -18,6 +18,9 @@ export function resolveThreadSyncPhase(input: {
   switch (input.status) {
     case "empty":
     case "cached":
+      // Nothing is outstanding: the thread shows what it has until something subscribes to it.
+      if (!input.detailExists) return "loading";
+      return input.hasError ? "failed" : null;
     case "synchronizing":
       if (!input.detailExists) return "loading";
       return input.hasError ? "failed" : "syncing";
@@ -25,6 +28,14 @@ export function resolveThreadSyncPhase(input: {
     case "live":
       return null;
   }
+}
+
+/** True while the transcript on screen may lag the server: not live, whether or not a status shows. */
+export function threadTranscriptMayLag(input: {
+  readonly shellExists: boolean;
+  readonly status: EnvironmentThreadStatus;
+}): boolean {
+  return input.shellExists && input.status !== "live" && input.status !== "deleted";
 }
 
 export function threadSyncLabel(phase: ThreadSyncPhase, resolve: MessageResolver = m): string {

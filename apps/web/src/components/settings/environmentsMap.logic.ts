@@ -97,6 +97,8 @@ export type FleetNode =
       readonly mintable: boolean;
       readonly canWriteAccess: boolean;
       readonly hasLinkAddress: boolean;
+      /** A saved route reaches it over this device's own loopback address, so it is this machine. */
+      readonly thisDevice: boolean;
     }
   | {
       readonly id: string;
@@ -212,6 +214,7 @@ export function buildFleetGraph(input: {
         environment.hasLinkAddress,
       canWriteAccess: environment.canWriteAccess,
       hasLinkAddress: environment.hasLinkAddress,
+      thisDevice: environment.routes.some((route) => route.kind === "loopback"),
     });
     for (const route of environment.routes) {
       const edgeId = `route:${id}:${route.id}`;
@@ -704,7 +707,10 @@ export const fleetStackPartial = (stack: FleetStack) =>
 /** Changes exactly when the layout would: membership, labels, routes, wiring and open stacks. */
 export function fleetShapeKey(graph: FleetGraph, stacks: ReadonlyArray<FleetStack>): string {
   return [
-    ...graph.nodes.map((node) => `${node.kind}\u0000${node.id}\u0000${node.label}`),
+    ...graph.nodes.map(
+      (node) =>
+        `${node.kind}\u0000${node.id}\u0000${node.label}\u0000${node.kind === "environment" && node.thisDevice}`,
+    ),
     ...graph.edges.map((edge) =>
       edge.kind === "link" ? `${edge.id}\u0000${edge.link.access}` : edge.id,
     ),
@@ -807,8 +813,20 @@ const PILL = { height: 18 };
 export const FLEET_ROUTE_PITCH = 22;
 /** How far that column may reach into the gap above and below its card's place. */
 const PILL_OVERHANG = 9;
-/** `nameLine` is the most characters of a name the narrowest card sets on one line. */
-const CARD = { height: 56, twoLines: 68, nameLine: 13 };
+/**
+ * A card stacks an optional "This device" badge, the name (one or two lines) and the state (up to
+ * two lines), each `line` tall, inside `padding`. `nameLine` is the most characters of a name the
+ * narrowest card sets on one line.
+ */
+const CARD = { padding: 12, line: 16, badge: 18, stateLines: 2, nameLine: 13 };
+
+/** How tall a machine's card is. It follows the card's own text, so what attaches never stretches it. */
+export function fleetCardHeight(host: FleetNode): number {
+  if (host.kind === "connect") return OFFER.height;
+  const nameLines = host.label.length > CARD.nameLine ? 2 : 1;
+  const badge = host.kind === "environment" && host.thisDevice ? CARD.badge : 0;
+  return CARD.padding + badge + (nameLines + CARD.stateLines) * CARD.line;
+}
 /** Routes enter a card as one bundle: this far apart, and never wider than `spread`. */
 const ROUTE_ENTRY = { pitch: 4, spread: 10 };
 const OFFER = { height: 44 };
@@ -1236,14 +1254,6 @@ function layoutFleetGraphAt(
     ports.sort((left, right) => betweenLane.get(right.id)! - betweenLane.get(left.id)!);
   }
   const routesInto = (hostId: string) => routesOf.get(hostId)?.length ?? 0;
-  // A card's size follows its name alone, so what attaches to it never stretches it. The name
-  // is measured in characters against the narrowest card, so no height changes with the width.
-  const cardHeight = (host: FleetNode) =>
-    host.kind === "connect"
-      ? OFFER.height
-      : host.label.length > CARD.nameLine
-        ? CARD.twoLines
-        : CARD.height;
   const routeEntryPitch = (hostId: string) =>
     routesInto(hostId) < 2
       ? 0
@@ -1253,7 +1263,8 @@ function layoutFleetGraphAt(
   const linkPortPitch = (host: FleetNode, side: number) => {
     const key = `${host.id}:${side}`;
     const ports = Number(leaves.has(key)) + (arrivalsOf.get(key)?.length ?? 0);
-    const room = cardHeight(host) / 2 - LINK_PORT.margin - routesExtent(host.id) - LINK_PORT.first;
+    const room =
+      fleetCardHeight(host) / 2 - LINK_PORT.margin - routesExtent(host.id) - LINK_PORT.first;
     return ports < 2 ? 0 : Math.min(LINK_PORT.pitch, room / (ports - 1));
   };
   const pillsHeight = (hostId: string) =>
@@ -1282,7 +1293,7 @@ function layoutFleetGraphAt(
   const entryHeight = (entry: ColumnEntry, open: boolean) =>
     entry.kind === "host"
       ? // The place a card takes in the column: its own height, or what its route names need.
-        Math.max(cardHeight(entry.host), pillsHeight(entry.id) - PILL_OVERHANG * 2)
+        Math.max(fleetCardHeight(entry.host), pillsHeight(entry.id) - PILL_OVERHANG * 2)
       : STACK.height +
         STACK.lift +
         (open && entry.stack.expanded
@@ -1381,7 +1392,7 @@ function layoutFleetGraphAt(
       const cardY = Math.max(restY, cardFloor);
       if (entry.kind === "host") {
         const anchor = cardY + rest / 2;
-        const own = cardHeight(entry.host);
+        const own = fleetCardHeight(entry.host);
         nodes.set(entry.id, { x: cardX, y: anchor - own / 2, width: metrics.card, height: own });
         anchors.set(entry.id, anchor);
         if (entry.host.kind === "environment") handles.set(entry.id, { x: cardRight, y: anchor });

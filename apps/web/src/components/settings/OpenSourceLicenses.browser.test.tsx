@@ -17,10 +17,13 @@ it("Esc in the license search closes it without closing Settings", async () => {
     sourceUrl: null,
     version: "19.0.0",
   };
+  // The manifest is read once per page load, so every test in this file shares these entries.
+  const pointer = { ...entry, name: "pointer-package", license: "SEE LICENSE IN README.md" };
+  const dual = { ...entry, name: "dual-package", license: "(Apache-2.0 AND BSD-3-Clause)" };
   const realFetch = globalThis.fetch.bind(globalThis);
   using _fetch = stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
     (input instanceof Request ? input.url : String(input)).endsWith("/third-party-licenses.json")
-      ? Promise.resolve(Response.json({ schemaVersion: 1, entries: [entry] }))
+      ? Promise.resolve(Response.json({ schemaVersion: 1, entries: [entry, pointer, dual] }))
       : realFetch(input, init),
   );
   await using _screen = await render(
@@ -50,4 +53,15 @@ it("Esc in the license search closes it without closing Settings", async () => {
   await userEvent.keyboard("{Escape}");
 
   await expect.element(settings).not.toBeInTheDocument();
+});
+
+it("lists a pointer license as a custom license and an expression without parentheses", async () => {
+  await using screen = await render(<OpenSourceLicensesPanel />, {
+    router: "/settings/open-source-licenses",
+  });
+
+  await expect.element(screen.getByText(/Custom \(see README\)/)).toBeVisible();
+  await expect.element(screen.getByText(/Apache-2\.0 \+ BSD-3-Clause/)).toBeVisible();
+  expect(screen.container.textContent).not.toContain("SEE LICENSE IN");
+  expect(screen.container.textContent).not.toContain("(Apache-2.0 AND");
 });

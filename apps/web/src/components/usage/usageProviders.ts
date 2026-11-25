@@ -13,7 +13,7 @@ type UsageProviderPresentation = {
 export const PROVIDER_PRESENTATION = {
   codex: {
     label: "Codex",
-    color: "var(--contrast-foreground)",
+    color: "var(--usage-provider-neutral, var(--contrast-foreground))",
     driverKind: ProviderDriverKind.make("codex"),
   },
   claude: {

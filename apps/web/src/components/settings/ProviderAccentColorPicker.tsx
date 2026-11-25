@@ -1,7 +1,8 @@
 import { T, useGT } from "gt-react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import { useRef, useState, type PointerEvent } from "react";
 
+import { cn } from "../../lib/utils";
 import { hexToHsv, hsvToHex, type HsvColor } from "../../lib/color";
 import { ColorHueSlider, ColorSaturationValuePlane } from "../ui/color-picker";
 import { Input } from "../ui/input";
@@ -125,22 +126,24 @@ function ProviderCustomColorPicker(props: {
         render={
           <Button
             type="button"
-            size="icon-sm"
-            variant="ghost-muted"
-            style={normalized ? { backgroundColor: normalized } : undefined}
+            size="sm"
+            variant="outline"
             aria-label={
               normalized
                 ? gt("Change accent color for {provider}", { provider: props.displayName })
                 : gt("Add accent color for {provider}", { provider: props.displayName })
             }
           >
-            {normalized ? (
-              <span className="sr-only">
-                <T>Change accent color</T>
-              </span>
-            ) : (
-              <PlusIcon aria-hidden />
-            )}
+            <span
+              aria-hidden
+              data-accent-swatch=""
+              className={cn(
+                "size-4 shrink-0 rounded-full border",
+                normalized ? "border-foreground/20" : "border-dashed border-foreground/40",
+              )}
+              style={normalized ? { backgroundColor: normalized } : undefined}
+            />
+            {normalized ? <span className="font-mono text-xs">{normalized}</span> : <T>Default</T>}
           </Button>
         }
       />

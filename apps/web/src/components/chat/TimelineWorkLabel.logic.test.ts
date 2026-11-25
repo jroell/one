@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { splitObjectPath, splitWorkLabel } from "./TimelineWorkLabel.logic";
+import { abbreviateHomePath, splitObjectPath, splitWorkLabel } from "./TimelineWorkLabel.logic";
 
 describe("splitWorkLabel", () => {
   it("finds the path a row acts on inside its translated label", () => {
@@ -29,5 +29,14 @@ describe("splitObjectPath", () => {
       base: "index.css",
     });
     expect(splitObjectPath("index.css")).toEqual({ dir: "", base: "index.css" });
+  });
+});
+
+describe("abbreviateHomePath", () => {
+  it("shows a path under a home folder as ~, and leaves other paths alone", () => {
+    expect(abbreviateHomePath("/Users/ada/projects/one/a.ts")).toBe("~/projects/one/a.ts");
+    expect(abbreviateHomePath("/home/ada/src/a.ts")).toBe("~/src/a.ts");
+    expect(abbreviateHomePath("/opt/tools/a.ts")).toBe("/opt/tools/a.ts");
+    expect(abbreviateHomePath("src/Users/ada/a.ts")).toBe("src/Users/ada/a.ts");
   });
 });

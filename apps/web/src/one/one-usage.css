@@ -6,10 +6,13 @@
 
 :root {
   --usage-provider-grok: oklch(0.52 0.11 195);
+  /* A provider whose brand is black or white takes a soft neutral, not the page's full ink. */
+  --usage-provider-neutral: oklch(0.37 0.01 286);
 }
 
 :root.dark {
   --usage-provider-grok: oklch(0.76 0.11 195);
+  --usage-provider-neutral: oklch(0.86 0 0);
 }
 
 .usage-page,
@@ -221,7 +224,6 @@
 
 /* The hero. Tabular figures and a reserved width keep "left" still from 5% to 100%. */
 .usage-limit-number {
-  min-width: 3.1ch;
   font-size: 2.75rem;
   font-weight: 600;
   line-height: 1.05;
@@ -799,15 +801,12 @@ button.usage-legend:active {
   gap: 0.75rem;
 }
 
-/* The headline sentence is the page's title; "Usage" is the quiet label above it, the same on
-   every tab. */
+/* The headline sentence is the page's title; "Usage" is the breadcrumb-style label Settings uses. */
 .usage-title {
   flex-shrink: 0;
   margin: 0;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--usage-text-muted, var(--muted-foreground));
 }
 
@@ -983,6 +982,11 @@ button.usage-legend:active {
 .usage-hero,
 .usage-hero-skeleton {
   height: 3rem;
+}
+
+/* Sessions and the estimate note: held at 4.5:1 on the light panel. */
+.usage-hero-meta {
+  color: var(--usage-text-muted);
 }
 
 .usage-headline-skeleton {
@@ -1273,8 +1277,9 @@ button.usage-legend:active {
   outline: none;
 }
 
+/* Only for keyboard focus, and quiet: the plot is not boxed when the pointer is on it. */
 .usage-plot:focus-visible {
-  outline: 2px solid var(--ring);
+  outline: 1px solid color-mix(in srgb, var(--ring) 40%, transparent);
   outline-offset: 4px;
 }
 
@@ -1307,24 +1312,29 @@ button.usage-legend:active {
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
-  gap: 1px;
 }
 
+/* The day under the pointer: a band as wide as its bar, from the top of the plot down to the bar. */
 .usage-bars-day[data-hover]::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--foreground) 7%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 12%, transparent);
+  inset-block: 0 var(--usage-stack, 0%);
+  inset-inline-start: 50%;
+  width: min(100%, 2.5rem);
+  translate: -50% 0;
+  border-start-start-radius: 3px;
+  border-start-end-radius: 3px;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
+/* Heights are the axis scale and nothing else: no minimum and no gap, so a stack's top always meets
+   its gridline and its tooltip total. The seam between segments is drawn inside each segment. */
 .usage-bars-segment {
   position: relative;
   width: 100%;
   max-width: 2.5rem;
-  min-height: 2px;
   flex-shrink: 0;
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--background) 55%, transparent);
 }
 
 .usage-bars-segment[data-top] {
@@ -1335,6 +1345,13 @@ button.usage-legend:active {
 /* Chart: dotted gridlines, no hard axis, a glass tooltip. */
 .usage-gridline {
   color: color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+.usage-tooltip-swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 2px;
 }
 
 .usage-tooltip {

@@ -3,6 +3,16 @@ import { useSyncExternalStore } from "react";
 
 import { dispatchVoiceSession, getVoiceSession, type VoiceStartResult } from "./voiceSession";
 
+/** What the composer tells voice chat about the one send it was asked to make. */
+export type VoiceSendReport = Readonly<{
+  /** The turn request goes out with this message id. */
+  sent: (messageId: string) => void;
+  /** The server or transport refused the turn request; `message` is its reason, if it gave one. */
+  rejected: (message: string | null) => void;
+  /** The composer ended without sending a turn: a side chat command, or a send it dropped. */
+  notSent: (destination: "side-chat" | "none") => void;
+}>;
+
 /**
  * What the main composer offers for dictation. The composer owns voice input
  * (models, consent, the draft); voice chat only drives it through here.
@@ -30,10 +40,10 @@ export type VoiceBridge = Readonly<{
    */
   start: (signal?: AbortSignal) => Promise<VoiceStartResult>;
   /**
-   * Stops recording, waits for the transcript, and sends it. `onSent` is called with the message
-   * id at the moment the turn request goes out with it, and never when the send is abandoned.
+   * Stops recording, waits for the transcript, and sends it. Exactly one of `report`'s calls
+   * says how the send went; `sent` comes at the moment the turn request goes out with its id.
    */
-  submit: (onSent: (messageId: string) => void) => void;
+  submit: (report: VoiceSendReport) => void;
   cancel: () => void;
 }>;
 

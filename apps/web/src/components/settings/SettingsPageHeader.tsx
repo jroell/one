@@ -1,7 +1,7 @@
-import { useLocation } from "@tanstack/react-router";
 import { msg, useMessages } from "gt-react";
 
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
+import { useSettingsPathname } from "./useSettingsPathname";
 
 interface SettingsPageIntro {
   readonly title: string;
@@ -107,8 +107,8 @@ export const SETTINGS_PAGE_INTROS: Readonly<Record<string, SettingsPageIntro>> =
 /** The current page's intro, or null for an address that has none. */
 export function useSettingsPageIntro() {
   const m = useMessages();
-  const pathname = useLocation({ select: (location) => location.pathname });
-  const intro = SETTINGS_PAGE_INTROS[pathname.replace(/\/+$/, "") || "/"];
+  const pathname = useSettingsPathname();
+  const intro = SETTINGS_PAGE_INTROS[pathname];
   return intro ? { title: m(intro.title), purpose: m(intro.purpose) } : null;
 }
 

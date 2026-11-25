@@ -54,6 +54,14 @@ describe("tightestLimit", () => {
     expect(watched?.subject).toBe("empty without a clock");
   });
 
+  it("ranks on the raw quota left, so a sliver never ties with an empty quota", () => {
+    const watched = tightestLimit([
+      limit("almost empty", 0.4, { kind: "none" }),
+      limit("empty", 0, { kind: "none" }),
+    ]);
+    expect(watched?.subject).toBe("empty");
+  });
+
   it("has nothing to pick from an empty page", () => {
     expect(tightestLimit([])).toBeUndefined();
   });
@@ -72,7 +80,12 @@ const french = ((message: string | null | undefined) => {
 }) as MessageResolver;
 
 describe("inlineWindowName", () => {
-  const window = (label: string, id: string, kind: string) => ({ label, id, kind });
+  const window = (label: string, id: string, kind: string, native = true) => ({
+    label,
+    id,
+    kind,
+    native,
+  });
 
   it("passes a built-in name through the translation, in French as well as English", () => {
     expect(inlineWindowName(window("Weekly", "seven_day", "weekly"), french)).toBe("hebdomadaire");
@@ -90,6 +103,16 @@ describe("inlineWindowName", () => {
       "hebdomadaire · Fable",
     );
     expect(inlineWindowName(window("Weekly · Fable", "fable", "weekly"))).toBe("weekly · Fable");
+  });
+
+  it("never rewrites an external source's label, even one spelled like a built-in on the same kind", () => {
+    expect(inlineWindowName(window("Weekly", "seven_day", "weekly", false), french)).toBe("Weekly");
+    expect(inlineWindowName(window("Subscription", "plan", "other", false), french)).toBe(
+      "Subscription",
+    );
+    expect(
+      inlineWindowName(window("Monthly credit limit", "individual", "monthly", false), french),
+    ).toBe("Monthly credit limit");
   });
 
   it("keeps a name a source defined, even when it borrows a built-in word", () => {

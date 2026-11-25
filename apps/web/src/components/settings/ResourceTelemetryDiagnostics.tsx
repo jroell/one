@@ -3,18 +3,7 @@ import { ProcessSignalActions } from "./ProcessSignalActions";
 import { destructiveConfirm } from "~/confirmDialog";
 import { AuthEnvironmentMaintainScope } from "@t3tools/contracts";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
-import {
-  ActivityIcon,
-  AlertTriangleIcon,
-  BatteryIcon,
-  CpuIcon,
-  DatabaseIcon,
-  GaugeIcon,
-  HardDriveIcon,
-  MemoryStickIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import type {
   BackgroundBooleanState,
   EnvironmentId,
@@ -228,14 +217,12 @@ function LastSampleLabel({ sampledAt }: { sampledAt: DateTime.Utc | null }) {
   );
 }
 
-function IconStat({
-  icon,
+function StatTile({
   label,
   value,
   detail,
   tone = "default",
 }: {
-  icon: ReactNode;
   label: string;
   value: string;
   detail?: string | undefined;
@@ -243,12 +230,7 @@ function IconStat({
 }) {
   return (
     <div className="group min-w-0 px-4 py-4 sm:px-5">
-      <div className="flex items-center gap-2 text-xs font-medium text-(--settings-description)">
-        <span className="text-(--settings-description) transition-colors group-hover:text-(--settings-description)">
-          {icon}
-        </span>
-        <span className="truncate">{label}</span>
-      </div>
+      <div className="truncate text-xs font-medium text-(--settings-description)">{label}</div>
       <div
         className={cn(
           "mt-2.5 truncate text-2xl font-semibold tracking-tight tabular-nums text-foreground",
@@ -1113,20 +1095,19 @@ function ResourceTelemetryDiagnosticsBody({
             </div>
           </div>
           <div className="grid grid-cols-2 divide-x divide-y divide-border/55 md:grid-cols-3">
-            <IconStat
-              icon={<CpuIcon className="size-3.5" />}
+            <StatTile
               label={gt("Current CPU")}
               value={allT3 ? `${allT3.currentCpuPercent.toFixed(1)}%` : "..."}
               detail={
                 allT3
-                  ? gt("{time} observed CPU time", {
+                  ? gt("{cores, plural, one {# core} other {# cores}} busy · {time} observed", {
+                      cores: Number((allT3.currentCpuPercent / 100).toFixed(1)),
                       time: formatCpuTime(allT3.cpuTimeMs / 1_000, messages),
                     })
                   : undefined
               }
             />
-            <IconStat
-              icon={<MemoryStickIcon className="size-3.5" />}
+            <StatTile
               label={gt("Resident memory")}
               value={allT3 ? formatBytes(allT3.currentRssBytes) : "..."}
               detail={
@@ -1135,8 +1116,7 @@ function ResourceTelemetryDiagnosticsBody({
                   : undefined
               }
             />
-            <IconStat
-              icon={<ActivityIcon className="size-3.5" />}
+            <StatTile
               label={gt("Process count")}
               value={allT3 ? String(allT3.processCount) : "..."}
               detail={
@@ -1148,14 +1128,12 @@ function ResourceTelemetryDiagnosticsBody({
                   : undefined
               }
             />
-            <IconStat
-              icon={<HardDriveIcon className="size-3.5" />}
+            <StatTile
               label={gt("Read throughput")}
               value={allT3 ? formatRate(allT3.ioReadBytesPerSecond) : "..."}
               detail={allT3 ? `${formatBytes(allT3.ioReadBytes)} observed` : undefined}
             />
-            <IconStat
-              icon={<DatabaseIcon className="size-3.5" />}
+            <StatTile
               label={gt("Write throughput")}
               value={allT3 ? formatRate(allT3.ioWriteBytesPerSecond) : "..."}
               detail={allT3 ? `${formatBytes(allT3.ioWriteBytes)} observed` : undefined}
@@ -1167,25 +1145,24 @@ function ResourceTelemetryDiagnosticsBody({
                     : "default"
               }
             />
-            <IconStat
-              icon={<GaugeIcon className="size-3.5" />}
-              label={gt("CPU speed limit")}
-              value={
-                snapshot
-                  ? speedLimit === null
-                    ? gt("Unknown")
-                    : `${speedLimit.toFixed(0)}%`
-                  : "..."
-              }
-              detail={
-                snapshot
-                  ? gt("{thermalState} thermal state", {
-                      thermalState: snapshot.power.thermalState,
-                    })
-                  : undefined
-              }
-              tone={speedLimit !== null && speedLimit < 80 ? "warning" : "default"}
-            />
+            {snapshot && speedLimit === null ? (
+              <div className="flex items-center px-4 py-4 text-xs text-(--settings-description) sm:px-5">
+                <T>CPU speed limit not reported</T>
+              </div>
+            ) : (
+              <StatTile
+                label={gt("CPU speed limit")}
+                value={snapshot && speedLimit !== null ? `${speedLimit.toFixed(0)}%` : "..."}
+                detail={
+                  snapshot
+                    ? gt("{thermalState} thermal state", {
+                        thermalState: snapshot.power.thermalState,
+                      })
+                    : undefined
+                }
+                tone={speedLimit !== null && speedLimit < 80 ? "warning" : "default"}
+              />
+            )}
           </div>
           {telemetry.error ? (
             <div className="flex items-start gap-2 border-t border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive sm:px-5">
@@ -1228,10 +1205,7 @@ function ResourceTelemetryDiagnosticsBody({
       >
         <div className="grid overflow-hidden rounded-[inherit] md:grid-cols-2 md:divide-x md:divide-border/60">
           <div className="px-4 py-4 sm:px-5">
-            <div className="mb-3 flex items-center gap-2 text-xs font-medium text-(--settings-description)">
-              <span className="flex size-6 items-center justify-center rounded-md bg-muted/60">
-                <BatteryIcon className="size-3.5" />
-              </span>
+            <div className="mb-3 text-xs font-medium text-(--settings-description)">
               <T>Host state</T>
             </div>
             {hasHostPowerSignal && snapshot ? (
@@ -1305,10 +1279,7 @@ function ResourceTelemetryDiagnosticsBody({
             )}
           </div>
           <div className="border-t border-border/60 px-4 py-4 md:border-t-0 sm:px-5">
-            <div className="mb-3 flex items-center gap-2 text-xs font-medium text-(--settings-description)">
-              <span className="flex size-6 items-center justify-center rounded-md bg-muted/60">
-                <GaugeIcon className="size-3.5" />
-              </span>
+            <div className="mb-3 text-xs font-medium text-(--settings-description)">
               <T>Collection health</T>
             </div>
             {snapshot ? (

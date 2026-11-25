@@ -104,12 +104,34 @@ describe("deriveApprovalSubjects", () => {
       entriesOf([user, change, request("file-change", pending, 2)]),
       new Set([pending]),
     );
-    expect(subjects.get(pending)).toEqual({
+    expect(subjects.get(pending)).toMatchObject({
       path: "server/src/math.ts",
       moreFiles: 1,
       additions: 12,
       deletions: 3,
+      diffStr: null,
     });
+  });
+
+  it("carries the matched change's own patch and the target that opens its diff, never another change's", () => {
+    const patch = "@@ -1 +1 @@\n-old\n+new\n";
+    const withPatch = { ...change, diffStr: patch } satisfies OrchestrationV2TurnItem;
+    const subjects = deriveApprovalSubjects(
+      entriesOf([user, withPatch, request("file-change", pending, 2)]),
+      new Set([pending]),
+    );
+    const subject = subjects.get(pending)!;
+    expect(subject.diffStr).toBe(patch);
+    expect(subject.diffTarget).toMatchObject({
+      itemId: withPatch.id,
+      threadId: withPatch.threadId,
+    });
+    const second = RuntimeRequestId.make("second");
+    const other = deriveApprovalSubjects(
+      entriesOf([user, withPatch, request("file-change", second, 2, "second-change")]),
+      new Set([second]),
+    );
+    expect(other.has(second)).toBe(false);
   });
 
   it("shows no subject for a second approval whose own file change has not arrived, instead of the earlier edit", () => {

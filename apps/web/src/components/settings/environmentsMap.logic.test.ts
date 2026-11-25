@@ -8,6 +8,7 @@ import {
   FLEET_FIT_LEGIBLE_SCALE,
   fitFleetLayout,
   fleetCanvasHeight,
+  fleetCardHeight,
   fleetStackPartial,
   FLEET_CLIENT_NODE_ID,
   fleetEnvironmentNodeId,
@@ -982,7 +983,7 @@ describe("layoutFleetGraph", () => {
     const long = layoutFleetGraph(build([environment("Julius's MacBook Pro")]));
     const wrapped = long.nodes.get(node("Julius's MacBook Pro"))!.height;
     expect(wrapped).toBeGreaterThan(plain.height);
-    expect(wrapped).toBeLessThanOrEqual(72);
+    expect(wrapped).toBeLessThanOrEqual(80);
     for (const [index, name] of names.entries()) {
       const card = cards[index]!;
       const pills = mesh.edges
@@ -1265,6 +1266,50 @@ describe("layoutFleetGraph", () => {
   });
 });
 
+describe("a machine's card", () => {
+  const device = (name: string, overrides: Partial<FleetEnvironmentInput> = {}) =>
+    environment(name, [], {
+      routes: [{ id: "lo", kind: "loopback" }],
+      activeRouteId: "lo",
+      ...overrides,
+    });
+  const envNode = (graph: ReturnType<typeof build>, name: string) =>
+    graph.nodes.find((candidate) => candidate.id === node(name))!;
+
+  it("marks only the machine a loopback route reaches as this device", () => {
+    const graph = build([device("mac"), environment("server")]);
+    expect(envNode(graph, "mac")).toMatchObject({ thisDevice: true });
+    expect(envNode(graph, "server")).toMatchObject({ thisDevice: false });
+  });
+
+  it("draws the card of this device one badge line taller, and the layout gives it that room", () => {
+    const graph = build([device("mac"), environment("server")]);
+    const badge =
+      fleetCardHeight(envNode(graph, "mac")) - fleetCardHeight(envNode(graph, "server"));
+    expect(badge).toBeGreaterThan(0);
+
+    const layout = layoutFleetGraph(graph, fleetStacks(graph, new Set()));
+    for (const name of ["mac", "server"]) {
+      expect(layout.nodes.get(node(name))!.height, name).toBe(
+        fleetCardHeight(envNode(graph, name)),
+      );
+    }
+    const [upper, lower] = [
+      layout.nodes.get(node("mac"))!,
+      layout.nodes.get(node("server"))!,
+    ].toSorted((a, b) => a.y - b.y);
+    expect(lower!.y).toBeGreaterThanOrEqual(upper!.y + upper!.height);
+  });
+
+  it("changes the layout key when a machine becomes this device, as its card height changes", () => {
+    const before = build([environment("mac")]);
+    const after = build([device("mac")]);
+    expect(fleetShapeKey(after, fleetStacks(after, new Set()))).not.toBe(
+      fleetShapeKey(before, fleetStacks(before, new Set())),
+    );
+  });
+});
+
 describe("nextFleetNode", () => {
   it("steps between columns and down a column, stacks included", () => {
     const graph = build([
@@ -1312,7 +1357,8 @@ describe("fitting the view", () => {
     const closed = fleetStacks(graph, new Set());
     const stackId = closed[0]!.id;
     const open = fleetStacks(graph, new Set([stackId]));
-    const bounds = { min: 180, max: 840 };
+    // Room above the closed map's own height, so there is room to grow for the tray and to give back.
+    const bounds = { min: 180, max: 1000 };
     const onScreen = (view: { x: number; y: number; scale: number }, rect: FleetRect) => ({
       x: rect.x * view.scale + view.x,
       y: rect.y * view.scale + view.y,

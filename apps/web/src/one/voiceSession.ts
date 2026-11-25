@@ -63,7 +63,8 @@ export type VoiceSessionEvent =
   | { readonly type: "replied"; readonly reply: SpokenReply | null }
   /** Reading ended. With `replyId`, only the reply that was being read can end it. */
   | { readonly type: "spoken"; readonly replyId?: string }
-  | { readonly type: "failed"; readonly message?: string }
+  /** The question could not be sent or ran into a limit. With `submission`, only that send can fail it. */
+  | { readonly type: "failed"; readonly message?: string; readonly submission?: string }
   /** The person asked to try the microphone again. */
   | { readonly type: "retried" };
 
@@ -153,7 +154,8 @@ export function reduceVoiceSession(
       };
     case "failed":
       // Nothing was heard or the send was refused: listen again rather than hang.
-      return state.stage === "sending"
+      if (event.submission !== undefined && event.submission !== state.submission) return state;
+      return state.stage === "sending" || state.stage === "thinking"
         ? {
             ...state,
             stage: "listening",
@@ -186,6 +188,44 @@ function markRead(
 /** Records where the conversation stands, so the answer to the next question can be told from what came before. */
 export function replyAnchor(messages: ReadonlyArray<VoiceMessage>): ReplyAnchor {
   return { afterId: messages.at(-1)?.id ?? null, count: messages.length };
+}
+
+/** Where the spoken question's own turn stands: not in the thread yet, still waiting or running, or over. */
+export type OwnTurn = "unknown" | "open" | "ended";
+
+const OPEN_RUN_STATUSES: ReadonlySet<string> = new Set([
+  "preparing",
+  "queued",
+  "starting",
+  "running",
+  "waiting",
+]);
+
+/**
+ * Follows the question voice chat sent through the thread's projection, not the thread's work in
+ * general: another client's run, or the run this question waits behind, is not its turn. A run not
+ * listed yet counts as open, since the message is already there.
+ */
+export function ownTurnState(
+  messages: ReadonlyArray<VoiceMessage>,
+  runs: ReadonlyArray<{
+    readonly id: string;
+    readonly userMessageId: string;
+    readonly status: string;
+  }>,
+  messageId: string | null,
+): OwnTurn {
+  if (messageId === null) return "unknown";
+  const question = messages.find(
+    (message) => message.role === "user" && (message.messageId ?? message.id) === messageId,
+  );
+  if (question === undefined) return "unknown";
+  const run =
+    runs.find((candidate) => candidate.userMessageId === messageId) ??
+    (question.runId == null
+      ? undefined
+      : runs.find((candidate) => candidate.id === question.runId));
+  return run === undefined || OPEN_RUN_STATUSES.has(run.status) ? "open" : "ended";
 }
 
 export type ReplySelection = Readonly<{

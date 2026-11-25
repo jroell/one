@@ -255,6 +255,25 @@ describe("provider accent color picker", () => {
     await userEvent.click(page.getByRole("button", { name: "Add color", exact: true }));
     expect(screen.onCommit).toHaveBeenLastCalledWith("#2563eb");
 
-    expect(byLabel("Change accent color for Codex").style.backgroundColor).toBe("rgb(37, 99, 235)");
+    const swatch = byLabel("Change accent color for Codex").querySelector<HTMLElement>(
+      "[data-accent-swatch]",
+    )!;
+    expect(swatch.style.backgroundColor).toBe("rgb(37, 99, 235)");
+  });
+
+  it("labels the trigger with the current choice: Default until a color is set, then the color", async () => {
+    const onCommit = vi.fn();
+    const picker = (value: string | undefined) => (
+      <ProviderAccentColorPicker displayName="Codex" value={value} onCommit={onCommit} />
+    );
+    await using screen = await renderPicker(picker(undefined));
+    await expect
+      .element(screen.getByRole("button", { name: "Add accent color for Codex" }))
+      .toHaveTextContent("Default");
+
+    await screen.rerender(picker("#ff0000"));
+    await expect
+      .element(screen.getByRole("button", { name: "Change accent color for Codex" }))
+      .toHaveTextContent("#ff0000");
   });
 });

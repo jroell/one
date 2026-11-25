@@ -22,6 +22,7 @@ import { m } from "../../i18n/messages";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
+import { licenseLabel } from "./licenseLabel";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 class LicenseManifestLoadError extends Schema.TaggedError<LicenseManifestLoadError>()(
@@ -85,6 +86,9 @@ function LicenseNoticeRow({
 }) {
   const gt = useGT();
   const messages = useMessages();
+  const label = licenseLabel(entry.license);
+  const license =
+    label.kind === "custom" ? gt("Custom (see {file})", { file: label.file }) : label.text;
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <article>
@@ -103,7 +107,7 @@ function LicenseNoticeRow({
               ) : null}
             </span>
             <span className="max-w-[42%] shrink-0 truncate text-xs text-muted-foreground">
-              {entry.license} · {formatLicenseBundles(entry.bundles, messages)}
+              {license} · {formatLicenseBundles(entry.bundles, messages)}
             </span>
           </CollapsibleTrigger>
           {entry.sourceUrl ? (

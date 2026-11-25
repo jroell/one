@@ -69,23 +69,27 @@ it("shows a command that prints an empty text block as that text, not as no outp
   expect(screen.container.textContent).not.toContain("No output.");
 });
 
-it("decodes the same text when a dynamic tool returned it as typed content", async () => {
+it("keeps literal JSON that a dynamic tool's real text block carries", async () => {
   await using screen = await renderInspector({
     type: "dynamic_tool",
     toolName: "read_file",
     input: { path: "/repo/a.txt" },
-    output: LITERAL,
+    output: { type: "text", text: '{"type":"text","text":""}' },
   });
-  await expect.element(screen.getByText("hello", { exact: true })).toBeVisible();
-  expect(screen.container.textContent).not.toContain('"type"');
+  await vi.waitFor(() =>
+    expect(
+      screen.container.querySelector("[data-one-output]")?.textContent?.replace(/\s/g, ""),
+    ).toBe('{"type":"text","text":""}'),
+  );
+  expect(screen.container.textContent).not.toContain("No output.");
 });
 
-it("says there was no output when typed content decodes to empty text", async () => {
+it("says there was no output when a dynamic tool's result really is empty", async () => {
   await using screen = await renderInspector({
     type: "dynamic_tool",
     toolName: "read_file",
     input: { path: "/repo/a.txt" },
-    output: '{"type":"text","text":""}',
+    output: { type: "text", text: "" },
   });
   await expect.element(screen.getByText("No output.")).toBeVisible();
 });

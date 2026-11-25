@@ -744,7 +744,7 @@ function PoolWindowCard({
             {name ? <span className="usage-limit-name">{name}</span> : null}
           </span>
         </span>
-        {pool.pace === "ahead" ? (
+        {projection.kind === "runs-out" ? (
           <Tooltip>
             <TooltipTrigger render={<span className="usage-pace-chip" tabIndex={0} />}>
               {gt("Runs out early")}
@@ -894,6 +894,22 @@ interface WatchedLimit {
 type QuotaSources = ReturnType<typeof collectHttpQuotaSources>;
 
 /** Every limit the page shows, native pools and HTTP quota windows alike. */
+/**
+ * The quota left before any rounding, for ranking. A pool of several accounts has no unrounded
+ * figure, so one that rounds to 0% is placed just above empty unless every account is spent.
+ */
+function rawRemainingPercent(
+  members: readonly ServerProviderUsageWindow[],
+  rounded: number,
+): number {
+  const left = (window: ServerProviderUsageWindow) =>
+    100 - Math.max(0, Math.min(100, window.usedPercent));
+  if (members.every((window) => left(window) <= 0)) return 0;
+  const [only] = members;
+  if (members.length === 1 && only !== undefined) return left(only);
+  return rounded === 0 ? Number.EPSILON : rounded;
+}
+
 function watchableLimits(
   pools: readonly LimitPool[],
   quotaSources: QuotaSources,
@@ -908,11 +924,15 @@ function watchableLimits(
           id: window.members[0]?.window.id ?? window.id,
           kind: window.kind,
           label: window.label,
+          native: true,
         },
         remainingPercent: window.remainingPercent,
         resetInMs: nextResetMs(window, now),
       },
-      remainingPercent: window.remainingPercent,
+      remainingPercent: rawRemainingPercent(
+        window.members.map((member) => member.window),
+        window.remainingPercent,
+      ),
       projection: projectPool(window, now),
     })),
   );
@@ -923,11 +943,12 @@ function watchableLimits(
         return {
           subject: {
             provider: source.label,
-            window: { id: window.id, kind: window.kind, label: window.label },
+            // An external quota's label is its source's own: never rewritten.
+            window: { id: window.id, kind: window.kind, label: window.label, native: false },
             remainingPercent: remainingPercent(window),
             resetInMs: resetAt > now ? resetAt - now : null,
           },
-          remainingPercent: remainingPercent(window),
+          remainingPercent: rawRemainingPercent([window], remainingPercent(window)),
           projection: projectWindow(window as ServerProviderUsageWindow, now),
         };
       }),
@@ -959,7 +980,7 @@ function LimitsSummary({
   const parts = {
     provider,
     window: inlineWindowName(window, m),
-    remaining: tightest.remainingPercent,
+    remaining: tightest.subject.remainingPercent,
   };
   const headline = !watching
     ? gt("All limits are comfortable.")

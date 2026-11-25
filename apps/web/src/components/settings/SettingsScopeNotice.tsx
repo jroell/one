@@ -1,5 +1,5 @@
 import { resolveEnvironmentMachineKind, type EnvironmentId } from "@t3tools/contracts";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { T, useGT } from "gt-react";
 import { ChevronRightIcon, FolderPlusIcon, LayersIcon, PlusIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -18,6 +18,7 @@ import { SettingsEmptyState } from "./SettingsEmptyState";
 import { SettingsGroup } from "./SettingsGroup";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
+import { useSettingsPathname } from "./useSettingsPathname";
 import type { SettingsScopeSearch } from "./settingsScope";
 import {
   projectScopeMenuGroups,
@@ -57,7 +58,7 @@ export function SettingsScopeNotice({
   const gt = useGT();
   const { selectScope, search, groups } = useSettingsScope();
   const navigate = useNavigate({ from: "/settings" });
-  const pathname = useLocation({ select: (location) => location.pathname });
+  const pathname = useSettingsPathname();
   const { environments } = useEnvironments();
   const environmentIcon = (environment: EnvironmentPresentation | undefined) =>
     environment ? (
@@ -210,7 +211,7 @@ export function SettingsScopeNotice({
       </p>
       <div className="space-y-4">
         {withAddProject ? (
-          <SettingsSection title={gt("Projects")} headerAction={addProject}>
+          <SettingsSection title={gt("Your projects")} headerAction={addProject}>
             {renderChoices(null)}
           </SettingsSection>
         ) : null}
