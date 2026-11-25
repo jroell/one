@@ -64,6 +64,7 @@ import {
   type ReactNode,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -508,11 +509,14 @@ function RightPanelEmptyState(props: {
         "pb-(--workspace-topbar-height)",
       )}
     >
-      <div className="w-full max-w-xs py-6">
-        <h3 className="mb-3 text-center font-medium text-foreground text-sm">
+      <div className="w-full max-w-xs py-6" data-one-launcher="">
+        <h3
+          className="mb-3 text-center font-medium text-foreground text-sm"
+          data-one-launcher-title=""
+        >
           <T>Open a surface</T>
         </h3>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5" data-one-launcher-list="">
           {actions.map((action) =>
             action.available ? (
               <div
@@ -528,6 +532,8 @@ function RightPanelEmptyState(props: {
                 <button
                   type="button"
                   onClick={action.onClick}
+                  data-one-launcher-item=""
+                  data-highlighted={isHighlighted(action) ? "" : undefined}
                   className={cn(
                     "flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-(--control-radius) px-2.5 text-left text-sm transition-colors group-hover:bg-accent/60",
                     isHighlighted(action) && "bg-accent/60",
@@ -1113,7 +1119,7 @@ function RightPanelTab(
         "cursor-pointer group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs",
         props.ownsDesktopTitleBar && "[-webkit-app-region:no-drag]",
         props.active
-          ? "bg-accent text-foreground"
+          ? "text-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
         isDragging && "relative z-10",
       )}
@@ -1132,6 +1138,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   const { resolvedTheme } = useTheme();
   const tabListRef = useRef<HTMLDivElement>(null);
   const addSurfaceTriggerRef = useRef<HTMLButtonElement>(null);
+  const tabStripRef = useRef<HTMLDivElement>(null);
+  const tabIndicatorRef = useRef<HTMLSpanElement>(null);
   const [renamingDevice, setRenamingDevice] = useState<string | null>(null);
   const [addSurfaceMenuOpen, setAddSurfaceMenuOpen] = useState(false);
   const [tabScrollState, setTabScrollState] = useState({
@@ -1425,6 +1433,27 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     setRenamingDevice(null);
   });
 
+  // The selected-tab indicator slides between tabs, so it needs the active tab's box.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- measures the active tab DOM node and writes the indicator's position as CSS variables, which no render can know
+  useLayoutEffect(() => {
+    const strip = tabStripRef.current;
+    const indicator = tabIndicatorRef.current;
+    if (!strip || !indicator) return;
+    const place = () => {
+      const active = strip.querySelector<HTMLElement>("[data-active-tab='true']");
+      if (!active) {
+        indicator.dataset.placed = "false";
+        return;
+      }
+      indicator.style.setProperty("--one-tab-x", `${active.offsetLeft}px`);
+      indicator.style.setProperty("--one-tab-w", `${active.offsetWidth}px`);
+      indicator.dataset.placed = "true";
+    };
+    place();
+    return observeResize(strip, place);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- the active tab and the tab list are read from the DOM, so a change to either must re-measure
+  }, [props.activeSurfaceId, props.surfaces]);
+
   // A newly active tab, or tabs that start overflowing, can sit outside the scrolled strip.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the active tab DOM node into view after it changes or the tab strip starts overflowing
   useEffect(() => {
@@ -1519,7 +1548,11 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           )}
           data-right-panel-tab-list
         >
-          <div className="flex h-full w-max min-w-full items-center gap-1">
+          <div
+            ref={tabStripRef}
+            className="relative flex h-full w-max min-w-full items-center gap-1"
+          >
+            <span ref={tabIndicatorRef} aria-hidden data-one-tab-indicator="" />
             <SortableTabList surfaces={props.surfaces} onMove={props.onMoveSurface}>
               {props.surfaces.map((surface) => {
                 const previewTabId = previewTabIdOf(surface, props.previewSessions);

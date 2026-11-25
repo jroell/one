@@ -24,6 +24,7 @@ export function DiscoveryListRow({
     <button
       type="button"
       {...props}
+      data-slot="discovery-row"
       className="group flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-64"
     >
       {icon}

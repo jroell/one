@@ -1,4 +1,4 @@
-import { createContext, useState, type AnimationEvent } from "react";
+import { createContext, useEffect, useState, type AnimationEvent } from "react";
 
 import { useStableCallback } from "~/hooks/useStableCallback";
 
@@ -75,25 +75,52 @@ export const ChatArrivalContext = createContext<ChatArrival>({
 });
 
 /**
- * Tracks which assistant rows just arrived. `animate` is false outside Chat mode
- * and under reduced motion, so no row is ever marked there.
+ * A row that never mounts (the answer arrived while scrolled away) cannot report the end of its
+ * animation, so a mark lasts this long at most, a little over the animation itself.
+ */
+export const CHAT_ARRIVAL_EXPIRY_MS = 1000;
+
+/**
+ * Tracks which assistant rows just arrived. `animate` is false outside Chat mode and under
+ * reduced motion: the messages are then never read, and a mark still showing is dropped.
  */
 export function useChatArrival(
   identity: string,
-  messages: ReadonlyArray<ArrivalMessage>,
+  readMessages: () => ReadonlyArray<ArrivalMessage>,
   animate: boolean,
 ): ChatArrival {
-  const [state, setState] = useState(() => startingState(identity, messages));
-  const next = advanceArrivals(state, identity, messages, animate);
-  if (next !== state) setState(next);
+  const [state, setState] = useState<ArrivalState | null>(() =>
+    animate ? startingState(identity, readMessages()) : null,
+  );
+  let current = state;
+  if (!animate) {
+    if (state !== null) setState(null);
+    current = null;
+  } else if (state === null) {
+    // Animation just turned on: what is on screen now is the starting point, not an arrival.
+    current = startingState(identity, readMessages());
+    setState(current);
+  } else {
+    current = advanceArrivals(state, identity, readMessages(), true);
+    if (current !== state) setState(current);
+  }
   const settle = useStableCallback((messageId: string) =>
-    setState((current) =>
-      current.fresh.has(messageId)
-        ? { ...current, fresh: new Set([...current.fresh].filter((id) => id !== messageId)) }
-        : current,
+    setState((previous) =>
+      previous?.fresh.has(messageId)
+        ? { ...previous, fresh: new Set([...previous.fresh].filter((id) => id !== messageId)) }
+        : previous,
     ),
   );
-  return { fresh: next.fresh, settle };
+  const fresh = current?.fresh ?? NONE;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a mark whose row never mounted gets no animationend, so a timer retires it
+  useEffect(() => {
+    if (fresh.size === 0) return;
+    const timers = [...fresh].map((id) => setTimeout(() => settle(id), CHAT_ARRIVAL_EXPIRY_MS));
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+    };
+  }, [fresh, settle]);
+  return { fresh, settle };
 }
 
 const CHAT_ARRIVAL_ANIMATION = "one-chat-arrive";

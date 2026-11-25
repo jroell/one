@@ -2454,10 +2454,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current = (mode, intent, options) =>
       submitComposerStable(undefined, mode, intent, options);
   }, [submitComposerStable]);
-  const voiceStart = useStableCallback(
-    (signal?: AbortSignal) => void speechInput.start(signal ? { signal } : undefined),
+  const voiceStart = useStableCallback((signal?: AbortSignal) =>
+    speechInput.startWithResult(signal ? { signal } : undefined),
   );
-  const voiceSubmit = useStableCallback(() => void submitComposerRef.current());
+  const voiceSubmit = useStableCallback((onTranscript?: (text: string) => void) => {
+    if (onTranscript) speechInput.watchSubmission(onTranscript, () => submitComposerRef.current());
+    else submitComposerRef.current();
+  });
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
   // True when the draft with this key was sent and became the thread this composer now writes to.
   const voiceContinuesDraft = useStableCallback((draftKey: string) => {
@@ -2518,9 +2521,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       phase: voicePhase,
       error: voiceError,
       heard: voiceHeard,
-      start: (signal) =>
-        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => voiceStart(signal)),
-      submit: () => whileCommitted(voiceBridgeOwner, composerDraftTargetKey, voiceSubmit),
+      start: async (signal) =>
+        (await whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () =>
+          voiceStart(signal),
+        )) ?? "declined",
+      submit: (onTranscript) =>
+        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => voiceSubmit(onTranscript)),
       cancel: voiceCancel,
     });
   }, [

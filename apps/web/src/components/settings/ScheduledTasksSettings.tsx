@@ -901,7 +901,11 @@ function ScheduledTaskRow({
       title={task.title}
       description={<span className="line-clamp-2">{task.prompt}</span>}
       status={
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          data-one-task-status=""
+          {...(task.enabled ? {} : { "data-paused": "" })}
+          className="flex flex-wrap items-center gap-2"
+        >
           <span>
             {scheduleLabel(
               task.schedule,

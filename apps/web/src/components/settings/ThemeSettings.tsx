@@ -149,13 +149,11 @@ function ThemeLibraryCard({
       <TooltipTrigger
         render={
           <div
-            className={cn(
-              "cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/60 transition-colors hover:bg-accent/10",
-              isActive && "bg-accent/30",
-            )}
+            className="cursor-pointer overflow-hidden rounded-xl"
+            data-settings-card=""
+            data-selected={isActive ? "" : undefined}
             data-theme-library-card={theme.id}
             onClick={onUse}
-            style={isActive ? { boxShadow: "inset 0 0 0 1px var(--ring)" } : undefined}
           >
             <div className="relative">
               {variantNavigation ? (
@@ -745,13 +743,9 @@ export function ThemeLibrary({
                   : gt("Use dark mode")
             }
             aria-pressed={isActive}
-            className={cn(
-              // The accent ring marks the picked tile; focus is a neutral ring set inside it with a gap.
-              "flex cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border p-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-7 focus-visible:outline-foreground/60",
-              isActive
-                ? "border-transparent bg-accent/30 ring-2 ring-inset ring-ring"
-                : "border-border/70 bg-card/60 hover:bg-accent/10",
-            )}
+            className="flex cursor-pointer flex-col items-stretch gap-1.5 rounded-xl p-2 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-7 focus-visible:outline-foreground/60"
+            data-settings-card=""
+            data-selected={isActive ? "" : undefined}
             key={mode}
             onClick={() => setMode(mode)}
             type="button"
@@ -896,12 +890,17 @@ export function ThemeLibrary({
 
   return (
     <div className="space-y-3">
-      <h3 className="flex min-h-7 items-center px-3 text-base font-semibold text-foreground sm:px-4">
+      <h3
+        data-settings-block-title=""
+        className="flex min-h-7 items-center px-3 text-base font-semibold text-foreground sm:px-4"
+      >
         {setting("color-scheme").title}
       </h3>
       {renderModeTiles()}
       <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 px-3 pt-5 sm:px-4">
-        <h3 className="text-base font-semibold text-foreground">{setting("theme").title}</h3>
+        <h3 data-settings-block-title="" className="text-base font-semibold text-foreground">
+          {setting("theme").title}
+        </h3>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             size="xs"

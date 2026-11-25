@@ -78,15 +78,25 @@ export function PullRequestRowLines({
     <span className="min-w-0 flex-1">
       <span className="flex min-w-0 items-center gap-1.5">
         {number}
-        <span className="min-w-0 truncate text-sm">{title}</span>
+        {/* A long title ends in an ellipsis; the full text is the tooltip. */}
+        <span
+          data-one-row-title
+          className="min-w-0 truncate text-sm"
+          {...(typeof title === "string" ? { title } : {})}
+        >
+          {title}
+        </span>
         {signals ? (
           <span className="flex shrink-0 items-center gap-1 text-2xs">{signals}</span>
         ) : null}
         {status ? (
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-2xs">{status}</span>
+          <span data-one-row-status className="ml-auto flex shrink-0 items-center gap-1.5 text-2xs">
+            {status}
+          </span>
         ) : null}
       </span>
       <span
+        data-one-row-meta
         className={cn(
           "flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs text-muted-foreground",
           metaClassName,
@@ -94,7 +104,7 @@ export function PullRequestRowLines({
       >
         {meta}
         {updatedAt ? (
-          <span className="ml-auto shrink-0 whitespace-nowrap tabular-nums">
+          <span data-one-row-time className="ml-auto shrink-0 whitespace-nowrap tabular-nums">
             <RelativeTime timestamp={updatedAt} />
           </span>
         ) : null}

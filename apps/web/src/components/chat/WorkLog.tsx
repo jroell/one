@@ -60,6 +60,7 @@ function WorkLogLine({ icon, label, trailing, wrapLabel, ...lineProps }: RowCont
   return (
     <div
       {...lineProps}
+      data-one-work-line=""
       className={cn(
         "flex min-h-6 min-w-0 gap-1.5 text-sm leading-relaxed select-none [&_*]:select-none",
         wrapLabel ? "items-start" : "items-center",
@@ -68,7 +69,7 @@ function WorkLogLine({ icon, label, trailing, wrapLabel, ...lineProps }: RowCont
     >
       <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
         {icon ? (
-          <span className="relative w-6 shrink-0 leading-0">
+          <span className="relative w-6 shrink-0 leading-0" data-one-work-icon="">
             <span className="inline-block size-6 overflow-hidden align-[calc(0.5cap_-_0.75rem)]">
               <span className="flex size-full items-center justify-center">{icon}</span>
             </span>
@@ -107,7 +108,13 @@ export function WorkLogButton({
 }: RowContent & Omit<ComponentProps<"button">, "className" | "style" | "children">) {
   const className = useRowClassName(true);
   return (
-    <button {...buttonProps} type="button" className={className}>
+    <button
+      {...buttonProps}
+      type="button"
+      data-one-work-row=""
+      data-one-interactive=""
+      className={className}
+    >
       <WorkLogLine icon={icon} label={label} trailing={trailing} wrapLabel={wrapLabel} />
     </button>
   );
@@ -133,7 +140,12 @@ export function WorkLogRow({
   const className = useRowClassName(rowProps.onClick !== undefined, false);
   const detailsId = useId();
   return (
-    <div {...rowProps} className={className}>
+    <div
+      {...rowProps}
+      data-one-work-row=""
+      data-one-interactive={rowProps.onClick !== undefined ? "" : undefined}
+      className={className}
+    >
       <WorkLogLine
         aria-controls={toggle ? detailsId : undefined}
         {...toggle}
@@ -171,6 +183,7 @@ export function WorkLogDetails({
   return (
     <div
       ref={scrollerRef}
+      data-one-work-details={kind}
       onScroll={(event) => {
         const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
         atLiveEdgeRef.current = scrollHeight - scrollTop - clientHeight <= LIVE_EDGE_PX;
@@ -180,8 +193,8 @@ export function WorkLogDetails({
         kind === "text"
           ? "ms-7 flex max-h-96 flex-col gap-3 overflow-auto px-0.5 py-1 select-text"
           : kind === "panel"
-            ? "mt-0.5 mb-1.5 pb-2"
-            : "mt-1",
+            ? "ms-7 mt-0.5 mb-1.5"
+            : "ms-7 mt-1",
       )}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}

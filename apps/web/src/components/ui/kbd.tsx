@@ -20,6 +20,7 @@ function Kbd({
         className,
       )}
       data-slot="kbd"
+      data-variant={variant}
       {...props}
     />
   );

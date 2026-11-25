@@ -11,7 +11,7 @@ import {
 } from "@t3tools/client-runtime/work-log/item-detail";
 import { formatDiffCount } from "@t3tools/client-runtime/diff-count";
 import { isJavaScriptReplTool } from "@t3tools/shared/toolActivity";
-import { ExternalLinkIcon } from "lucide-react";
+import { CircleCheckIcon, CircleDotIcon, CircleIcon, ExternalLinkIcon } from "lucide-react";
 import { memo, type ReactNode, Suspense, use } from "react";
 
 import { useRenderedAppearance } from "../../hooks/useTheme";
@@ -30,6 +30,7 @@ import { resolveExternalWebLinkHref } from "./externalLinkContextMenu";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ShellCommandBlock } from "./ShellCommandBlock";
 import { useInitialOutputReady, type TurnItemSource } from "./timelineRowContext";
+import { toolOutputDisplayText } from "./toolOutputDisplay";
 
 interface V2ItemInspectorProps {
   readonly onInitialOutputReady?: (() => void) | undefined;
@@ -81,7 +82,10 @@ function StructuredValue({
   const isJson = highlightJson && isJsonToolText(text);
   if (!text) return null;
   return (
-    <pre className={cn("max-h-80 overflow-auto text-muted-foreground", monoClassName)}>
+    <pre
+      data-one-output=""
+      className={cn("max-h-80 overflow-auto text-muted-foreground", monoClassName)}
+    >
       {language || isJson ? (
         <RenderErrorBoundary fallback={text}>
           <Suspense fallback={text}>
@@ -161,7 +165,7 @@ function ToolOutputImages(props: ToolOutputState) {
 
 function ToolOutput(props: ToolOutputState) {
   return props.output ? (
-    <StructuredValue value={props.output} highlightJson />
+    <StructuredValue value={toolOutputDisplayText(props.output)} highlightJson />
   ) : props.pending ? (
     <div className="text-muted-foreground italic">
       <T>Loading output…</T>
@@ -208,7 +212,7 @@ function ToolCallBody(
 ) {
   const call = toolCallLines({ command: props.command, args: props.args });
   return (
-    <div className={cn("space-y-1.5", monoClassName)}>
+    <div data-one-tool-body="" className={cn("space-y-1.5", monoClassName)}>
       <ToolOutputImages {...props} />
       {call.command ? <ShellCommandBlock command={call.command} /> : null}
       {call.args ? (
@@ -232,7 +236,7 @@ function ToolCallBody(
       {call.argsText ? <StructuredValue value={call.argsText} highlightJson /> : null}
       {props.outputSlot ?? <ToolOutput {...props} />}
       {props.exitCode !== undefined && props.exitCode !== 0 ? (
-        <div className="text-destructive">
+        <div className="text-destructive" data-one-exit-code="">
           <T>
             exit <Var>{props.exitCode}</Var>
           </T>
@@ -304,8 +308,12 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
             </span>
             {item.additions !== undefined || item.deletions !== undefined ? (
               <span>
-                <span className="text-diff-addition">+{formatDiffCount(item.additions ?? 0)}</span>{" "}
-                <span className="text-diff-deletion">-{formatDiffCount(item.deletions ?? 0)}</span>
+                <span className="text-diff-addition-foreground">
+                  +{formatDiffCount(item.additions ?? 0)}
+                </span>{" "}
+                <span className="text-diff-deletion-foreground">
+                  -{formatDiffCount(item.deletions ?? 0)}
+                </span>
               </span>
             ) : null}
             {props.onOpenToolDiff ? (
@@ -416,14 +424,41 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
       {item.type === "system_notice" ? <StructuredValue value={item.message} /> : null}
       {item.type === "error" ? <StructuredValue value={item.failure.message} /> : null}
       {item.type === "todo_list" ? (
-        <StructuredValue
-          value={item.steps
-            .map(
-              (step) =>
-                `${step.status === "completed" ? "✓" : step.status === "running" ? "◉" : "○"} ${step.text}`,
-            )
-            .join("\n")}
-        />
+        <ul className="space-y-1" data-one-todo-list="">
+          {item.steps.map((step, index) => (
+            // Steps have no id and never reorder within one item.
+            // oxlint-disable-next-line react/no-array-index-key
+            <li key={index} className="flex items-start gap-2" data-status={step.status}>
+              {step.status === "completed" ? (
+                <CircleCheckIcon
+                  role="img"
+                  aria-label={gt("Done")}
+                  className="mt-px size-3.5 shrink-0 text-diff-addition-foreground"
+                />
+              ) : step.status === "running" ? (
+                <CircleDotIcon
+                  role="img"
+                  aria-label={gt("In progress")}
+                  className="mt-px size-3.5 shrink-0 text-(--one-brand)"
+                />
+              ) : (
+                <CircleIcon
+                  role="img"
+                  aria-label={gt("To do")}
+                  className="mt-px size-3.5 shrink-0 text-icon-muted"
+                />
+              )}
+              <span
+                className={cn(
+                  "min-w-0 flex-1 whitespace-pre-wrap break-words text-(length:--font-size-code,var(--text-xs)) leading-relaxed select-text",
+                  step.status === "completed" ? "text-muted-foreground" : "text-foreground",
+                )}
+              >
+                {step.text}
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );

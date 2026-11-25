@@ -1,0 +1,830 @@
+/*
+ * One: the surfaces where work shows. The thread timeline in Code mode, code blocks and tables,
+ * the right panel, the diff, files, preview and the terminal drawer.
+ *
+ * Rows repeat by the thousand, so they get a sheen gradient and a rim, never a blur. Everything
+ * that moves is a transform or opacity on the shared ladder, and nothing moves under reduced motion.
+ * index.css loads after this file, so selectors here lead with `html` to win at equal weight.
+ */
+
+:root {
+  /* A hairline that reads on any theme: the foreground at low alpha, not white. */
+  --one-hairline: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --one-hairline-strong: color-mix(in srgb, var(--foreground) 14%, transparent);
+  --one-tint: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  --one-tint-hover: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --one-fade: 18px;
+}
+
+@property --one-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --one-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes one-details-in {
+  from {
+    opacity: 0;
+    translate: 0 -3px;
+  }
+}
+
+@keyframes one-copy-pop {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+    rotate: -24deg;
+  }
+  60% {
+    opacity: 1;
+    scale: 1.18;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes one-edge-fade {
+  0% {
+    --one-fade-start: 0px;
+    --one-fade-end: var(--one-fade);
+  }
+  2% {
+    --one-fade-start: var(--one-fade);
+    --one-fade-end: var(--one-fade);
+  }
+  98% {
+    --one-fade-start: var(--one-fade);
+    --one-fade-end: var(--one-fade);
+  }
+  100% {
+    --one-fade-start: var(--one-fade);
+    --one-fade-end: 0px;
+  }
+}
+
+/* ===================================================== thread timeline: work rows */
+
+/* One row: icon, verb, object, quiet metadata, caret. The line answers hover in 140ms. */
+html:not([data-one-mode="chat"]) [data-one-work-line] {
+  padding-inline: 0.125rem;
+  border-radius: 0.4375rem;
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-icon] svg {
+  stroke-width: 1.75;
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-row] [data-one-work-verb] {
+  /* Leans toward the foreground so it still reads over the 6% hover tint. */
+  color: color-mix(in srgb, var(--muted-foreground) 78%, var(--foreground));
+}
+
+/* The object of the row (a path, a command) is the thing to scan for, so it takes the mono face
+   and the full foreground. The directory truncates before the name does. */
+html:not([data-one-mode="chat"]) [data-one-work-object] {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  letter-spacing: -0.005em;
+  color: var(--foreground);
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-object-dir] {
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+}
+
+html:not([data-one-mode="chat"]) [data-one-caret] {
+  opacity: 0.55;
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-details="panel"] {
+  position: relative;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  background-color: var(--one-tint);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 0 0 1px var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+/* Thoughts and notes read as an aside: a guide line instead of a box. */
+html:not([data-one-mode="chat"]) [data-one-work-details="text"] {
+  margin-inline-start: 1.75rem;
+  padding-inline-start: 0.75rem;
+  border-inline-start: 1px solid var(--one-hairline-strong);
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-details="media"] {
+  border-radius: 0.5rem;
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-details] pre {
+  margin: 0;
+}
+
+html:not([data-one-mode="chat"]) [data-one-todo-list] li + li {
+  margin-top: 0.125rem;
+}
+
+html:not([data-one-mode="chat"])
+  [data-one-todo-list]
+  li[data-status="completed"]
+  > span:last-child {
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+}
+
+@media (hover: hover) {
+  html:not([data-one-mode="chat"])
+    [data-one-work-row][data-one-interactive]
+    > [data-one-work-line]:hover {
+    background-color: var(--one-tint-hover);
+  }
+
+  html:not([data-one-mode="chat"])
+    [data-one-work-row][data-one-interactive]
+    > [data-one-work-line]:hover
+    [data-one-caret] {
+    opacity: 1;
+  }
+}
+
+html:not([data-one-mode="chat"])
+  [data-one-work-row][data-one-interactive]
+  > [data-one-work-line]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 70%, transparent);
+}
+
+@media (pointer: coarse) {
+  html:not([data-one-mode="chat"])
+    [data-one-work-row][data-one-interactive]
+    > [data-one-work-line] {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-one-work-line] {
+    transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+  }
+
+  html:not([data-one-mode="chat"])
+    [data-one-work-row][data-one-interactive]
+    > [data-one-work-line]:active {
+    transition-duration: var(--one-press-ms);
+    background-color: color-mix(in srgb, var(--foreground) 9%, transparent);
+  }
+
+  html:not([data-one-mode="chat"]) [data-one-caret] {
+    transition:
+      rotate var(--one-move-ms) var(--one-ease-spring),
+      opacity var(--one-hover-ms) var(--one-ease-hover);
+  }
+
+  /* Opening a row eases its content in. Only opacity and a 3px shift, so the row's height is
+     final on the first frame and the list never re-measures mid-animation. */
+  html:not([data-one-mode="chat"]) [data-one-work-details] {
+    animation: one-details-in 180ms var(--one-ease-out) both;
+  }
+}
+
+@media (forced-colors: active) {
+  html:not([data-one-mode="chat"]) [data-one-work-details="panel"] {
+    outline: 1px solid CanvasText;
+  }
+}
+
+/* ============================================================ section headings */
+
+/* "Worked for 52s" and the other turn headings: a quiet label that lights on hover, with the
+   hairline below it fading out toward the edge instead of ending in a hard cut. */
+html:not([data-one-mode="chat"]) [data-timeline-row-kind="turn-fold"] > div {
+  border-bottom: 0;
+  background-image: linear-gradient(
+    to right,
+    var(--one-hairline-strong),
+    var(--one-hairline) 60%,
+    transparent
+  );
+  background-size: 100% 1px;
+  background-position: bottom;
+  background-repeat: no-repeat;
+}
+
+html:not([data-one-mode="chat"]) [data-timeline-row-kind="turn-fold"] button {
+  font-size: 0.8125rem;
+  letter-spacing: 0.005em;
+}
+
+html:not([data-one-mode="chat"]) [data-timeline-row-kind="turn-fold"] button svg {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-timeline-row-kind="turn-fold"] button svg {
+    transition: translate var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  html:not([data-one-mode="chat"]) [data-timeline-row-kind="turn-fold"] button:hover svg {
+    translate: 1px 0;
+  }
+}
+
+/* ================================================================= code blocks */
+
+html:not([data-one-mode="chat"]) .chat-markdown .chat-markdown-codeblock,
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] {
+  position: relative;
+  border-color: transparent;
+  border-radius: 0.625rem;
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 0 0 1px var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown .chat-markdown-codeblock-header,
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table-header] {
+  min-height: 2rem;
+  padding-block: 0.25rem;
+  border-bottom: 1px solid var(--one-hairline);
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown .chat-markdown-codeblock-header {
+  padding-inline-end: 0.375rem;
+}
+
+/* The language is a badge: mono, small, quiet, never louder than the code under it. */
+html:not([data-one-mode="chat"]) [data-one-code-lang],
+html:not([data-one-mode="chat"]) [data-one-table-label] {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, var(--foreground) 64%, transparent);
+}
+
+html:not([data-one-mode="chat"]) [data-one-table-label] {
+  text-transform: uppercase;
+}
+
+/* Copy confirms in place: the glyph morphs into a check that settles, and the button tints. */
+html:not([data-one-mode="chat"]) [data-one-copied],
+html:not([data-one-mode="chat"]) [data-one-copy-check] {
+  color: var(--diff-addition-foreground);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-one-copy-check] {
+    animation: one-copy-pop var(--one-move-ms) var(--one-ease-out) both;
+  }
+}
+
+/* Code that scrolls sideways fades at the edge it continues past. The fade follows the scroll
+   position through a scroll timeline, so it costs no script. Browsers without one show a hard cut. */
+@supports (animation-timeline: scroll(self inline)) {
+  html:not([data-one-mode="chat"]) .chat-markdown .chat-markdown-codeblock[data-wrap="false"] pre {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--one-fade-start),
+      #000 calc(100% - var(--one-fade-end)),
+      transparent 100%
+    );
+    animation: one-edge-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+/* ==================================================================== tables */
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] {
+  overflow: hidden;
+  margin-block: 0.65rem;
+  background-color: var(--one-tint);
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] table {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] :is(th, td) {
+  padding: 0.4375rem 0.75rem;
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] :is(th, td):first-child {
+  padding-inline-start: 0.75rem;
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] :is(th, td):last-child {
+  padding-inline-end: 0.75rem;
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] thead th {
+  padding-block: 0.4375rem;
+  border-bottom: 1px solid var(--one-hairline);
+  background-color: color-mix(in srgb, var(--foreground) 4%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--foreground) 66%, transparent);
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] tbody td {
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] tbody tr:nth-child(even) td {
+  background-color: color-mix(in srgb, var(--foreground) 2.2%, transparent);
+}
+
+@media (hover: hover) {
+  html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] tbody tr:hover td {
+    background-color: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) .chat-markdown [data-one-table] tbody td {
+    transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+  }
+}
+
+/* ================================================== messages, actions, overlays */
+
+html:not([data-one-mode="chat"]) [data-user-message-bubble] {
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-hairline);
+  background-image: var(--one-glass-sheen);
+}
+
+/* Hover actions answer on the shared 140ms instead of the 200ms they inherited. */
+html:not([data-one-mode="chat"]) [data-one-message-actions] {
+  transition-duration: var(--one-hover-ms);
+  transition-timing-function: var(--one-ease-hover);
+}
+
+html:not([data-one-mode="chat"]) [data-scroll-to-end] {
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-hairline),
+    var(--one-glass-shadow);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-scroll-to-end] svg {
+    transition: translate var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  html:not([data-one-mode="chat"]) [data-scroll-to-end]:hover svg {
+    translate: 0 1.5px;
+  }
+}
+
+/* ============================================================== work row bodies */
+
+/* A command and what it printed share one panel, split by a dashed hairline. */
+html:not([data-one-mode="chat"]) [data-one-shell-command] {
+  padding-bottom: 0.0625rem;
+}
+
+html:not([data-one-mode="chat"]) [data-one-shell-command] ~ [data-one-output] {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--one-hairline-strong);
+}
+
+html:not([data-one-mode="chat"]) [data-one-output] {
+  scrollbar-width: thin;
+}
+
+html:not([data-one-mode="chat"]) [data-one-exit-code] {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--destructive) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--destructive) 28%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================== right panel tabs */
+
+/* One indicator slides under the selected tab on the spring. The tabs themselves stay flat. */
+[data-right-panel-tab-list] [data-one-tab-indicator] {
+  position: absolute;
+  inset-block: 0;
+  margin-block: auto;
+  inset-inline-start: 0;
+  width: var(--one-tab-w, 0);
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  background-color: color-mix(in srgb, var(--foreground) 7%, transparent);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-hairline),
+    0 1px 2px rgb(0 0 0 / 8%);
+  translate: var(--one-tab-x, 0) 0;
+  pointer-events: none;
+}
+
+[data-right-panel-tab-list] [data-one-tab-indicator][data-placed="false"] {
+  opacity: 0;
+}
+
+[data-right-panel-tab-list] [data-active-tab] {
+  position: relative;
+  z-index: 1;
+}
+
+/* The tab icon and its close glyph cross-fade instead of cutting, so the close button appears
+   on hover and keyboard focus without the tab changing width. */
+[data-right-panel-tab-list] [data-active-tab] > button:first-child {
+  position: relative;
+}
+
+[data-right-panel-tab-list] [data-active-tab] > button:first-child > span:first-child {
+  display: flex;
+  transition: opacity var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-right-panel-tab-list] [data-active-tab] > button:first-child > svg {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: block;
+  opacity: 0;
+  transition: opacity var(--one-hover-ms) var(--one-ease-hover);
+}
+
+@media (hover: hover) {
+  [data-right-panel-tab-list] [data-active-tab]:hover > button:first-child > span:first-child {
+    opacity: 0;
+  }
+
+  [data-right-panel-tab-list] [data-active-tab]:hover > button:first-child > svg {
+    opacity: 1;
+  }
+}
+
+[data-right-panel-tab-list]
+  [data-active-tab]
+  > button:first-child:is(:focus-visible, :focus-within)
+  > span:first-child {
+  opacity: 0;
+}
+
+[data-right-panel-tab-list]
+  [data-active-tab]
+  > button:first-child:is(:focus-visible, :focus-within)
+  > svg {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-right-panel-tab-list] [data-one-tab-indicator] {
+    transition:
+      translate var(--one-move-ms) var(--one-ease-spring),
+      width var(--one-move-ms) var(--one-ease-out),
+      opacity var(--one-hover-ms) var(--one-ease-hover);
+  }
+
+  /* No slide on the first paint: it appears under the tab already selected. */
+  [data-right-panel-tab-list] [data-one-tab-indicator]:not([data-placed]) {
+    transition: none;
+  }
+
+  [data-right-panel-tab-list] [data-active-tab] {
+    transition:
+      color var(--one-hover-ms) var(--one-ease-hover),
+      background-color var(--one-hover-ms) var(--one-ease-hover);
+  }
+}
+
+@media (pointer: coarse) {
+  [data-right-panel-tab-list] [data-active-tab] button {
+    position: relative;
+  }
+
+  /* 44px targets without making the strip taller. */
+  [data-right-panel-tab-list] [data-active-tab] button::after {
+    content: "";
+    position: absolute;
+    inset: -0.75rem -0.25rem;
+  }
+}
+
+/* ===================================================================== launcher */
+
+html:not([data-one-mode="chat"]) [data-one-launcher-title] {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+[data-one-launcher-list] {
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  background-color: var(--one-tint);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 0 0 1px var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-one-launcher-item] {
+  border-radius: 0.5rem;
+}
+
+[data-one-launcher-item] svg {
+  stroke-width: 1.75;
+  color: var(--muted-foreground);
+}
+
+[data-one-launcher-item]:is([data-highlighted], :hover) {
+  background-color: var(--one-tint-hover);
+}
+
+[data-one-launcher-item][data-highlighted] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--one-brand) 38%, transparent);
+}
+
+[data-one-launcher-item]:is([data-highlighted], :hover) svg {
+  color: var(--foreground);
+}
+
+[data-one-launcher-item]:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-launcher-item] {
+    transition:
+      background-color var(--one-hover-ms) var(--one-ease-hover),
+      box-shadow var(--one-hover-ms) var(--one-ease-hover),
+      scale var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  [data-one-launcher-item] svg {
+    transition: color var(--one-hover-ms) var(--one-ease-hover);
+  }
+
+  [data-one-launcher-item]:active {
+    scale: 0.985;
+    transition-duration: var(--one-press-ms);
+  }
+}
+
+@media (pointer: coarse) {
+  [data-one-launcher-item] {
+    min-height: 2.75rem;
+  }
+}
+
+/* ================================================================= terminal drawer */
+
+[data-one-terminal-header] {
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 -1px 0 0 var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-one-terminal-title] {
+  color: color-mix(in srgb, var(--foreground) 68%, transparent);
+}
+
+[data-one-terminal-actions] button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+}
+
+[data-one-terminal-actions] button:not([aria-disabled="true"]):hover {
+  background-color: var(--one-tint-hover);
+  color: var(--foreground);
+}
+
+[data-one-terminal-actions] button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-terminal-actions] button {
+    transition:
+      background-color var(--one-hover-ms) var(--one-ease-hover),
+      color var(--one-hover-ms) var(--one-ease-hover),
+      scale var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  [data-one-terminal-actions] button:not([aria-disabled="true"]):active {
+    scale: 0.92;
+    transition-duration: var(--one-press-ms);
+  }
+}
+
+@media (pointer: coarse) {
+  [data-one-terminal-actions] button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  [data-one-terminal-header] {
+    height: 2.75rem;
+  }
+}
+
+/* The drag handle shows a grip and a brand edge on hover and while it drags. */
+[data-one-resize-handle]::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background-color: var(--one-brand);
+  opacity: 0;
+}
+
+[data-one-resize-handle]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  margin-inline: auto;
+  top: 1px;
+  width: 2rem;
+  height: 3px;
+  border-radius: 999px;
+  background-color: var(--one-hairline-strong);
+  opacity: 0;
+}
+
+@media (hover: hover) {
+  [data-one-resize-handle]:hover::before {
+    opacity: 0.7;
+  }
+
+  [data-one-resize-handle]:hover::after {
+    opacity: 1;
+  }
+}
+
+[data-one-resize-handle]:active::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-resize-handle]::before,
+  [data-one-resize-handle]::after {
+    transition: opacity var(--one-hover-ms) var(--one-ease-hover);
+  }
+}
+
+/* Starting and failed states sit over the empty pane, so it is never a blank black rectangle. */
+[data-one-terminal-state] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8125rem;
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  pointer-events: none;
+}
+
+[data-one-terminal-state="error"] {
+  pointer-events: auto;
+  background-color: color-mix(in srgb, var(--background) 82%, transparent);
+}
+
+[data-one-terminal-state="ready"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-terminal-state] {
+    transition:
+      opacity var(--one-move-ms) var(--one-ease-out),
+      visibility 0s linear var(--one-move-ms);
+  }
+
+  [data-one-terminal-state="starting"] > p,
+  [data-one-terminal-state="error"] > div {
+    animation: one-details-in var(--one-move-ms) var(--one-ease-out) both;
+  }
+
+  /* A shell that starts in under a quarter second never shows the line. */
+  [data-one-terminal-state="starting"] > p {
+    animation-delay: 220ms;
+  }
+}
+
+/* =========================================================== files and preview chrome */
+
+/* The row under the tabs (file path, address bar): a quiet glass strip, hairline under it. */
+[data-surface-subheader] {
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 -1px 0 0 var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-surface-subheader] button,
+[data-surface-subheader] [role="button"] {
+  border-radius: 0.4375rem;
+}
+
+[data-surface-subheader] :is(button, [role="button"]):focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-surface-subheader] :is(button, [role="button"]) {
+    transition:
+      background-color var(--one-hover-ms) var(--one-ease-hover),
+      color var(--one-hover-ms) var(--one-ease-hover),
+      scale var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  [data-surface-subheader] :is(button, [role="button"]):not(:disabled):active {
+    scale: 0.94;
+    transition-duration: var(--one-press-ms);
+  }
+}
+
+/* The address field is a pill: it takes a rim and a brand edge while it has focus. */
+[data-surface-subheader] [data-preview-url-input] {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-surface-subheader] [data-slot="input-group"]:has([data-preview-url-input]) {
+  border-radius: 999px;
+  background-color: var(--one-tint);
+  box-shadow: inset 0 0 0 1px var(--one-hairline);
+}
+
+[data-surface-subheader] [data-slot="input-group"]:has([data-preview-url-input]:focus-visible) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--one-brand) 55%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--one-brand) 14%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-surface-subheader] [data-slot="input-group"]:has([data-preview-url-input]) {
+    transition: box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  }
+}
+
+/* Breadcrumbs: parents recede, the file you are in is mono and full strength. */
+[data-file-crumb] {
+  color: var(--muted-foreground);
+}
+
+[data-file-crumb][data-current-file-crumb="true"] {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--foreground);
+}
+
+@media (hover: hover) {
+  [data-file-crumb]:not([data-current-file-crumb="true"]):hover {
+    color: var(--foreground);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-file-crumb] {
+    transition: color var(--one-hover-ms) var(--one-ease-hover);
+  }
+}
+
+/* ================================================================ timeline minimap */
+
+/* The strip for the turn on screen takes the brand color, so you can find yourself. */
+[data-minimap-strip][data-in-view="true"]::after {
+  background-color: var(--one-brand);
+}

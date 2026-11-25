@@ -104,9 +104,18 @@ import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
 import { OneEmptyState } from "~/one/OneEmptyState";
 import { useWorkspaceMode } from "~/one/workspaceMode";
-import { quietLiveWork } from "~/one/chatQuietWork";
+import { quietedLiveWorkIds } from "~/one/chatQuietWork";
 import { ChatArrivalContext, chatArrivalProps, useChatArrival } from "~/one/chatArrival";
-import { ChatOutline } from "~/one/ChatOutline";
+import { ApprovalSubjectContext, deriveApprovalSubjects } from "~/one/chatApprovalSubject";
+import { ChatFollowUps } from "~/one/ChatFollowUps";
+import {
+  ChatFollowUpContext,
+  resolveChatFollowUpTarget,
+  NO_FOLLOW_UP,
+} from "~/one/chatFollowUpTarget";
+import { ChatNav } from "~/one/ChatNav";
+import { ChatWaitingLine } from "~/one/ChatWaitingLine";
+import { resolveOutlineCurrentIndex } from "~/one/chatOutlineLayout";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { type HandoffTimelineRun } from "./V2LifecycleRow";
 import { TimelineSystemDivider } from "./TimelineSystemDivider";
@@ -768,12 +777,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const chatMode = useWorkspaceMode() === "chat";
   // Chat mode keeps a running turn's reads and commands behind the working line.
-  const rowEntries =
+  const quietedEntryIds =
     chatMode && isWorking && latestRun?.turnEnded !== true
-      ? quietLiveWork(timelineEntries, pendingApprovalRequestIds)
-      : timelineEntries;
+      ? quietedLiveWorkIds(timelineEntries, pendingApprovalRequestIds)
+      : undefined;
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
-    timelineEntries: rowEntries,
+    timelineEntries,
+    quietedEntryIds,
     pendingApprovalRequestIds,
     latestRun,
     usageLimitRunId,
@@ -795,11 +805,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const rows = useStableRows(rawRows, listIdentityKey);
   const arrival = useChatArrival(
     listIdentityKey,
-    rows.flatMap((row) =>
-      row.kind === "message" && row.message.role !== "system"
-        ? [{ id: row.id, role: row.message.role }]
-        : [],
-    ),
+    () =>
+      rows.flatMap((row) =>
+        row.kind === "message" && row.message.role !== "system"
+          ? [{ id: row.id, role: row.message.role }]
+          : [],
+      ),
     chatMode && !prefersReducedMotion,
   );
   const matchedApprovalRequestIds = new Set<string>();
@@ -931,6 +942,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
         };
   const [minimapHitStrip, setMinimapHitStrip] = useState({ left: 0, width: 0 });
   const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
+  // The turn the Chat outline marks, by message id and thread, so it never outlives either.
+  const [outlineCurrent, setOutlineCurrent] = useState<{
+    readonly threadKey: string;
+    readonly id: string;
+  } | null>(null);
   const [minimapAtEnd, setMinimapAtEnd] = useState(false);
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
@@ -1011,6 +1027,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setMinimapCurrentIndex((current) =>
       current === nextCurrentIndex ? current : nextCurrentIndex,
     );
+    if (chatMode) {
+      const outlineIndex = resolveOutlineCurrentIndex({
+        tops: minimapItems.map((item) => state.positionAtIndex(item.rowIndex) ?? 0),
+        scroll,
+        viewportHeight: state.scrollLength,
+        scrollHeight: viewport?.scrollHeight ?? state.scrollLength,
+      });
+      const id = outlineIndex === null ? undefined : minimapItems[outlineIndex]?.id;
+      setOutlineCurrent((current) =>
+        id === undefined
+          ? null
+          : current?.id === id && current.threadKey === listIdentityKey
+            ? current
+            : { threadKey: listIdentityKey, id },
+      );
+    }
     // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
     setMinimapAtEnd(
       viewport !== undefined &&
@@ -1032,6 +1064,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
   useLayoutEffect(() => {
     if (!restoringThreadPosition) scheduleMinimapRefresh();
   }, [restoringThreadPosition, scheduleMinimapRefresh]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the Chat outline mark is measured from the list, so entering Chat mode needs a first measurement
+  useLayoutEffect(() => {
+    if (chatMode) scheduleMinimapRefresh();
+  }, [chatMode, scheduleMinimapRefresh]);
 
   // The measurement the last remember wrote, so a follow release can rewrite
   // it without reading render state from a listener.
@@ -1149,6 +1186,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
       .filter(isVisiblePendingApproval)
       .map((approval) => [approval.requestId, approval]),
   );
+  const approvalSubjects = deriveApprovalSubjects(timelineEntries, pendingApprovalRequestIds);
+  const followUpTarget = chatMode
+    ? resolveChatFollowUpTarget(rows, {
+        turnRunning: isWorking,
+        awaitingPerson: awaitingUser !== null || pendingApprovalRequestIds.size > 0,
+      })
+    : NO_FOLLOW_UP;
   const sharedState: TimelineRowSharedState = {
     pendingApprovals: pendingApprovalsByRequestId,
     respondingRequestIds,
@@ -1439,7 +1483,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
         >
           <AudioPreviewUnmountContext value={onAudioUnmount}>
             <ChatArrivalContext value={arrival}>
-              <TimelineRowContent row={item} />
+              <ApprovalSubjectContext value={approvalSubjects}>
+                <ChatFollowUpContext value={followUpTarget}>
+                  <TimelineRowContent row={item} />
+                </ChatFollowUpContext>
+              </ApprovalSubjectContext>
             </ChatArrivalContext>
           </AudioPreviewUnmountContext>
         </div>
@@ -1452,6 +1500,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     rowCount: rows.length,
     sharedState,
     arrivalFresh: arrival.fresh,
+    approvalSubjects,
+    followUpTarget,
   };
   const timelineListFooter = (
     <TimelineListFooter
@@ -1589,15 +1639,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
               ListFooterComponent={timelineListFooter}
             />
             {chatMode ? (
-              <div className="one-chat-nav">
-                <ChatOutline
-                  items={minimapItems}
-                  currentIndex={minimapCurrentIndex}
-                  onSelect={selectMinimapItem}
-                  onWheel={forwardMinimapWheel}
-                />
+              <ChatNav
+                items={minimapItems}
+                currentId={outlineCurrent?.threadKey === listIdentityKey ? outlineCurrent.id : null}
+                threadKey={listIdentityKey}
+                onSelect={selectMinimapItem}
+                onWheel={forwardMinimapWheel}
+              >
                 {minimap}
-              </div>
+              </ChatNav>
             ) : (
               minimap
             )}
@@ -1719,6 +1769,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
     row.expanded === true;
 
   const arrival = use(ChatArrivalContext);
+  const followUp = use(ChatFollowUpContext);
   return (
     <div
       {...chatArrivalProps(arrival, row.kind === "message" ? row.id : null)}
@@ -1790,12 +1841,24 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "sent-message" ? <SentMessageTimelineRow row={row} /> : null}
       {row.kind === "viewed-images" ? <ViewedImagesTimelineRow row={row} /> : null}
       {row.kind === "mcp-app" ? <McpAppTimelineRow row={row} /> : null}
-      {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
+      {row.kind === "working" ? <WorkingStatusRow row={row} /> : null}
       {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
+      {followUp.rowId === row.id ? <ChatFollowUps ready={followUp.ready} /> : null}
     </div>
   );
 });
+
+/** Chat mode says "Waiting for you" while a request needs the person; the working line otherwise. */
+function WorkingStatusRow({ row }: { row: Extract<TimelineRow, { kind: "working" }> }) {
+  const { awaitingUser, isCompacting, isPreparingWorktree } = use(TimelineRowActivityCtx);
+  const chatMode = useWorkspaceMode() === "chat";
+  return chatMode && awaitingUser && !row.compacting && !isCompacting && !isPreparingWorktree ? (
+    <ChatWaitingLine since={row.createdAt} />
+  ) : (
+    <WorkingTimelineRow row={row} />
+  );
+}
 
 function WorktreeSetupTimelineRow({
   row,

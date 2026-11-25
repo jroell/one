@@ -697,12 +697,13 @@
       } catch {}
       // Registered before any app code, so it runs before every other window listener: while the
       // opening plays, the key or click that skips it reaches nothing else. The opening hears
-      // "one:opening-skip" instead.
+      // "one:opening-skip" instead. It acts only once the opening has mounted and armed it, so a
+      // page that never finishes loading keeps its keyboard and pointer.
       for (const type of ["keydown", "pointerdown"]) {
         window.addEventListener(
           type,
           (event) => {
-            if (document.documentElement.dataset.oneOpening === undefined) return;
+            if (document.documentElement.dataset.oneOpeningArmed === undefined) return;
             event.stopImmediatePropagation();
             event.preventDefault();
             window.dispatchEvent(new Event("one:opening-skip"));

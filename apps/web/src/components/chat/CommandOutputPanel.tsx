@@ -82,6 +82,7 @@ export function CommandOutputPanel(props: {
         followRef.current =
           element.scrollHeight - element.scrollTop - element.clientHeight <= FOLLOW_SLACK_PX;
       }}
+      data-one-output=""
       className="max-h-80 overflow-auto text-muted-foreground"
     >
       {data?.output.truncated ? (

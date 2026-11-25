@@ -40,7 +40,7 @@ export function ThreadDetailsItemsRow() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-between sm:w-40"
+                className="w-full justify-between sm:w-(--settings-control-w)"
                 aria-label={gt("Thread details: {enabled} of {total} on", {
                   enabled,
                   total: THREAD_DETAILS_ITEMS.length,

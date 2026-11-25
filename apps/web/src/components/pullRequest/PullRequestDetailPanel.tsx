@@ -1574,7 +1574,7 @@ export function PullRequestDetailPanel({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-col bg-background">
+    <div data-one-detail="" className="relative flex h-full min-h-0 w-full flex-col bg-background">
       {threadPickerOpen && detail ? (
         <PullRequestThreadLinks
           key={`${environmentId}:${detail.url}`}
@@ -1587,6 +1587,7 @@ export function PullRequestDetailPanel({
         />
       ) : null}
       <div
+        data-one-detail-header=""
         className={cn(
           "@container/pr-header grid min-w-0 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2",
           detail && "border-b border-border/60",

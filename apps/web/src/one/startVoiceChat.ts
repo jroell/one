@@ -31,7 +31,7 @@ export function startVoiceChat(voice: VoiceBridge): void {
       description: m(msg("Choose one under Transcribe with, then start voice chat again.")),
     });
     // Starting without a source opens Voice settings at the transcription row; there is nothing to listen to yet.
-    voice.start();
+    void voice.start();
     return;
   }
   if (voice.phase === "error") voice.cancel();

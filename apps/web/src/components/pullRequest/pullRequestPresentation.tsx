@@ -22,7 +22,7 @@ import {
   UserRoundXIcon,
 } from "lucide-react";
 import { msg, useGT, useMessages } from "gt-react";
-import { Children, type CSSProperties, isValidElement, type ReactNode, useState } from "react";
+import { Children, isValidElement, type ReactNode, useState } from "react";
 
 import { m, type MessageResolver } from "~/i18n/messages";
 import { cn } from "~/lib/utils";
@@ -31,6 +31,7 @@ import { Badge } from "../ui/badge";
 import { InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { PullRequestReviewOutcome } from "./pullRequestDetail.logic";
+import { labelChipStyle, labelChipTone } from "./labelChipTone";
 import { pullRequestLabelColor } from "./pullRequestList.logic";
 import {
   PULL_REQUEST_STATE_PRESENTATION,
@@ -52,19 +53,22 @@ export function PullRequestLabelChip({
   focusable?: boolean;
   children?: ReactNode;
 }) {
-  const color = pullRequestLabelColor(label.color);
+  const tone = labelChipTone(pullRequestLabelColor(label.color));
   const badge = (
-    <Badge
-      size={size}
-      variant={color ? "label" : "secondary"}
-      className={cn("min-w-0 max-w-40 shrink justify-start", className)}
+    <span
+      data-one-label=""
+      data-size={size}
+      {...(tone ? { "data-colored": "" } : {})}
+      className={cn("inline-flex min-w-0 max-w-40 shrink", className)}
       {...(focusable && label.description ? { tabIndex: 0 } : {})}
-      {...(color ? { style: { "--label": color } as CSSProperties } : {})}
+      {...(tone ? { style: labelChipStyle(tone) } : {})}
     >
-      <span className="truncate">{label.name}</span>
+      <span data-one-label-text="" className="truncate">
+        {label.name}
+      </span>
       {label.description ? <span className="sr-only">: {label.description}</span> : null}
       {children}
-    </Badge>
+    </span>
   );
   if (!label.description) return badge;
   return (

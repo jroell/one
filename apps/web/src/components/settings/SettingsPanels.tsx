@@ -1332,38 +1332,6 @@ export function ChatSettingsPanel() {
             </Select>
           }
         />
-        <AdvancedSettings targetIds={[setting("skills-in-slash-menu").id]}>
-          <SettingsRow
-            {...setting("skills-in-slash-menu")}
-            description={gt(
-              "Also include skills in the / command menu. Skills always appear when you type $.",
-            )}
-            resetAction={
-              settings.showSkillsInSlashMenu !== DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu ? (
-                <SettingResetButton
-                  ariaLabel={gt("Reset skills in slash menu to default")}
-                  onClick={() =>
-                    updateSettings({
-                      showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
-                    })
-                  }
-                />
-              ) : null
-            }
-            control={
-              <Switch
-                checked={settings.showSkillsInSlashMenu}
-                onCheckedChange={(checked) =>
-                  updateSettings({ showSkillsInSlashMenu: Boolean(checked) })
-                }
-                aria-label={gt("Show skills in slash menu")}
-              />
-            }
-          />
-        </AdvancedSettings>
-      </SettingsSection>
-
-      <SettingsSection id="follow-ups" title={gt("Follow-ups")}>
         <SettingsRow
           {...setting("follow-up-behavior")}
           description={
@@ -1423,9 +1391,38 @@ export function ChatSettingsPanel() {
             </Select>
           }
         />
+        <AdvancedSettings targetIds={[setting("skills-in-slash-menu").id]}>
+          <SettingsRow
+            {...setting("skills-in-slash-menu")}
+            description={gt(
+              "Also include skills in the / command menu. Skills always appear when you type $.",
+            )}
+            resetAction={
+              settings.showSkillsInSlashMenu !== DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu ? (
+                <SettingResetButton
+                  ariaLabel={gt("Reset skills in slash menu to default")}
+                  onClick={() =>
+                    updateSettings({
+                      showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <Switch
+                checked={settings.showSkillsInSlashMenu}
+                onCheckedChange={(checked) =>
+                  updateSettings({ showSkillsInSlashMenu: Boolean(checked) })
+                }
+                aria-label={gt("Show skills in slash menu")}
+              />
+            }
+          />
+        </AdvancedSettings>
       </SettingsSection>
 
-      <SettingsSection id="side-threads" title={gt("Subagents and side chats")}>
+      <SettingsSection id="conversation" title={gt("Conversation")}>
         <SettingsRow
           {...setting("side-thread-open-target")}
           description={
@@ -1480,9 +1477,6 @@ export function ChatSettingsPanel() {
             </Select>
           }
         />
-      </SettingsSection>
-
-      <SettingsSection id="activity" title={gt("Activity")}>
         <ToolCallVisibilityRow />
       </SettingsSection>
 

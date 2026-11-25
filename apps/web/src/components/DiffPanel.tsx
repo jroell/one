@@ -75,7 +75,7 @@ import { useClientSettings, updateClientSettings } from "../hooks/useSettings";
 import { formatRelativeTimeLabel, formatShortTimestamp } from "../timestampFormat";
 import { DiffFilePathCopyButton } from "./DiffFilePathCopyButton";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
-import { DiffStatLabel } from "./chat/DiffStatLabel";
+import { DiffStatLabel, isLikelyBinaryDiffFile } from "./chat/DiffStatLabel";
 import { AnnotatableCodeView, type AnnotatableCodeViewHandle } from "./diffs/AnnotatableCodeView";
 import { DiffFileTree } from "./diffs/DiffFileTree";
 import { FileExplorerPane } from "./files/FileExplorerPane";
@@ -1740,21 +1740,27 @@ export default function DiffPanel({
                         />
                       );
                     }}
-                    {...(lazySource
-                      ? {
-                          unsafeCSSExtra:
-                            "[data-additions-count], [data-deletions-count] { display: none; }",
-                          renderHeaderMetadata: (fileDiff: FileDiffMetadata) => {
-                            const stat = fileStats.get(resolveFileDiffPath(fileDiff));
-                            return stat ? (
-                              <DiffStatLabel
-                                additions={stat.additions}
-                                deletions={stat.deletions}
-                              />
-                            ) : null;
-                          },
-                        }
-                      : {})}
+                    unsafeCSSExtra="[data-additions-count], [data-deletions-count] { display: none; }"
+                    renderHeaderMetadata={(fileDiff: FileDiffMetadata) => {
+                      const path = resolveFileDiffPath(fileDiff);
+                      const stat = fileStats.get(path) ?? {
+                        additions: fileDiff.hunks.reduce(
+                          (sum, hunk) => sum + hunk.additionLines,
+                          0,
+                        ),
+                        deletions: fileDiff.hunks.reduce(
+                          (sum, hunk) => sum + hunk.deletionLines,
+                          0,
+                        ),
+                      };
+                      return (
+                        <DiffStatLabel
+                          additions={stat.additions}
+                          deletions={stat.deletions}
+                          binary={isLikelyBinaryDiffFile(path, stat.additions, stat.deletions)}
+                        />
+                      );
+                    }}
                     onFileCollapsedChange={setDiffFileCollapsed}
                     renderHeaderPrefix={(fileDiff, fileKey, collapsed) => {
                       return (

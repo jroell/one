@@ -172,6 +172,7 @@ export function PullRequestsColumn({
   return (
     <div
       {...contentArea}
+      data-one-page=""
       inert={maximizedAway}
       className={cn(
         "@container/pr-list flex min-h-0 min-w-0 flex-col overflow-x-hidden bg-background",
@@ -181,7 +182,7 @@ export function PullRequestsColumn({
       <WorkspacePageHeader
         electron={isElectron}
         reserveNativeControls={!rightPanelOpen}
-        className="relative bg-background"
+        className="relative"
       >
         {titlebarControls}
         {condensed ? (

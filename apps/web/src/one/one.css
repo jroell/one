@@ -470,13 +470,20 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 
 .one-chat-welcome-orb {
   width: clamp(9rem, 26vh, 13rem);
+  transition: opacity 240ms ease-out;
+}
+
+/* One ring at a time: while the opening's cover is up or fading, the welcome ring waits, then
+   takes its place. */
+html[data-one-opening-cover] .one-chat-welcome-orb {
+  opacity: 0;
+  transition: none;
 }
 
 .one-chat-welcome-title {
   margin-top: 0.25rem;
   /* The same serif as the name in the opening, so the two moments belong to one voice. */
-  font-family:
-    "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   font-size: clamp(1.875rem, 1.35rem + 1.6vw, 2.5rem);
   font-weight: 500;
   line-height: 1.1;
@@ -737,9 +744,13 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
   pointer-events: none;
 }
 
+/* The ring goes first and fast, shrinking toward where the app's ring will appear. */
 .one-opening[data-phase="leaving"] .one-opening-ring {
-  scale: 0.94;
-  transition: scale 400ms var(--one-ease-out);
+  opacity: 0;
+  scale: 0.9;
+  transition:
+    opacity 180ms ease-out,
+    scale 300ms var(--one-ease-out);
 }
 
 .one-opening-ring {
@@ -748,8 +759,7 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 
 .one-opening-name {
   margin-top: -1.5rem;
-  font-family:
-    "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   font-size: clamp(1.75rem, 1.2rem + 2.2vmin, 2.75rem);
   font-weight: 500;
   line-height: 1;
@@ -786,12 +796,18 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 }
 
 /* The name and its rule go first and fast, so no blurred word ever floats over the live app. */
+/* A keyframe, not a transition: these elements are still under their arrival animation, and
+   swapping that for a transition would cut them in one frame. */
 .one-opening[data-phase="leaving"] .one-opening-name,
 .one-opening[data-phase="leaving"] .one-opening-rule,
 .one-opening[data-phase="leaving"] .one-opening-skip {
-  opacity: 0;
-  transition: opacity 140ms linear;
-  animation: none;
+  animation: one-opening-out 140ms linear both;
+}
+
+@keyframes one-opening-out {
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes one-opening-rule {
@@ -949,6 +965,37 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
   }
 }
 
+/* ------------------------------------------------------------ fine points */
+
+/* The amber fill color is under 2:1 as text on a light card; the warning text color is the one
+   made to be read, in both modes. */
+[data-v2-item-type="approval_request"] .text-warning {
+  color: var(--warning-foreground);
+}
+
+/* On a phone the header also carries the voice button, the mode switch and thread details. The
+   title gives them room instead of running underneath. */
+@media (max-width: 40rem) {
+  [data-one-header-crumbs] {
+    padding-inline-end: 10.5rem;
+  }
+}
+
+/* Light glass has no dark behind it to define its edge, so the panel draws one: a hairline and a
+   wider, softer shadow. The highlighted row takes a trace of the theme color. */
+:root:not(.dark) .dialog-glass {
+  box-shadow:
+    var(--tw-ring-shadow, 0 0 #0000),
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 9%, transparent),
+    0 24px 60px -18px color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+[data-slot="command-item"][data-highlighted] {
+  background-color: color-mix(in oklch, var(--one-brand) 9%, var(--foreground) 5%);
+}
+
 /* --------------------------------------------------------- reduced motion */
 
 /* Last in the file so it wins over every press and release rule above. */
@@ -978,8 +1025,8 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
   border-radius: 999px;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
-  /* 78% keeps this quiet label above 4.5:1 on the black scene. */
-  color: color-mix(in oklch, var(--one-ring-hi) 78%, transparent);
+  /* Opaque and mixed toward white, so it stays above 4.5:1 on black whatever the theme color. */
+  color: color-mix(in oklch, color-mix(in oklch, var(--one-brand) 34%, white) 82%, black);
   cursor: pointer;
   outline: none;
   animation: one-opening-rule 1200ms var(--one-ease-out) 1600ms both;

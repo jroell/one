@@ -8,6 +8,7 @@ import {
   type LimitPool,
   type LimitPoolMember,
   type LimitPoolWindow,
+  paceOf,
   paceRemainingPercent,
   remainingPercent,
   type ResetCreditChoice,
@@ -15,13 +16,14 @@ import {
 import { T, Var, useGT, useMessages } from "gt-react";
 import type { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { normalizeProviderAccentColor } from "@t3tools/client-runtime/state/provider-instance-display";
-import { AlertTriangleIcon, ExternalLinkIcon, TicketIcon } from "lucide-react";
+import { AlertTriangleIcon, ExternalLinkIcon, RotateCwIcon, TicketIcon } from "lucide-react";
 import {
   createContext,
   Fragment,
   type ReactNode,
   type RefObject,
   use,
+  type CSSProperties,
   useLayoutEffect,
   useRef,
   useState,
@@ -38,7 +40,11 @@ import { Button } from "../ui/button";
 import { OpenAI } from "../Icons";
 import { Alert, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import { PaceIcon, ResetCreditDialog, barColor, usePaceMark, useResetCredit } from "./UsageLimits";
+import { Skeleton } from "../ui/skeleton";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { PaceIcon, ResetCreditDialog, barColor, useResetCredit } from "./UsageLimits";
+import { LimitMeter } from "./UsageMeter";
+import { type LimitProjection, limitClock, meterState, projectLimit } from "./usageMeterState";
 import {
   collectExternalUsageLinks,
   collectLimitNotices,
@@ -307,7 +313,6 @@ function PoolSegment({
   readonly account: LimitAccount;
   readonly window: LimitPoolMember["window"];
   readonly reset: LimitPoolWindow["resets"][number] | undefined;
-  readonly refillPercent: number;
   readonly color: string;
   readonly now: number;
   readonly index: number;
@@ -354,13 +359,11 @@ function SegmentTriggers({
   window,
   reset,
   redeem,
-  refillPercent,
   color,
   now,
   index,
   showAccountName,
 }: SegmentPayload & {
-  readonly refillPercent: number;
   readonly color: string;
   readonly now: number;
   readonly index: number;
@@ -370,18 +373,15 @@ function SegmentTriggers({
   const payload: SegmentPayload = { account, window, reset, redeem };
   const remaining = remainingPercent(window);
   const timeLeft = paceRemainingPercent(window, now);
-  const [segmentRef, paceMark] = usePaceMark(timeLeft);
   const m = useMessages();
   const resetsIn = formatResetsIn(window, now, m);
   const refillIn = formatResetsIn(window, now, m, "refill");
   const credits = account.limits.resetCredits?.availableCount ?? 0;
   const gt = useGT();
+  const name =
+    account.displayName ?? (account.email ? accountInitials(account.email) : account.driver);
   const segmentLabel = [
-    gt("{name}: {remaining}% left", {
-      name:
-        account.displayName ?? (account.email ? accountInitials(account.email) : account.driver),
-      remaining,
-    }),
+    gt("{name}: {remaining}% left", { name, remaining }),
     resetsIn,
     timeLeft === null ? null : gt("{timeLeft}% of the window left", { timeLeft }),
     credits
@@ -395,89 +395,51 @@ function SegmentTriggers({
     .join(", ");
   return (
     <>
-      <PopoverTrigger
-        handle={popover}
-        payload={payload}
-        openOnHover
-        render={
-          <button
-            ref={segmentRef}
-            type="button"
-            style={{ gridColumn: index, gridRow: 1, ...paceMark?.gappedTrack }}
-            aria-label={segmentLabel}
-            className="relative h-5 min-w-0 cursor-pointer rounded-md bg-muted text-start outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[popup-open]:ring-1 data-[popup-open]:ring-inset data-[popup-open]:ring-border @2xl/pool:h-8"
-          />
-        }
+      <div
+        className="usage-seg"
+        data-named={showAccountName ? "" : undefined}
+        style={{ gridColumn: index, gridRow: 1 }}
       >
-        <div aria-hidden className="absolute inset-0 overflow-hidden rounded-md">
-          {/* Clipped inside the rounded clip so the bar's own corners keep their antialiasing. */}
-          <div className="absolute inset-0" style={paceMark?.gap}>
-            <div
-              aria-hidden
-              className="absolute inset-y-0 left-0 rounded-md opacity-35"
-              style={{ width: `${remaining}%`, backgroundColor: color }}
-            />
-            {remaining < 100 && reset && refillPercent > 0 ? (
-              <div
-                aria-hidden
-                className="absolute inset-y-0 right-0 opacity-20"
-                style={{
-                  width: `${Math.min(100 - remaining, refillPercent)}%`,
-                  // A bare 45° gradient repeats every 5√2px, so some stripes rasterize thinner; a whole-pixel tile doesn't.
-                  backgroundImage: `repeating-linear-gradient(135deg, transparent 0 1px, ${color} 1px 2px, transparent 2px 50%)`,
-                  backgroundSize: "7px 7px",
-                }}
-              />
+        <LimitMeter
+          remaining={remaining}
+          timeLeft={timeLeft}
+          pace={paceOf(window, now)}
+          color={color}
+          label={showAccountName ? name : window.label}
+        />
+        {showAccountName ? (
+          <div aria-hidden className="usage-seg-caption">
+            <span className="usage-seg-index">{index}</span>
+            <span className="usage-seg-name">
+              <AccountName account={account} className="min-w-0 truncate font-medium" />
+              <span className="usage-seg-percent">{remaining}%</span>
+            </span>
+            {resetsIn || credits ? (
+              <span className="usage-seg-meta">
+                {refillIn ?? ""}
+                {credits ? (
+                  <>
+                    {resetsIn ? <span aria-hidden>·</span> : null}
+                    <span aria-hidden className="inline-flex items-center gap-0.5 font-semibold">
+                      <TicketIcon className="size-3" aria-hidden />
+                      {credits}
+                    </span>
+                  </>
+                ) : null}
+              </span>
             ) : null}
           </div>
-        </div>
-        {paceMark ? (
-          <span
-            aria-hidden
-            className="absolute inset-y-0.5 w-0.5 -translate-x-1/2 rounded-full bg-foreground"
-            style={paceMark.tick}
-          />
         ) : null}
-        <span
-          aria-hidden
-          className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-md text-3xs leading-none font-semibold text-foreground/80 tabular-nums @2xl/pool:hidden"
-        >
-          {index}
-        </span>
-        <div className="relative hidden h-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md px-2 text-xs @2xl/pool:flex">
-          {showAccountName ? (
-            <AccountName
-              account={account}
-              className="min-w-0 truncate font-medium text-foreground"
-            />
-          ) : null}
-          {/* A single-account bar repeats the headline percentage. */}
-          {showAccountName ? (
-            <span className="shrink-0 font-semibold text-foreground tabular-nums">
-              {remaining}%
-            </span>
-          ) : null}
-          {resetsIn || credits ? (
-            <span className="ms-auto flex min-w-0 items-center gap-1.5 overflow-hidden rounded-sm bg-background/85 px-1.5 py-0.5 text-2xs whitespace-nowrap text-foreground tabular-nums">
-              {refillIn ?? ""}
-              {credits ? (
-                <>
-                  {resetsIn ? (
-                    <span aria-hidden className="text-muted-foreground">
-                      ·
-                    </span>
-                  ) : null}
-                  <span aria-hidden className="inline-flex items-center gap-0.5 font-semibold">
-                    <TicketIcon className="size-3" aria-hidden />
-                    {credits}
-                  </span>
-                </>
-              ) : null}
-            </span>
-          ) : null}
-        </div>
-      </PopoverTrigger>
-      <LegendRow payload={payload} color={color} now={now} index={index} />
+        <PopoverTrigger
+          handle={popover}
+          payload={payload}
+          openOnHover
+          render={<button type="button" aria-label={segmentLabel} className="usage-seg-hit" />}
+        />
+      </div>
+      {showAccountName ? (
+        <LegendRow payload={payload} color={color} now={now} index={index} />
+      ) : null}
     </>
   );
 }
@@ -505,17 +467,11 @@ function LegendRow({
       handle={popover}
       payload={payload}
       style={{ gridColumn: "1 / -1", gridRow: index + 1 }}
-      render={<Button variant="ghost" size="compact" />}
-      className="min-w-0 @2xl/pool:hidden"
+      render={<button type="button" className="usage-legend" />}
     >
-      <span className="relative inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-3xs leading-none font-semibold text-foreground/80 tabular-nums">
-        <span
-          aria-hidden
-          className="absolute inset-0 rounded-sm opacity-35"
-          style={{ backgroundColor: color }}
-        />
+      <span className="usage-legend-badge" style={{ "--usage-accent": color } as CSSProperties}>
         <span className="sr-only">{`${gt("Segment")} `}</span>
-        <span className="relative">{index}</span>
+        <span>{index}</span>
       </span>
       <AccountName account={account} className="min-w-0 truncate font-medium text-foreground" />
       <span className="shrink-0 font-semibold text-foreground tabular-nums">{remaining}%</span>
@@ -556,9 +512,9 @@ function PoolBar({
   const restores = new Map(pool.resets.map((reset) => [reset.member.account.key, reset]));
   const gt = useGT();
   return (
-    <div className="@container/pool min-w-0">
+    <div className="usage-bar">
       <div
-        className="grid gap-x-1 gap-y-1"
+        className="usage-bar-grid"
         style={{ gridTemplateColumns: `repeat(${pool.columns.length}, minmax(0, 1fr))` }}
       >
         {pool.columns.map((member, position) =>
@@ -568,7 +524,6 @@ function PoolBar({
               account={member.account}
               window={member.window}
               reset={restores.get(member.account.key)}
-              refillPercent={member.refillPercent}
               color={normalizeProviderAccentColor(member.account.accentColor) ?? color}
               now={now}
               index={position + 1}
@@ -578,12 +533,9 @@ function PoolBar({
             <div
               key={member.account.key}
               style={{ gridColumn: position + 1, gridRow: 1 }}
-              className="flex h-5 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border border-dashed border-border text-3xs whitespace-nowrap text-muted-foreground @2xl/pool:h-8 @2xl/pool:justify-start @2xl/pool:px-2 @2xl/pool:text-xs"
+              className="usage-seg-empty"
             >
-              <AccountName
-                account={member.account}
-                className="hidden min-w-0 truncate @2xl/pool:inline-flex"
-              />
+              <AccountName account={member.account} className="usage-seg-empty-name" />
               {gt("$0 cap")}
             </div>
           ) : null,
@@ -593,40 +545,114 @@ function PoolBar({
   );
 }
 
+function ProjectionLine({ projection }: { readonly projection: LimitProjection }) {
+  const m = useMessages();
+  switch (projection.kind) {
+    case "runs-out":
+      return (
+        <p className="usage-projection">
+          <T>
+            At this pace it runs out in{" "}
+            <span className="usage-projection-warn">
+              <Var>{formatDuration(projection.runsOutInMs, m)}</Var>
+            </span>
+            , <Var>{formatDuration(projection.beforeResetMs, m)}</Var> before the reset.
+          </T>
+        </p>
+      );
+    case "on-track":
+      return (
+        <p className="usage-projection">
+          <T>On track to last until the reset.</T>
+        </p>
+      );
+    case "plenty":
+      return (
+        <p className="usage-projection">
+          <T>Plenty left for this window.</T>
+        </p>
+      );
+    case "exhausted":
+      return (
+        <p className="usage-projection">
+          <T>Used up until the reset.</T>
+        </p>
+      );
+    case "none":
+      return null;
+  }
+}
+
 function PoolWindowCard({
   pool,
   color,
   now,
   label,
   description,
+  row,
 }: {
   readonly pool: LimitPoolWindow;
   readonly color: string;
   readonly now: number;
   readonly label?: string | null | undefined;
   readonly description?: string | undefined;
+  /** Position on the page, for the entrance stagger. */
+  readonly row: number;
 }) {
   const m = useMessages();
+  const gt = useGT();
+  const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const nextRefill = pool.resets.find((reset) => reset.at > now && reset.restoresPercent > 0);
+  // A lone account has no segment caption, so its reset time and credits sit under the meter.
+  const first = pool.columns[0];
+  const lone = pool.columns.length === 1 && first?.window ? first : undefined;
+  const loneWindow = lone?.window ?? null;
+  const resetsIn = loneWindow ? formatResetsIn(loneWindow, now, m) : null;
+  const resetsAt = loneWindow?.resetsAt
+    ? formatUpcomingTimestamp(loneWindow.resetsAt, timestampFormat, now, undefined, m)
+    : null;
+  const resetsAtIn = loneWindow ? formatResetsIn(loneWindow, now, m, "in") : null;
+  const credits = lone?.account.limits.resetCredits?.availableCount ?? 0;
+  const creditsLabel = gt(
+    "{count, plural, one {{count} reset credit banked} other {{count} reset credits banked}}",
+    { count: credits },
+  );
+  const clock = limitClock(
+    pool.members.map((member) => member.window),
+    now,
+  );
+  const projection = projectLimit({
+    usedPercent: pool.usedPercent,
+    windowMs: clock?.windowMs ?? null,
+    msToReset: clock?.msToReset ?? null,
+  });
+  const name = label === null ? null : (label ?? pool.label);
   return (
-    <div className="grid items-center gap-x-6 gap-y-3 rounded-lg border border-border/60 p-4 md:grid-cols-[11rem_minmax(0,1fr)]">
-      <div className="flex flex-col gap-1">
-        {label !== null ? (
-          <span className="text-sm font-medium text-foreground">{label ?? pool.label}</span>
-        ) : null}
-        <span className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold text-foreground tabular-nums">
-            {pool.remainingPercent}%
-          </span>
-          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+    <div
+      className="usage-limit"
+      data-state={meterState(pool.remainingPercent)}
+      style={{ "--usage-row": row } as CSSProperties}
+    >
+      <div className="usage-limit-lead">
+        {name ? <span className="usage-limit-label">{name}</span> : null}
+        <span className="usage-limit-figure">
+          <span className="usage-limit-number">{pool.remainingPercent}%</span>
+          <span className="usage-limit-unit">
             <span>
               <T context="remaining usage percentage">left</T>
             </span>
-            {pool.pace ? <PaceIcon pace={pool.pace} /> : null}
+            {pool.pace ? (
+              <PaceIcon
+                pace={pool.pace}
+                detail={gt("Compared with how much of the window has passed")}
+                className={pool.pace === "ahead" ? "usage-pace-ahead" : undefined}
+              />
+            ) : null}
+            {name ? <span className="usage-limit-name">{name}</span> : null}
           </span>
         </span>
         {nextRefill && pool.columns.length > 1 ? (
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <span className="usage-limit-refill">
             <T context="usage limit refill">
               <span className="font-medium text-foreground">
                 ↻ +<Var>{nextRefill.restoresPercent}</Var>%
@@ -636,22 +662,67 @@ function PoolWindowCard({
           </span>
         ) : null}
       </div>
-      <PoolBar pool={pool} color={color} now={now} />
-      {description ? (
-        <p className="text-xs text-muted-foreground md:col-span-2">{description}</p>
-      ) : null}
+      <div className="usage-limit-body">
+        <PoolBar pool={pool} color={color} now={now} />
+        {projection.kind !== "none" || resetsIn || credits > 0 ? (
+          <div className="usage-limit-foot">
+            <ProjectionLine projection={projection} />
+            {resetsIn || credits > 0 ? (
+              <div className="usage-meta">
+                {resetsIn ? (
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="usage-meta-item" tabIndex={0} />}>
+                      <RotateCwIcon aria-hidden />
+                      {resetsIn}
+                    </TooltipTrigger>
+                    {resetsAt ? (
+                      <TooltipPopup side="top">
+                        {resetsAtIn
+                          ? gt("Resets {resetsAt} · {resetsIn}", {
+                              resetsAt,
+                              resetsIn: resetsAtIn,
+                            })
+                          : gt("Resets {resetsAt}", { resetsAt })}
+                      </TooltipPopup>
+                    ) : null}
+                  </Tooltip>
+                ) : null}
+                {credits > 0 ? (
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="usage-meta-item" tabIndex={0} />}>
+                      <TicketIcon aria-hidden />
+                      <span aria-hidden>{credits}</span>
+                      <span className="sr-only">{creditsLabel}</span>
+                    </TooltipTrigger>
+                    <TooltipPopup side="top">{creditsLabel}</TooltipPopup>
+                  </Tooltip>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {description ? <p className="usage-limit-note">{description}</p> : null}
     </div>
   );
 }
 
-function PoolSection({ pool, now }: { readonly pool: LimitPool; readonly now: number }) {
+function PoolSection({
+  pool,
+  now,
+  rowOffset,
+}: {
+  readonly pool: LimitPool;
+  readonly now: number;
+  readonly rowOffset: number;
+}) {
   const color = barColor(pool.driver);
   const label = providerClients.get(pool.driver)?.label ?? String(pool.driver);
   const windows = displayLimitWindows(pool);
   const m = useMessages();
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
+    <section className="usage-panel">
+      <h2 className="usage-panel-head">
         <ProviderInstanceIcon
           driverKind={pool.driver}
           displayName={label}
@@ -661,7 +732,7 @@ function PoolSection({ pool, now }: { readonly pool: LimitPool; readonly now: nu
         />
         {label}
       </h2>
-      {windows.map((window) => {
+      {windows.map((window, position) => {
         const details =
           pool.driver === "cursor" ? cursorUsageWindowDetails(window.id, pool, m) : undefined;
         return (
@@ -672,6 +743,7 @@ function PoolSection({ pool, now }: { readonly pool: LimitPool; readonly now: nu
             now={now}
             label={details?.label}
             description={details?.description}
+            row={rowOffset + position}
           />
         );
       })}
@@ -679,12 +751,98 @@ function PoolSection({ pool, now }: { readonly pool: LimitPool; readonly now: nu
   );
 }
 
+/** Same panel, head and rows as a loaded provider, so the page does not move when limits arrive. */
+function LimitsSkeleton() {
+  return (
+    <section className="usage-panel">
+      <p role="status" className="usage-skeleton-note">
+        <T>Reading limits from your providers…</T>
+      </p>
+      <div className="usage-panel-head" aria-hidden>
+        <Skeleton shape="pill" className="size-5" />
+        <Skeleton className="h-4 w-20" />
+      </div>
+      <div className="usage-limit" aria-hidden>
+        <div className="usage-limit-lead">
+          <Skeleton className="h-4 w-14" />
+          <Skeleton className="h-10 w-28" />
+        </div>
+        <div className="usage-limit-body">
+          <div className="usage-skeleton-channel">
+            <Skeleton shape="pill" className="h-full w-full" />
+          </div>
+          <div className="usage-meta">
+            <Skeleton className="h-4 w-24" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** The page's headline: the tightest limit across every provider, in words. Text, not a card. */
+function LimitsSummary({
+  pools,
+  now,
+}: {
+  readonly pools: readonly LimitPool[];
+  readonly now: number;
+}) {
+  const gt = useGT();
+  const m = useMessages();
+  const entries = pools.flatMap((pool) =>
+    displayLimitWindows(pool).map((window) => ({
+      window,
+      provider: providerClients.get(pool.driver)?.label ?? String(pool.driver),
+    })),
+  );
+  const tightest = entries.reduce<(typeof entries)[number] | undefined>(
+    (best, entry) =>
+      best === undefined || entry.window.remainingPercent < best.window.remainingPercent
+        ? entry
+        : best,
+    undefined,
+  );
+  if (tightest === undefined) return null;
+  const { window, provider } = tightest;
+  const clock = limitClock(
+    window.members.map((member) => member.window),
+    now,
+  );
+  const name = `${provider} ${window.label.toLocaleLowerCase()}`;
+  const remaining = window.remainingPercent;
+  const headline =
+    meterState(remaining) === "comfortable"
+      ? gt("All limits are comfortable.")
+      : clock
+        ? gt("{name} is the one to watch: {remaining}% left, {duration} to go.", {
+            name,
+            remaining,
+            duration: formatDuration(clock.msToReset, m),
+          })
+        : gt("{name} is the one to watch: {remaining}% left.", { name, remaining });
+  return (
+    <header className="usage-headline-block">
+      <h2 className="usage-headline">{headline}</h2>
+      <p className="usage-count">
+        {gt(
+          "{limits, plural, one {{limits} limit} other {{limits} limits}} across {providers, plural, one {{providers} provider} other {{providers} providers}}",
+          { limits: entries.length, providers: pools.length },
+        )}
+      </p>
+    </header>
+  );
+}
+
 export function UsageLimitsPooled({
   presentations,
   now,
+  loading = false,
 }: {
   readonly presentations: Parameters<typeof collectLimitAccounts>[0];
   readonly now: number;
+  /** A refresh is running; with nothing to show yet, the page says so instead of reporting none. */
+  readonly loading?: boolean;
 }) {
   const gt = useGT();
   const m = useMessages();
@@ -694,20 +852,30 @@ export function UsageLimitsPooled({
   const quotaSources = collectHttpQuotaSources(presentations);
   const notices = collectLimitNotices(presentations, m);
   const externalLinks = collectExternalUsageLinks(presentations, m);
+  const rowCounts = pools.map((pool) => displayLimitWindows(pool).length);
   return (
-    <div className="flex flex-col gap-8">
+    <div className="usage-stack usage-limits" aria-busy={loading}>
+      <LimitsSummary pools={pools} now={now} />
       {pools.length === 0 &&
       notices.length === 0 &&
       externalLinks.length === 0 &&
       quotaSources.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          <T>No provider on the selected environments reports subscription limits.</T>
-        </p>
+        loading ? (
+          <LimitsSkeleton />
+        ) : (
+          <p className="usage-empty">
+            <T>No provider on the selected environments reports subscription limits.</T>
+          </p>
+        )
       ) : null}
       <SegmentPopoverContext value={segmentPopover}>
-        {pools.map((pool) => (
+        {pools.map((pool, position) => (
           <Fragment key={pool.driver}>
-            <PoolSection pool={pool} now={now} />
+            <PoolSection
+              pool={pool}
+              now={now}
+              rowOffset={rowCounts.slice(0, position).reduce((sum, count) => sum + count, 0)}
+            />
           </Fragment>
         ))}
       </SegmentPopoverContext>
@@ -725,7 +893,7 @@ export function UsageLimitsPooled({
         }
       </Popover>
       {quotaSources.map((source) => (
-        <section key={source.key} className="space-y-3 rounded-xl border p-4">
+        <section key={source.key} className="usage-panel usage-panel-plain space-y-3">
           <h2 className="text-sm font-medium">{source.label}</h2>
           {source.quotaAccounts?.map((account) => (
             <div key={account.id} className="space-y-1">
@@ -752,7 +920,7 @@ export function UsageLimitsPooled({
       {externalLinks.map((link) => (
         <section
           key={link.url}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4"
+          className="usage-panel usage-panel-plain flex flex-wrap items-center justify-between gap-3"
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {link.url === CHATGPT_USAGE_URL ? (

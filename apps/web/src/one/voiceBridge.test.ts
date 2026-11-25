@@ -5,10 +5,15 @@ import {
   beginMicrophone,
   dispatchVoiceSession,
   getVoiceSession,
+  ownsMicrophone,
   settleMicrophone,
+  type VoiceStartResult,
 } from "./voiceSession";
 
 const NEVER_A_DRAFT = () => false;
+
+/** A start still waiting on the recorder, like a permission prompt that is open. */
+const WAITING = () => new Promise<VoiceStartResult>(() => undefined);
 
 /** Opens a conversation for the test and closes it, and forgets the committed thread, afterwards. */
 function conversation(event: { threadKey: string; isDraft?: boolean }): Disposable {
@@ -77,6 +82,7 @@ describe("the microphone operation a conversation owns", () => {
     let signal: AbortSignal | undefined;
     beginMicrophone((given) => {
       signal = given;
+      return WAITING();
     }, cancel);
     expect(signal?.aborted).toBe(false);
 
@@ -88,8 +94,11 @@ describe("the microphone operation a conversation owns", () => {
   it("registers the cancellation before the start runs, for a retry as well as a first attempt", () => {
     using _open = conversation({ threadKey: "thread-a" });
     const cancelRetry = vi.fn();
-    beginMicrophone(() => undefined, vi.fn());
-    beginMicrophone(() => dispatchVoiceSession({ type: "stop" }), cancelRetry);
+    beginMicrophone(WAITING, vi.fn());
+    beginMicrophone(() => {
+      dispatchVoiceSession({ type: "stop" });
+      return WAITING();
+    }, cancelRetry);
     // The start itself ended the conversation: the cancellation was already in place.
     expect(cancelRetry).toHaveBeenCalledTimes(1);
   });
@@ -100,8 +109,9 @@ describe("the microphone operation a conversation owns", () => {
     let first: AbortSignal | undefined;
     beginMicrophone((signal) => {
       first = signal;
+      return WAITING();
     }, cancelFirst);
-    beginMicrophone(() => undefined, vi.fn());
+    beginMicrophone(WAITING, vi.fn());
     expect(first?.aborted).toBe(true);
     expect(cancelFirst).not.toHaveBeenCalled();
   });
@@ -112,6 +122,7 @@ describe("the microphone operation a conversation owns", () => {
     let signal: AbortSignal | undefined;
     beginMicrophone((given) => {
       signal = given;
+      return WAITING();
     }, cancel);
     settleMicrophone();
     dispatchVoiceSession({ type: "stop" });
@@ -120,8 +131,36 @@ describe("the microphone operation a conversation owns", () => {
   });
 
   it("starts nothing once the conversation is over", () => {
-    const start = vi.fn();
+    const start = vi.fn(WAITING);
     beginMicrophone(start, vi.fn());
     expect(start).not.toHaveBeenCalled();
+  });
+
+  it("lets go of an attempt that ended without recording, so ending voice chat cancels nothing", async () => {
+    using _open = conversation({ threadKey: "thread-a" });
+    for (const result of ["failed", "declined"] as const) {
+      const cancel = vi.fn();
+      await beginMicrophone(() => Promise.resolve(result), cancel);
+      expect(ownsMicrophone()).toBe(false);
+      dispatchVoiceSession({ type: "stop" });
+      expect(cancel).not.toHaveBeenCalled();
+      dispatchVoiceSession({ type: "start", threadKey: "thread-a" });
+    }
+  });
+
+  it("keeps an attempt that began recording, and a late result of a replaced attempt does not release the newer one", async () => {
+    using _open = conversation({ threadKey: "thread-a" });
+    let failFirst: (result: VoiceStartResult) => void = () => undefined;
+    const first = beginMicrophone(
+      () => new Promise<VoiceStartResult>((resolve) => (failFirst = resolve)),
+      vi.fn(),
+    );
+    const cancelRetry = vi.fn();
+    await beginMicrophone(() => Promise.resolve("started"), cancelRetry);
+    failFirst("failed");
+    await first;
+    expect(ownsMicrophone()).toBe(true);
+    dispatchVoiceSession({ type: "stop" });
+    expect(cancelRetry).toHaveBeenCalledTimes(1);
   });
 });

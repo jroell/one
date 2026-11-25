@@ -1,0 +1,603 @@
+/*
+ * One: settings styles.
+ *
+ * Settings is one modal with a navigation rail and a page. A page is a header (title and one line
+ * of purpose), an optional scope bar, and sections. A section is a title over one quiet glass
+ * panel; a panel is rows split by hairlines. Everything reads the active theme, so built-in and
+ * custom themes get the same material. Layout primitives live in components/settings.
+ */
+
+:root {
+  --settings-inset: 0.75rem;
+  --settings-hairline: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --settings-control-w: 13rem;
+  --settings-nav-text: color-mix(in oklab, var(--foreground) 74%, var(--background));
+  --settings-nav-label: color-mix(in oklab, var(--foreground) 62%, var(--background));
+  /* Row text: the description keeps 4.5:1 or better on the page and on the panel. */
+  --settings-description: color-mix(in oklab, var(--foreground) 66%, var(--background));
+  --settings-page-bg: color-mix(in oklab, var(--foreground) 3%, var(--background));
+  --settings-panel-bg: var(--background);
+  --settings-panel-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 6%, transparent);
+
+  @variant dark {
+    --settings-hairline: color-mix(in oklab, var(--foreground) 8%, transparent);
+    --settings-nav-text: color-mix(in oklab, var(--foreground) 66%, var(--background));
+    --settings-nav-label: color-mix(in oklab, var(--foreground) 70%, var(--background));
+    --settings-description: color-mix(in oklab, var(--foreground) 64%, var(--background));
+    --settings-page-bg: var(--background);
+    --settings-panel-bg: color-mix(in oklab, var(--foreground) 4.5%, var(--background));
+    --settings-panel-shadow: 0 1px 1px color-mix(in oklab, var(--background) 60%, transparent);
+  }
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --settings-inset: 1rem;
+  }
+}
+
+/* ------------------------------------------------------------------- shell */
+
+/* The modal catches light on its top edge. The line is drawn over the content so the rail and
+   the page do not hide it. */
+[data-app-modal]:has([data-settings-nav]) {
+  border-color: var(--settings-hairline);
+  box-shadow: var(--one-glass-shadow);
+}
+
+[data-app-modal]:has([data-settings-nav])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-settings-header] {
+  border-bottom-color: var(--settings-hairline);
+}
+
+[data-settings-page-scroll] {
+  background: var(--settings-page-bg);
+}
+
+/* -------------------------------------------------------------- navigation */
+
+[data-settings-nav] {
+  border-inline-end-color: var(--settings-hairline);
+}
+
+/* Pinned search: a recessed field that takes the brand ring when it has focus. */
+[data-settings-search] {
+  height: 2rem;
+  border-radius: 0.625rem;
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--settings-hairline);
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-settings-search]:hover {
+  background: color-mix(in oklab, var(--foreground) 7%, transparent);
+}
+
+[data-settings-search]:focus-within {
+  background: color-mix(in oklab, var(--foreground) 4%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--one-brand) 55%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--one-brand) 14%, transparent);
+}
+
+/* Group labels: small, even, and readable on the rail. */
+[data-settings-nav] h3 {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--settings-nav-label);
+  padding-inline: 0.625rem;
+  padding-block-end: 0.125rem;
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"] {
+  position: relative;
+  height: 2rem;
+  border-radius: 0.625rem;
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover),
+    scale var(--one-move-ms) var(--one-ease-spring);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"]:not([data-active="true"]) {
+  color: var(--settings-nav-text);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"]:not([data-active="true"]):hover {
+  color: var(--foreground);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"] > svg {
+  transition: color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"]:active {
+  scale: 0.985;
+  transition-duration: var(--one-press-ms);
+  transition-timing-function: ease-out;
+}
+
+/* Selected: a brand tint, a lit top edge, a short bar on the leading edge, and a brand icon. */
+[data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"] {
+  background: color-mix(in oklab, var(--one-brand) 9%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--one-brand) 10%, transparent),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"] > svg {
+  color: var(--one-brand);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: 0;
+  width: 0.1875rem;
+  border-radius: 0 999px 999px 0;
+  background: var(--one-brand);
+}
+
+[data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"]:dir(rtl)::before {
+  border-radius: 999px 0 0 999px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-settings-nav] [data-slot="sidebar-menu-button"][data-active="true"]::before {
+    animation: one-settings-nav-bar var(--one-move-ms) var(--one-ease-spring) both;
+  }
+}
+
+@keyframes one-settings-nav-bar {
+  from {
+    transform: scaleY(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  [data-settings-nav] [data-slot="sidebar-menu-button"] {
+    height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  [data-settings-search] {
+    height: 2.75rem;
+  }
+}
+
+/* -------------------------------------------------------------- page header */
+
+[data-settings-page-top] {
+  gap: 0.875rem;
+}
+
+[data-settings-page-title] {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+[data-settings-page-purpose] {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--settings-description);
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------------------- scope bar */
+
+/* The scope bar says where the settings below land. It stays quiet: a compact capsule whose
+   menus read as chips, set so its words start where the page text starts. */
+[data-settings-scope] {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-inline-start: calc(var(--settings-inset) - 0.75rem);
+  padding: 0.1875rem 0.25rem 0.1875rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--settings-description);
+  background: color-mix(in oklab, var(--foreground) 3.5%, transparent);
+  box-shadow: inset 0 0 0 1px var(--settings-hairline);
+}
+
+[data-settings-scope] [data-slot="button"] {
+  height: 1.625rem;
+  min-height: 0;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  border-color: transparent;
+  font-size: 0.75rem;
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 7%, transparent);
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  [data-settings-scope] [data-slot="button"]:hover {
+    background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  }
+}
+
+/* ------------------------------------------------------------------ sections */
+
+[data-settings-block] {
+  scroll-margin-block: 1rem;
+}
+
+[data-settings-block-header] {
+  align-items: center;
+}
+
+[data-settings-block-title] {
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+/* A section is one quiet glass panel. Divided rows are split by hairlines, not by boxes. */
+[data-slot="settings-group"][data-variant="grouped"] {
+  border: 1px solid var(--settings-hairline);
+  border-radius: 0.875rem;
+  background-color: var(--settings-panel-bg);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    var(--settings-panel-shadow);
+}
+
+[data-slot="settings-group"][data-variant="grouped"] > :not(:first-child) {
+  border-top-color: var(--settings-hairline);
+}
+
+/* Danger rows sort to the end of their panel and sit on a faint destructive tint. */
+[data-slot="settings-group"]:has(> [data-danger]) {
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  overflow-clip-margin: 0.375rem;
+}
+
+[data-slot="settings-row"][data-danger] {
+  order: 1;
+  background: color-mix(in oklab, var(--destructive) 5%, transparent);
+  border-top-color: color-mix(in oklab, var(--destructive) 22%, var(--settings-hairline));
+}
+
+[data-slot="settings-row"][data-danger] ~ [data-slot="settings-row"][data-danger] {
+  border-top-color: var(--settings-hairline);
+}
+
+/* A toolbar that stays in view while a long list scrolls under it. Its own page-colored margin
+   hides the rows behind the gap above and below the panel. */
+[data-settings-sticky] {
+  margin-block: -0.75rem;
+  padding-block: 0.75rem;
+  background: var(--settings-page-bg);
+}
+
+[data-settings-sticky] [data-slot="settings-group"] {
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 14px 22px -14px var(--settings-page-bg),
+    var(--settings-panel-shadow);
+}
+
+/* ---------------------------------------------------------------------- rows */
+
+[data-slot="settings-row"] {
+  min-height: 3.5rem;
+  padding-inline: var(--settings-inset);
+}
+
+[data-settings-row-title] {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.003em;
+  color: var(--foreground);
+}
+
+[data-settings-row-description] {
+  max-width: 34rem;
+  font-size: 0.78125rem;
+  line-height: 1.125rem;
+  color: var(--settings-description);
+}
+
+/* Select-style controls share one width, so they line up down the page. */
+@container settings-row (min-width: 32rem) {
+  [data-settings-control] > :has(> [data-slot="select-trigger"]) {
+    inline-size: auto;
+  }
+
+  [data-settings-control] [data-slot="select-trigger"] {
+    inline-size: var(--settings-control-w);
+    min-inline-size: 0;
+  }
+}
+
+/* Sliders: the track fills to the thumb, and every readout ends in one right-aligned column. */
+.settings-slider-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.25rem;
+  align-items: center;
+  column-gap: 0.75rem;
+  inline-size: 100%;
+}
+
+@container settings-row (min-width: 32rem) {
+  .settings-slider-control {
+    inline-size: var(--settings-control-w);
+  }
+}
+
+.settings-slider-readout {
+  min-inline-size: 3.25rem;
+  text-align: end;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+.settings-slider {
+  --settings-slider-track: 0.3125rem;
+  height: 1.75rem;
+}
+
+.settings-slider::-webkit-slider-runnable-track {
+  height: var(--settings-slider-track);
+  box-shadow: inset 0 0 0 1px var(--settings-hairline);
+}
+
+.settings-slider::-moz-range-track {
+  height: var(--settings-slider-track);
+  box-shadow: inset 0 0 0 1px var(--settings-hairline);
+}
+
+.settings-slider::-webkit-slider-thumb {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: -0.40625rem;
+  border-width: 0;
+  background: color-mix(in oklab, var(--foreground) 94%, var(--background));
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
+  transition:
+    transform var(--one-move-ms) var(--one-ease-spring),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-width: 0;
+  background: color-mix(in oklab, var(--foreground) 94%, var(--background));
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
+  transition:
+    transform var(--one-move-ms) var(--one-ease-spring),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.settings-slider:hover::-webkit-slider-thumb,
+.settings-slider:active::-webkit-slider-thumb {
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 0 0 5px color-mix(in oklab, var(--one-brand) 18%, transparent),
+    0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
+}
+
+.settings-slider:hover::-moz-range-thumb,
+.settings-slider:active::-moz-range-thumb {
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
+    0 0 0 5px color-mix(in oklab, var(--one-brand) 18%, transparent),
+    0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
+}
+
+.settings-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--ring);
+}
+
+.settings-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--ring);
+}
+
+@media (pointer: coarse) {
+  .settings-slider {
+    height: 2.75rem;
+  }
+}
+
+/* --------------------------------------------------- picker cards and tiles */
+
+/* Color scheme tiles and theme cards: a glass card that lifts a little on hover, presses in, and
+   shows its selected state as a brand ring with a soft glow. */
+[data-settings-card] {
+  position: relative;
+  background-color: var(--settings-panel-bg);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 0 0 1px var(--settings-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover),
+    translate var(--one-move-ms) var(--one-ease-spring),
+    scale var(--one-move-ms) var(--one-ease-spring);
+}
+
+@media (hover: hover) {
+  [data-settings-card]:hover {
+    background-color: color-mix(in oklab, var(--foreground) 3.5%, var(--settings-panel-bg));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--foreground) 18%, transparent),
+      inset 0 1px 0 0 var(--one-glass-rim-top);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-settings-card]:hover {
+      translate: 0 -1px;
+    }
+  }
+}
+
+[data-settings-card]:active:not(:has(button:active, [role="button"]:active)) {
+  scale: 0.99;
+  translate: 0 0;
+  transition-duration: var(--one-press-ms);
+  transition-timing-function: ease-out;
+}
+
+[data-settings-card][data-selected] {
+  background-color: color-mix(in oklab, var(--one-brand) 7%, var(--settings-panel-bg));
+  box-shadow:
+    inset 0 0 0 2px var(--one-brand),
+    0 12px 28px -16px var(--one-brand-glow);
+}
+
+/* ---------------------------------------------------------- search landing */
+
+/* The row a search result lands on glows once and fades. The glow is a layer whose opacity
+   animates, so nothing repaints while it plays. */
+[data-settings-page-scroll] div.settings-search-target-pulse.settings-search-target-pulse,
+[data-settings-page-scroll]
+  section.settings-search-target-pulse.settings-search-target-pulse
+  > div:first-child {
+  animation: none;
+  position: relative;
+  border-radius: 0.75rem;
+}
+
+[data-settings-page-scroll] div.settings-search-target-pulse::after,
+[data-settings-page-scroll] section.settings-search-target-pulse > div:first-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--one-brand) 9%, transparent);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklab, var(--one-brand) 60%, transparent),
+    0 0 0 4px color-mix(in oklab, var(--one-brand) 12%, transparent);
+  opacity: 0;
+  animation: one-settings-landing 1800ms var(--one-ease-out) both;
+}
+
+@keyframes one-settings-landing {
+  0% {
+    opacity: 0;
+  }
+  14%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------- choice rows */
+
+/* A row that opens something (a project, an environment): it tints on hover, presses in, and the
+   chevron leans toward where it goes. */
+[data-settings-choice] {
+  transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-settings-choice] > svg:last-child {
+  transition:
+    translate var(--one-move-ms) var(--one-ease-spring),
+    color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+@media (hover: hover) {
+  [data-settings-choice]:hover {
+    background: color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  [data-settings-choice]:hover > svg:last-child {
+    color: var(--foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-settings-choice]:hover > svg:last-child {
+      translate: 3px 0;
+    }
+
+    [data-settings-choice]:dir(rtl):hover > svg:last-child {
+      translate: -3px 0;
+    }
+  }
+}
+
+[data-settings-choice]:active {
+  background: color-mix(in oklab, var(--foreground) 7%, transparent);
+  transition-duration: var(--one-press-ms);
+}
+
+/* ------------------------------------------------------------------- phones */
+
+@media (max-width: 40rem) {
+  [data-settings-page-title] {
+    font-size: 1.3125rem;
+    line-height: 1.75rem;
+  }
+}
+
+/* Buttons and selects already extend their hit area to 44px; the switch does not. */
+@media (pointer: coarse) {
+  [data-settings-page-scroll] [data-slot="switch"] {
+    position: relative;
+  }
+
+  [data-settings-page-scroll] [data-slot="switch"]::after {
+    content: "";
+    position: absolute;
+    inset-block: 50%;
+    inset-inline: 0;
+    margin-block: -1.375rem;
+    margin-inline: -0.375rem;
+    block-size: 2.75rem;
+  }
+}

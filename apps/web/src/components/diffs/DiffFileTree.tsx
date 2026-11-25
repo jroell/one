@@ -7,11 +7,8 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { useTheme } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
-import {
-  PIERRE_TREE_UNSAFE_CSS,
-  pierreTreeStyle,
-  titleClippedPierreTreeRow,
-} from "~/pierre-tree-theme";
+import { FILE_TREE_UNSAFE_CSS } from "../files/fileTreeChrome";
+import { pierreTreeStyle, titleClippedPierreTreeRow } from "~/pierre-tree-theme";
 
 import {
   areAllDirectoriesExpanded,
@@ -98,7 +95,7 @@ export function DiffFileTree({
     paths: [],
     search: false,
     sort: ordering.sort,
-    unsafeCSS: PIERRE_TREE_UNSAFE_CSS,
+    unsafeCSS: FILE_TREE_UNSAFE_CSS,
   });
   const allDirectoriesExpanded = useSyncExternalStore(
     (listener) => subscribeOncePerTask(model, listener),

@@ -1,3 +1,4 @@
+import type { ScopedThreadRef } from "@t3tools/contracts";
 import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
@@ -10,10 +11,28 @@ import {
   getVoiceBridge,
   publishVoiceBridge,
   retractVoiceBridge,
+  voiceLevel,
 } from "./voiceBridge";
 import { getVoiceChatStyle, setVoiceChatStyle, useVoiceChatStyle } from "./voiceChatPreferences";
-import { dispatchVoiceSession, getVoiceSession, speechDeadlineMs } from "./voiceSession";
+import {
+  dispatchVoiceSession,
+  getVoiceSession,
+  speechDeadlineMs,
+  type VoiceStartResult,
+} from "./voiceSession";
 import { setWorkspaceMode } from "./workspaceMode";
+
+const saved = vi.hoisted(() => ({ rows: [] as ReadonlyArray<unknown> }));
+// A saved thread's turn items come from the app's state; the test supplies them directly.
+vi.mock(import("../state/entities"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    useThreadVisibleTurnItems: ((ref: ScopedThreadRef | null) =>
+      ref === null ? actual.useThreadVisibleTurnItems(null) : saved.rows) as never,
+  };
+});
+const SAVED_THREAD = { environmentId: "env-1", threadId: "thread-a" } as unknown as ScopedThreadRef;
 
 const OLD_REPLY: VoiceStageMessage = {
   id: "a1",
@@ -35,10 +54,17 @@ const QUESTION: VoiceStageMessage = {
   streaming: false,
 };
 
-type MicrophonePhase = "idle" | "preparing" | "recording" | "transcribing" | "error";
+type MicrophonePhase =
+  | "idle"
+  | "preparing"
+  | "recording"
+  | "transcribing"
+  | "post-processing"
+  | "error";
 
 /** Stands in for the main composer's dictation: the microphone is the boundary being faked. */
 function setup() {
+  saved.rows = [];
   const microphone = {
     phase: "idle" as MicrophonePhase,
     threadKey: "thread-a",
@@ -58,7 +84,13 @@ function setup() {
     holdStatus: false,
     /** The signal each start was given. */
     signals: [] as Array<AbortSignal | undefined>,
+    /** Starts end straight back in the error they were retried from. */
+    failStarts: false,
+    /** The words the composer sends once dictation has finished. */
+    transcript: "why is the sky blue",
+    onTranscript: null as ((text: string) => void) | null,
   };
+  const waiting = () => new Promise<VoiceStartResult>(() => undefined);
   const continues = (draftKey: string) => microphone.promotedFrom === draftKey;
   const publish = () => {
     // The real composer commits its thread in a layout effect, then publishes its controls.
@@ -80,19 +112,27 @@ function setup() {
           microphone.pendingStart = true;
           microphone.phase = "preparing";
           publish();
-          return;
+          return waiting();
         }
         if (microphone.holdStatus) {
           microphone.pendingStatus = signal ?? null;
-          return;
+          return waiting();
+        }
+        if (microphone.failStarts) {
+          microphone.error = "Could not start voice recording.";
+          microphone.phase = "error";
+          publish();
+          return Promise.resolve("failed");
         }
         microphone.error = null;
         microphone.phase = "recording";
         microphone.recordings += 1;
         publish();
+        return Promise.resolve("started");
       },
-      submit: () => {
+      submit: (onTranscript) => {
         microphone.submits += 1;
+        microphone.onTranscript = onTranscript ?? null;
         microphone.phase = "transcribing";
         publish();
       },
@@ -113,9 +153,21 @@ function setup() {
     /** The transcript arrived and the composer sent it, as the real composer does after dictation. */
     finishTranscribing: () =>
       act(() => {
+        microphone.onTranscript?.(microphone.transcript);
+        microphone.onTranscript = null;
         microphone.phase = "idle";
         publish();
       }),
+    /** The recorder moves to another phase of the same send, such as cleaning the transcript up. */
+    movePhase: (phase: MicrophonePhase) =>
+      act(() => {
+        microphone.phase = phase;
+        publish();
+      }),
+    /** Every start from now on fails straight back with the same error. */
+    failStartsFromNow: () => {
+      microphone.failStarts = true;
+    },
     moveComposerTo: (threadKey: string, promotedFrom: string | null = null) =>
       act(() => {
         microphone.threadKey = threadKey;
@@ -176,9 +228,14 @@ function setup() {
         publish();
         dispatchVoiceSession({ type: "start", threadKey: "draft-1", isDraft: true });
       }),
-    stage: (isWorking: boolean, messages: ReadonlyArray<VoiceStageMessage>, needsUser = false) => (
+    stage: (
+      isWorking: boolean,
+      messages: ReadonlyArray<VoiceStageMessage>,
+      needsUser = false,
+      threadRef: ScopedThreadRef | null = null,
+    ) => (
       <OneVoiceStage
-        threadRef={null}
+        threadRef={threadRef}
         isWorking={isWorking}
         needsUser={needsUser}
         draftMessages={messages}
@@ -220,7 +277,7 @@ it("voice chat sends the spoken question, reads only the new reply aloud, then r
 
   await voice.finishTranscribing();
   await screen.rerender(voice.stage(true, [OLD_REPLY]));
-  await screen.rerender(voice.stage(false, [OLD_REPLY, NEW_REPLY]));
+  await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
   await expect.element(screen.getByText("Light bends inside each drop.")).toBeVisible();
   expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
@@ -244,12 +301,12 @@ it("voice chat waits for a reply that is still streaming and reads it once, in f
   await voice.finishTranscribing();
   await screen.rerender(voice.stage(true, []));
   await screen.rerender(
-    voice.stage(false, [{ ...NEW_REPLY, text: "Light **bends**", streaming: true }]),
+    voice.stage(false, [QUESTION, { ...NEW_REPLY, text: "Light **bends**", streaming: true }]),
   );
   await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
   expect(voice.spoken).toEqual([]);
 
-  await screen.rerender(voice.stage(false, [NEW_REPLY]));
+  await screen.rerender(voice.stage(false, [QUESTION, NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
   expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
     "Light bends inside each drop.",
@@ -282,7 +339,7 @@ it("voice chat started in a new thread stays open when the first question turns 
   await screen.rerender(voice.stage(true, []));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
 
-  await screen.rerender(voice.stage(false, [NEW_REPLY]));
+  await screen.rerender(voice.stage(false, [QUESTION, NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
 });
 
@@ -560,7 +617,10 @@ it("voice chat moves on from a reply the speech engine keeps speaking past its d
   expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
   const deadline = speechDeadlineMs("Light bends inside each drop.");
 
-  // The checks read the page directly: waiting for it would also move the fake clock on.
+  // The engine reports speaking without any start event, so the length-based deadline counts
+  // from the 4 second check that saw it speak. The checks read the page directly: waiting for it
+  // would also move the fake clock on.
+  await act(() => vi.advanceTimersByTime(4_000));
   await act(() => vi.advanceTimersByTime(deadline - 1));
   expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
   await act(() => vi.advanceTimersByTime(1));
@@ -692,4 +752,184 @@ it("starting voice chat without a transcription source explains it once, however
   expect(getVoiceSession().stage).toBe("off");
   // Each attempt still goes to Voice settings, where the recorder hook navigates.
   expect(voice.microphone.signals).toHaveLength(2);
+});
+
+const OTHER_QUESTION: VoiceStageMessage = {
+  id: "u9",
+  role: "user",
+  text: "what time is it",
+  streaming: false,
+  runId: "run-other",
+};
+const OTHER_REPLY: VoiceStageMessage = {
+  id: "a9",
+  role: "assistant",
+  text: "It is noon.",
+  streaming: false,
+  runId: "run-other",
+};
+const SPOKEN_QUESTION: VoiceStageMessage = { ...QUESTION, runId: "run-voice" };
+const SPOKEN_REPLY: VoiceStageMessage = { ...NEW_REPLY, runId: "run-voice" };
+
+it("voice chat does not read the answer to another prompt that landed first, and reads its own reply once", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  // A second client sent a prompt while the transcript was in flight, and its answer is already in.
+  await screen.rerender(voice.stage(false, [OLD_REPLY, OTHER_QUESTION, OTHER_REPLY]));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
+  expect(voice.spoken).toEqual([]);
+
+  await screen.rerender(
+    voice.stage(true, [OLD_REPLY, OTHER_QUESTION, OTHER_REPLY, SPOKEN_QUESTION]),
+  );
+  await screen.rerender(
+    voice.stage(false, [OLD_REPLY, OTHER_QUESTION, OTHER_REPLY, SPOKEN_QUESTION, SPOKEN_REPLY]),
+  );
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
+    "Light bends inside each drop.",
+  ]);
+});
+
+it("voice chat does not read a later row from a run it already read, and listens again instead", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+  const firstRun = [OLD_REPLY, { ...QUESTION, runId: "run-1" }, { ...NEW_REPLY, runId: "run-1" }];
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, firstRun.slice(0, 2)));
+  await screen.rerender(voice.stage(false, firstRun));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
+  await act(() => voice.spoken[0]?.onend?.(new Event("end") as SpeechSynthesisEvent));
+
+  // The next spoken question starts its own run; the first run publishes one more message.
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  const secondQuestion = { ...QUESTION, id: "u3", runId: "run-2" };
+  await screen.rerender(voice.stage(true, [...firstRun, secondQuestion]));
+  const lateFromFirstRun = { ...NEW_REPLY, id: "a2b", text: "One more thing.", runId: "run-1" };
+  await screen.rerender(voice.stage(false, [...firstRun, secondQuestion, lateFromFirstRun]));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Thinking");
+
+  await act(() => vi.advanceTimersByTime(4_000));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
+    "Light bends inside each drop.",
+  ]);
+});
+
+it("voice chat gives up 60 seconds after the question was sent even when the recorder changed phase at 59 seconds", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  expect(voice.microphone.phase).toBe("transcribing");
+  await act(() => vi.advanceTimersByTime(59_000));
+  // The transcript came in and its cleanup began, which hangs.
+  await voice.movePhase("post-processing");
+  await act(() => vi.advanceTimersByTime(999));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Thinking");
+
+  await act(() => vi.advanceTimersByTime(1));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Voice input stopped");
+  expect(screen.getByText("Voice input took too long").element()).toBeVisible();
+  expect(voice.microphone.phase).toBe("idle");
+});
+
+it("voice chat abandons a reply the speech engine keeps queued and never starts, after one retry", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  // The engine holds the utterance back: queued, not speaking, and no event ever comes.
+  using _pending = vi.spyOn(window.speechSynthesis, "pending", "get").mockReturnValue(true);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
+  expect(voice.spoken).toHaveLength(1);
+
+  // The checks read the page directly: waiting for it would also move the fake clock on.
+  await act(() => vi.advanceTimersByTime(5_999));
+  expect(voice.spoken).toHaveLength(1);
+  await act(() => vi.advanceTimersByTime(1));
+  expect(voice.spoken).toHaveLength(2);
+  expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
+  // The first utterance reports its cancellation late; that must not end the retried reading.
+  await act(() => voice.spoken[0]?.onerror?.(new Event("error") as SpeechSynthesisErrorEvent));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
+
+  await act(() => vi.advanceTimersByTime(5_999));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
+  await act(() => vi.advanceTimersByTime(1));
+  expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
+  expect(voice.spoken).toHaveLength(2);
+  expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 });
+});
+
+it("voice chat steps aside when a secret request appears in the thread while the agent answers", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Thinking");
+
+  // The agent asks for a secret; the card sits behind the voice dialog in the timeline.
+  saved.rows = [
+    {
+      position: 0,
+      visibility: "local",
+      item: { id: "s1", type: "secret_request", secretStatus: "pending" },
+    },
+  ];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
+});
+
+it("dictation started with the ordinary shortcut after a retried microphone start failed again is neither sent nor cancelled by voice chat", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+  using _level = { [Symbol.dispose]: () => void (voiceLevel.current = 0) };
+
+  await voice.start();
+  await voice.failRecording();
+  // The retry ends straight back in the same error, so the recorder's phase never changes.
+  voice.failStartsFromNow();
+  await press(screen.getByRole("button", { name: "Try the microphone again" }));
+  expect(voice.microphone).toMatchObject({ phase: "error", recordings: 1 });
+
+  await voice.startOrdinaryDictation();
+  // Speech and then a pause would send a recording voice chat owns.
+  voiceLevel.current = 0.5;
+  await act(() => vi.advanceTimersByTime(600));
+  voiceLevel.current = 0;
+  await act(() => vi.advanceTimersByTime(2_000));
+  expect(voice.microphone).toMatchObject({ phase: "recording", submits: 0 });
+
+  await press(screen.getByRole("button", { name: "End voice chat" }));
+  expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
+  expect(voice.microphone.phase).toBe("recording");
 });

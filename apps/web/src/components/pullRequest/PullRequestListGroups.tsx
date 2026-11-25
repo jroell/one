@@ -4,7 +4,6 @@ import { useMessages } from "gt-react";
 import { useDeferredValue, type RefCallback } from "react";
 
 import { cn } from "~/lib/utils";
-import { Separator } from "../ui/separator";
 import {
   pullRequestEntryKey,
   scorePullRequestMatch,
@@ -47,11 +46,12 @@ function PullRequestGroupHeader({
   const resolve = useMessages();
   const Icon = GROUP_ICONS[group.key] ?? LayersIcon;
   return (
-    <div className="flex items-center gap-2 px-3 pb-1 text-xs font-medium text-muted-foreground/70">
+    <div data-one-panel-head="" className="flex items-center gap-2 text-xs font-medium">
       <Icon aria-hidden className="size-3.5 shrink-0" />
       <h2 className="shrink-0">{resolve(group.label)}</h2>
-      <span className="shrink-0 tabular-nums text-muted-foreground/50">{count}</span>
-      <Separator className="min-w-2 flex-1" />
+      <span data-one-count="" className="shrink-0 tabular-nums">
+        {count}
+      </span>
     </div>
   );
 }
@@ -97,9 +97,9 @@ export function PullRequestListGroups({
   const counts = new Map(groups.map((group) => [group.key, group.entries.length]));
   return (
     <PullRequestSpeedModeProvider>
-      <div className={cn("space-y-3", sweepingKeys.size > 0 && "**:pointer-events-none")}>
+      <div className={cn("space-y-4", sweepingKeys.size > 0 && "**:pointer-events-none")}>
         {shownGroups.map((group) => (
-          <div key={group.key} className="space-y-0.5">
+          <div key={group.key} data-one-panel="">
             {group.label ? (
               <PullRequestGroupHeader
                 group={group}

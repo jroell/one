@@ -24,6 +24,7 @@ import { msg, useGT } from "gt-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useStableCallback } from "~/hooks/useStableCallback";
+import type { VoiceStartResult } from "~/one/voiceSession";
 import { toastManager } from "../components/ui/toast";
 import { m } from "../i18n/messages";
 import {
@@ -296,13 +297,21 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     else if (session?.ownerKey === input.ownerKey) session.cancel();
   }, [input.ownerKey, input.disabled, session]);
 
+  const submissionWatcherRef = useRef<((text: string) => void) | null>(null);
   const submitAfterDictation = useStableCallback((submit: (text: string) => void) => {
+    // A watcher hears the words of the one submission it wraps, however they arrive.
+    const watcher = submissionWatcherRef.current;
+    submissionWatcherRef.current = null;
     if (latestRef.current.input.disabled || state.phase === "preparing") return;
+    const deliver = (text: string) => {
+      watcher?.(text);
+      submit(text);
+    };
     if (!session || !voiceInputBlocksSubmission(state)) {
-      submit(latestRef.current.input.readDraft().text);
+      deliver(latestRef.current.input.readDraft().text);
       return;
     }
-    session.queueSubmission(latestRef.current.input.ownerKey, submit);
+    session.queueSubmission(latestRef.current.input.ownerKey, deliver);
   });
 
   const createTarget = useStableCallback((): VoiceInputTarget => {
@@ -386,76 +395,92 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     },
   );
 
-  const start = useStableCallback(async (options?: { readonly signal?: AbortSignal }) => {
-    // A caller that has given up on this start (voice chat closed) must never get a microphone from it.
-    const abandoned = () => options?.signal?.aborted === true;
-    if (abandoned() || latestRef.current.input.disabled || (setup.open && setup.downloading))
-      return;
-    if (!grantId) {
-      if (destination.offerFirstRunSetup && latestRef.current.input.offerSetup !== false)
-        await navigate({ to: "/settings/voice", hash: "voice-transcription-destination" });
-      return;
-    }
-    if (!session || voiceInputBlocksSubmission(session.state)) return;
-    const request = ++startRequestRef.current;
-    const owner = latestRef.current.input.ownerKey;
-    if (onDevice) {
-      await session.start(createTarget());
-      return;
-    }
-    if (!prepared) return;
-    if (cloudProvider) {
-      await session.start(createTarget());
-      return;
-    }
-    setSetup(INITIAL_SETUP);
-    const stillCurrent = () =>
-      request === startRequestRef.current &&
-      latestRef.current.session === session &&
-      latestRef.current.input.ownerKey === owner &&
-      !latestRef.current.input.disabled;
-    const handleStatus = async (latestStatus: EnvironmentSpeechStatus) => {
-      if (!stillCurrent()) return;
-      setStatus({ prepared, value: latestStatus });
-      if (!latestStatus.supported) {
-        session.cancel();
-        toastManager.add({
-          type: "error",
-          title: m(msg("Voice input is not available")),
-          description: latestStatus.reason,
-        });
-      } else if (latestStatus.state === "missing-model") {
-        session.cancel();
-        await loadSetupCatalog(prepared, latestStatus.modelId, latestStatus.benchmarkTier, request);
+  const startWithResult = useStableCallback(
+    async (options?: { readonly signal?: AbortSignal }): Promise<VoiceStartResult> => {
+      // A caller that has given up on this start (voice chat closed) must never get a microphone from it.
+      const abandoned = () => options?.signal?.aborted === true;
+      // Read from the recorder itself once its start has settled: it may have failed without a phase change anyone saw.
+      const outcome = (recorder: NonNullable<typeof session>): VoiceStartResult => {
+        const { phase } = recorder.state;
+        return phase === "error" ? "failed" : phase === "idle" ? "declined" : "started";
+      };
+      if (abandoned() || latestRef.current.input.disabled || (setup.open && setup.downloading))
+        return "declined";
+      if (!grantId) {
+        if (destination.offerFirstRunSetup && latestRef.current.input.offerSetup !== false)
+          await navigate({ to: "/settings/voice", hash: "voice-transcription-destination" });
+        return "declined";
       }
-    };
-
-    if (currentStatus?.supported && currentStatus.state === "missing-model") {
-      // Setup must remain usable without opening the microphone.
-      const latestStatus = await probeSpeechStatus(prepared, true).catch((error: unknown) => {
-        if (stillCurrent()) {
+      if (!session || voiceInputBlocksSubmission(session.state)) return "declined";
+      const request = ++startRequestRef.current;
+      const owner = latestRef.current.input.ownerKey;
+      if (onDevice) {
+        await session.start(createTarget());
+        return outcome(session);
+      }
+      if (!prepared) return "declined";
+      if (cloudProvider) {
+        await session.start(createTarget());
+        return outcome(session);
+      }
+      setSetup(INITIAL_SETUP);
+      const stillCurrent = () =>
+        request === startRequestRef.current &&
+        latestRef.current.session === session &&
+        latestRef.current.input.ownerKey === owner &&
+        !latestRef.current.input.disabled;
+      const handleStatus = async (latestStatus: EnvironmentSpeechStatus) => {
+        if (!stillCurrent()) return;
+        setStatus({ prepared, value: latestStatus });
+        if (!latestStatus.supported) {
+          session.cancel();
           toastManager.add({
             type: "error",
-            title: m(msg("Could not start voice input")),
-            description: error instanceof Error ? error.message : String(error),
+            title: m(msg("Voice input is not available")),
+            description: latestStatus.reason,
           });
+        } else if (latestStatus.state === "missing-model") {
+          session.cancel();
+          await loadSetupCatalog(
+            prepared,
+            latestStatus.modelId,
+            latestStatus.benchmarkTier,
+            request,
+          );
         }
-        return null;
-      });
-      if (!stillCurrent() || !latestStatus) return;
-      // Setup and the unsupported notice still show for an abandoned start; only the microphone stays closed.
-      await handleStatus(latestStatus);
-      if (
-        !latestStatus.supported ||
-        latestStatus.state === "missing-model" ||
-        !stillCurrent() ||
-        abandoned()
-      )
-        return;
-    }
+      };
 
-    if (abandoned()) return;
-    await session.start(createTarget(), (latestStatus) => void handleStatus(latestStatus));
+      if (currentStatus?.supported && currentStatus.state === "missing-model") {
+        // Setup must remain usable without opening the microphone.
+        const latestStatus = await probeSpeechStatus(prepared, true).catch((error: unknown) => {
+          if (stillCurrent()) {
+            toastManager.add({
+              type: "error",
+              title: m(msg("Could not start voice input")),
+              description: error instanceof Error ? error.message : String(error),
+            });
+          }
+          return null;
+        });
+        if (!stillCurrent() || !latestStatus) return "declined";
+        // Setup and the unsupported notice still show for an abandoned start; only the microphone stays closed.
+        await handleStatus(latestStatus);
+        if (
+          !latestStatus.supported ||
+          latestStatus.state === "missing-model" ||
+          !stillCurrent() ||
+          abandoned()
+        )
+          return "declined";
+      }
+
+      if (abandoned()) return "declined";
+      await session.start(createTarget(), (latestStatus) => void handleStatus(latestStatus));
+      return outcome(session);
+    },
+  );
+  const start = useStableCallback(async (options?: { readonly signal?: AbortSignal }) => {
+    await startWithResult(options);
   });
 
   const downloadSetupModel = useStableCallback(async () => {
@@ -571,7 +596,12 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     blocksSubmission: voiceInputBlocksSubmission(state),
     freezesEditor: voiceInputBlocksSubmission(state),
     start,
+    /** Starts like `start` and reports whether this attempt recorded, failed or did nothing. */
+    startWithResult,
     submitAfterDictation,
+    /** Runs `run`; a submission that waits for dictation inside it reports its words to `listener`. */
+    watchSubmission: <T>(listener: (text: string) => void, run: () => T): T =>
+      runWatched(submissionWatcherRef, listener, run),
     stop: useStableCallback(() => (owns && session ? session.stop() : Promise.resolve())),
     cancel: useStableCallback(() => {
       startRequestRef.current += 1;
@@ -589,4 +619,18 @@ export function useEnvironmentSpeechInput(input: HookInput) {
       if (owns) session?.skipPostProcessing();
     }),
   };
+}
+
+/** Outside the hook because React Compiler does not compile `try`/`finally`. */
+function runWatched<T>(
+  watcher: { current: ((text: string) => void) | null },
+  listener: (text: string) => void,
+  run: () => T,
+): T {
+  watcher.current = listener;
+  try {
+    return run();
+  } finally {
+    watcher.current = null;
+  }
 }

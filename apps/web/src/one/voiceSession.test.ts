@@ -1,7 +1,9 @@
+import type { OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   createSilenceDetector,
+  hasPendingUserRequest,
   reduceVoiceSession,
   replyAnchor,
   selectReply,
@@ -217,12 +219,128 @@ describe("which message answers the spoken question", () => {
   });
 
   it("falls back to the message count when the anchor message is gone from the list", () => {
-    const messages = [message("a1", "assistant"), message("a2", "assistant")];
+    const messages = [
+      message("a1", "assistant"),
+      message("u2", "user"),
+      message("a2", "assistant"),
+    ];
     expect(selectReply(messages, { afterId: "missing", count: 1 })?.id).toBe("a2");
   });
 
   it("selects the first answer of a conversation that was empty when the question was sent", () => {
-    expect(selectReply([message("a1", "assistant")], NOTHING_BEFORE)?.id).toBe("a1");
+    const messages = [message("u1", "user"), message("a1", "assistant")];
+    expect(selectReply(messages, NOTHING_BEFORE)?.id).toBe("a1");
+  });
+
+  it("waits for the question's own row instead of taking an answer that has none before it", () => {
+    expect(selectReply([message("a1", "assistant")], NOTHING_BEFORE)).toBeNull();
+  });
+});
+
+describe("which answer belongs to the question voice chat sent", () => {
+  const anchor = replyAnchor([message("u1", "user", { runId: "r1" })]);
+  const spoken = (id: string, runId: string | null, extra: Partial<VoiceMessage> = {}) =>
+    message(id, "user", { text: "why is the sky blue", runId, ...extra });
+
+  it("skips another client's prompt that arrived first, and its answer", () => {
+    const messages = [
+      message("u1", "user", { runId: "r1" }),
+      message("u9", "user", { text: "what time is it", runId: "r9" }),
+      message("a9", "assistant", { runId: "r9" }),
+      spoken("u2", "r2"),
+      message("a2", "assistant", { runId: "r2" }),
+    ];
+    const selection = { question: "why is the sky   blue " };
+    expect(selectReply(messages.slice(0, 3), anchor, selection)).toBeNull();
+    expect(selectReply(messages, anchor, selection)?.id).toBe("a2");
+  });
+
+  it("takes the last answer of the question's own run, past a steer that redirected it", () => {
+    const messages = [
+      message("u1", "user", { runId: "r1" }),
+      spoken("u2", "r2"),
+      message("a2a", "assistant", { runId: "r2" }),
+      message("s1", "user", { runId: "r2", steer: true, text: "also add the sunset" }),
+      message("a2b", "assistant", { runId: "r2" }),
+    ];
+    expect(selectReply(messages, anchor, { question: "why is the sky blue" })?.id).toBe("a2b");
+  });
+
+  it("does not take a late answer of another run that lands after the question's own", () => {
+    const messages = [
+      message("u1", "user", { runId: "r1" }),
+      spoken("u2", "r2"),
+      message("a2", "assistant", { runId: "r2" }),
+      message("a1b", "assistant", { runId: "r1" }),
+    ];
+    expect(selectReply(messages, anchor, { question: "why is the sky blue" })?.id).toBe("a2");
+  });
+
+  it("never selects a reply or a run that was already read in this conversation", () => {
+    const messages = [
+      message("u1", "user"),
+      message("a1", "assistant", { runId: "r1" }),
+      message("a1b", "assistant", { runId: "r1" }),
+      message("a1c", "assistant"),
+    ];
+    const first = replyAnchor([]);
+    expect(selectReply(messages, first, {})?.id).toBe("a1c");
+    expect(selectReply(messages, first, { readIds: ["a1c"] })?.id).toBe("a1b");
+    expect(selectReply(messages, first, { readIds: ["a1c"], readRuns: ["r1"] })).toBeNull();
+    expect(selectReply(messages.slice(0, 3), first, { readRuns: ["r1"] })).toBeNull();
+  });
+
+  it("remembers each reply and run it began reading", () => {
+    const state = run([
+      { type: "start", threadKey: "t1" },
+      { type: "sent", after: NOTHING_BEFORE },
+      { type: "replied", reply: { id: "a2", text: "Light bends.", runId: "r2" } },
+      { type: "spoken" },
+      { type: "sent", after: NOTHING_BEFORE },
+      { type: "transcribed", text: "and the sunset?" },
+    ]);
+    expect(state).toMatchObject({
+      stage: "sending",
+      readIds: ["a2"],
+      readRuns: ["r2"],
+      question: "and the sunset?",
+    });
+  });
+});
+
+describe("cards that wait for the person", () => {
+  const row = (
+    item: Record<string, unknown>,
+    visibility: "local" | "inherited" = "local",
+  ): OrchestrationV2ProjectedTurnItem =>
+    ({ position: 0, visibility, item }) as unknown as OrchestrationV2ProjectedTurnItem;
+
+  it("counts a pending secret, feedback or link request, and nothing already answered", () => {
+    expect(hasPendingUserRequest([row({ type: "secret_request", secretStatus: "pending" })])).toBe(
+      true,
+    );
+    expect(
+      hasPendingUserRequest([row({ type: "feedback_request", feedbackStatus: "pending" })]),
+    ).toBe(true);
+    expect(hasPendingUserRequest([row({ type: "link_request", linkStatus: "pending" })])).toBe(
+      true,
+    );
+    expect(
+      hasPendingUserRequest([
+        row({ type: "secret_request", secretStatus: "saved" }),
+        row({ type: "feedback_request", feedbackStatus: "declined" }),
+        row({ type: "link_request", linkStatus: "failed" }),
+        row({ type: "assistant_message", status: "pending" }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("ignores a pending card inherited from the thread this one was forked from", () => {
+    expect(
+      hasPendingUserRequest([
+        row({ type: "secret_request", secretStatus: "pending" }, "inherited"),
+      ]),
+    ).toBe(false);
   });
 });
 

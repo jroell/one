@@ -1,3 +1,4 @@
+import type { OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import { useSyncExternalStore } from "react";
 
 /**
@@ -14,13 +15,17 @@ export type VoiceMessage = Readonly<{
   streaming: boolean;
   /** Narration the agent sent mid-turn, apart from its answer. */
   commentary?: boolean;
+  /** The run this message belongs to; a steer shares the run it redirects. Absent in a draft. */
+  runId?: string | null;
+  /** The person redirected a run that was already going, so this is not a new question. */
+  steer?: boolean;
 }>;
 
 /** Where the conversation stood when a question was sent. The answer is whatever follows. */
 export type ReplyAnchor = Readonly<{ afterId: string | null; count: number }>;
 
 /** The reply being read aloud. Fixed when reading begins, so later messages cannot replace it. */
-export type SpokenReply = Readonly<{ id: string; text: string }>;
+export type SpokenReply = Readonly<{ id: string; text: string; runId?: string | null }>;
 
 export type VoiceSessionState = Readonly<{
   stage: VoiceStage;
@@ -30,8 +35,13 @@ export type VoiceSessionState = Readonly<{
   startedAsDraft: boolean;
   /** The conversation as it stood when the current question was sent; only what follows can be its answer. */
   sentAfter: ReplyAnchor | null;
+  /** What the sent question said once transcribed, so its row can be told from another client's prompt. */
+  question: string | null;
   /** The reply being read aloud. */
   reply: SpokenReply | null;
+  /** Replies and runs already read in this conversation; none is read twice. */
+  readIds: ReadonlyArray<string>;
+  readRuns: ReadonlyArray<string>;
   /** Why the last turn could not be sent, shown with a way to try again. */
   error: string | null;
 }>;
@@ -42,6 +52,8 @@ export type VoiceSessionEvent =
   | { readonly type: "promoted"; readonly threadKey: string }
   | { readonly type: "stop" }
   | { readonly type: "sent"; readonly after: ReplyAnchor }
+  /** The transcript that was sent as the question, known once dictation hands it to the composer. */
+  | { readonly type: "transcribed"; readonly text: string }
   | { readonly type: "working" }
   /** The turn is over. `reply` is its finished answer, or null when it ended with nothing to read. */
   | { readonly type: "replied"; readonly reply: SpokenReply | null }
@@ -56,7 +68,10 @@ export const VOICE_SESSION_OFF: VoiceSessionState = {
   threadKey: null,
   startedAsDraft: false,
   sentAfter: null,
+  question: null,
   reply: null,
+  readIds: [],
+  readRuns: [],
   error: null,
 };
 
@@ -83,8 +98,17 @@ export function reduceVoiceSession(
       return VOICE_SESSION_OFF;
     case "sent":
       return state.stage === "listening"
-        ? { ...state, stage: "sending", sentAfter: event.after, reply: null, error: null }
+        ? {
+            ...state,
+            stage: "sending",
+            sentAfter: event.after,
+            question: null,
+            reply: null,
+            error: null,
+          }
         : state;
+    case "transcribed":
+      return state.stage === "sending" ? { ...state, question: event.text } : state;
     case "working":
       return state.stage === "sending" ? { ...state, stage: "thinking" } : state;
     case "replied":
@@ -92,21 +116,27 @@ export function reduceVoiceSession(
       if (state.stage === "thinking") {
         // A turn that ends with nothing to read goes straight back to listening.
         return event.reply === null
-          ? { ...state, stage: "listening", sentAfter: null, reply: null }
-          : { ...state, stage: "speaking", reply: event.reply };
+          ? { ...state, stage: "listening", sentAfter: null, question: null, reply: null }
+          : { ...state, stage: "speaking", reply: event.reply, ...markRead(state, event.reply) };
       }
       return state.stage === "sending" && event.reply !== null
-        ? { ...state, stage: "speaking", reply: event.reply }
+        ? { ...state, stage: "speaking", reply: event.reply, ...markRead(state, event.reply) }
         : state;
     case "spoken":
       if (state.stage !== "speaking") return state;
       // A late end event of an earlier reading must not finish this one.
       if (event.replyId !== undefined && event.replyId !== state.reply?.id) return state;
-      return { ...state, stage: "listening", sentAfter: null, reply: null };
+      return { ...state, stage: "listening", sentAfter: null, question: null, reply: null };
     case "failed":
       // Nothing was heard or the send was refused: listen again rather than hang.
       return state.stage === "sending"
-        ? { ...state, stage: "listening", sentAfter: null, error: event.message ?? null }
+        ? {
+            ...state,
+            stage: "listening",
+            sentAfter: null,
+            question: null,
+            error: event.message ?? null,
+          }
         : state;
     case "retried":
       return state.stage === "listening" && state.error !== null
@@ -115,32 +145,99 @@ export function reduceVoiceSession(
   }
 }
 
+function markRead(
+  state: VoiceSessionState,
+  reply: SpokenReply,
+): Pick<VoiceSessionState, "readIds" | "readRuns"> {
+  return {
+    readIds: [...state.readIds, reply.id],
+    readRuns:
+      reply.runId == null || state.readRuns.includes(reply.runId)
+        ? state.readRuns
+        : [...state.readRuns, reply.runId],
+  };
+}
+
 /** Records where the conversation stands, so the answer to the next question can be told from what came before. */
 export function replyAnchor(messages: ReadonlyArray<VoiceMessage>): ReplyAnchor {
   return { afterId: messages.at(-1)?.id ?? null, count: messages.length };
 }
 
+/** What the reply is matched against: the same words, whatever the spacing. */
+function sameWords(left: string, right: string): boolean {
+  return left.replace(/\s+/g, " ").trim() === right.replace(/\s+/g, " ").trim();
+}
+
+export type ReplySelection = Readonly<{
+  /** The transcript that was sent. Without it, the first new question after the anchor is taken. */
+  question?: string | null;
+  /** Replies and runs already read in this conversation. */
+  readIds?: ReadonlyArray<string>;
+  readRuns?: ReadonlyArray<string>;
+}>;
+
 /**
- * The answer to the question sent at `anchor`: the last answer the agent gave before
- * the next question, so a queued follow-up or a later message never replaces it.
- * It may still be streaming; the caller waits for it.
+ * The answer to the question voice chat sent after `anchor`: the last answer in the run of the
+ * first new user message that has the words sent, so another client's prompt, a steer or a late
+ * message of another run does not count. A message without a run (a draft) is bounded by the
+ * next question. Replies already read are skipped. The answer may still be streaming.
  */
 export function selectReply(
   messages: ReadonlyArray<VoiceMessage>,
   anchor: ReplyAnchor,
+  selection: ReplySelection = {},
 ): VoiceMessage | null {
   const anchored =
     anchor.afterId === null ? -1 : messages.findIndex((m) => m.id === anchor.afterId);
   const start = anchored >= 0 ? anchored + 1 : Math.min(anchor.count, messages.length);
   const after = messages.slice(start);
-  // The first user message after the anchor is the spoken question; its answer ends at the next one.
-  const question = after.findIndex((message) => message.role === "user");
-  const turn = question === -1 ? after : after.slice(question + 1);
-  const next = turn.findIndex((message) => message.role === "user");
-  const answers = (next === -1 ? turn : turn.slice(0, next)).filter(
-    (message) => message.role === "assistant" && message.commentary !== true,
+  const heard = selection.question ?? null;
+  const questionIndex = after.findIndex(
+    (message) =>
+      message.role === "user" &&
+      (heard === null ? message.steer !== true : sameWords(message.text, heard)),
+  );
+  if (questionIndex === -1) return null;
+  const question = after[questionIndex];
+  const turn = after.slice(questionIndex + 1);
+  const runId = question?.runId ?? null;
+  // Without a run, a new question from the person ends the window; a steer does not.
+  const next = turn.findIndex((message) => message.role === "user" && message.steer !== true);
+  const span = runId === null ? (next === -1 ? turn : turn.slice(0, next)) : turn;
+  const readIds = selection.readIds ?? [];
+  const readRuns = selection.readRuns ?? [];
+  const answers = span.filter(
+    (message) =>
+      message.role === "assistant" &&
+      message.commentary !== true &&
+      (runId === null || message.runId === runId) &&
+      !readIds.includes(message.id) &&
+      (message.runId == null || !readRuns.includes(message.runId)),
   );
   return answers.at(-1) ?? null;
+}
+
+/**
+ * Whether the thread shows a card that only the person can answer, one that sits behind voice
+ * chat's dialog: a secret, feedback or link request that is still pending. Cards inherited
+ * from the thread this one was forked from are not answered here.
+ */
+export function hasPendingUserRequest(
+  rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
+): boolean {
+  return rows.some(({ item, visibility }) => {
+    if (visibility !== "local") return false;
+    switch (item.type) {
+      case "secret_request":
+        return item.secretStatus === "pending";
+      case "feedback_request":
+        return item.feedbackStatus === "pending";
+      case "link_request":
+        return item.linkStatus === "pending";
+      default:
+        return false;
+    }
+  });
 }
 
 /** How long reading may take before voice chat moves on, in case the speech engine never reports its end. */
@@ -217,22 +314,45 @@ export function createSilenceDetector(options: SilenceDetectorOptions = DEFAULT_
 let session: VoiceSessionState = VOICE_SESSION_OFF;
 const listeners = new Set<() => void>();
 
-let microphone: { readonly controller: AbortController; readonly cancel: () => void } | null = null;
+/** How a microphone start ended: recording began, the recorder reported an error, or nothing began. */
+export type VoiceStartResult = "started" | "failed" | "declined";
+
+type MicrophoneOperation = { readonly controller: AbortController; readonly cancel: () => void };
+
+let microphone: MicrophoneOperation | null = null;
+
+function releaseMicrophone(operation: MicrophoneOperation): void {
+  operation.controller.abort();
+  if (microphone === operation) microphone = null;
+}
 
 /**
- * Starts the one microphone operation this conversation owns, and registers how to
- * stop it before the start begins, so ending the conversation always reaches it:
- * the recording is cancelled and `start` is told through its signal to give up if it
- * is still waiting on a status check. Use it for a first attempt and for a retry.
+ * Starts the one microphone operation this conversation owns, registering how to stop it before
+ * the start begins, for a first attempt and a retry alike. An attempt that ends without recording
+ * releases its own hold at once, whether or not the recorder's phase changed, so a dictation
+ * started afterwards is not ours. The promise resolves once that is settled.
  */
-export function beginMicrophone(start: (signal: AbortSignal) => void, cancel: () => void): void {
+export function beginMicrophone(
+  start: (signal: AbortSignal) => Promise<VoiceStartResult>,
+  cancel: () => void,
+): Promise<void> {
   // A closed conversation starts nothing.
-  if (session.stage === "off") return;
+  if (session.stage === "off") return Promise.resolve();
   // A retry replaces the operation before it.
   microphone?.controller.abort();
-  const controller = new AbortController();
-  microphone = { controller, cancel };
-  start(controller.signal);
+  const operation: MicrophoneOperation = { controller: new AbortController(), cancel };
+  microphone = operation;
+  return start(operation.controller.signal).then(
+    (result) => {
+      if (result !== "started") releaseMicrophone(operation);
+    },
+    () => releaseMicrophone(operation),
+  );
+}
+
+/** Whether a microphone operation this conversation began is still unsettled. */
+export function ownsMicrophone(): boolean {
+  return microphone !== null;
 }
 
 /**
@@ -240,8 +360,7 @@ export function beginMicrophone(start: (signal: AbortSignal) => void, cancel: ()
  * recording: drop the cancellation but still tell a start that is waiting to give up.
  */
 export function settleMicrophone(): void {
-  microphone?.controller.abort();
-  microphone = null;
+  if (microphone) releaseMicrophone(microphone);
 }
 
 export function dispatchVoiceSession(event: VoiceSessionEvent): void {

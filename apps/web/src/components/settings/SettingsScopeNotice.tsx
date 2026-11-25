@@ -128,6 +128,7 @@ export function SettingsScopeNotice({
       <button
         key={JSON.stringify(choice.search)}
         type="button"
+        data-settings-choice=""
         className={cn(
           ITEM_ROW_CLASSNAME,
           "flex w-full min-w-0 cursor-pointer items-center gap-3 text-left outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",

@@ -3,6 +3,13 @@ import { observeResize } from "~/lib/observeResize";
 /** How far outside a surface the pointer still moves its reflection, in CSS pixels. */
 export const REFLECT_PROXIMITY_PX = 24;
 
+/**
+ * The longest a measured rectangle is trusted while the pointer keeps moving. A surface can move
+ * without a scroll or resize (a panel opening shifts a centered composer); the next pointer move
+ * after this long measures it again.
+ */
+export const REMEASURE_MS = 250;
+
 const REFLECT_SELECTOR = "[data-one-reflect]";
 /** While the agent works the edge light travels around the surface on its own and ignores the pointer. */
 const WORKING_SELECTOR = "[data-one-working]";
@@ -11,6 +18,8 @@ type Tracked = {
   rect: DOMRectReadOnly | null;
   /** The `epoch` the rect was measured in. */
   measuredIn: number;
+  /** When the rect was measured, in `performance.now()` milliseconds. */
+  measuredAt: number;
   stopObserving: () => void;
   /** The rounded values last written, so an unchanged one is not written again. */
   x: number | null;
@@ -20,7 +29,7 @@ type Tracked = {
 /**
  * Moves the edge reflection of the hovered `[data-one-reflect]` surface to the pointer, with one
  * passive listener for the whole app. A pointer move reads no layout: rectangles are cached until
- * a scroll or resize. A surface inside `[data-one-working]` is left alone.
+ * a scroll or resize, or for `REMEASURE_MS` at most. A surface inside `[data-one-working]` is left alone.
  */
 export function installOneReflections(): () => void {
   if (
@@ -48,6 +57,7 @@ export function installOneReflections(): () => void {
     const entry: Tracked = {
       rect: null,
       measuredIn: -1,
+      measuredAt: 0,
       stopObserving: observeResize(element, () => {
         epoch++;
       }),
@@ -58,9 +68,15 @@ export function installOneReflections(): () => void {
     return entry;
   };
   const rectOf = (element: HTMLElement, entry: Tracked): DOMRectReadOnly => {
-    if (entry.rect === null || entry.measuredIn !== epoch) {
+    const now = performance.now();
+    if (
+      entry.rect === null ||
+      entry.measuredIn !== epoch ||
+      now - entry.measuredAt >= REMEASURE_MS
+    ) {
       entry.rect = element.getBoundingClientRect();
       entry.measuredIn = epoch;
+      entry.measuredAt = now;
     }
     return entry.rect;
   };

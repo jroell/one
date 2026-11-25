@@ -296,6 +296,31 @@ it("drops input until the shell runs instead of failing a write for every key", 
   ]);
 });
 
+it("names every toolbar button and says the shell is starting until it runs", async () => {
+  const { original } = setup("starting");
+  fixture.setSession(original, "closed", 0);
+  await using screen = await render(
+    <Drawer
+      threadRef={original}
+      cwd="/Users/me/projects/one/apps/server"
+      onCloseTerminal={() => {}}
+    />,
+  );
+  for (const name of [
+    /^Split Terminal Horizontally/,
+    /^Split Terminal Vertically/,
+    /^New Terminal/,
+    /^Close Terminal/,
+  ]) {
+    await expect.element(screen.getByRole("button", { name })).toBeInTheDocument();
+  }
+  await expect.element(screen.getByText("Starting shell in …/apps/server…")).toBeInTheDocument();
+  await act(() => fixture.setSession(original, "running", 1));
+  await expect
+    .element(screen.getByText("Starting shell in …/apps/server…"))
+    .not.toBeInTheDocument();
+});
+
 it("closes an exited terminal on its own thread after navigating to one reusing its ID", async () => {
   const { original, other } = setup();
   const onCloseTerminal = vi.fn();

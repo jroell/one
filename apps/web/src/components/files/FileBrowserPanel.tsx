@@ -28,11 +28,8 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { useFileContextMenu, type FileContextMenuAction } from "~/fileContextMenu";
 import { readLocalApi } from "~/localApi";
 import { T3_PIERRE_ICONS } from "~/pierre-icons";
-import {
-  PIERRE_TREE_UNSAFE_CSS,
-  pierreTreeStyle,
-  titleClippedPierreTreeRow,
-} from "~/pierre-tree-theme";
+import { FILE_TREE_UNSAFE_CSS } from "./fileTreeChrome";
+import { pierreTreeStyle, titleClippedPierreTreeRow } from "~/pierre-tree-theme";
 
 import { joinHostPath } from "./filePath";
 import { createFileTreeDragMentionController } from "./fileTreeDragMention";
@@ -340,7 +337,7 @@ export default function FileBrowserPanel({
         : null,
     search: false,
     onSearchChange: (value) => setQuery(value ?? ""),
-    unsafeCSS: PIERRE_TREE_UNSAFE_CSS,
+    unsafeCSS: FILE_TREE_UNSAFE_CSS,
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- makes the Pierre tree model re-render row decorations when loading directories change
   useEffect(() => {

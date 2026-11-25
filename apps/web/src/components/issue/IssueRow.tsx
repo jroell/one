@@ -43,20 +43,23 @@ function IssueRowImpl({
   const tracker = issueTrackerPresentation(entry.tracker);
   return (
     <div
-      className={cn(
-        "flex items-center rounded-md [content-visibility:auto] [contain-intrinsic-block-size:56.5px]",
-        selected ? "bg-accent" : "hover:bg-accent/60",
-      )}
+      data-one-row=""
+      {...(selected ? { "data-selected": "" } : {})}
+      className="flex items-center [content-visibility:auto] [contain-intrinsic-block-size:60px]"
     >
       <button
         type="button"
         aria-current={selected ? "true" : undefined}
         onClick={() => onSelect(entry)}
-        className={cn(PULL_REQUEST_ROW_CLASS, "@container/issue-row-meta px-3 py-2.5")}
+        className={cn(PULL_REQUEST_ROW_CLASS, "@container/issue-row-meta px-3.5 py-2.5")}
       >
         <IssueStateGlyph state={entry.state} />
         <PullRequestRowLines
-          number={<span className={PULL_REQUEST_ROW_NUMBER_CLASS}>{entry.displayKey}</span>}
+          number={
+            <span data-one-row-number="" className={PULL_REQUEST_ROW_NUMBER_CLASS}>
+              {entry.displayKey}
+            </span>
+          }
           title={entry.title}
           status={
             <>

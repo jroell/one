@@ -103,7 +103,7 @@ export function TelemetryExportSettings() {
   if (scope.kind !== "environment" || !environment) {
     return (
       <SettingsSection title={gt("OpenTelemetry export")} id="telemetry-export">
-        <SettingsScopeNotice target="environment">
+        <SettingsScopeNotice inline target="environment">
           {gt("Choose one environment to configure its telemetry exports.")}
         </SettingsScopeNotice>
       </SettingsSection>

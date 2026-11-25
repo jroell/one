@@ -9,7 +9,8 @@ import { selectThreadPanelOpen, useRightPanelStore } from "../../rightPanelStore
 import { PopoverCreateHandle } from "../ui/popover";
 import { ChatCanvasContext } from "./ChatCanvasContext";
 import { resolveChatCanvasLayout } from "./chatCanvasLayout";
-import { PanelLayoutControls } from "./PanelLayoutControls";
+import { useThreadPanelView } from "~/one/chatThreadPanel";
+import { PanelLayoutControls, ThreadPanelHeaderControl } from "./PanelLayoutControls";
 import { ThreadDetailsCard } from "./ThreadDetailsCard";
 import { useRightPanelActions } from "./useRightPanelActions";
 
@@ -32,12 +33,8 @@ const visibility = (presentation: "inline" | "popover") =>
  * view wires them, at a width where the canvas has room for the inline card.
  */
 function ThreadHeader({ fixture }: { fixture: ReturnType<typeof setup> }) {
-  const inlineOpen = useRightPanelStore((state) =>
-    selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "inline"),
-  );
-  const popoverOpen = useRightPanelStore((state) =>
-    selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "popover"),
-  );
+  // The chat view resolves this once and hands the same values to both header variants.
+  const view = useThreadPanelView(threadRef, "inline");
   const actions = useRightPanelActions({
     activeThreadRef: threadRef,
     activeProject: null,
@@ -86,6 +83,21 @@ function ThreadHeader({ fixture }: { fixture: ReturnType<typeof setup> }) {
     closeRightPanelSurface: () => {},
   });
   const toggleCommand = actions.shortcuts["threadPanel.toggle"];
+  const panelProps = {
+    terminalAvailable: false,
+    terminalOpen: false,
+    terminalShortcutLabel: null,
+    threadPanelOpen: view.open,
+    threadPanelPresentation: view.presentation,
+    threadPanelPopoverHandle: fixture.handle,
+    threadPanelShortcutLabel: "Shift+Cmd+B",
+    rightPanelAvailable: false,
+    rightPanelOpen: false,
+    rightPanelShortcutLabel: null,
+    onToggleTerminal: () => {},
+    onToggleThreadPanel: actions.toggleThreadPanelStable,
+    onToggleRightPanel: () => {},
+  } as const;
   return (
     <ChatCanvasContext
       value={{
@@ -101,24 +113,9 @@ function ThreadHeader({ fixture }: { fixture: ReturnType<typeof setup> }) {
       }}
     >
       <div>
-        <PanelLayoutControls
-          showWorkspaceModeControls
-          terminalAvailable={false}
-          terminalOpen={false}
-          terminalShortcutLabel={null}
-          threadPanelOpen={inlineOpen}
-          threadPanelPopoverOpen={popoverOpen}
-          threadPanelPresentation="inline"
-          threadPanelPopoverHandle={fixture.handle}
-          threadPanelShortcutLabel="Shift+Cmd+B"
-          rightPanelAvailable={false}
-          rightPanelOpen={false}
-          rightPanelShortcutLabel={null}
-          onToggleTerminal={() => {}}
-          onToggleThreadPanel={actions.toggleThreadPanelStable}
-          onToggleRightPanel={() => {}}
-        />
+        <PanelLayoutControls showWorkspaceModeControls {...panelProps} />
       </div>
+      {fixture.alternateHeader ? <ThreadPanelHeaderControl {...panelProps} /> : null}
       <button type="button" onClick={() => toggleCommand.run()}>
         Run toggle thread details command
       </button>
@@ -134,7 +131,7 @@ function ThreadHeader({ fixture }: { fixture: ReturnType<typeof setup> }) {
   );
 }
 
-function setup() {
+function setup(options: { readonly alternateHeader?: boolean } = {}) {
   useRightPanelStore.setState({ threadPanelVisibilityByThreadKey: {} });
   setWorkspaceMode("code");
   const anchor = document.createElement("div");
@@ -149,6 +146,7 @@ function setup() {
   return {
     anchor: { current: anchor },
     handle: PopoverCreateHandle(),
+    alternateHeader: options.alternateHeader === true,
     [Symbol.dispose]() {
       anchor.remove();
       motion.mockRestore();
@@ -216,4 +214,26 @@ it("in chat mode a card left open inline in code mode does not show, and the com
   await expect.element(page.getByText("Details for the chat thread")).toBeVisible();
   expect(visibility("popover")).toBe(true);
   expect(document.querySelector('[data-thread-details-panel="inline"]')).toBeNull();
+});
+
+it("in chat mode both header variants show the popover control, pressed with the popover", async () => {
+  using fixture = setup({ alternateHeader: true });
+  await using _screen = await render(<ThreadHeader fixture={fixture} />, NO_ROUTER);
+  // The inline card is open by default, as it is when the person leaves code mode.
+  await act(() => setWorkspaceMode("chat"));
+  const controls = () =>
+    page.getByRole("button", { name: "Toggle thread details panel" }).elements();
+  await vi.waitFor(() => expect(controls()).toHaveLength(2));
+  for (const control of controls()) {
+    expect(control.getAttribute("aria-pressed")).toBe("false");
+    expect(
+      control.hasAttribute("aria-haspopup") || control.hasAttribute("data-popup-trigger"),
+    ).toBe(true);
+  }
+
+  await commandButton().click();
+  await expect.element(page.getByText("Details for the chat thread")).toBeVisible();
+  await vi.waitFor(() => {
+    for (const control of controls()) expect(control.getAttribute("aria-pressed")).toBe("true");
+  });
 });

@@ -48,7 +48,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { displayTerminalCwd, TerminalStateOverlay } from "./terminal/TerminalStateOverlay";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
+import { SharedTooltipTrigger } from "~/components/ui/shared-tooltip";
 import { Button } from "~/components/ui/button";
 import { PanelTabCloseButton } from "~/components/ui/panel-tab-close-button";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
@@ -1230,11 +1232,18 @@ function TerminalSessionViewport({
     };
   };
   return (
-    <div
-      ref={attachContainer}
-      tabIndex={-1}
-      className="relative h-full w-full overflow-hidden bg-(--terminal-background)"
-    />
+    <div className="relative h-full w-full overflow-hidden bg-(--terminal-background)">
+      <div
+        ref={attachContainer}
+        tabIndex={-1}
+        className="relative h-full w-full overflow-hidden bg-(--terminal-background)"
+      />
+      <TerminalStateOverlay
+        atom={terminalSessionAtom}
+        cwd={cwd}
+        onRetry={() => appAtomRegistry.refresh(terminalSessionAtom)}
+      />
+    </div>
   );
 }
 
@@ -1819,6 +1828,7 @@ export default function ThreadTerminalDrawer({
 
   const resizeHandle = isPanel ? null : (
     <div
+      data-one-resize-handle=""
       className="absolute inset-x-0 top-0 z-20 h-1.5 cursor-row-resize touch-none any-pointer-coarse:h-4"
       onPointerDown={handleResizePointerDown}
       onPointerMove={handleResizePointerMove}
@@ -1874,50 +1884,50 @@ export default function ThreadTerminalDrawer({
       {resizeHandle}
 
       {!hasTerminalSidebar && (
-        <div className="pointer-events-none absolute right-2 top-2 z-20">
-          <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-md border border-border/80 bg-background shadow-xs">
+        <div
+          data-one-terminal-header=""
+          className="relative z-20 flex h-8 shrink-0 items-center justify-between gap-2 ps-3 pe-1.5"
+        >
+          <SharedTooltipTrigger
+            label={cwd}
+            render={
+              <span data-one-terminal-title="" className="min-w-0 truncate font-mono text-2xs" />
+            }
+          >
+            {displayTerminalCwd(cwd)}
+          </SharedTooltipTrigger>
+          <div data-one-terminal-actions="" className="flex shrink-0 items-center gap-0.5">
             <TerminalActionButton
               disabled={!canOperateTerminal}
-              className={`p-1 text-foreground/90 transition-colors ${
-                hasReachedSplitLimit
-                  ? "cursor-not-allowed opacity-64 hover:bg-transparent"
-                  : "hover:bg-accent"
-              }`}
+              className={hasReachedSplitLimit ? "cursor-not-allowed opacity-64" : ""}
               onClick={onSplitTerminalAction}
               label={splitTerminalActionLabel}
             >
-              <SquareSplitHorizontal className="size-3.25" />
+              <SquareSplitHorizontal className="size-3.5" />
             </TerminalActionButton>
-            <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
               disabled={!canOperateTerminal}
-              className={`p-1 text-foreground/90 transition-colors ${
-                hasReachedSplitLimit
-                  ? "cursor-not-allowed opacity-64 hover:bg-transparent"
-                  : "hover:bg-accent"
-              }`}
+              className={hasReachedSplitLimit ? "cursor-not-allowed opacity-64" : ""}
               onClick={onSplitTerminalVerticalAction}
               label={splitTerminalVerticalActionLabel}
             >
-              <SquareSplitVertical className="size-3.25" />
+              <SquareSplitVertical className="size-3.5" />
             </TerminalActionButton>
-            <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
               disabled={!canOperateTerminal}
-              className="p-1 text-foreground/90 transition-colors hover:bg-accent"
+              className=""
               onClick={onNewTerminalAction}
               label={newTerminalActionLabel}
             >
-              <Plus className="size-3.25" />
+              <Plus className="size-3.5" />
             </TerminalActionButton>
-            <div className="h-4 w-px bg-border/80" />
             <TerminalActionButton
               disabled={!canOperateTerminal}
-              className="p-1 text-foreground/90 transition-colors hover:bg-accent"
+              className=""
               onClick={() => confirmCloseTerminal(resolvedActiveTerminalId)}
               label={closeTerminalActionLabel}
             >
-              <Trash2 className="size-3.25" />
+              <Trash2 className="size-3.5" />
             </TerminalActionButton>
           </div>
         </div>

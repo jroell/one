@@ -60,7 +60,6 @@ const SCRIPT_LANGUAGES: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>, n
   // Japanese text is mostly kanji with some kana, so a little kana is enough.
   [/[\u3040-\u30ff]/g, ["ja"], 0.1],
   [/[\uac00-\ud7af]/g, ["ko"], SCRIPT_SHARE],
-  [/[\u4e00-\u9fff]/g, ["zh"], SCRIPT_SHARE],
   [/[\u0400-\u04ff]/g, ["ru", "uk", "bg", "sr", "be", "mk"], SCRIPT_SHARE],
   [/[\u0600-\u06ff]/g, ["ar", "fa", "ur"], SCRIPT_SHARE],
   [/[\u0590-\u05ff]/g, ["he"], SCRIPT_SHARE],
@@ -82,6 +81,15 @@ export function replyLanguage(text: string, pageLanguage: string): string {
     const inScript = text.match(script)?.length ?? 0;
     if (inScript / letters < minShare) continue;
     return languages.includes(page) ? pageLanguage : (languages[0] ?? pageLanguage);
+  }
+  // Han characters are written in Chinese, Japanese and Korean. Kana or hangul anywhere in the
+  // text names its language (the table above caught the plain cases); Han-only text keeps a
+  // Japanese or Korean page's language and is Chinese on any other page.
+  const han = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0;
+  if (han / letters >= SCRIPT_SHARE) {
+    if (/[\u3040-\u30ff]/.test(text)) return "ja";
+    if (/[\uac00-\ud7af]/.test(text)) return "ko";
+    return page === "ja" || page === "ko" || page === "zh" ? pageLanguage : "zh";
   }
   return pageLanguage;
 }

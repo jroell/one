@@ -112,8 +112,11 @@ describe("the opening on a fresh session", () => {
         .toBeInTheDocument();
       // The key dispatcher runs no command while this is set.
       expect(document.documentElement.dataset.oneOpening).toBe("");
+      // index.html takes keys and clicks only while a mounted opening has armed it.
+      expect(document.documentElement.dataset.oneOpeningArmed).toBe("");
     }
     expect(document.documentElement.dataset.oneOpening).toBeUndefined();
+    expect(document.documentElement.dataset.oneOpeningArmed).toBeUndefined();
     expect(app.root.inert).toBe(false);
   });
 });

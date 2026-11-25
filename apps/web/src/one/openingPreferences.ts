@@ -19,11 +19,14 @@ function readOn(key: string): boolean | undefined {
   }
 }
 
+/** Choices whose last write failed. Storage still holds the old value, so this session's choice wins. */
+const unsaved: { -readonly [Name in keyof OpeningPreferences]?: boolean } = {};
+
 /** Reads both choices; one that cannot be read keeps the value this session already holds. */
 function readPreferences(held: OpeningPreferences): OpeningPreferences {
   return {
-    animation: readOn(ANIMATION_KEY) ?? held.animation,
-    sound: readOn(SOUND_KEY) ?? held.sound,
+    animation: unsaved.animation ?? readOn(ANIMATION_KEY) ?? held.animation,
+    sound: unsaved.sound ?? readOn(SOUND_KEY) ?? held.sound,
   };
 }
 
@@ -36,19 +39,27 @@ export function getOpeningPreferences(): OpeningPreferences {
   return snapshot;
 }
 
-function write(key: string, on: boolean): void {
+/** Saves one choice; true when storage took it. */
+function write(key: string, on: boolean): boolean {
   try {
     if (on) window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, "off");
+    return true;
   } catch {
-    // Without storage the choice lasts for this session only.
+    return false;
   }
+}
+
+/** Saves a choice; one that cannot be saved lasts for this session only, and a later save ends that. */
+function save(name: keyof OpeningPreferences, key: string, on: boolean): void {
+  if (write(key, on)) delete unsaved[name];
+  else unsaved[name] = on;
 }
 
 /** Saves only the choice that changed, so another window's change to the other one survives. */
 export function setOpeningPreferences(next: Partial<OpeningPreferences>): void {
-  if (next.animation !== undefined) write(ANIMATION_KEY, next.animation);
-  if (next.sound !== undefined) write(SOUND_KEY, next.sound);
+  if (next.animation !== undefined) save("animation", ANIMATION_KEY, next.animation);
+  if (next.sound !== undefined) save("sound", SOUND_KEY, next.sound);
   snapshot = { ...snapshot, ...next };
   for (const listener of listeners) listener();
 }
@@ -63,9 +74,9 @@ function subscribe(listener: () => void): () => void {
       for (const each of listeners) each();
     });
   }
-  // Another window changed a choice: read both again.
+  // Another window changed a choice, or cleared storage (a null key): read both again.
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== ANIMATION_KEY && event.key !== SOUND_KEY) return;
+    if (event.key !== null && event.key !== ANIMATION_KEY && event.key !== SOUND_KEY) return;
     snapshot = readPreferences(snapshot);
     for (const each of listeners) each();
   };

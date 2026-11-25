@@ -597,7 +597,7 @@ export function IssueDetailPanel({
     );
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div data-one-detail="" className="relative flex h-full min-h-0 flex-col">
       <div
         className={cn(
           "min-h-0 flex-1 overflow-y-auto",
@@ -690,7 +690,10 @@ export function IssueDetailPanel({
             </form>
           ) : (
             <PullRequestDetailTitleRow className="group mt-1 gap-1">
-              <h2 className="min-w-0 flex-1 text-base font-semibold leading-snug">
+              <h2
+                data-one-detail-title=""
+                className="min-w-0 flex-1 text-base font-semibold leading-snug"
+              >
                 {detail.title}
               </h2>
               {canEdit ? (

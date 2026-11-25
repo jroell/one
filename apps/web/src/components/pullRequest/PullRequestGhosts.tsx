@@ -22,6 +22,7 @@ import { RelativeTime } from "~/components/RelativeTime";
 
 import { Button, InlineButton } from "../ui/button";
 import { MiddleTruncate } from "../ui/middle-truncate";
+import { PULL_REQUEST_ROW_CLASS } from "./PullRequestListRow";
 import { PullRequestCopyableCode } from "./PullRequestCopyableCode";
 import {
   PullRequestChecksStatusLine,
@@ -52,30 +53,51 @@ const DEFAULT_DETAIL_TABS = [
   { value: "code", label: msg("Code", { $context: "pull request tab" }) },
 ] as const;
 
+/** One placeholder row, laid out like a loaded list row so nothing moves when data arrives. */
+function PullRequestListGhostRow({ index }: { index: number }) {
+  return (
+    <div data-one-row="" data-one-ghost-row="" className="flex items-center">
+      <div data-one-ghost-row-body="" className={cn(PULL_REQUEST_ROW_CLASS, "px-3.5 py-2.5")}>
+        <span className="flex w-4 shrink-0 flex-col items-center self-start">
+          <GhostBar className="mt-0.75 size-4 rounded-full" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <GhostBar className="h-3.5 w-9 shrink-0" />
+            <GhostBar
+              className={cn("h-3.5 max-w-full", TITLE_WIDTHS[index % TITLE_WIDTHS.length])}
+            />
+            <GhostBar className="ml-auto h-3.5 w-12 shrink-0" />
+          </span>
+          <span className="mt-1 flex min-w-0 items-center gap-1.5">
+            <GhostBar className="size-3.5 shrink-0 rounded-full" />
+            <GhostBar className={cn("h-3 max-w-full", META_WIDTHS[index % META_WIDTHS.length])} />
+            <GhostBar className="h-3 w-14 shrink-0 rounded-full" />
+            <GhostBar className="ml-auto h-3 w-10 shrink-0" />
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function PullRequestListGhost({ rows = 7, caption }: { rows?: number; caption?: string }) {
   const gt = useGT();
   return (
-    <div role="status" aria-label={caption ?? gt("Loading pull requests")} className="space-y-0.5">
-      {/* Outside the pulse so the explanation stays readable. */}
-      {caption ? (
-        <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{caption}</p>
-      ) : null}
-      <div className="motion-safe:animate-skeleton space-y-0.5">
+    <div
+      role="status"
+      aria-label={caption ?? gt("Loading pull requests")}
+      data-one-panel=""
+      data-one-ghost=""
+    >
+      <div data-one-panel-head="" className="flex items-center gap-2 text-xs font-medium">
+        <GhostBar className="h-3 w-16" />
+        {/* The caption fades in only if the load is slow; a fast load never shows it. */}
+        {caption ? <span data-one-ghost-caption="">{caption}</span> : null}
+      </div>
+      <div className="motion-safe:animate-skeleton">
         {Array.from({ length: rows }, (_, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-3 py-2.5"
-          >
-            <GhostBar className="size-4 rounded-full" />
-            <div className="min-w-0 space-y-1.5">
-              <GhostBar className={cn("h-4", TITLE_WIDTHS[index % TITLE_WIDTHS.length])} />
-              <GhostBar className={cn("h-3.5", META_WIDTHS[index % META_WIDTHS.length])} />
-            </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <GhostBar className="w-12" />
-              <GhostBar className="w-16" />
-            </div>
-          </div>
+          <PullRequestListGhostRow key={index} index={index} />
         ))}
       </div>
     </div>

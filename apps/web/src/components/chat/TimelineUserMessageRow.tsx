@@ -1110,6 +1110,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
         ) : null}
         {floatActions ? (
           <div
+            data-one-message-actions=""
             className={cn(
               "absolute end-full top-1/2 me-2 hidden w-max max-w-[calc(20cqw-0.5rem)] -translate-y-1/2 @min-[37rem]:flex",
               ACTIONS_REVEAL_CLASS_NAME,
@@ -1122,6 +1123,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       <UserMessageProjectedStatus row={row} />
       {!folded || expanded ? (
         <div
+          data-one-message-actions=""
           className={cn(
             "flex w-full max-w-[80%] justify-end pe-1",
             floatActions && "@min-[37rem]:hidden",

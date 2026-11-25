@@ -1,7 +1,7 @@
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import type { UsageProviderKind } from "@t3tools/contracts";
 import { T, useGT, useLocale, useMessages } from "gt-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 
 import type { DailyTotals, HourlyTotals } from "@t3tools/shared/usageMerge";
 import {
@@ -241,7 +241,7 @@ function UsageChartTooltip({
   return (
     <div
       ref={tooltipRef}
-      className="surface-glass pointer-events-none absolute z-10 min-w-36 max-w-full rounded-xl border border-border/50 px-2.5 py-2 text-xs shadow-lg"
+      className="usage-tooltip pointer-events-none absolute z-10 min-w-36 max-w-full text-xs"
       style={{
         left: "var(--usage-tooltip-left, 0px)",
         top: "var(--usage-tooltip-top, 0px)",
@@ -363,7 +363,7 @@ function UsageChartPlot({
   return (
     <div
       ref={plotRef}
-      className="relative h-56 flex-1"
+      className="relative min-h-56 flex-1"
       onMouseMove={handleMove}
       onMouseLeave={() => {
         hoverPositionRef.current = null;
@@ -385,6 +385,7 @@ function UsageChartPlot({
             y2={VIEW_HEIGHT}
             stroke="currentColor"
             strokeWidth={1}
+            strokeDasharray="3 3"
             className="text-muted-foreground"
             vectorEffect="non-scaling-stroke"
           />
@@ -421,6 +422,7 @@ export function UsageProviderChart({
   const gt = useGT();
   const locale = useLocale();
   const m = useMessages();
+  const gradientId = useId().replace(/\W/g, "");
   const periods = resolution === "hour" ? hours : days;
   const totals: readonly (DailyTotals | HourlyTotals)[] = resolution === "hour" ? hourly : daily;
   const byPeriod = new Map(
@@ -448,9 +450,9 @@ export function UsageProviderChart({
       : formatPeriod(period);
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex gap-2">
-        <div aria-hidden className="relative h-56 w-14 shrink-0">
+    <div className="flex flex-1 flex-col gap-1">
+      <div className="flex flex-1 gap-2">
+        <div aria-hidden className="relative min-h-56 w-14 shrink-0">
           {scale.labeled
             ? scale.ticks.map((tick) => (
                 <span
@@ -484,19 +486,43 @@ export function UsageProviderChart({
                 y2={y}
                 stroke="currentColor"
                 strokeWidth={1}
-                className="text-border"
+                strokeDasharray={tick === 0 ? undefined : "1 5"}
+                strokeLinecap="round"
+                className="usage-gridline"
                 vectorEffect="non-scaling-stroke"
               />
             );
           })}
 
+          <defs>
+            {paths.map(({ provider }) => (
+              <linearGradient
+                key={provider}
+                id={`${gradientId}-${provider}`}
+                x1="0"
+                x2="0"
+                y1="0"
+                y2="1"
+              >
+                <stop
+                  offset="0"
+                  stopColor={PROVIDER_PRESENTATION[provider].color}
+                  stopOpacity={0.3}
+                />
+                <stop
+                  offset="1"
+                  stopColor={PROVIDER_PRESENTATION[provider].color}
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            ))}
+          </defs>
           {paths.map(({ provider, loading, area }) => (
             <path
               key={provider}
               d={area}
               className={seriesClassName(loading)}
-              fill={PROVIDER_PRESENTATION[provider].color}
-              fillOpacity={0.12}
+              fill={`url(#${gradientId}-${provider})`}
             />
           ))}
           {paths.map(({ provider, loading, line }) => (
@@ -507,6 +533,8 @@ export function UsageProviderChart({
               fill="none"
               stroke={PROVIDER_PRESENTATION[provider].color}
               strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
           ))}

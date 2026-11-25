@@ -100,6 +100,27 @@ it("two quick cross-fading switches end in the last mode with the page and store
   expect(root().oneMode).toBe("code");
 });
 
+it("a superseded cross-fade finishing before the newer one swaps does not apply the newer mode early", async () => {
+  using _mode = startInCodeMode();
+  using _motion = motionAllowed();
+  using fades = manualTransitions();
+
+  setWorkspaceMode("chat", { transition: true });
+  await act(() => fades.started[0]?.swap());
+  expect(getWorkspaceMode()).toBe("chat");
+
+  setWorkspaceMode("code", { transition: true });
+  fades.started[0]?.finish();
+  await Promise.resolve();
+  expect(getWorkspaceMode()).toBe("chat");
+  expect(root().oneMode).toBe("chat");
+
+  await act(() => fades.started[1]?.swap());
+  expect(getWorkspaceMode()).toBe("code");
+  expect(root().oneMode).toBe("code");
+  fades.started[1]?.finish();
+});
+
 it("a cross-fade the browser refuses still switches the page and the store and leaves no marker", () => {
   using _mode = startInCodeMode();
   using _motion = motionAllowed();

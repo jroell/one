@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { installOneReflections, REFLECT_PROXIMITY_PX } from "./reflections";
+import { installOneReflections, REFLECT_PROXIMITY_PX, REMEASURE_MS } from "./reflections";
 
 /**
  * Installs the global listener with frames under the test's control, and builds surfaces at known
@@ -21,6 +21,9 @@ function setup() {
   const caf = vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
     frames.delete(id);
   });
+
+  const clock = { now: 5_000 };
+  const now = vi.spyOn(performance, "now").mockImplementation(() => clock.now);
 
   const stage = document.createElement("div");
   const surface = (parent: HTMLElement, left: number, top: number) => {
@@ -53,6 +56,10 @@ function setup() {
     insideWorking,
     elsewhere,
     frameRequests: raf,
+    /** Moves the test clock that the reflection reads. */
+    advance: (ms: number) => {
+      clock.now += ms;
+    },
     /** Moves the pointer to a page position; the event targets `target`. */
     move: (target: Element, x: number, y: number, pointerType = "mouse") =>
       target.dispatchEvent(
@@ -70,6 +77,7 @@ function setup() {
       raf.mockRestore();
       caf.mockRestore();
       media.mockRestore();
+      now.mockRestore();
     },
   };
 }
@@ -148,6 +156,28 @@ describe("the pointer reflection on a surface", () => {
     env.move(env.plain.child, 320, 125);
     env.flush();
     expect(writtenTo(env.plain).at(-1)).toBe("--one-mx=120px");
+  });
+});
+
+describe("the pointer reflection on a surface that moves while the pointer stays inside", () => {
+  it("measures it again within REMEASURE_MS and not before, so the highlight follows without a layout read on every move", () => {
+    using env = setup();
+    env.move(env.plain.child, 120, 125);
+    env.flush();
+    expect(writtenTo(env.plain).at(-1)).toBe("--one-my=25px");
+
+    // A panel opens and shifts the composer 100px right; the pointer never leaves it.
+    env.plain.element.style.left = "200px";
+    env.advance(REMEASURE_MS - 1);
+    env.move(env.plain.child, 320, 125);
+    env.flush();
+    expect(env.plain.measured).toHaveBeenCalledTimes(1);
+
+    env.advance(1);
+    env.move(env.plain.child, 321, 125);
+    env.flush();
+    expect(env.plain.measured).toHaveBeenCalledTimes(2);
+    expect(writtenTo(env.plain).at(-1)).toBe("--one-mx=121px");
   });
 });
 

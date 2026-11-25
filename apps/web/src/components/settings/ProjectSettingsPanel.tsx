@@ -700,6 +700,7 @@ function ProjectDetail({
         {checkoutChoices}
         <SettingsSection title={gt("Danger")}>
           <SettingsRow
+            danger
             title={
               hasOtherMembers
                 ? gt("Remove checkout")

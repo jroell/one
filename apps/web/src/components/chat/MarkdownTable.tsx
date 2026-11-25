@@ -44,12 +44,15 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
   };
 
   return (
-    <div ref={containerRef} className="chat-markdown-table-container">
-      <ScrollArea radius="none" chainVerticalScroll scrollFade className="w-full max-w-full">
-        <table {...props}>{children}</table>
-      </ScrollArea>
-      {/* Stays within the row's px-1: the chat lane clips sideways overflow. */}
-      <div className="mt-0.5 -mx-1 flex items-center justify-end select-none">
+    <div ref={containerRef} className="chat-markdown-table-container" data-one-table="">
+      <div
+        className="flex items-center justify-between ps-3 pe-1.5 pt-1.5 select-none"
+        data-one-table-header=""
+        data-thread-find-ignore=""
+      >
+        <span className="font-mono text-2xs" data-one-table-label="">
+          <T>Table</T>
+        </span>
         <Menu>
           <Tooltip>
             <TooltipTrigger
@@ -61,12 +64,17 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
                       variant="ghost-muted"
                       size="icon-xs"
                       aria-label={copyLabel}
+                      data-one-copied={copied ? "" : undefined}
                     />
                   }
                 />
               }
             >
-              {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+              {copied ? (
+                <CheckIcon className="size-3" data-one-copy-check="" />
+              ) : (
+                <CopyIcon className="size-3" />
+              )}
             </TooltipTrigger>
             <TooltipPopup side="top">{copyLabel}</TooltipPopup>
           </Tooltip>
@@ -83,6 +91,9 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
           </MenuPopup>
         </Menu>
       </div>
+      <ScrollArea radius="none" chainVerticalScroll scrollFade className="w-full max-w-full">
+        <table {...props}>{children}</table>
+      </ScrollArea>
     </div>
   );
 }

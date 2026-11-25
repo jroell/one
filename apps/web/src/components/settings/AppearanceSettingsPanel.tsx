@@ -192,13 +192,7 @@ export function AppearanceSettingsPanel() {
             ) : null
           }
           control={
-            <div className="flex w-full items-center gap-3 sm:w-52">
-              <output
-                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
-                htmlFor="appearance-contrast"
-              >
-                {settings.appearanceContrast}%
-              </output>
+            <div className="settings-slider-control">
               <input
                 aria-label={gt("Contrast")}
                 className="settings-slider min-w-0 flex-1"
@@ -220,6 +214,9 @@ export function AppearanceSettingsPanel() {
                 type="range"
                 value={settings.appearanceContrast}
               />
+              <output className="settings-slider-readout" htmlFor="appearance-contrast">
+                {settings.appearanceContrast}%
+              </output>
             </div>
           }
         />
@@ -238,13 +235,7 @@ export function AppearanceSettingsPanel() {
             ) : null
           }
           control={
-            <div className="flex w-full items-center gap-3 sm:w-52">
-              <output
-                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
-                htmlFor="glass-opacity"
-              >
-                {settings.glassOpacity}%
-              </output>
+            <div className="settings-slider-control">
               <input
                 aria-label={gt("Glass opacity")}
                 className="settings-slider min-w-0 flex-1"
@@ -266,6 +257,9 @@ export function AppearanceSettingsPanel() {
                 type="range"
                 value={settings.glassOpacity}
               />
+              <output className="settings-slider-readout" htmlFor="glass-opacity">
+                {settings.glassOpacity}%
+              </output>
             </div>
           }
         />
@@ -427,13 +421,7 @@ export function AppearanceSettingsPanel() {
             control={
               <div className="grid w-full grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 sm:w-auto sm:grid-cols-[7rem_13rem] sm:gap-4">
                 <PanelAnimationsPreview durationMs={settings.panelAnimationDurationMs} />
-                <div className="flex w-full items-center gap-3">
-                  <output
-                    className="min-w-16 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
-                    htmlFor="panel-animation-duration"
-                  >
-                    {settings.panelAnimationDurationMs} ms
-                  </output>
+                <div className="settings-slider-control">
                   <input
                     aria-label={gt("Panel animation duration")}
                     className="settings-slider min-w-0 flex-1"
@@ -455,6 +443,9 @@ export function AppearanceSettingsPanel() {
                     type="range"
                     value={settings.panelAnimationDurationMs}
                   />
+                  <output className="settings-slider-readout" htmlFor="panel-animation-duration">
+                    {settings.panelAnimationDurationMs} ms
+                  </output>
                 </div>
               </div>
             }

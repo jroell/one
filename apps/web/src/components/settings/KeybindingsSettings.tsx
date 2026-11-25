@@ -1720,7 +1720,9 @@ export function KeybindingsSettingsPanel() {
     <SettingsPageContainer>
       <SettingsSection
         {...searchableSetting("keybindings")}
-        headerAction={!isElectron ? <BrowserKeybindingNotice /> : null}
+        hideTitle
+        data-settings-sticky=""
+        className="sticky top-0 z-20"
       >
         <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
           <KeybindingsSearchInput query={query} onChange={setQuery} inputRef={searchInputRef} />
@@ -1752,6 +1754,7 @@ export function KeybindingsSettingsPanel() {
               <T>Open keybindings.json</T>
             </TooltipPopup>
           </Tooltip>
+          {!isElectron ? <BrowserKeybindingNotice /> : null}
         </div>
       </SettingsSection>
 

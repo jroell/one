@@ -48,6 +48,19 @@ describe("language a reply is read in", () => {
     expect(replyLanguage("Свет преломляется в каждой капле.", "en-US")).toBe("ru");
   });
 
+  it("reads Han-only text in the page language on a Japanese or Korean page, and as Chinese elsewhere", () => {
+    const hanOnly = "大气光散射屈折现象青空天空物理原理";
+    expect(replyLanguage(hanOnly, "ja-JP")).toBe("ja-JP");
+    expect(replyLanguage(hanOnly, "ko-KR")).toBe("ko-KR");
+    expect(replyLanguage(hanOnly, "en-US")).toBe("zh");
+  });
+
+  it("reads Han text with a little kana or hangul in that language, whatever the page says", () => {
+    expect(replyLanguage("大気中の光散乱屈折現象青空天空物理原理", "en-US")).toBe("ja");
+    expect(replyLanguage("大気中の光散乱屈折現象青空天空物理原理", "zh-CN")).toBe("ja");
+    expect(replyLanguage("大氣光散射屈折現象青空天空物理原理가", "en-US")).toBe("ko");
+  });
+
   it("keeps the page language when it is one of the languages written in that script", () => {
     expect(replyLanguage("Світло заломлюється в кожній краплі.", "uk-UA")).toBe("uk-UA");
   });

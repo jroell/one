@@ -509,6 +509,7 @@ function CleanupSection() {
     <SettingsSection id="storage-cleanup" title={gt("Cleanup")} variant="plain">
       <SettingsGroup>
         <SettingsRow
+          danger
           {...setting("storage-delete-now")}
           description={
             <span>
@@ -524,7 +525,7 @@ function CleanupSection() {
           }
           control={
             <Button
-              variant="outline"
+              variant="destructive-outline"
               size="sm"
               disabled={pending || !hasRules || !state.some((entry) => entry.allowed)}
               onClick={() => void deleteNow()}

@@ -266,6 +266,7 @@ export function ArchivedThreadsPanel() {
     return (
       <SettingsRow
         key={`${thread.environmentId}:${thread.id}`}
+        data-one-archived=""
         className="rounded-none"
         onContextMenu={(event) => {
           event.preventDefault();
@@ -287,7 +288,7 @@ export function ArchivedThreadsPanel() {
           </span>
         }
         control={
-          <div className="flex shrink-0 items-center gap-2">
+          <div data-one-archive-actions="" className="flex shrink-0 items-center gap-2">
             {ARCHIVE_ACTIONS.map(({ action, label, threadLabel, Icon }) => (
               <Tooltip key={action}>
                 <TooltipTrigger

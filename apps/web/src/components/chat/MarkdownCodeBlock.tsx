@@ -112,20 +112,29 @@ function MarkdownCodeBlockTitleContent({
 
   const fileName = syntheticFileNameForLanguageId(language);
   if (!hasSpecificPierreIconForFileName(fileName)) {
-    return <span className="truncate">{language}</span>;
+    return (
+      <span className="truncate" data-one-code-lang="">
+        {language}
+      </span>
+    );
   }
   return (
-    <SharedTooltipTrigger
-      label={language}
-      render={
-        <span
-          className="inline-flex shrink-0 rounded-sm"
-          aria-label={gt("Language: {language}", { language })}
-        />
-      }
-    >
-      <PierreEntryIcon pathValue={fileName} kind="file" theme={theme} className="size-3.5" />
-    </SharedTooltipTrigger>
+    <>
+      <SharedTooltipTrigger
+        label={language}
+        render={
+          <span
+            className="inline-flex shrink-0 rounded-sm"
+            aria-label={gt("Language: {language}", { language })}
+          />
+        }
+      >
+        <PierreEntryIcon pathValue={fileName} kind="file" theme={theme} className="size-3.5" />
+      </SharedTooltipTrigger>
+      <span className="truncate" data-one-code-lang="">
+        {language}
+      </span>
+    </>
   );
 }
 
@@ -194,10 +203,15 @@ export function MarkdownCodeBlock({
           size="icon-xs"
           onClick={handleCopy}
           aria-label={copyLabel}
+          data-one-copied={copied ? "" : undefined}
         />
       }
     >
-      {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+      {copied ? (
+        <CheckIcon className="size-3" data-one-copy-check="" />
+      ) : (
+        <CopyIcon className="size-3" />
+      )}
     </SharedTooltipTrigger>
   );
 

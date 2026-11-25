@@ -98,8 +98,10 @@ export function setWorkspaceMode(
   requestedMode = mode;
   const token = ++lastTransition;
   document.documentElement.dataset.oneModeTransition = String(token);
-  // The swap follows whichever mode was asked for last when the browser is ready for it.
-  const swap = () => commit(requestedMode);
+  // Only the newest cross-fade writes the mode: a superseded one must not apply a later request early.
+  const swap = () => {
+    if (token === lastTransition) commit(requestedMode);
+  };
   let transition: ViewTransition;
   try {
     transition = document.startViewTransition(swap);

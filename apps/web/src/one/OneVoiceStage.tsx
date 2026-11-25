@@ -20,6 +20,8 @@ import {
   createSilenceDetector,
   dispatchVoiceSession,
   getVoiceSession,
+  hasPendingUserRequest,
+  ownsMicrophone,
   replyAnchor,
   selectReply,
   settleMicrophone,
@@ -50,6 +52,8 @@ const START_REFUSED_MS = 2_500;
 const SEND_OPERATION_MS = 60_000;
 /** How long speech may take to begin before an idle synthesizer is taken to have dropped it. */
 const SPEECH_START_MS = 4_000;
+/** How long an utterance the engine holds back may wait for its start event before it is retried once, then given up on. */
+const SPEECH_ENGINE_START_MS = 6_000;
 /** How long the first deep-voice reply waits for the device to list its voices. */
 const VOICES_WAIT_MS = 1_500;
 
@@ -119,7 +123,17 @@ function ActiveVoiceStage({
       : turnItems.flatMap((row): VoiceStageMessage[] => {
           const item = row.item;
           if (item.type === "user_message") {
-            return [{ id: item.id, role: "user", text: item.text, streaming: false }];
+            return [
+              {
+                id: item.id,
+                role: "user",
+                text: item.text,
+                streaming: false,
+                runId: item.runId,
+                steer:
+                  item.inputIntent === "steer" || item.inputIntent === "promoted_queued_to_steer",
+              },
+            ];
           }
           if (item.type === "assistant_message") {
             return [
@@ -129,6 +143,7 @@ function ActiveVoiceStage({
                 text: item.text,
                 streaming: item.streaming,
                 commentary: item.phase === "commentary" || item.delivery === "async",
+                runId: item.runId,
               },
             ];
           }
@@ -159,9 +174,7 @@ function ActiveVoiceStage({
   const stageRef = useRef<HTMLDivElement | null>(null);
   const orbButtonRef = useRef<HTMLButtonElement | null>(null);
   const startRequestedRef = useRef(false);
-  /** True from this session's own start request until that recording has settled back to idle. */
-  const ownRecordingRef = useRef(false);
-  /** Whether that recording has been seen running, so a return to idle means it finished. */
+  /** Whether the recording this session started has been seen running, so a return to idle means it finished. */
   const ownRecordingSeenRef = useRef(false);
   /** The recorder was already in its error phase when this operation began, so that error is not its own. */
   const ownStartedInErrorRef = useRef(false);
@@ -171,15 +184,21 @@ function ActiveVoiceStage({
 
   const answer =
     (stage === "sending" || stage === "thinking") && session.sentAfter !== null
-      ? selectReply(messages, session.sentAfter)
+      ? selectReply(messages, session.sentAfter, {
+          question: session.question,
+          readIds: session.readIds,
+          readRuns: session.readRuns,
+        })
       : null;
   const answerText = answer === null ? "" : speakableText(answer.text);
   const answerReady = answer !== null && !answer.streaming && answerText.length > 0;
   const answerId = answer?.id ?? null;
-  const latest = useRef({ bridge, messages });
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge and messages to the frame loop, timers and speech effect below
+  const answerRunId = answer?.runId ?? null;
+  const tookTooLong = gt("Voice input took too long");
+  const latest = useRef({ bridge, messages, tookTooLong });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge, messages and timeout message to the frame loop, timers and speech effect below
   useEffect(() => {
-    latest.current = { bridge, messages };
+    latest.current = { bridge, messages, tookTooLong };
   });
 
   const submit = () => {
@@ -193,7 +212,7 @@ function ActiveVoiceStage({
       return;
     }
     dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages) });
-    current.bridge.submit();
+    current.bridge.submit((text) => dispatchVoiceSession({ type: "transcribed", text }));
   };
   const submitRef = useRef(submit);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the frame loop calling the committed submit
@@ -204,7 +223,8 @@ function ActiveVoiceStage({
   // The conversation ends when its thread, its composer or chat mode goes away,
   // and steps aside when the turn needs an approval or an answer from the page behind.
   const orphaned = bridge === null || mode !== "chat" || conversationHidden;
-  const blockedOnUser = needsUser;
+  // A secret, feedback or link card in the thread waits for the person just as an approval does.
+  const blockedOnUser = needsUser || hasPendingUserRequest(turnItems);
   // Something typed or attached since the last turn would ride along with the next spoken question.
   const draftInTheWay = stage === "listening" && bridge?.phase === "idle" && !bridge.draftEmpty;
   // A layout effect, so the conversation is over in the commit that removed its thread or mode,
@@ -241,11 +261,10 @@ function ActiveVoiceStage({
   // how to cancel it before starting, so ending voice chat always reaches the recording it began.
   const beginRecording = useStableCallback((target: VoiceBridge) => {
     startRequestedRef.current = true;
-    ownRecordingRef.current = true;
     ownRecordingSeenRef.current = false;
     ownStartedInErrorRef.current = target.phase === "error";
     setAttempted(true);
-    beginMicrophone((signal) => target.start(signal), target.cancel);
+    void beginMicrophone((signal) => target.start(signal), target.cancel);
   });
 
   // Listening: start the composer's recording once, then send when the speaker pauses.
@@ -283,12 +302,13 @@ function ActiveVoiceStage({
   ]);
 
   // This session owns exactly one recorder operation at a time: the one its own start
-  // request began. Ownership ends when that operation settles (back to idle after it
-  // was seen running) or fails. A dictation someone starts afterwards with the ordinary
+  // request began. Ownership ends when that attempt reports it did not record (see
+  // beginMicrophone), or when the operation settles (back to idle after it was seen
+  // running) or fails. A dictation someone starts afterwards with the ordinary
   // shortcut is theirs: voice chat neither sends it nor cancels it.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tracks the recorder operation this voice session started and releases its hold when that operation ends
   useEffect(() => {
-    if (!ownRecordingRef.current) return;
+    if (!ownsMicrophone()) return;
     if (recordingPhase === "idle" && !ownRecordingSeenRef.current) return;
     if (recordingPhase !== "idle" && recordingPhase !== "error") {
       ownRecordingSeenRef.current = true;
@@ -297,7 +317,6 @@ function ActiveVoiceStage({
     // A retry begun from an error sees that same error until its own recording starts.
     if (recordingPhase === "error" && ownStartedInErrorRef.current && !ownRecordingSeenRef.current)
       return;
-    ownRecordingRef.current = false;
     ownRecordingSeenRef.current = false;
     settleMicrophone();
     // Dictation hands focus to the composer as it finishes.
@@ -314,7 +333,6 @@ function ActiveVoiceStage({
     const timer = window.setTimeout(() => {
       // Nothing was ever recording, so there is nothing to cancel. Settling first tells a slow status
       // check not to open the microphone, yet leaves it free to open voice setup.
-      ownRecordingRef.current = false;
       settleMicrophone();
       if (latest.current.bridge?.available !== true) {
         toastManager.add({
@@ -334,7 +352,7 @@ function ActiveVoiceStage({
   useEffect(() => {
     const detector = createSilenceDetector();
     let frame = requestAnimationFrame(function tick(now) {
-      if (stage === "listening" && recordingPhase === "recording" && ownRecordingRef.current) {
+      if (stage === "listening" && recordingPhase === "recording" && ownsMicrophone()) {
         levelRef.current = displayLevel(voiceLevel.current);
         if (detector.sample(voiceLevel.current, now)) submitRef.current();
       } else if (stage === "speaking") {
@@ -368,21 +386,19 @@ function ActiveVoiceStage({
     return () => window.clearTimeout(timer);
   }, [sendStalled]);
 
-  // A question stuck in recording, transcription or cleanup has its own deadline, ending in an
+  // A question stuck in recording, transcription or cleanup has one deadline for the whole send,
+  // counted from the moment it was sent and kept across the recorder's phases. It ends in an
   // error with Try again. The send timeout above only runs while the recorder is idle.
-  const sendingPhase =
-    stage === "sending" && recordingPhase !== "idle" && recordingPhase !== "error"
-      ? recordingPhase
-      : null;
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a spoken question whose recorder operation never finishes
+  const sending = stage === "sending";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a spoken question whose recorder operation never finishes; cleared when the session leaves sending
   useEffect(() => {
-    if (sendingPhase === null) return;
+    if (!sending) return;
     const timer = window.setTimeout(() => {
-      if (ownRecordingRef.current) latest.current.bridge?.cancel();
-      dispatchVoiceSession({ type: "failed", message: gt("Voice input took too long") });
+      if (ownsMicrophone()) latest.current.bridge?.cancel();
+      dispatchVoiceSession({ type: "failed", message: latest.current.tookTooLong });
     }, SEND_OPERATION_MS);
     return () => window.clearTimeout(timer);
-  }, [sendingPhase, gt]);
+  }, [sending]);
 
   // Sending or thinking: read the answer once the turn is over and it has finished streaming.
   // The finished answer can be seen without any frame that showed the thread working.
@@ -393,7 +409,10 @@ function ActiveVoiceStage({
   useEffect(() => {
     if (!answerSettled) return;
     if (answerReady && answerId !== null) {
-      dispatchVoiceSession({ type: "replied", reply: { id: answerId, text: answerText } });
+      dispatchVoiceSession({
+        type: "replied",
+        reply: { id: answerId, text: answerText, runId: answerRunId },
+      });
       return;
     }
     // A send that is still waiting to start a turn has its own timeout above.
@@ -403,7 +422,7 @@ function ActiveVoiceStage({
       REPLY_GRACE_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [answerSettled, stage, answerReady, answerId, answerText]);
+  }, [answerSettled, stage, answerReady, answerId, answerText, answerRunId]);
 
   // Speaking: read the reply aloud once, from the text it had when reading began.
   const speakingReplyId = stage === "speaking" ? (session.reply?.id ?? null) : null;
@@ -425,8 +444,10 @@ function ActiveVoiceStage({
       return;
     }
     let finished = false;
-    let started = false;
+    /** The utterance this reading is waiting on; events of one it gave up on are ignored. */
+    let active: SpeechSynthesisUtterance | null = null;
     let startWatch: number | undefined;
+    let startDeadline: number | undefined;
     let deadline: number | undefined;
     let voicesWait: number | undefined;
     let onVoices: (() => void) | undefined;
@@ -436,45 +457,74 @@ function ActiveVoiceStage({
       finished = true;
       dispatchVoiceSession({ type: "spoken", replyId: spoken.id });
     };
-    const speak = () => {
+    const speak = (retried: boolean) => {
       if (finished) return;
+      window.clearTimeout(startWatch);
+      window.clearTimeout(startDeadline);
       const utterance = new SpeechSynthesisUtterance(spoken.text);
       utterance.lang = replyLanguage(
         spoken.text,
         document.documentElement.lang || navigator.language,
       );
       applyVoiceChatStyle(utterance, synthesis.getVoices(), getVoiceChatStyle());
-      utterance.onstart = () => {
-        started = true;
+      let began = false;
+      // The length-based deadline counts from the moment the engine begins, not from the hand-over.
+      const begin = () => {
+        if (finished || began || active !== utterance) return;
+        began = true;
+        window.clearTimeout(startWatch);
+        window.clearTimeout(startDeadline);
+        deadline = window.setTimeout(finish, speechDeadlineMs(spoken.text));
       };
+      const end = () => {
+        if (active === utterance) finish();
+      };
+      utterance.onstart = begin;
       utterance.onboundary = () => {
+        if (active !== utterance) return;
         speechPulseRef.current = 0.62;
+        begin();
       };
-      utterance.onend = finish;
-      utterance.onerror = finish;
+      utterance.onend = end;
+      utterance.onerror = end;
+      active = utterance;
       synthesis.cancel();
       synthesis.speak(utterance);
       // Some engines drop an utterance without any event. Idle and never started means it is not coming.
       startWatch = window.setTimeout(() => {
-        if (!started && !synthesis.speaking && !synthesis.pending) finish();
+        if (began) return;
+        if (synthesis.speaking) begin();
+        else if (!synthesis.pending) finish();
       }, SPEECH_START_MS);
-      deadline = window.setTimeout(finish, speechDeadlineMs(spoken.text));
+      // An engine that keeps the utterance queued and never starts it gets one more try.
+      startDeadline = window.setTimeout(() => {
+        if (began) return;
+        if (retried) {
+          finish();
+          return;
+        }
+        active = null;
+        synthesis.cancel();
+        speak(true);
+      }, SPEECH_ENGINE_START_MS);
     };
     // The deep voice is chosen from the device's voice list, which is empty until the device reports it.
     if (getVoiceChatStyle() === "conqueror" && synthesis.getVoices().length === 0) {
       onVoices = () => {
         synthesis.removeEventListener("voiceschanged", onVoices as () => void);
         window.clearTimeout(voicesWait);
-        speak();
+        speak(false);
       };
       synthesis.addEventListener("voiceschanged", onVoices);
       voicesWait = window.setTimeout(onVoices, VOICES_WAIT_MS);
     } else {
-      speak();
+      speak(false);
     }
     return () => {
       finished = true;
+      active = null;
       window.clearTimeout(startWatch);
+      window.clearTimeout(startDeadline);
       window.clearTimeout(deadline);
       window.clearTimeout(voicesWait);
       if (onVoices) synthesis.removeEventListener("voiceschanged", onVoices);
@@ -586,7 +636,7 @@ function ActiveVoiceStage({
         : gt("Waiting for the reply");
 
   const onOrbPress = () => {
-    if (stage === "listening" && bridge.phase === "recording" && ownRecordingRef.current) submit();
+    if (stage === "listening" && bridge.phase === "recording" && ownsMicrophone()) submit();
     else if (stage === "speaking") {
       dispatchVoiceSession(
         session.reply ? { type: "spoken", replyId: session.reply.id } : { type: "spoken" },

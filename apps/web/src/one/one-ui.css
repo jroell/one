@@ -1,0 +1,1405 @@
+/*
+ * One: the shared controls, drawn once.
+ *
+ * Every rule here targets a data-slot of components/ui, so the components keep their markup and
+ * this file keeps their material. It extends one.css (glass rims, the motion ladder) and reads only
+ * theme tokens, so light, dark and custom themes all get the same hand.
+ *
+ *   radius   controls 8px, floating surfaces 12px, items inside a floating surface 8px
+ *   motion   press 90ms, hover 140ms, movement 320ms on the spring, popups 140ms in and 90ms out
+ *   focus    one ring: 2px --ui-focus, 2px clear of the control; fields draw it on their border
+ *
+ * This sheet is unlayered, so it wins over the Tailwind classes on the components. A rule that
+ * replaces a state restates every state of that control.
+ */
+
+/* ----------------------------------------------------------------- tokens */
+
+:root {
+  --ui-radius: var(--control-radius, 0.5rem);
+  --ui-radius-float: 0.75rem;
+  --ui-radius-item: 0.5rem;
+
+  /* The ring color, darkened on light surfaces: the standard light gold is 2.99:1 on white, this is
+     above 3:1 there. Dark surfaces use the ring as is. */
+  --ui-focus: color-mix(in oklch, var(--ring) 80%, black);
+  --ui-focus-glow: color-mix(in oklch, var(--ui-focus) 24%, transparent);
+
+  --ui-edge: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --ui-edge-strong: color-mix(in srgb, var(--foreground) 17%, transparent);
+  --ui-hover: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --ui-press: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --ui-highlight: color-mix(in oklch, var(--one-brand) 9%, var(--foreground) 5%);
+  --ui-muted-text: color-mix(in srgb, var(--muted-foreground) 82%, var(--foreground));
+
+  /* Shade falls into a recess and light catches the edge of a raised thing. */
+  --ui-shade: rgb(0 0 0 / 11%);
+  --ui-shade-deep: rgb(0 0 0 / 18%);
+  --ui-lit: rgb(255 255 255 / 80%);
+  --ui-field: color-mix(in srgb, var(--foreground) 2.5%, var(--background));
+  --ui-field-edge: color-mix(in srgb, var(--foreground) 19%, transparent);
+  --ui-field-edge-hover: color-mix(in srgb, var(--foreground) 30%, transparent);
+  /* Small controls with no other cue (checkbox, radio, an off switch) keep an edge above 3:1. */
+  --ui-control-edge: color-mix(in srgb, var(--foreground) 52%, transparent);
+  --ui-field-inset: inset 0 1px 2px var(--ui-shade), 0 1px 0 var(--ui-lit);
+  --ui-invalid: var(--destructive-foreground);
+  --ui-invalid-edge: color-mix(in oklch, var(--destructive) 70%, transparent);
+
+  @variant dark {
+    --ui-focus: var(--ring);
+    --ui-shade: rgb(0 0 0 / 55%);
+    --ui-shade-deep: rgb(0 0 0 / 70%);
+    --ui-lit: rgb(255 255 255 / 6%);
+    --ui-edge: color-mix(in srgb, var(--foreground) 11%, transparent);
+    --ui-edge-strong: color-mix(in srgb, var(--foreground) 18%, transparent);
+    --ui-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
+    --ui-press: color-mix(in srgb, var(--foreground) 13%, transparent);
+    --ui-field: color-mix(in srgb, var(--foreground) 4.5%, var(--background));
+    --ui-field-edge: color-mix(in srgb, var(--foreground) 17%, transparent);
+    --ui-field-edge-hover: color-mix(in srgb, var(--foreground) 28%, transparent);
+    --ui-control-edge: color-mix(in srgb, var(--foreground) 44%, transparent);
+  }
+}
+
+/* -------------------------------------------------------------- the focus */
+
+/* Standalone controls take the ring outside, with a clear 2px gap that shows the surface. Rows and
+   items inside scrolling lists draw it inside, where nothing clips it. */
+:is(
+  [data-button],
+  [data-slot="toggle"],
+  [data-slot="switch"],
+  [data-slot="checkbox"],
+  [data-slot="radio"],
+  [data-slot="inline-button"],
+  [data-slot="collapsible-trigger"],
+  [data-slot="toast-close"],
+  [data-slot="select-trigger"][data-variant="ghost"],
+  [data-slot="badge"]:is(button, a)
+):focus-visible {
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+:is(
+  [data-slot="collapsible-section-header"],
+  [data-slot="discovery-row"],
+  [data-slot="calendar"] button,
+  [data-slot="scroll-area-viewport"],
+  [data-slot="number-field-decrement"],
+  [data-slot="number-field-increment"]
+):focus-visible {
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  outline: 2px solid var(--ui-focus);
+  outline-offset: -2px;
+}
+
+/* A focused toggle stays in front of its neighbors in a group. */
+[data-slot="toggle-group"] > :focus-visible {
+  z-index: 10;
+}
+
+/* ----------------------------------------------------------------- button */
+
+[data-button] {
+  /* Color answers in 140ms, the press goes in over 90ms and the release settles on the spring. */
+  transition-property: background-color, color, border-color, box-shadow, scale, opacity;
+}
+
+[data-button]::before {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-button]:not(:active) {
+    transition-duration:
+      var(--one-hover-ms), var(--one-hover-ms), var(--one-hover-ms), var(--one-hover-ms),
+      var(--one-move-ms), var(--one-hover-ms);
+    transition-timing-function:
+      var(--one-ease-hover), var(--one-ease-hover), var(--one-ease-hover), var(--one-ease-hover),
+      var(--one-ease-spring), var(--one-ease-hover);
+  }
+}
+
+[data-button][aria-busy="true"] {
+  cursor: progress;
+  pointer-events: none;
+}
+
+/* Primary: rare, filled, lit from above. */
+[data-button][data-variant="default"] {
+  border-color: color-mix(in oklch, var(--primary) 82%, black);
+  background-color: var(--primary);
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 15%), transparent 62%);
+  color: var(--primary-foreground);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 26%),
+    inset 0 -1px 0 rgb(0 0 0 / 14%),
+    0 1px 2px color-mix(in oklch, var(--primary) 38%, transparent),
+    0 5px 12px -6px color-mix(in oklch, var(--primary) 55%, transparent);
+}
+
+[data-button][data-variant="destructive"] {
+  border-color: color-mix(in oklch, var(--destructive) 62%, black);
+  background-color: color-mix(in oklch, var(--destructive) 80%, black);
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 14%), transparent 62%);
+  color: white;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 24%),
+    inset 0 -1px 0 rgb(0 0 0 / 16%),
+    0 1px 2px color-mix(in oklch, var(--destructive) 34%, transparent),
+    0 5px 12px -6px color-mix(in oklch, var(--destructive) 50%, transparent);
+}
+
+/* Secondary and outline: quiet glass with the lit top edge. */
+:is([data-button][data-variant="outline"], [data-button][data-variant="destructive-outline"]) {
+  border-color: var(--ui-edge-strong);
+  background-color: color-mix(in srgb, var(--foreground) 2.5%, var(--popover));
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    0 1px 2px var(--ui-shade);
+}
+
+[data-button][data-variant="secondary"] {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--ui-edge);
+}
+
+[data-button][data-variant="glass"] {
+  border-color: var(--ui-edge-strong);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    0 1px 2px var(--ui-shade);
+}
+
+[data-button][data-variant="warning-outline"] {
+  box-shadow: inset 0 1px 0 var(--one-glass-rim-top);
+}
+
+:is(
+  [data-button][data-variant="ghost"],
+  [data-button][data-variant="ghost-muted"],
+  [data-button][data-variant="ghost-destructive"]
+) {
+  background-image: none;
+  box-shadow: none;
+}
+
+:is([data-button][data-variant="ghost-muted"], [data-button][data-variant="ghost-destructive"]) {
+  color: var(--ui-muted-text);
+}
+
+@media (hover: hover) {
+  [data-button][data-variant="default"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
+    background-color: color-mix(in oklch, var(--primary) 90%, white);
+  }
+
+  [data-button][data-variant="destructive"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
+    background-color: color-mix(in oklch, var(--destructive) 74%, black);
+  }
+
+  :is([data-button][data-variant="outline"], [data-button][data-variant="glass"]):hover:not(
+      :disabled,
+      :active,
+      [aria-disabled="true"]
+    ) {
+    border-color: color-mix(in srgb, var(--foreground) 26%, transparent);
+    background-color: color-mix(in srgb, var(--foreground) 6%, var(--popover));
+  }
+
+  [data-button][data-variant="destructive-outline"]:hover:not(:disabled, :active) {
+    border-color: color-mix(in oklch, var(--destructive) 48%, transparent);
+    background-color: color-mix(in oklch, var(--destructive) 7%, var(--popover));
+  }
+
+  [data-button][data-variant="secondary"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
+    background-color: color-mix(in srgb, var(--foreground) 10%, transparent);
+  }
+
+  :is([data-button][data-variant="ghost"], [data-button][data-variant="ghost-muted"]):hover:not(
+      :disabled,
+      :active,
+      [aria-disabled="true"]
+    ) {
+    background-color: var(--ui-hover);
+    color: var(--foreground);
+  }
+
+  [data-button][data-variant="ghost-destructive"]:hover:not(:disabled, :active) {
+    background-color: color-mix(in oklch, var(--destructive) 9%, transparent);
+    color: var(--destructive-foreground);
+  }
+}
+
+/* A press goes in: darker, flatter, no lift. */
+[data-button][data-variant="default"]:is(:active, [data-pressed]):not(:disabled) {
+  background-color: color-mix(in oklch, var(--primary) 90%, black);
+  background-image: none;
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 28%);
+}
+
+[data-button][data-variant="destructive"]:is(:active, [data-pressed]):not(:disabled) {
+  background-color: color-mix(in oklch, var(--destructive) 68%, black);
+  background-image: none;
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
+}
+
+:is(
+    [data-button][data-variant="outline"],
+    [data-button][data-variant="destructive-outline"],
+    [data-button][data-variant="glass"],
+    [data-button][data-variant="secondary"],
+    [data-button][data-variant="warning-outline"]
+  ):is(:active, [data-pressed]):not(:disabled) {
+  background-color: var(--ui-press);
+  background-image: none;
+  box-shadow: inset 0 1px 2px var(--ui-shade);
+}
+
+:is(
+    [data-button][data-variant="ghost"],
+    [data-button][data-variant="ghost-muted"],
+    [data-button][data-variant="ghost-destructive"]
+  ):is(:active, [data-pressed]):not(:disabled) {
+  background-color: var(--ui-press);
+  color: var(--foreground);
+}
+
+/* Disabled reads as disabled by losing its material, not by fading a bright fill. A button that
+   is only waiting (it holds a spinner) keeps its color and shows the wait instead. */
+[data-button]:is(:disabled, [aria-disabled="true"]):not(:has(> svg[role="status"])) {
+  opacity: 1;
+  border-color: var(--ui-edge);
+  background-color: color-mix(in srgb, var(--foreground) 4%, transparent);
+  background-image: none;
+  color: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
+  box-shadow: none;
+}
+
+[data-button]:is(
+    [data-variant="ghost"],
+    [data-variant="ghost-muted"],
+    [data-variant="ghost-destructive"],
+    [data-variant="link"]
+  ):is(:disabled, [aria-disabled="true"]):not(:has(> svg[role="status"])) {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+[data-button]:disabled:has(> svg[role="status"]) {
+  opacity: 1;
+  cursor: progress;
+}
+
+[data-button]:disabled:has(> svg[role="status"]):is(
+    [data-variant="default"],
+    [data-variant="destructive"]
+  ) {
+  filter: saturate(0.78) brightness(0.96);
+}
+
+/* ------------------------------------------------------------------ fields */
+
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="number-field-group"],
+  [data-slot="select-trigger"][data-variant="default"],
+  [data-slot="input-group"][data-variant="default"]
+) {
+  border-radius: var(--ui-radius);
+  border-color: var(--ui-field-edge);
+  background-color: var(--ui-field);
+  box-shadow: var(--ui-field-inset);
+  transition:
+    border-color var(--one-hover-ms) var(--one-ease-hover),
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="number-field-group"],
+  [data-slot="select-trigger"][data-variant="default"],
+  [data-slot="input-group"][data-variant="default"]
+)::before {
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  :is(
+      [data-slot="input-control"]:not([data-unstyled]),
+      [data-slot="textarea-control"]:not([data-unstyled]),
+      [data-slot="number-field-group"],
+      [data-slot="select-trigger"][data-variant="default"],
+      [data-slot="input-group"][data-variant="default"]
+    ):hover:not(
+      :has(:disabled, :focus-visible, [aria-invalid="true"]),
+      :focus-visible,
+      [data-disabled],
+      [data-pressed],
+      [aria-invalid="true"]
+    ) {
+    border-color: var(--ui-field-edge-hover);
+  }
+}
+
+/* Focus: the edge is the ring. The border takes the focus color, thickens to 2px and a soft glow
+   stands in for the gap, so nothing moves. */
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="number-field-group"],
+  [data-slot="input-group"][data-variant="default"]
+):has(input:focus-visible, textarea:focus-visible),
+[data-slot="select-trigger"][data-variant="default"]:is(
+    :focus-visible,
+    [data-popup-open],
+    [data-pressed]
+  ) {
+  border-color: var(--ui-focus);
+  box-shadow:
+    inset 0 1px 2px var(--ui-shade),
+    0 0 0 1px var(--ui-focus),
+    0 0 0 4px var(--ui-focus-glow);
+}
+
+[data-slot="select-trigger"][data-variant="default"][data-popup-open]:not(:focus-visible) {
+  box-shadow: inset 0 1px 2px var(--ui-shade);
+}
+
+/* Invalid: a red edge and a mark, so color is never the only signal. */
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="number-field-group"],
+  [data-slot="input-group"][data-variant="default"]
+):has([aria-invalid="true"]),
+[data-slot="select-trigger"][data-variant="default"][aria-invalid="true"] {
+  border-color: var(--ui-invalid-edge);
+}
+
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="number-field-group"],
+  [data-slot="input-group"][data-variant="default"]
+):has([aria-invalid="true"]:focus-visible),
+[data-slot="select-trigger"][data-variant="default"][aria-invalid="true"]:focus-visible {
+  border-color: var(--ui-invalid);
+  box-shadow:
+    inset 0 1px 2px var(--ui-shade),
+    0 0 0 1px var(--ui-invalid),
+    0 0 0 4px color-mix(in oklch, var(--destructive) 24%, transparent);
+}
+
+:is([data-slot="input-control"], [data-slot="textarea-control"]):not([data-unstyled]):has(
+    [aria-invalid="true"]
+  ):not(
+    :has(
+      + :is(
+        [data-slot="combobox-trigger"],
+        [data-slot="combobox-clear"],
+        [data-slot="autocomplete-trigger"],
+        [data-slot="autocomplete-clear"]
+      )
+    )
+  )::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 0.625rem;
+  top: 50%;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  translate: 0 -50%;
+  pointer-events: none;
+  background-color: var(--ui-invalid);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 7.5v5.5M12 16.4v.1'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 7.5v5.5M12 16.4v.1'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+[data-slot="textarea-control"]:not([data-unstyled]):has([aria-invalid="true"])::after {
+  top: 0.5625rem;
+  translate: 0;
+}
+
+:is([data-slot="input-control"], [data-slot="textarea-control"]):not([data-unstyled]):has(
+    [aria-invalid="true"]
+  ):not(
+    :has(
+      + :is(
+        [data-slot="combobox-trigger"],
+        [data-slot="combobox-clear"],
+        [data-slot="autocomplete-trigger"],
+        [data-slot="autocomplete-clear"]
+      )
+    )
+  )
+  > :is(input, textarea) {
+  padding-inline-end: 2rem;
+}
+
+/* Read only: flat, no recess, the text keeps full strength. Disabled: flat with a quiet edge. */
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="input-group"][data-variant="default"]
+):has(:is(input, textarea)[readonly]:not(:disabled)) {
+  border-color: var(--ui-edge);
+  background-color: transparent;
+  box-shadow: none;
+}
+
+:is(
+  [data-slot="input-control"]:not([data-unstyled]),
+  [data-slot="textarea-control"]:not([data-unstyled]),
+  [data-slot="input-group"][data-variant="default"]
+):has(:is(input, textarea):disabled),
+[data-slot="number-field-group"][data-disabled],
+[data-slot="select-trigger"][data-variant="default"][data-disabled] {
+  border-color: var(--ui-edge);
+  background-color: color-mix(in srgb, var(--foreground) 4%, transparent);
+  box-shadow: none;
+}
+
+/* A field's own text: a brand caret and selection. The placeholder keeps the muted text color,
+   which is above 4.5:1 on the field in both themes. */
+:is([data-slot="input"], [data-slot="textarea"], [data-slot="number-field-input"]) {
+  caret-color: var(--one-brand);
+}
+
+:is([data-slot="input"], [data-slot="textarea"], [data-slot="number-field-input"])::selection {
+  background-color: color-mix(in oklch, var(--one-brand) 34%, transparent);
+}
+
+:is([data-slot="input"], [data-slot="textarea"], [data-slot="number-field-input"])::placeholder {
+  color: color-mix(in srgb, var(--placeholder) 88%, var(--foreground));
+  opacity: 1;
+}
+
+[data-slot="textarea"] {
+  resize: vertical;
+}
+
+/* Number steppers: quiet until pointed at, set off from the field by a hairline. */
+:is([data-slot="number-field-decrement"], [data-slot="number-field-increment"]) {
+  color: var(--ui-muted-text);
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-slot="number-field-decrement"] {
+  border-inline-end: 1px solid var(--ui-edge);
+}
+
+[data-slot="number-field-increment"] {
+  border-inline-start: 1px solid var(--ui-edge);
+}
+
+@media (hover: hover) {
+  :is([data-slot="number-field-decrement"], [data-slot="number-field-increment"]):hover:not(
+      :disabled
+    ) {
+    background-color: var(--ui-hover);
+    color: var(--foreground);
+  }
+}
+
+:is([data-slot="number-field-decrement"], [data-slot="number-field-increment"]):active:not(
+    :disabled
+  ) {
+  background-color: var(--ui-press);
+}
+
+/* ---------------------------------------------------------- choice controls */
+
+:is([data-slot="checkbox"], [data-slot="radio"]) {
+  border-color: var(--ui-control-edge);
+  background-color: var(--ui-field);
+  box-shadow: inset 0 1px 1.5px var(--ui-shade);
+  transition:
+    border-color var(--one-hover-ms) var(--one-ease-hover),
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+:is([data-slot="checkbox"], [data-slot="radio"])::before {
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  :is([data-slot="checkbox"], [data-slot="radio"]):hover:not(
+      [data-disabled],
+      [data-checked],
+      [data-indeterminate]
+    ) {
+    border-color: var(--foreground);
+  }
+}
+
+:is([data-slot="checkbox"], [data-slot="radio"])[aria-invalid="true"] {
+  border-color: var(--ui-invalid-edge);
+}
+
+:is([data-slot="checkbox"], [data-slot="radio"]):is([data-checked], [data-indeterminate]) {
+  border-color: color-mix(in oklch, var(--primary) 80%, black);
+  box-shadow: none;
+}
+
+/* The mark fills in and the stroke draws itself: 140ms. */
+:is([data-slot="checkbox-indicator"], [data-slot="radio-indicator"]) {
+  background-color: var(--primary);
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 16%), transparent 70%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+  outline: none;
+}
+
+[data-slot="checkbox-indicator"][data-indeterminate] {
+  color: var(--primary-foreground);
+}
+
+:is([data-slot="checkbox"], [data-slot="radio"]):focus-visible
+  :is([data-slot="checkbox-indicator"], [data-slot="radio-indicator"]) {
+  outline: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+
+[data-slot="checkbox-indicator"] svg path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is([data-slot="checkbox-indicator"], [data-slot="radio-indicator"]):not([data-unchecked]) {
+    animation: one-mark-in var(--one-hover-ms) var(--one-ease-out) both;
+  }
+
+  [data-slot="checkbox-indicator"]:not([data-unchecked]) svg path {
+    animation: one-check-draw var(--one-hover-ms) var(--one-ease-out) 20ms both;
+  }
+
+  [data-slot="radio-indicator"]:not([data-unchecked])::before {
+    animation: one-dot-in var(--one-hover-ms) var(--one-ease-out) 20ms both;
+  }
+}
+
+@keyframes one-mark-in {
+  from {
+    opacity: 0;
+    scale: 0.8;
+  }
+}
+
+@keyframes one-check-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+}
+
+@keyframes one-dot-in {
+  from {
+    opacity: 0;
+    scale: 0.2;
+  }
+}
+
+/* Switch: the same firm spring as the mode switch. The thumb stretches a little under the finger. */
+[data-slot="switch"] {
+  position: relative;
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-slot="switch"]:is([data-unchecked], [data-mixed]) {
+  background-color: color-mix(in srgb, var(--foreground) 16%, var(--background));
+  box-shadow:
+    inset 0 1px 2px var(--ui-shade),
+    inset 0 0 0 1px var(--ui-control-edge);
+}
+
+[data-slot="switch"][data-checked]:not([data-mixed]) {
+  background-color: var(--primary);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 22%),
+    inset 0 0 0 1px color-mix(in oklch, var(--primary) 78%, black);
+}
+
+[data-slot="switch-thumb"] {
+  background-color: var(--popover);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    0 1px 2px var(--ui-shade-deep),
+    0 0 0 0.5px var(--ui-edge);
+  transition:
+    translate var(--one-move-ms) var(--one-ease-spring),
+    scale var(--one-press-ms) ease-out,
+    border-radius var(--one-hover-ms) var(--one-ease-hover),
+    transform-origin var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-slot="switch"]:is([data-unchecked], [data-mixed]) [data-slot="switch-thumb"] {
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    0 1px 2px var(--ui-shade-deep),
+    0 0 0 0.5px var(--ui-control-edge);
+}
+
+@variant dark {
+  [data-slot="switch"][data-unchecked] [data-slot="switch-thumb"] {
+    background-color: color-mix(in srgb, var(--foreground) 80%, var(--background));
+  }
+}
+
+[data-slot="switch"][data-checked]:not([data-mixed]) [data-slot="switch-thumb"] {
+  background-color: var(--primary-foreground);
+  background-image: none;
+}
+
+[data-slot="switch"][data-disabled] {
+  opacity: 1;
+  filter: saturate(0.2) brightness(0.98);
+}
+
+[data-slot="switch"][data-disabled] [data-slot="switch-thumb"] {
+  box-shadow: 0 0 0 0.5px var(--ui-edge);
+}
+
+/* A 44px target on touch, with no change to what is drawn. */
+@media (pointer: coarse) {
+  :is([data-slot="checkbox"], [data-slot="radio"], [data-slot="switch"])::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 2.75rem);
+    height: max(100%, 2.75rem);
+    translate: -50% -50%;
+  }
+}
+
+/* Toggle and toggle group. */
+[data-slot="toggle"] {
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    color var(--one-hover-ms) var(--one-ease-hover),
+    border-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover),
+    scale var(--one-move-ms) var(--one-ease-spring);
+}
+
+[data-slot="toggle"]:active:not(:disabled) {
+  scale: 0.97;
+  transition-duration: var(--one-press-ms);
+  transition-timing-function: ease-out;
+}
+
+[data-slot="toggle"]::before {
+  box-shadow: none;
+}
+
+[data-slot="toggle"][data-variant="outline"] {
+  border-color: var(--ui-edge-strong);
+  background-color: color-mix(in srgb, var(--foreground) 2.5%, var(--popover));
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    0 1px 2px var(--ui-shade);
+}
+
+[data-slot="toggle"][data-pressed]:not([data-variant="segmented"]) {
+  background-color: color-mix(in oklch, var(--one-brand) 14%, var(--ui-press));
+  color: var(--foreground);
+}
+
+[data-slot="toggle"][data-variant="outline"][data-pressed] {
+  border-color: color-mix(in oklch, var(--one-brand) 42%, var(--ui-edge-strong));
+  box-shadow: inset 0 1px 2px var(--ui-shade);
+}
+
+@media (hover: hover) {
+  [data-slot="toggle"]:hover:not([data-pressed], :disabled, [data-variant="segmented"]) {
+    background-color: var(--ui-hover);
+  }
+}
+
+[data-slot="toggle"]:is(:disabled, [aria-disabled="true"]) {
+  opacity: 1;
+  color: color-mix(in srgb, var(--muted-foreground) 62%, transparent);
+  box-shadow: none;
+  background-image: none;
+}
+
+[data-slot="toggle-group"][data-variant="segmented"] {
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow:
+    inset 0 1px 2px var(--ui-shade),
+    inset 0 0 0 1px var(--ui-edge);
+}
+
+[data-slot="toggle"][data-variant="segmented"] {
+  color: var(--ui-muted-text);
+}
+
+[data-slot="toggle"][data-variant="segmented"][data-pressed] {
+  color: var(--foreground);
+  background-color: var(--popover);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    0 1px 2px var(--ui-shade-deep);
+}
+
+@media (hover: hover) {
+  [data-slot="toggle"][data-variant="segmented"]:hover:not([data-pressed], :disabled) {
+    color: var(--foreground);
+    background-color: var(--ui-hover);
+  }
+}
+
+/* ------------------------------------------------------- floating surfaces */
+
+/* One material for everything that floats: the glass from one.css, a 12px corner and a hairline
+   outside the rim so a menu holds its edge on any backdrop. Tooltips are the same glass, smaller. */
+[data-slot="menu-popup"],
+[data-slot="popover-popup"].dropdown-glass,
+[data-slot="select-popup"] > .dropdown-glass,
+[data-slot="combobox-positioner"] > .dropdown-glass,
+[data-slot="autocomplete-positioner"] > .dropdown-glass,
+[data-slot="toast-viewport"] > .dropdown-glass {
+  border-radius: var(--ui-radius-float);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    inset 0 -1px 0 0 var(--one-glass-rim-bottom),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
+    var(--one-glass-shadow);
+}
+
+[data-slot="select-popup"] {
+  border-radius: var(--ui-radius-float);
+}
+
+/* A docked sheet takes the sheen and the rims but no blur: it covers a large area that can sit
+   over a scrolling thread, and re-blurring that every frame costs more than the look is worth. */
+[data-slot="sheet-popup"] {
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    var(--one-glass-shadow);
+}
+
+[data-slot="sheet-popup"]::before {
+  box-shadow: none;
+}
+
+[data-slot="preview-card-popup"] {
+  border-color: transparent;
+  border-radius: var(--ui-radius-float);
+  background-color: color-mix(in srgb, var(--popover) var(--glass-opacity), transparent);
+  background-image: var(--one-glass-sheen);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
+    var(--one-glass-shadow);
+}
+
+[data-slot="tooltip-popup"] {
+  border-width: 0;
+  border-radius: var(--ui-radius);
+  color: var(--popover-foreground);
+  background-color: color-mix(in srgb, var(--popover) 74%, transparent);
+  background-image: var(--one-glass-sheen);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 8px 20px -8px var(--ui-shade-deep);
+}
+
+[data-slot="tooltip-popup"]::before {
+  display: none;
+}
+
+[data-slot="tooltip-viewport"] {
+  padding: 0.3125rem 0.5rem;
+}
+
+/* One enter and exit: opacity, a 4px drift from the anchor and 0.98 scale. 140ms in, 90ms out. */
+:is(
+  [data-slot="menu-popup"],
+  [data-slot="popover-popup"],
+  [data-slot="preview-card-popup"],
+  [data-slot="tooltip-popup"],
+  [data-slot="select-popup"],
+  [data-slot="combobox-popup"],
+  [data-slot="autocomplete-popup"]
+) {
+  --ui-enter-x: 0px;
+  --ui-enter-y: 0px;
+}
+
+:is(
+  [data-slot="menu-popup"],
+  [data-slot="popover-popup"],
+  [data-slot="preview-card-popup"],
+  [data-slot="tooltip-popup"],
+  [data-slot="select-popup"],
+  [data-slot="combobox-popup"],
+  [data-slot="autocomplete-popup"]
+)[data-side="top"] {
+  --ui-enter-y: 4px;
+}
+
+:is(
+  [data-slot="menu-popup"],
+  [data-slot="popover-popup"],
+  [data-slot="preview-card-popup"],
+  [data-slot="tooltip-popup"],
+  [data-slot="select-popup"],
+  [data-slot="combobox-popup"],
+  [data-slot="autocomplete-popup"]
+)[data-side="bottom"] {
+  --ui-enter-y: -4px;
+}
+
+:is(
+  [data-slot="menu-popup"],
+  [data-slot="popover-popup"],
+  [data-slot="preview-card-popup"],
+  [data-slot="tooltip-popup"],
+  [data-slot="select-popup"]
+):is([data-side="left"], [data-side="inline-start"]) {
+  --ui-enter-x: 4px;
+}
+
+:is(
+  [data-slot="menu-popup"],
+  [data-slot="popover-popup"],
+  [data-slot="preview-card-popup"],
+  [data-slot="tooltip-popup"],
+  [data-slot="select-popup"]
+):is([data-side="right"], [data-side="inline-end"]) {
+  --ui-enter-x: -4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(
+    [data-slot="menu-popup"],
+    [data-slot="preview-card-popup"],
+    [data-slot="tooltip-popup"],
+    [data-slot="select-popup"],
+    [data-slot="combobox-popup"],
+    [data-slot="autocomplete-popup"]
+  ) {
+    transition-property: opacity, scale, translate;
+    transition-duration: var(--one-hover-ms);
+    transition-timing-function: var(--one-ease-out);
+  }
+
+  [data-slot="popover-popup"] {
+    transition-property: width, height, opacity, scale, translate;
+    transition-duration: var(--one-hover-ms);
+    transition-timing-function: var(--one-ease-out);
+  }
+
+  :is(
+    [data-slot="menu-popup"],
+    [data-slot="popover-popup"],
+    [data-slot="preview-card-popup"],
+    [data-slot="tooltip-popup"],
+    [data-slot="select-popup"],
+    [data-slot="combobox-popup"],
+    [data-slot="autocomplete-popup"]
+  ):is([data-starting-style], [data-ending-style]) {
+    opacity: 0;
+    scale: 0.98;
+    translate: var(--ui-enter-x) var(--ui-enter-y);
+  }
+
+  :is(
+    [data-slot="menu-popup"],
+    [data-slot="popover-popup"],
+    [data-slot="preview-card-popup"],
+    [data-slot="tooltip-popup"],
+    [data-slot="select-popup"],
+    [data-slot="combobox-popup"],
+    [data-slot="autocomplete-popup"]
+  )[data-ending-style] {
+    transition-duration: var(--one-press-ms);
+    transition-timing-function: ease-in;
+  }
+
+  :is(
+    [data-slot="menu-popup"],
+    [data-slot="popover-popup"],
+    [data-slot="tooltip-popup"],
+    [data-slot="select-popup"]
+  )[data-instant] {
+    transition-duration: 0s;
+  }
+
+  /* Dialogs keep their own geometry; only the timing joins the ladder. */
+  :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]) {
+    transition-duration: var(--one-hover-ms);
+    transition-timing-function: var(--one-ease-out);
+  }
+
+  :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"])[data-ending-style] {
+    transition-duration: var(--one-press-ms);
+    transition-timing-function: ease-in;
+  }
+
+  :is([data-slot="dialog-popup"], [data-slot="alert-dialog-popup"]):not(
+      [data-nested]
+    )[data-starting-style] {
+    translate: 0 4px;
+  }
+
+  :is([data-slot="dialog-backdrop"], [data-slot="alert-dialog-backdrop"]) {
+    transition-duration: var(--one-hover-ms);
+  }
+
+  :is([data-slot="dialog-backdrop"], [data-slot="alert-dialog-backdrop"])[data-ending-style] {
+    transition-duration: var(--one-press-ms);
+  }
+}
+
+/* ---------------------------------------------------------------- menu rows */
+
+:is(
+  [data-slot="menu-item"],
+  [data-slot="menu-checkbox-item"],
+  [data-slot="menu-radio-item"],
+  [data-slot="menu-sub-trigger"],
+  [data-slot="select-item"],
+  [data-slot="combobox-item"],
+  [data-slot="autocomplete-item"]
+) {
+  border-radius: var(--ui-radius-item);
+}
+
+:is(
+  [data-slot="menu-item"]:not([data-variant="ghost"]),
+  [data-slot="menu-checkbox-item"],
+  [data-slot="menu-radio-item"],
+  [data-slot="menu-sub-trigger"],
+  [data-slot="select-item"],
+  [data-slot="combobox-item"],
+  [data-slot="autocomplete-item"]
+) {
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+:is(
+  [data-slot="menu-item"]:not([data-variant="ghost"], [data-variant="destructive"]),
+  [data-slot="menu-checkbox-item"],
+  [data-slot="menu-radio-item"],
+  [data-slot="menu-sub-trigger"],
+  [data-slot="select-item"],
+  [data-slot="combobox-item"],
+  [data-slot="autocomplete-item"]
+):is([data-highlighted], [data-popup-open]) {
+  background-color: var(--ui-highlight);
+}
+
+[data-slot="menu-item"][data-variant="destructive"][data-highlighted] {
+  background-color: color-mix(in oklch, var(--destructive) 11%, transparent);
+  color: var(--destructive-foreground);
+}
+
+:is([data-slot="select-item"], [data-slot="combobox-item"])[data-selected]:not([data-highlighted]),
+[data-slot="menu-radio-item"][data-checked]:not([data-highlighted]) {
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+/* Icons sit in one column, a little quieter than the label. */
+:is([data-slot="menu-item"], [data-slot="menu-sub-trigger"]) > svg:not(:last-child) {
+  color: var(--ui-muted-text);
+}
+
+[data-slot="menu-item"][data-variant="destructive"] > svg {
+  color: currentColor;
+}
+
+:is(
+  [data-slot="menu-label"],
+  [data-slot="select-group-label"],
+  [data-slot="combobox-group-label"],
+  [data-slot="autocomplete-group-label"]
+) {
+  letter-spacing: 0.01em;
+  color: var(--ui-muted-text);
+}
+
+[data-slot="menu-separator"] {
+  margin-inline: 0.5rem;
+  background-color: var(--ui-edge);
+}
+
+/* ---------------------------------------------------------------- keycaps */
+
+/* The same key everywhere: lit along the top, a darker edge under it. A shortcut in a menu sits on
+   the right edge of its row as a key. */
+:is([data-slot="kbd"], [data-slot="menu-shortcut"]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: 0.3125rem;
+  border: 0;
+  border-radius: 0.3125rem;
+  font-family: var(--font-sans, inherit);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-muted-text);
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background-image: linear-gradient(to bottom, var(--ui-lit), transparent 70%);
+  box-shadow:
+    inset 0 0 0 1px var(--ui-edge),
+    0 1px 0 color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+[data-slot="menu-shortcut"] {
+  margin-inline-start: auto;
+  margin-inline-end: -0.125rem;
+}
+
+[data-slot="kbd"][data-variant="outline"] {
+  box-shadow:
+    inset 0 0 0 1px var(--ui-edge-strong),
+    0 2px 0 color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+/* ------------------------------------------------------------ data display */
+
+[data-slot="table"] {
+  font-variant-numeric: tabular-nums;
+}
+
+[data-slot="table-head"] {
+  height: 2.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ui-muted-text);
+}
+
+[data-slot="table-header"] tr,
+[data-slot="table-row"] {
+  border-color: var(--ui-edge);
+}
+
+[data-slot="table-row"] {
+  transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+@media (hover: hover) {
+  [data-slot="table-body"] [data-slot="table-row"]:hover {
+    background-color: var(--ui-hover);
+  }
+}
+
+[data-slot="table-row"][data-state="selected"] {
+  background-color: color-mix(in oklch, var(--one-brand) 9%, var(--ui-hover));
+}
+
+[data-slot="badge"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
+}
+
+[data-slot="badge"]:is(
+  [data-variant="info"],
+  [data-variant="success"],
+  [data-variant="warning"],
+  [data-variant="error"]
+) {
+  --ui-badge-tone: var(--info);
+  background-color: color-mix(in oklch, var(--ui-badge-tone) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ui-badge-tone) 24%, transparent);
+}
+
+[data-slot="badge"][data-variant="success"] {
+  --ui-badge-tone: var(--success);
+}
+
+/* On light surfaces the semantic text colors sit just above 4.5:1; a touch darker keeps it there
+   on any tint behind. */
+:root:not(.dark)
+  [data-slot="badge"]:is(
+    [data-variant="info"],
+    [data-variant="success"],
+    [data-variant="warning"],
+    [data-variant="error"]
+  ) {
+  color: color-mix(in oklch, var(--ui-badge-text) 86%, black);
+}
+
+[data-slot="badge"][data-variant="info"] {
+  --ui-badge-text: var(--info-foreground);
+}
+
+[data-slot="badge"][data-variant="success"] {
+  --ui-badge-text: var(--success-foreground);
+}
+
+[data-slot="badge"][data-variant="warning"] {
+  --ui-badge-text: var(--warning-foreground);
+}
+
+[data-slot="badge"][data-variant="error"] {
+  --ui-badge-text: var(--destructive-foreground);
+}
+
+[data-slot="badge"][data-variant="warning"] {
+  --ui-badge-tone: var(--warning);
+}
+
+[data-slot="badge"][data-variant="error"] {
+  --ui-badge-tone: var(--destructive);
+}
+
+[data-slot="badge"]:is([data-variant="default"], [data-variant="destructive"]) {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%);
+}
+
+[data-slot="badge"][data-variant="destructive"] {
+  background-color: color-mix(in oklch, var(--destructive) 80%, black);
+}
+
+[data-slot="alert"] {
+  background-image: var(--one-glass-sheen);
+  box-shadow: inset 0 1px 0 var(--one-glass-rim-top);
+}
+
+[data-slot="alert"]:is([data-variant="warning"], [data-variant="error"])
+  [data-slot="alert-description"] {
+  color: var(--ui-alert-text);
+}
+
+[data-slot="alert"][data-variant="warning"] {
+  --ui-alert-text: var(--warning-foreground);
+}
+
+[data-slot="alert"][data-variant="error"] {
+  --ui-alert-text: var(--error-foreground);
+}
+
+[data-slot="alert-title"] {
+  letter-spacing: -0.005em;
+}
+
+/* A slow breath, opacity only. The keyframes live in index.css and the component's motion-safe
+   class switches them off under reduced motion; the sheen is part of the resting color. */
+[data-slot="skeleton"] {
+  background-color: color-mix(in srgb, var(--foreground) 7%, transparent);
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 50%,
+    transparent 80%
+  );
+}
+
+[data-slot="separator"] {
+  background-color: var(--ui-edge);
+}
+
+/* Scrollbars stay thin and appear on hover (the component fades them); the thumb is above 3:1. */
+[data-slot="scroll-area-thumb"] {
+  background-color: color-mix(in srgb, var(--foreground) 34%, transparent);
+}
+
+[data-slot="scroll-area-thumb"]:hover,
+[data-slot="scroll-area-scrollbar"][data-scrolling] [data-slot="scroll-area-thumb"] {
+  background-color: color-mix(in srgb, var(--foreground) 52%, transparent);
+}
+
+/* Empty: one icon chip, one title, one line, one action. */
+[data-slot="empty-media"][data-variant="icon"] > div:last-child {
+  border-radius: 0.625rem;
+  color: var(--ui-muted-text);
+  background-color: var(--popover);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--ui-edge),
+    0 1px 2px var(--ui-shade);
+}
+
+[data-slot="empty-media"][data-variant="icon"] > div:not(:last-child) {
+  border-radius: 0.625rem;
+  opacity: 0.55;
+}
+
+[data-slot="empty-title"] {
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------- calendar */
+
+[data-slot="calendar"] button {
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    color var(--one-hover-ms) var(--one-ease-hover);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-slot="calendar"] td[data-selected]:not(.range-middle) > button {
+  background-image: linear-gradient(to bottom, rgb(255 255 255 / 15%), transparent 62%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+
+/* ----------------------------------------------------------------- toasts */
+
+[data-slot="toast-close"] {
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+/* ---------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-button],
+  [data-slot="toggle"],
+  [data-slot="switch-thumb"],
+  [data-slot="menu-popup"],
+  [data-slot="popover-popup"],
+  [data-slot="tooltip-popup"],
+  [data-slot="select-popup"],
+  [data-slot="combobox-popup"],
+  [data-slot="autocomplete-popup"],
+  [data-slot="preview-card-popup"] {
+    transition-duration: 0s;
+  }
+
+  [data-button]:active,
+  [data-slot="toggle"]:active,
+  [data-slot="switch"]:active [data-slot="switch-thumb"] {
+    scale: 1;
+  }
+
+  [data-slot="skeleton"],
+  [data-slot="checkbox-indicator"],
+  [data-slot="checkbox-indicator"] svg path,
+  [data-slot="radio-indicator"],
+  [data-slot="radio-indicator"]::before {
+    animation: none;
+  }
+}
+
+/* -------------------------------------------------------------- forced colors */
+
+@media (forced-colors: active) {
+  :is(
+    [data-slot="input-control"],
+    [data-slot="textarea-control"],
+    [data-slot="number-field-group"],
+    [data-slot="input-group"]
+  ):has(input:focus-visible, textarea:focus-visible),
+  [data-slot="select-trigger"]:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
+}
+
+/* Triggers that have no focus style of their own (a raw button or span inside TooltipTrigger) fall
+   back to the browser's focus ring. The ring keeps its shape and takes the one focus color. */
+[data-slot$="-trigger"]:not([data-button], [data-slot="select-trigger"]):focus-visible {
+  outline-color: var(--ui-focus);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ toast accent */
+
+/* A toast says what kind it is with a colored edge along its start side, and a timed one shows how
+   long it has left as a hairline that runs out. Hovering or focusing it pauses the line, as it
+   pauses the timer. */
+[data-slot="toast-viewport"] > .dropdown-glass {
+  --ui-toast-accent: transparent;
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="error"] {
+  --ui-toast-accent: var(--destructive);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="success"] {
+  --ui-toast-accent: var(--success);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="warning"] {
+  --ui-toast-accent: var(--warning);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="info"] {
+  --ui-toast-accent: var(--info);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass {
+  box-shadow:
+    inset 2px 0 0 0 var(--ui-toast-accent),
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    inset 0 -1px 0 0 var(--one-glass-rim-bottom),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
+    var(--one-glass-shadow);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0.75rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background-color: var(--ui-toast-accent);
+  opacity: 0.55;
+  pointer-events: none;
+  transform-origin: left center;
+  animation: one-toast-timer calc(var(--toast-timeout-ms, 0) * 1ms) linear forwards;
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass:is(:hover, :focus-within)::before {
+  animation-play-state: paused;
+}
+
+@keyframes one-toast-timer {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="toast-viewport"] > .dropdown-glass::before {
+    display: none;
+  }
+}

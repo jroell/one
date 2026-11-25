@@ -380,8 +380,11 @@ export function PullRequestMetaRow({
   children: ReactNode;
 }) {
   return (
-    <div className="grid min-h-7 min-w-0 grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 text-xs sm:min-h-6">
-      <span className="flex items-center gap-1.5 text-muted-foreground">
+    <div
+      data-one-meta-row=""
+      className="grid min-h-7 min-w-0 grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 text-xs sm:min-h-6"
+    >
+      <span data-one-meta-label="" className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
         {label}
       </span>

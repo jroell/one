@@ -1,0 +1,460 @@
+/*
+ * One: secondary pages (pull requests, issues, scheduled tasks, archive, standalone pages).
+ * Surfaces, rows and chips here read theme tokens only, so every built-in and custom theme
+ * gets the same material. Radius scale: 8px controls, 14px panels.
+ */
+
+:root {
+  --one-panel-radius: 14px;
+  --one-row-radius: 10px;
+  /* Quiet text that still reads 4.5:1 on a tinted panel in light themes. */
+  --one-text-quiet: color-mix(in oklch, var(--muted-foreground) 80%, var(--foreground));
+  --one-hairline: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --one-row-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
+  --one-row-press: color-mix(in srgb, var(--foreground) 9%, transparent);
+  --one-row-selected: color-mix(in oklch, var(--one-brand) 11%, transparent);
+  --one-row-selected-edge: color-mix(in oklch, var(--one-brand) 30%, transparent);
+  --one-panel-fill: color-mix(in oklch, var(--foreground) 1.8%, var(--background));
+
+  @variant dark {
+    --one-hairline: color-mix(in srgb, var(--foreground) 9%, transparent);
+    --one-row-hover: color-mix(in srgb, var(--foreground) 6%, transparent);
+    --one-row-press: color-mix(in srgb, var(--foreground) 10%, transparent);
+    --one-row-selected: color-mix(in oklch, var(--one-brand) 14%, transparent);
+    --one-panel-fill: color-mix(in oklch, var(--foreground) 3.2%, var(--background));
+  }
+}
+
+/* -------------------------------------------------------------- list pages */
+
+/* A still wash of the brand color at the top of a list page: one gradient, painted once. */
+[data-one-page] {
+  background-image: radial-gradient(
+    44rem 15rem at 24% 0,
+    color-mix(in oklch, var(--one-brand) 7%, transparent),
+    transparent 72%
+  );
+  background-repeat: no-repeat;
+}
+
+/* A list is one quiet glass panel with a lit top edge, not a stack of boxes. */
+[data-one-panel] {
+  position: relative;
+  border-radius: var(--one-panel-radius);
+  padding: 0.25rem;
+  background-color: var(--one-panel-fill);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    0 0 0 1px var(--one-hairline),
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    var(--one-glass-shadow);
+}
+
+[data-one-panel-head] {
+  min-height: 2rem;
+  padding: 0.5rem 0.875rem 0.375rem;
+  color: var(--one-text-quiet);
+  letter-spacing: 0.01em;
+}
+
+[data-one-panel-head] [data-one-count] {
+  min-width: 1.5rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.6875rem;
+  line-height: 1.25rem;
+  background: var(--one-hairline);
+}
+
+[data-one-panel] > [data-one-panel-note] {
+  padding: 0.25rem 0.875rem 0.625rem;
+}
+
+[data-one-panel] > button {
+  align-self: flex-start;
+  margin: 0.25rem 0.5rem 0.5rem;
+}
+
+/* ------------------------------------------------------------------- rows */
+
+[data-one-row] {
+  position: relative;
+  min-height: 3.75rem;
+  border-radius: var(--one-row-radius);
+  /* Selected and hovered rows draw in a layer of their own, so they never reflow. */
+  isolation: isolate;
+}
+
+[data-one-row] > button,
+[data-one-row] > [data-one-ghost-row-body] {
+  border-radius: inherit;
+  min-height: 3.75rem;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A hairline between rows; it steps aside around the row you are pointing at. */
+[data-one-row] + [data-one-row]::before {
+  content: "";
+  position: absolute;
+  inset: 0 0.875rem auto;
+  height: 1px;
+  background: var(--one-hairline);
+  transition: opacity var(--one-hover-ms) var(--one-ease-hover);
+}
+
+[data-one-row]:is(:hover, [data-selected], :has(> button:focus-visible))::before,
+[data-one-row]:is(:hover, [data-selected], :has(> button:focus-visible)) + [data-one-row]::before {
+  opacity: 0;
+}
+
+[data-one-row]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: transparent;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  [data-one-row]:hover::after {
+    background: var(--one-row-hover);
+  }
+}
+
+[data-one-row]:has(> button:active)::after {
+  background: var(--one-row-press);
+}
+
+[data-one-row][data-selected]::after {
+  background: var(--one-row-selected);
+  box-shadow: inset 0 0 0 1px var(--one-row-selected-edge);
+}
+
+/* The accent bar: the one mark that says "this is open". */
+[data-one-row][data-selected] > button {
+  position: relative;
+}
+
+[data-one-row][data-selected] > button::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.75rem;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--one-brand);
+}
+
+[data-one-row] > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* The title leads: strongest text in the row, one line, with the full text in the tooltip. */
+[data-one-row] [data-one-row-title] {
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.25rem;
+  color: var(--foreground);
+}
+
+[data-one-row] [data-one-row-number] {
+  font-size: 0.6875rem;
+  color: var(--one-text-quiet);
+  letter-spacing: 0.01em;
+}
+
+[data-one-row] [data-one-row-meta] {
+  /* As tall as a label chip, so rows with and without labels share one height. */
+  min-height: 1.125rem;
+  margin-top: 0.125rem;
+  color: var(--one-text-quiet);
+}
+
+/* Right column: figures are tabular and right-aligned, so a changing time never nudges the row. */
+[data-one-row] [data-one-row-status],
+[data-one-row] [data-one-row-time] {
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+[data-one-row] [data-one-row-time] {
+  min-width: 3.25rem;
+  font-size: 0.6875rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-row]::after {
+    transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+  }
+
+  [data-one-row]:has(> button:active)::after {
+    transition-duration: var(--one-press-ms);
+  }
+
+  [data-one-row][data-selected] > button::before {
+    animation: one-bar-in var(--one-move-ms) var(--one-ease-spring) both;
+  }
+
+  /* Loaded rows arrive by fading in, so a skeleton hands over without a jump. */
+  [data-one-row]:not([data-one-ghost-row]) {
+    animation: one-row-in 220ms var(--one-ease-out) both;
+  }
+
+  [data-one-ghost-caption] {
+    animation: one-row-in 240ms var(--one-ease-out) 900ms both;
+  }
+}
+
+@keyframes one-row-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes one-bar-in {
+  from {
+    scale: 1 0.3;
+    opacity: 0;
+  }
+}
+
+[data-one-ghost-caption] {
+  color: var(--one-text-quiet);
+}
+
+/* ---------------------------------------------------------------- labels */
+
+/* One chip for every label: the label's hue, fixed lightness and controlled chroma. The custom
+   properties come from labelChipTone.ts, which also tests the contrast on both themes. */
+[data-one-label] {
+  --one-label-text: var(--one-label-text-light, var(--one-text-quiet));
+  --one-label-fill: var(--one-label-fill-light, var(--one-hairline));
+  --one-label-edge: var(--one-label-edge-light, var(--one-hairline));
+  --one-label-dot: var(--one-label-dot-light, var(--muted-foreground));
+  /* Display stays with the utility classes on the element, so a caller can hide a chip. */
+  position: relative;
+  align-items: center;
+  gap: 0.3125rem;
+  height: 1.125rem;
+  padding-inline: 0.4375rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  /* Clear of the text's own clip: a tighter line box cuts descenders (g, y). */
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--one-label-text);
+  background: var(--one-label-fill);
+  box-shadow:
+    inset 0 0 0 1px var(--one-label-edge),
+    inset 0 1px 0 0 color-mix(in srgb, white 24%, transparent);
+  outline: none;
+}
+
+.dark [data-one-label] {
+  --one-label-text: var(--one-label-text-dark, var(--one-text-quiet));
+  --one-label-fill: var(--one-label-fill-dark, var(--one-hairline));
+  --one-label-edge: var(--one-label-edge-dark, var(--one-hairline));
+  --one-label-dot: var(--one-label-dot-dark, var(--muted-foreground));
+}
+
+[data-one-label]::before {
+  content: "";
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--one-label-dot);
+}
+
+[data-one-label][data-size="default"] {
+  height: 1.375rem;
+  padding-inline: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+}
+
+[data-one-label] > :not([data-one-label-text]):not(.sr-only) {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+[data-one-label]:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--one-label-edge),
+    0 0 0 2px var(--ring);
+}
+
+@media (forced-colors: active) {
+  [data-one-label] {
+    border: 1px solid ButtonText;
+    color: ButtonText;
+    background: Canvas;
+  }
+}
+
+/* ------------------------------------------------------- standalone pages */
+
+/* Pairing, sign-in, link and error pages: one lit glass card on a still wash of the brand color. */
+[data-one-standalone-page] {
+  background-image:
+    radial-gradient(
+      46rem 26rem at 50% -6%,
+      color-mix(in oklch, var(--one-brand) 13%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      60rem 30rem at 50% 118%,
+      color-mix(in oklch, var(--one-ring-hi) 7%, transparent),
+      transparent 70%
+    );
+  background-repeat: no-repeat;
+}
+
+[data-one-standalone] {
+  --glass-blur: 26px;
+  border-radius: var(--one-panel-radius);
+  padding: 1.75rem 1.75rem 1.5rem;
+  border-color: transparent;
+}
+
+[data-one-standalone-brand] {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--one-hairline);
+}
+
+[data-one-standalone-context] {
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  color: var(--one-text-quiet);
+  background: var(--one-hairline);
+}
+
+/* The title borrows the opening's voice, so the first screen and the first page agree. */
+[data-one-standalone-title] {
+  margin-top: 1.5rem;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: 1.625rem;
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: 0.002em;
+  text-wrap: balance;
+}
+
+[data-one-standalone-lead] {
+  max-width: 34rem;
+  color: var(--one-text-quiet);
+  line-height: 1.55;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* The report is a quiet inset well, set in the app's mono. */
+[data-one-standalone] pre {
+  border-radius: 0 0 var(--control-radius) var(--control-radius);
+}
+
+[data-one-standalone] :is(div, section, form):has(> pre) {
+  border-radius: var(--control-radius);
+  border-color: var(--one-hairline);
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, black 8%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-standalone] {
+    animation: one-card-in var(--one-move-ms) var(--one-ease-out) both;
+  }
+
+  [data-one-standalone-page] [data-one-standalone-title],
+  [data-one-standalone-page] [data-one-standalone-lead] {
+    animation: one-card-in 380ms var(--one-ease-out) 60ms both;
+  }
+}
+
+@keyframes one-card-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
+/* ---------------------------------------------------------- detail panels */
+
+/* The open pull request or issue: a lit header block over the same still wash as its list. */
+[data-one-detail] {
+  background-image: radial-gradient(
+    36rem 11rem at 30% 0,
+    color-mix(in oklch, var(--one-brand) 6%, transparent),
+    transparent 74%
+  );
+  background-repeat: no-repeat;
+}
+
+[data-one-detail-header] {
+  background-image: var(--one-glass-sheen);
+  border-color: var(--one-hairline);
+  box-shadow: inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+[data-one-detail-title] {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+  color: var(--foreground);
+  text-wrap: balance;
+}
+
+[data-one-detail-tabs] {
+  border-color: var(--one-hairline);
+}
+
+[data-one-branches] {
+  color: var(--one-text-quiet);
+}
+
+[data-one-meta-row] {
+  padding-block: 0.125rem;
+}
+
+[data-one-meta-label] {
+  color: var(--one-text-quiet);
+  font-weight: 500;
+}
+
+/* ----------------------------------------------- scheduled tasks and archive */
+
+/* Times and counts in a task's status line hold their width, so toggling a task never nudges it. */
+[data-one-task-status] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A paused task reads as set aside: its schedule line steps back while the switch stays crisp. */
+[data-one-task-status][data-paused] {
+  color: var(--one-text-quiet);
+  opacity: 0.8;
+}
+
+/* With a mouse, archive rows keep their two actions a little quieter until you point at the row
+   or tab into it. Touch and keyboard-first setups always see them at full strength. */
+@media (hover: hover) and (pointer: fine) {
+  [data-one-archive-actions] {
+    opacity: 0.7;
+  }
+}
+
+[data-one-archived]:is(:hover, :focus-within) [data-one-archive-actions],
+[data-one-archive-actions]:is(:hover, :focus-within) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-one-archive-actions] {
+    transition: opacity var(--one-hover-ms) var(--one-ease-hover);
+  }
+}

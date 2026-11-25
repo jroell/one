@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  ATTENTION_MS,
   RESTING_FRAME_MS,
   SLOW_FRAMES_BEFORE_STEP_DOWN,
   startOneOrb,
@@ -174,6 +175,9 @@ function setup(
     intersect: (isIntersecting: boolean) =>
       report([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver),
     pendingFrames: () => frames.size,
+    /** Frames or resting timers still waiting; zero means the ring scheduled nothing. */
+    pendingWork: () => frames.size + vi.getTimerCount(),
+    now: () => clock.now,
     step,
     /** `count` display refreshes, `ms` apart. */
     run: (count: number, ms = 16) => {
@@ -441,6 +445,162 @@ describe("the ring on a screen with another pixel density", () => {
     for (const listener of armed) listener();
     expect(env.canvas.width).toBe(400);
     expect(env.media.densityQueries).toEqual(["(resolution: 2dppx)", "(resolution: 1dppx)"]);
+    orb.dispose();
+  });
+});
+
+describe("the ring when nobody is there", () => {
+  /** Starts an idle ring and lets it settle, then returns the time its attention started. */
+  function startResting(env: ReturnType<typeof setup>, state: () => OneOrbState = () => "idle") {
+    const orb = startOneOrb(env.canvas, {
+      getState: state,
+      getLevel: () => 0,
+      onUnsupported: () => {},
+    });
+    if (!orb) throw new Error("the ring did not start");
+    env.intersect(true);
+    return orb;
+  }
+  const drawCount = (env: ReturnType<typeof setup>) => env.gl.drawArrays.mock.calls.length;
+
+  it("draws exactly one frame after ATTENTION_MS without activity, then schedules nothing", () => {
+    using env = setup();
+    const drawnAt: number[] = [];
+    env.gl.drawArrays.mockImplementation(() => {
+      drawnAt.push(env.now());
+    });
+    const orb = startResting(env);
+    const startedAt = env.now();
+
+    env.run(Math.ceil((ATTENTION_MS + 1000) / 10), 10);
+
+    const late = drawnAt.filter((at) => at - startedAt >= ATTENTION_MS);
+    expect(late).toHaveLength(1);
+    expect(drawnAt.at(-1)).toBe(late[0]);
+    // The ring kept moving until then: about one frame per RESTING_FRAME_MS.
+    expect(drawnAt.length).toBeGreaterThan(ATTENTION_MS / RESTING_FRAME_MS / 2);
+    expect(env.pendingWork()).toBe(0);
+    const drawn = drawCount(env);
+    env.run(200, 16);
+    expect(drawCount(env)).toBe(drawn);
+    orb.dispose();
+  });
+
+  it.each(["pointermove", "pointerdown", "keydown", "wheel", "focus"])(
+    "draws again after a %s event woke a ring that had stopped, and stops again ATTENTION_MS later",
+    (type) => {
+      using env = setup();
+      const orb = startResting(env);
+      env.run(Math.ceil((ATTENTION_MS + 500) / 10), 10);
+      expect(env.pendingWork()).toBe(0);
+      const asleep = drawCount(env);
+
+      window.dispatchEvent(new Event(type));
+      env.run(Math.ceil((ATTENTION_MS - 500) / 10), 10);
+      expect(drawCount(env) - asleep).toBeGreaterThan(20);
+      expect(env.pendingWork()).toBeGreaterThan(0);
+
+      env.run(Math.ceil(1000 / 10), 10);
+      expect(env.pendingWork()).toBe(0);
+      orb.dispose();
+    },
+  );
+
+  it("draws again after wake() woke a ring that had stopped", () => {
+    using env = setup();
+    const orb = startResting(env);
+    env.run(Math.ceil((ATTENTION_MS + 500) / 10), 10);
+    const asleep = drawCount(env);
+
+    orb.wake();
+    env.run(10, 10);
+    expect(drawCount(env) - asleep).toBeGreaterThan(0);
+    expect(env.pendingWork()).toBeGreaterThan(0);
+    orb.dispose();
+  });
+
+  it("keeps an awake ring going past ATTENTION_MS when activity keeps arriving, without drawing for the activity", () => {
+    using env = setup();
+    const orb = startResting(env);
+    env.run(Math.ceil((ATTENTION_MS - 1000) / 10), 10);
+    const before = drawCount(env);
+    const pending = env.pendingWork();
+
+    window.dispatchEvent(new Event("pointermove"));
+    expect(drawCount(env)).toBe(before);
+    expect(env.pendingWork()).toBe(pending);
+
+    env.run(Math.ceil(2000 / 10), 10);
+    expect(env.pendingWork()).toBeGreaterThan(0);
+    env.run(Math.ceil((ATTENTION_MS - 1000) / 10), 10);
+    expect(env.pendingWork()).toBe(0);
+    orb.dispose();
+  });
+
+  it("removes every activity listener it added once disposed", () => {
+    using env = setup();
+    const added = vi.spyOn(window, "addEventListener");
+    const removed = vi.spyOn(window, "removeEventListener");
+    const orb = startResting(env);
+    const attention = (calls: ReadonlyArray<readonly unknown[]>) =>
+      calls.filter(([type]) =>
+        ["pointermove", "pointerdown", "keydown", "wheel", "focus"].includes(String(type)),
+      );
+    expect(attention(added.mock.calls)).toHaveLength(5);
+
+    orb.dispose();
+
+    const listeners = attention(added.mock.calls).map(([type, listener]) => [type, listener]);
+    expect(attention(removed.mock.calls).map(([type, listener]) => [type, listener])).toEqual(
+      listeners,
+    );
+    added.mockRestore();
+    removed.mockRestore();
+  });
+
+  it("keeps drawing a thinking ring on every frame long after ATTENTION_MS", () => {
+    using env = setup();
+    const orb = startResting(env, () => "thinking");
+    const frames = Math.ceil((ATTENTION_MS * 2) / 16);
+
+    env.run(frames, 16);
+    expect(drawCount(env)).toBe(frames);
+    expect(env.pendingFrames()).toBe(1);
+    orb.dispose();
+  });
+
+  it("keeps drawing an idle ring that is still easing toward its pose when ATTENTION_MS has already passed, then stops it once settled", () => {
+    using env = setup();
+    let state: OneOrbState = "thinking";
+    const orb = startResting(env, () => state);
+    env.run(Math.ceil((ATTENTION_MS + 500) / 16), 16);
+    // The state changes without a wake: the spin and the corona still have to ease to rest.
+    state = "idle";
+    const before = drawCount(env);
+
+    env.run(30, 16);
+    expect(drawCount(env) - before).toBe(30);
+    expect(env.pendingWork()).toBeGreaterThan(0);
+
+    env.run(Math.ceil(8000 / 16), 16);
+    expect(env.pendingWork()).toBe(0);
+    orb.dispose();
+  });
+});
+
+describe("the backing store scale of a resting ring", () => {
+  it("keeps a resting ring at its full resolution, so the frame that stays on screen is sharp", () => {
+    using env = setup({ pixelRatio: 2, size: 200 });
+    const orb = startOneOrb(env.canvas, {
+      getState: () => "idle",
+      getLevel: () => 0,
+      onUnsupported: () => {},
+    });
+    if (!orb) throw new Error("the ring did not start");
+    env.intersect(true);
+    expect(env.canvas.width).toBe(400);
+    for (let frame = 0; frame < 60; frame++) env.step(16);
+    expect(env.canvas.width).toBe(400);
     orb.dispose();
   });
 });

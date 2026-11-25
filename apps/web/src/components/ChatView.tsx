@@ -185,7 +185,6 @@ import { PopoverCreateHandle } from "./ui/popover";
 import {
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
-  selectThreadPanelOpen,
   selectThreadRightPanelState,
   useRightPanelStore,
 } from "../rightPanelStore";
@@ -216,6 +215,7 @@ import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
 import { ChatWelcome, MainConversationContext } from "~/one/OneEmptyState";
 import { OneVoiceStage } from "~/one/OneVoiceStage";
+import { useThreadPanelInlineOpen, useThreadPanelView } from "~/one/chatThreadPanel";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
@@ -2099,12 +2099,12 @@ export default function ChatView(props: ChatViewProps) {
       ? activePreviewMiniPlayer
       : null;
   const canvasPreview = useThreadPreviewCanvasSource(activeThreadRef, shownPreviewMiniPlayer);
-  const threadPanelInlineOpen = useRightPanelStore((state) =>
-    selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, activeThreadRef, "inline"),
-  );
+  // Chat mode has no inline card, so it reserves no canvas room and both header variants
+  // show the popover.
+  const threadPanelInlineOpen = useThreadPanelInlineOpen(activeThreadRef);
   // Selects only the mode, so canvas resizes rerender the chat view only when the
   // card switches presentation.
-  const threadPanelPresentation = useStore(
+  const canvasThreadPanelPresentation = useStore(
     chatCanvasStore,
     (state) =>
       resolveChatCanvasModel({
@@ -2116,16 +2116,9 @@ export default function ChatView(props: ChatViewProps) {
       }).detailsCardMode,
   );
   const workspaceMode = useWorkspaceMode();
-  const threadPanelOpen = useRightPanelStore((state) =>
-    selectThreadPanelOpen(
-      state.threadPanelVisibilityByThreadKey,
-      activeThreadRef,
-      threadPanelPresentation,
-    ),
-  );
-  // Chat mode always shows thread details as the popover, so its header toggle reads this.
-  const threadPanelPopoverOpen = useRightPanelStore((state) =>
-    selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, activeThreadRef, "popover"),
+  const { presentation: threadPanelPresentation, open: threadPanelOpen } = useThreadPanelView(
+    activeThreadRef,
+    canvasThreadPanelPresentation,
   );
   const supportsThreadPullRequests = serverConfig !== null;
   const visiblePullRequests = visibleThreadPullRequests(
@@ -3516,7 +3509,6 @@ export default function ChatView(props: ChatViewProps) {
     terminalOpen: terminalUiState.terminalOpen,
     terminalShortcutLabel: shortcutLabelForCommand(keybindings, "terminal.toggle"),
     threadPanelOpen,
-    threadPanelPopoverOpen,
     threadPanelPresentation,
     threadPanelPopoverHandle,
     threadPanelShortcutLabel: shortcutLabelForCommand(keybindings, "threadPanel.toggle"),

@@ -7,8 +7,9 @@ import { getOpeningPreferences, onReplayOpening, OPENING_SEEN_KEY } from "./open
 import { playOpeningSound } from "./openingSound";
 
 /** The ring ignites, the title holds for a moment, then the app is revealed. */
-const HOLD_MS = OPENING_SECONDS * 1000 + 900;
-const LEAVE_MS = 700;
+// The name finishes arriving about 3.7s in; it then stays readable before the cover lifts.
+const HOLD_MS = OPENING_SECONDS * 1000 + 1600;
+const LEAVE_MS = 460;
 
 /** Once per app session, and never for people who turned it off or prefer reduced motion. */
 function shouldPlayOpening(): boolean {
@@ -42,6 +43,12 @@ export function OneOpening() {
     // opening cannot also run a command. A replay from Settings sets it again.
     if (phase === "playing") document.documentElement.dataset.oneOpening = "";
     else delete document.documentElement.dataset.oneOpening;
+    // "Armed" tells index.html a cover is mounted and listening, so it may take the skipping key
+    // or click. "Cover" lasts through the fade, so the app's own ring waits for this one to go.
+    if (phase === "playing") document.documentElement.dataset.oneOpeningArmed = "";
+    else delete document.documentElement.dataset.oneOpeningArmed;
+    if (phase === "done") delete document.documentElement.dataset.oneOpeningCover;
+    else document.documentElement.dataset.oneOpeningCover = "";
     if (phase === "done") return;
     if (phase === "leaving") {
       // The app is usable again as soon as the cover starts to fade, so focus returns now, not
@@ -106,6 +113,7 @@ export function OneOpening() {
     return () => {
       // However this effect ends (skip, timeout, unmount, hot reload), the app must be usable again.
       delete document.documentElement.dataset.oneOpening;
+      delete document.documentElement.dataset.oneOpeningArmed;
       portals.disconnect();
       for (const node of locked) node.inert = false;
       window.clearTimeout(timer);

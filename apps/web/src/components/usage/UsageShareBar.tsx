@@ -1,6 +1,6 @@
 import { formatPercent } from "@t3tools/shared/usageFormat";
 import { useMessages } from "gt-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
@@ -27,20 +27,26 @@ export function UsageShareBar({
   if (total <= 0) return null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-2.5">
+    <div className="usage-panel usage-panel-plain usage-share">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-medium text-foreground">{label}</h3>
+        <h3 className="usage-heading">{label}</h3>
         {aside}
       </div>
       {/* The legend below carries every figure; the bar's tooltips are pointer-only. */}
-      <div aria-hidden className="flex h-2 gap-0.5">
-        {visible.map((segment) => (
+      <div aria-hidden className="usage-share-track">
+        {visible.map((segment, position) => (
           <Tooltip key={segment.label}>
             <TooltipTrigger
               render={
                 <div
-                  className="h-full min-w-1 rounded-xs first:rounded-l-full last:rounded-r-full"
-                  style={{ flex: `${segment.value} 1 0`, backgroundColor: segment.color }}
+                  className="usage-share-seg"
+                  style={
+                    {
+                      flex: `${segment.value} 1 0`,
+                      "--usage-seg": segment.color,
+                      "--usage-seg-i": position,
+                    } as CSSProperties
+                  }
                 />
               }
             />
@@ -50,13 +56,13 @@ export function UsageShareBar({
           </Tooltip>
         ))}
       </div>
-      <ul aria-label={label} className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+      <ul aria-label={label} className="usage-share-legend">
         {visible.map((segment) => (
           <li key={segment.label} className="flex items-center gap-1.5">
             <span
               aria-hidden
-              className="size-2 rounded-xs"
-              style={{ backgroundColor: segment.color }}
+              className="usage-share-swatch"
+              style={{ "--usage-seg": segment.color } as CSSProperties}
             />
             <span className="text-muted-foreground">{m(segment.label)}</span>{" "}
             <span className="text-foreground tabular-nums">{format(segment.value)}</span>

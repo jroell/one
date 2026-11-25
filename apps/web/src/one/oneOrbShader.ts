@@ -188,7 +188,10 @@ void main() {
     float unlit = mix(1.0 - lit * 0.94, 1.0, settled);
     color *= unlit * mix(0.0, 1.0, smoothstep(0.02, 0.2, uReveal));
     float flame = fall(0.07, 0.0, abs(around - front)) * (1.0 - settled);
-    color += mix(uHi, vec3(1.0), 0.6) * flame * 2.2;
+    // The fire takes the theme's color: a white-hot core in a wider, softer bloom of the tint.
+    float bloom = fall(0.2, 0.0, abs(around - front)) * (1.0 - settled);
+    color += mix(uHi, vec3(1.0), 0.4) * flame * 2.0;
+    color += uMid * bloom * bloom * 0.55;
     color += uMid * (1.0 - lit) * pow(1.0 - facing, 2.0) * (1.0 - settled) * 0.9;
     // The flame is the brightest thing in the opening; roll it off so it glows instead of
     // clipping to flat white.

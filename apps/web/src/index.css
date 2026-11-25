@@ -3,6 +3,11 @@
 @import "tailwindcss";
 @import "./one/one.css";
 @import "./one/one-chat.css";
+@import "./one/one-usage.css";
+@import "./one/one-pages.css";
+@import "./one/one-ui.css";
+@import "./one/one-settings.css";
+@import "./one/one-surfaces.css";
 
 @custom-variant dark (&:is(.dark, .dark *));
 @custom-variant light (&:not(.dark, .dark *));

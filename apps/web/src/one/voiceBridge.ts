@@ -1,7 +1,7 @@
 import type { VoiceInputPhase } from "@t3tools/client-runtime/voice-input";
 import { useSyncExternalStore } from "react";
 
-import { dispatchVoiceSession, getVoiceSession } from "./voiceSession";
+import { dispatchVoiceSession, getVoiceSession, type VoiceStartResult } from "./voiceSession";
 
 /**
  * What the main composer offers for dictation. The composer owns voice input
@@ -24,10 +24,16 @@ export type VoiceBridge = Readonly<{
   error: string | null;
   /** Words heard so far in this recording. */
   heard: string;
-  /** Begins recording. A start that is still waiting on a status check gives up once `signal` aborts. */
-  start: (signal?: AbortSignal) => void;
-  /** Stops recording, waits for the transcript, and sends it. */
-  submit: () => void;
+  /**
+   * Begins recording. A start that is still waiting on a status check gives up once `signal` aborts.
+   * Resolves when this attempt has either begun recording or ended without recording.
+   */
+  start: (signal?: AbortSignal) => Promise<VoiceStartResult>;
+  /**
+   * Stops recording, waits for the transcript, and sends it. `onTranscript` receives the words
+   * that were sent as the message, before they are sent.
+   */
+  submit: (onTranscript?: (text: string) => void) => void;
   cancel: () => void;
 }>;
 
@@ -80,8 +86,13 @@ export function getCommittedVoiceThreadKey(): string | null {
  * for one thread stay in a queued frame or timer after the composer moved on; this
  * keeps them from acting on the thread it moved to.
  */
-export function whileCommitted(ownerKey: string, threadKey: string, action: () => void): void {
-  if (committed?.owner === ownerKey && committed.threadKey === threadKey) action();
+export function whileCommitted<T>(
+  ownerKey: string,
+  threadKey: string,
+  action: () => T,
+): T | undefined {
+  if (committed?.owner === ownerKey && committed.threadKey === threadKey) return action();
+  return undefined;
 }
 
 export function retractVoiceBridge(ownerKey: string): void {

@@ -30,6 +30,8 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
     transparent
   );
   --diffs-fg-search-match-override: currentColor;
+  /* Line numbers are read to find a place, so they clear 4.5:1 on both surfaces. */
+  --diffs-fg-number-override: color-mix(in srgb, var(--code-foreground) 62%, var(--code-background));
 }
 
 :is(
@@ -99,8 +101,12 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   position: sticky !important;
   top: 0;
   z-index: 4;
-  background-color: var(--code-background) !important;
+  background-color: color-mix(in srgb, var(--code-background) 93%, var(--code-foreground)) !important;
+  background-image: var(--one-glass-sheen) !important;
   border-bottom-color: transparent !important;
+  box-shadow:
+    inset 0 1px 0 var(--one-glass-rim-top),
+    inset 0 -1px 0 color-mix(in srgb, var(--code-foreground) 8%, transparent);
   align-items: center !important;
   font-family: var(--font-sans) !important;
   font-size: 12px !important;
@@ -116,8 +122,10 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 [data-diffs-header]:hover {
   /* A native scrollbar gutter cannot be painted by descendants. Use an inset edge cue instead
      of a full-width band that would look accidentally clipped at the gutter. */
-  background-color: var(--code-background) !important;
-  box-shadow: inset 3px 0 color-mix(in srgb, var(--code-foreground) 24%, transparent);
+  background-color: color-mix(in srgb, var(--code-background) 90%, var(--code-foreground)) !important;
+  box-shadow:
+    inset 3px 0 color-mix(in srgb, var(--code-foreground) 24%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--code-foreground) 8%, transparent);
 }
 
 /* Hunk separators are the way to the unchanged lines between hunks. They keep the library's

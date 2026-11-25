@@ -87,7 +87,10 @@ export function SettingsScopeSentence() {
   const checkout = <CheckoutScopeMenu {...props} />;
   const onEnvironment = scope.search.machine || scope.scope.kind === "checkout";
   return (
-    <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-sm text-muted-foreground sm:px-4">
+    <p
+      data-settings-scope=""
+      className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-sm text-muted-foreground sm:px-4"
+    >
       {onEnvironment && hasCheckouts ? (
         <T context="settings scope sentence; each variable is a menu">
           <span className="flex min-w-0 items-center gap-1.5">

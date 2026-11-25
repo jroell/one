@@ -1,0 +1,1081 @@
+/*
+ * One: the Usage page. Glass panels and recessed meters in the app's material.
+ * Every color is a theme token, so built-in and custom themes carry through.
+ * Motion is transform, translate and opacity only, and stops under reduced motion.
+ */
+
+.usage-page,
+.usage-panel {
+  --usage-text: var(--contrast-foreground);
+  /* A step toward the text color: the stock muted gray is 4.4:1 on the light panel. */
+  --usage-text-muted: color-mix(
+    in oklab,
+    var(--contrast-muted-foreground) 78%,
+    var(--contrast-foreground)
+  );
+  --usage-hairline: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --usage-channel-h: 0.875rem;
+  --usage-panel-pad: 1.25rem 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .usage-page,
+  .usage-panel {
+    --usage-channel-h: 0.75rem;
+  }
+}
+
+/* Page-level layouts answer to the width of the page, not of their own panel. */
+.usage-page {
+  container-type: inline-size;
+  container-name: usage-page;
+}
+
+/* ------------------------------------------------------------------ panel */
+
+/* A pane of glass: a lit top edge, a soft sheen and a quiet shadow, like .dialog-glass. */
+.usage-panel {
+  position: relative;
+  min-width: 0;
+  border-radius: 1rem;
+  background-color: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+  background-image: var(--one-glass-sheen);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--usage-hairline),
+    0 1px 1px rgb(0 0 0 / 4%),
+    0 12px 28px -18px rgb(0 0 0 / 28%);
+  container-type: inline-size;
+  container-name: usage-panel;
+}
+
+:root.dark .usage-panel {
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    0 1px 1px rgb(0 0 0 / 40%),
+    0 18px 36px -20px rgb(0 0 0 / 85%);
+}
+
+.usage-panel-plain {
+  padding: var(--usage-panel-pad);
+}
+
+.usage-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem 2rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: var(--usage-text);
+}
+
+.usage-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.usage-empty {
+  padding-block: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--usage-text-muted);
+}
+
+/* ---------------------------------------------------------- limits page */
+
+/* The limits column holds a comfortable measure and sits in the upper third, not under the header. */
+.usage-limits {
+  width: 100%;
+  max-width: 56rem;
+  margin-inline: auto;
+  padding-top: clamp(0rem, 6vh, 3.5rem);
+  gap: 2.25rem;
+}
+
+/* The headline: what to watch, in the opening's serif. */
+.usage-headline-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-inline: 0.25rem;
+  animation: usage-appear var(--one-move-ms) ease-out backwards;
+}
+
+.usage-headline {
+  margin: 0;
+  max-width: 46rem;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2rem);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  color: var(--usage-text);
+}
+
+.usage-count {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--usage-text-muted);
+}
+
+/* ------------------------------------------------------------ limit row */
+
+.usage-limit {
+  --usage-delay: calc(120ms + min(var(--usage-row, 0), 4) * 60ms);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem 2.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+/* Several limits of one provider share the panel, split by a hairline. */
+.usage-limit + .usage-limit {
+  border-top: 1px solid var(--usage-hairline);
+}
+
+@container usage-panel (min-width: 44rem) {
+  .usage-limit {
+    grid-template-columns: 17rem minmax(0, 1fr);
+    padding: 1.75rem 2rem 2rem;
+  }
+
+  .usage-panel-head + .usage-limit {
+    padding-top: 1.25rem;
+  }
+}
+
+.usage-limit-lead {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* The name sits above the number on narrow panels and beside "left" on wide ones. */
+.usage-limit-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--usage-text-muted);
+}
+
+.usage-limit-name {
+  display: none;
+}
+
+@container usage-panel (min-width: 44rem) {
+  .usage-limit-label {
+    display: none;
+  }
+
+  .usage-limit-name {
+    display: inline;
+    font-weight: 500;
+  }
+
+  .usage-limit-name::before {
+    content: "·";
+    margin-inline-end: 0.5rem;
+    font-weight: 400;
+    opacity: 0.7;
+  }
+}
+
+.usage-limit-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.625rem;
+}
+
+/* The hero. Tabular figures and a reserved width keep "left" still from 5% to 100%. */
+.usage-limit-number {
+  min-width: 3.1ch;
+  font-size: 2.75rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--usage-text);
+  transition: color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.usage-limit-unit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--usage-text-muted);
+}
+
+.usage-limit[data-state="low"] .usage-limit-number {
+  color: var(--warning-foreground);
+}
+
+.usage-limit[data-state="critical"] .usage-limit-number {
+  color: var(--destructive-foreground);
+}
+
+.usage-pace-ahead {
+  color: var(--warning-foreground);
+}
+
+.usage-limit-refill {
+  font-size: 0.75rem;
+  color: var(--usage-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-limit-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.usage-limit-note {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--usage-text-muted);
+}
+
+/* One plain line under the meter: where the pace leads, with the reset facts on the right. */
+.usage-limit-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  min-height: 1.25rem;
+}
+
+.usage-projection {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--usage-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-projection-warn {
+  font-weight: 600;
+  color: var(--warning-foreground);
+}
+
+.usage-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.875rem;
+  margin-inline-start: auto;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--usage-text-muted);
+}
+
+.usage-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  border-radius: 0.375rem;
+  outline: none;
+  transition: color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.usage-meta-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.usage-meta-item > svg {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+@media (hover: hover) {
+  .usage-meta-item:hover {
+    color: var(--usage-text);
+  }
+}
+
+/* ----------------------------------------------------------------- meter */
+
+.usage-meter {
+  /* Provider color, held inside a lightness band per theme so a near-white or near-black
+     brand color still reads as a lit capsule: graphite on light, pale steel on dark. */
+  --usage-fill: color-mix(in oklch, var(--usage-accent) 90%, black);
+  position: relative;
+  height: var(--usage-channel-h);
+  /* Room above for the marker's caret and below for the behind-pace bracket, held always. */
+  margin-block: 0.75rem 1rem;
+}
+
+:root.dark .usage-meter {
+  --usage-fill: var(--usage-accent);
+}
+
+@supports (color: oklch(from red l c h)) {
+  :root:not(.dark) .usage-meter {
+    --usage-fill: oklch(from var(--usage-accent) clamp(0.42, calc(l * 0.9), 0.62) c h);
+  }
+
+  :root.dark .usage-meter {
+    --usage-fill: oklch(from var(--usage-accent) clamp(0.56, l, 0.88) c h);
+  }
+}
+
+/* The channel is cut into the panel: a shadow inside the top edge, a lit lip along the bottom. */
+.usage-meter-channel {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  box-shadow:
+    inset 0 2px 3px rgb(0 0 0 / 38%),
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 8%, transparent),
+    0 1px 0 0 var(--one-glass-rim);
+}
+
+/* A glossy capsule: the provider color at full strength, a darker lower edge, a 1px rim. */
+.usage-meter-fill {
+  --usage-fill-base: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--usage-fill) 78%, white) 0%,
+    var(--usage-fill) 42%,
+    color-mix(in oklch, var(--usage-fill) 80%, black) 100%
+  );
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background-image: var(--usage-fill-base);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--usage-fill) 55%, black),
+    inset 0 1px 0 1px color-mix(in srgb, var(--one-reflection) 38%, transparent),
+    0 1px 2px color-mix(in oklch, var(--usage-fill) 40%, transparent);
+  translate: var(--usage-shift, 0%) 0;
+  animation: usage-fill-in var(--one-move-ms) var(--one-ease-spring) var(--usage-delay, 0ms)
+    backwards;
+  transition: translate var(--one-move-ms) var(--one-ease-spring);
+}
+
+/* The soft top highlight band across the upper 40%. */
+.usage-meter-fill::after {
+  content: "";
+  position: absolute;
+  inset: 1px 3px 60%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 34%), rgb(255 255 255 / 6%));
+}
+
+@keyframes usage-fill-in {
+  from {
+    translate: -100% 0;
+  }
+}
+
+@keyframes usage-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes usage-breathe {
+  from {
+    opacity: 0.4;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Low and critical: the leading edge of the fill is capped in the warning or error color. */
+.usage-meter[data-state="low"] .usage-meter-fill {
+  box-shadow:
+    inset -3px 0 0 0 var(--warning),
+    inset 0 0 0 1px color-mix(in oklch, var(--usage-fill) 55%, black),
+    inset 0 1px 0 1px color-mix(in srgb, var(--one-reflection) 38%, transparent);
+}
+
+.usage-meter[data-state="critical"] .usage-meter-fill {
+  box-shadow:
+    inset -3px 0 0 0 var(--error),
+    inset 0 0 0 1px color-mix(in oklch, var(--usage-fill) 55%, black),
+    inset 0 1px 0 1px color-mix(in srgb, var(--one-reflection) 38%, transparent);
+}
+
+/* Critical: a soft glow behind the fill that breathes by opacity only. It lives outside the
+   channel, which clips, and is clipped sideways only so it does not leak past the meter's start. */
+.usage-meter-halo {
+  position: absolute;
+  inset: 0;
+  overflow-x: clip;
+  pointer-events: none;
+  animation: usage-appear var(--one-move-ms) ease-out
+    calc(var(--usage-delay, 0ms) + var(--one-move-ms)) backwards;
+}
+
+.usage-meter-glow {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: 999px;
+  box-shadow:
+    0 0 0.75rem 0.0625rem color-mix(in srgb, var(--error) 55%, transparent),
+    0 0 1.75rem 0.125rem color-mix(in srgb, var(--error) 26%, transparent);
+  animation: usage-breathe 2.6s ease-in-out infinite alternate;
+}
+
+/* Behind even pace: a 2px bracket under the channel, from the fill's end to the notch. */
+.usage-meter-bracket {
+  position: absolute;
+  top: calc(100% + 0.3125rem);
+  height: 0.3125rem;
+  border: solid var(--warning);
+  border-width: 0 1px 2px;
+  border-radius: 0 0 1px 1px;
+  animation: usage-appear var(--one-move-ms) ease-out
+    calc(var(--usage-delay, 0ms) + var(--one-move-ms)) backwards;
+}
+
+/* Even pace: a hairline notch with a small caret. The wide box is the tooltip's target. */
+.usage-meter-marker {
+  position: absolute;
+  inset-block: -0.5rem -0.3125rem;
+  display: flex;
+  width: 1rem;
+  flex-direction: column;
+  align-items: center;
+  translate: -50% 0;
+  color: color-mix(in srgb, var(--usage-text) 82%, transparent);
+  cursor: default;
+}
+
+.usage-meter-caret {
+  width: 0.5625rem;
+  height: 0.3125rem;
+  flex-shrink: 0;
+  background: currentcolor;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.usage-meter-notch {
+  width: 1.5px;
+  flex: 1;
+  background: currentcolor;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--card) 45%, transparent);
+}
+
+/* --------------------------------------------------------------- segments */
+
+.usage-bar {
+  min-width: 0;
+  container-type: inline-size;
+  container-name: usage-bar;
+}
+
+.usage-bar-grid {
+  display: grid;
+  gap: 0.25rem 0.5rem;
+}
+
+.usage-seg {
+  position: relative;
+  min-width: 0;
+}
+
+.usage-seg-caption {
+  display: none;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding-top: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--usage-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-seg[data-named] .usage-seg-caption {
+  display: flex;
+}
+
+.usage-seg-index {
+  font-weight: 600;
+}
+
+.usage-seg-name,
+.usage-seg-meta {
+  display: none;
+}
+
+@container usage-bar (min-width: 32rem) {
+  .usage-seg-index {
+    display: none;
+  }
+
+  .usage-seg-caption {
+    justify-content: space-between;
+  }
+
+  .usage-seg-name {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 0.375rem;
+    color: var(--usage-text);
+  }
+
+  .usage-seg-percent {
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+}
+
+@container usage-bar (min-width: 42rem) {
+  .usage-seg-meta {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.6875rem;
+  }
+}
+
+/* The whole segment is one press target; the popover shows the figures. */
+.usage-seg-hit {
+  position: absolute;
+  inset: -0.25rem -0.25rem -0.125rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--one-hover-ms) var(--one-ease-hover),
+    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.usage-seg-hit:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.usage-seg-hit[data-popup-open] {
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow: inset 0 0 0 1px var(--usage-hairline);
+}
+
+@media (hover: hover) {
+  .usage-seg-hit:hover {
+    background-color: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+  }
+}
+
+.usage-seg-hit:active {
+  background-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+  transition-duration: var(--one-press-ms);
+}
+
+/* The notch and its tooltip stay reachable above the press target. */
+.usage-seg .usage-meter-marker {
+  z-index: 1;
+}
+
+@media (pointer: coarse) {
+  .usage-seg {
+    min-height: 2.75rem;
+  }
+
+  .usage-seg-hit {
+    inset: -0.5rem -0.25rem;
+  }
+}
+
+.usage-seg-empty {
+  display: flex;
+  height: var(--usage-channel-h);
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  margin-block: 0.625rem 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--usage-hairline);
+  font-size: 0;
+  color: var(--usage-text-muted);
+}
+
+@container usage-bar (min-width: 32rem) {
+  .usage-seg-empty {
+    height: auto;
+    min-height: var(--usage-channel-h);
+    font-size: 0.75rem;
+  }
+
+  .usage-seg-empty-name {
+    display: inline-flex;
+  }
+}
+
+.usage-seg-empty-name {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Narrow bars list each segment under the meter, numbered. */
+.usage-legend {
+  display: flex;
+  min-width: 0;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  text-align: start;
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.usage-legend:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.usage-legend[data-popup-open] {
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+@media (hover: hover) {
+  .usage-legend:hover {
+    background-color: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+  }
+}
+
+.usage-legend:active {
+  background-color: color-mix(in srgb, var(--foreground) 8%, transparent);
+  transition-duration: var(--one-press-ms);
+}
+
+@media (pointer: coarse) {
+  .usage-legend {
+    min-height: 2.75rem;
+  }
+}
+
+@container usage-bar (min-width: 32rem) {
+  .usage-legend {
+    display: none;
+  }
+}
+
+.usage-legend-badge {
+  --usage-fill: var(--usage-accent);
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--usage-text);
+  box-shadow:
+    inset 0 0 0 1.5px var(--usage-fill),
+    inset 0 1px 0 0 var(--one-glass-rim-top);
+}
+
+/* ---------------------------------------------------------------- loading */
+
+/* The one line that says what is happening, laid over the skeleton so nothing moves when it goes. */
+.usage-skeleton-note {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 0.8125rem;
+  color: var(--usage-text-muted);
+}
+
+.usage-skeleton-channel {
+  height: var(--usage-channel-h);
+  margin-block: 0.625rem 0.25rem;
+}
+
+/* ----------------------------------------------------------------- header */
+
+/* Three or four options share the Code/Chat switch's thumb, so the thumb is sized by count. */
+.usage-switch {
+  grid-template-columns: repeat(var(--usage-n, 2), minmax(max-content, 1fr));
+}
+
+.usage-switch-thumb {
+  width: calc((100% - 4px) / var(--usage-n, 2));
+  translate: calc(var(--usage-i, 0) * 100%) 0;
+}
+
+.usage-switch:dir(rtl) .usage-switch-thumb {
+  translate: calc(var(--usage-i, 0) * -100%) 0;
+}
+
+.usage-switch-option[aria-pressed="true"] {
+  color: var(--foreground);
+}
+
+.usage-switch-option:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+/* The refresh icon is the progress: it turns, and takes the action color while it works. */
+.usage-refresh {
+  display: inline-flex;
+}
+
+.usage-refresh svg {
+  transition:
+    color var(--one-hover-ms) var(--one-ease-hover),
+    scale var(--one-move-ms) var(--one-ease-spring);
+}
+
+.usage-refresh button:active svg {
+  scale: 0.88;
+  transition-duration: var(--one-press-ms);
+}
+
+.usage-refresh[data-refreshing] button,
+.usage-refresh[data-refreshing] button:disabled {
+  opacity: 1;
+}
+
+.usage-refresh[data-refreshing] svg {
+  color: var(--primary);
+}
+
+/* -------------------------------------------------------------- overview */
+
+.usage-heading {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: var(--usage-text);
+}
+
+.usage-summary {
+  display: grid;
+  gap: 1.5rem 2rem;
+  padding: 1.5rem;
+}
+
+@container usage-page (min-width: 56rem) {
+  .usage-summary {
+    grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+  }
+}
+
+.usage-summary-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.usage-summary-chart {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.usage-hero,
+.usage-hero-skeleton {
+  height: 3rem;
+}
+
+.usage-hero {
+  font-size: 2.75rem;
+  font-weight: 600;
+  line-height: 3rem;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--usage-text);
+}
+
+.usage-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* A provider's share, drawn with the same recessed channel and lit fill as a limit. */
+.usage-share-mini,
+.usage-share-mini-skeleton {
+  display: block;
+  height: 0.25rem;
+}
+
+.usage-share-mini {
+  --usage-fill: var(--usage-accent);
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  box-shadow: inset 0 1px 1.5px rgb(0 0 0 / 30%);
+}
+
+:root:not(.dark) .usage-share-mini {
+  --usage-fill: color-mix(in oklch, var(--usage-accent) 80%, black);
+}
+
+.usage-share-mini::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--usage-fill);
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--one-reflection) 55%, transparent);
+  translate: calc(var(--usage-share, 0%) - 100%) 0;
+  animation: usage-fill-in var(--one-move-ms) var(--one-ease-spring) backwards;
+  transition: translate var(--one-move-ms) var(--one-ease-spring);
+}
+
+.usage-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-block: 0.25rem;
+}
+
+@container usage-page (min-width: 36rem) {
+  .usage-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.usage-metric {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.875rem 1.25rem;
+}
+
+@container usage-page (min-width: 36rem) {
+  .usage-metric + .usage-metric {
+    border-inline-start: 1px solid var(--usage-hairline);
+  }
+}
+
+.usage-metric > :first-child {
+  font-size: 0.75rem;
+  color: var(--usage-text-muted);
+}
+
+.usage-metric dd,
+.usage-metric > :last-child {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--usage-text);
+}
+
+/* Share bars: a recessed channel, segments lit from above, one swatch per legend entry. */
+.usage-share-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@container usage-page (min-width: 48rem) {
+  .usage-share-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.usage-share {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.usage-share-track,
+.usage-share-track-skeleton {
+  height: var(--usage-channel-h);
+}
+
+.usage-share-track {
+  display: flex;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 34%),
+    inset 0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
+    0 1px 0 0 var(--one-glass-rim);
+}
+
+.usage-share-seg {
+  min-width: 0.25rem;
+  height: 100%;
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--usage-seg) 82%, white) 0%,
+    var(--usage-seg) 50%,
+    color-mix(in oklch, var(--usage-seg) 90%, black) 100%
+  );
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--one-reflection) 45%, transparent);
+  transform-origin: left center;
+  animation: usage-share-in var(--one-move-ms) var(--one-ease-spring) backwards;
+  animation-delay: calc(var(--usage-seg-i, 0) * 40ms);
+}
+
+.usage-share-seg:first-child {
+  border-start-start-radius: 999px;
+  border-end-start-radius: 999px;
+}
+
+.usage-share-seg:last-child {
+  border-start-end-radius: 999px;
+  border-end-end-radius: 999px;
+}
+
+@keyframes usage-share-in {
+  from {
+    scale: 0 1;
+  }
+}
+
+.usage-share-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.75rem;
+}
+
+.usage-share-swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--usage-seg);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--one-reflection) 45%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+
+/* Tables: quiet rows, a 140ms hover, figures that line up. */
+.usage-table {
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: collapse;
+}
+
+.usage-table-head {
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+  color: var(--usage-text-muted);
+  box-shadow: inset 0 -1px 0 0 var(--usage-hairline);
+}
+
+.usage-table-head th {
+  padding-block: 0.625rem;
+  font-weight: 500;
+}
+
+.usage-table-row {
+  color: var(--usage-text-muted);
+}
+
+/* The tint sits on the cells: a positioned row paints its own background in separate pieces. */
+.usage-table-row > td {
+  transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+}
+
+.usage-table-row + .usage-table-row {
+  box-shadow: inset 0 1px 0 0 var(--usage-hairline);
+}
+
+.usage-table-row:has(:focus-visible) > td {
+  background-color: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+}
+
+@media (hover: hover) {
+  .usage-table-row:hover > td {
+    background-color: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+  }
+}
+
+.usage-row-bar {
+  height: 0.1875rem;
+  max-width: 12rem;
+  margin-top: 0.375rem;
+}
+
+.usage-row-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--one-reflection) 50%, transparent);
+}
+
+/* Chart: dotted gridlines, no hard axis, a glass tooltip. */
+.usage-gridline {
+  color: color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+.usage-tooltip {
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.75rem;
+  background-color: color-mix(in srgb, var(--popover) 88%, transparent);
+  background-image: var(--one-glass-sheen);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturation, 1.4));
+  backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturation, 1.4));
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--usage-hairline),
+    var(--one-glass-shadow);
+}
+
+/* --------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .usage-meter-fill,
+  .usage-meter-halo,
+  .usage-meter-bracket,
+  .usage-headline-block,
+  .usage-share-seg,
+  .usage-share-mini::after,
+  .usage-table-row > td,
+  .usage-refresh svg {
+    animation: none;
+    transition: none;
+  }
+
+  .usage-refresh button:active svg {
+    scale: 1;
+  }
+
+  /* Without the breathing, the glow holds at a steady middle value. */
+  .usage-meter-glow {
+    animation: none;
+    opacity: 0.7;
+  }
+}

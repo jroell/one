@@ -43,6 +43,12 @@ describe("markdown copy without the async clipboard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Copy code" }));
     await expect.element(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
     expect(clipboard.execCommand).toHaveBeenCalledWith("copy");
+    // The confirmation happens in the button: the glyph becomes a check, then the button returns.
+    expect(screen.container.querySelector("[data-one-copy-check]")).not.toBeNull();
+    await expect
+      .element(screen.getByRole("button", { name: "Copy code" }), { timeout: 4000 })
+      .toBeInTheDocument();
+    expect(screen.container.querySelector("[data-one-copy-check]")).toBeNull();
   });
 
   it("copies a table through the execCommand fallback", async () => {

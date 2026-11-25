@@ -17,6 +17,7 @@ import { useVoiceBridge } from "./voiceBridge";
 import { startVoiceChat } from "./startVoiceChat";
 import { useVoiceSession } from "./voiceSession";
 import { useWorkspaceMode } from "./workspaceMode";
+import { toastManager } from "~/components/ui/toast";
 
 function greetingFor(hour: number, gt: ReturnType<typeof useGT>): string {
   if (hour < 5) return gt("Still up?");
@@ -68,8 +69,18 @@ export function ChatWelcome({ compact = false }: { readonly compact?: boolean })
 
   const startWith = (stem: string) => {
     const handle = composer?.current;
-    if (!handle) return;
-    if (handle.readSnapshot().value.trim().length === 0) handle.insertTextAtEnd(stem);
+    const empty = handle?.readSnapshot().value.trim().length === 0;
+    // The composer can refuse text, for example while dictation holds it. Say so instead of
+    // letting the chip look broken.
+    if (!handle || (empty && handle.insertTextAtEnd(stem) === false)) {
+      toastManager.add({
+        id: "chat-starter-composer-busy",
+        type: "info",
+        title: gt("The composer is busy"),
+        description: gt("Finish what it is doing, then pick a way to start."),
+      });
+      return;
+    }
     handle.focusAtEnd();
   };
 

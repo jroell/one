@@ -10,6 +10,7 @@ import { MessagesTimeline } from "~/components/chat/MessagesTimeline";
 import { deriveTimelineEntriesFromVisibleTurnItems, type PendingApproval } from "~/session-logic";
 import { makeStreamingTimelineFixture } from "~/test-fixtures";
 import { act, render } from "../../test/render";
+import { ComposerHandleContext } from "~/composerHandleContext";
 import { setWorkspaceMode } from "./workspaceMode";
 
 type TimelineProps = ComponentProps<typeof MessagesTimeline>;
@@ -260,30 +261,375 @@ it("Chat mode lists one outline entry per user turn and jumps to the turn that i
   });
 });
 
-it("Chat mode shows no outline for two turns or below 1280px, and Code mode never shows one", async () => {
+it("Chat mode shows no outline for two turns, a narrow timeline or a short one, and keeps the minimap there", async () => {
   using _motion = motion(true);
-  {
-    using _mode = inMode("chat");
-    await using _viewport = await wideViewport(1440);
-    await using two = await renderTimeline({ ...baseProps(), timelineEntries: turns(2) });
-    await expect
-      .element(two.getByRole("navigation", { name: "In this chat" }))
-      .not.toBeInTheDocument();
+  using _mode = inMode("chat");
+  await using _viewport = await wideViewport(1440);
+  const outlineIn = async (turnCount: number, size: { width: number; height: number }) => {
+    const container = document.createElement("div");
+    container.style.cssText = `height: ${size.height}px; width: ${size.width}px; display: flex; flex-direction: column;`;
+    const screen = await render(
+      <MessagesTimeline {...baseProps()} timelineEntries={turns(turnCount)} />,
+      { container },
+    );
+    return screen;
+  };
+  const wide = { width: 1184, height: 700 };
+  for (const [name, turnCount, size] of [
+    ["two turns", 2, wide],
+    ["a narrow timeline", 5, { width: 900, height: 700 }],
+    ["a short timeline", 5, { width: 1184, height: 360 }],
+  ] as const) {
+    await using screen = await outlineIn(turnCount, size);
+    await vi.waitFor(() =>
+      expect(
+        screen.container.querySelector('[data-testid="timeline-minimap"]'),
+        name,
+      ).not.toBeNull(),
+    );
+    expect(screen.container.querySelector(".one-chat-outline"), name).toBeNull();
+    expect(
+      getComputedStyle(screen.container.querySelector('[data-testid="timeline-minimap"]')!).display,
+      name,
+    ).not.toBe("none");
   }
   {
+    await using full = await outlineIn(5, wide);
+    await expect.element(full.getByRole("navigation", { name: "In this chat" })).toBeVisible();
+    expect(full.container.querySelector('[data-testid="timeline-minimap"]')).not.toBeNull();
+    expect(
+      getComputedStyle(full.container.querySelector('[data-testid="timeline-minimap"]')!).display,
+    ).toBe("none");
+  }
+});
+
+it("Code mode never mounts the outline", async () => {
+  using _motion = motion(true);
+  using _mode = inMode("code");
+  await using _viewport = await wideViewport(1440);
+  await using code = await renderTimeline({ ...baseProps(), timelineEntries: turns(5) });
+  expect(code.container.querySelector(".one-chat-outline")).toBeNull();
+});
+
+it("Chat mode marks the turn under the upper quarter of the view, and the last turn when the thread fits", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const fitting = [
+    message("ask-0", "user", "First question"),
+    message("answer-0", "assistant", "Short."),
+    message("ask-1", "user", "Second question"),
+    message("answer-1", "assistant", "Short."),
+    message("ask-2", "user", "Third question"),
+    message("answer-2", "assistant", "Short."),
+  ];
+  await using screen = await renderTimeline({ ...baseProps(), timelineEntries: fitting });
+  const outline = screen.getByRole("navigation", { name: "In this chat" });
+  await expect.element(outline).toBeVisible();
+  await vi.waitFor(() =>
+    expect(outline.element().querySelector("[aria-current]")?.textContent).toBe("Third question"),
+  );
+});
+
+it("Chat mode's outline mark does not carry across a thread switch", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const props = baseProps();
+  await using screen = await renderTimeline({
+    ...props,
+    routeThreadKey: "environment-local:thread-first",
+    timelineEntries: turns(5),
+  });
+  const outline = screen.getByRole("navigation", { name: "In this chat" });
+  await vi.waitFor(() =>
+    expect(outline.element().querySelector("[aria-current]")?.textContent).toBe(
+      "Question number 5",
+    ),
+  );
+  await outline.getByRole("button").first().click();
+  await vi.waitFor(() =>
+    expect(outline.element().querySelector("[aria-current]")?.textContent).toBe(
+      "Question number 1",
+    ),
+  );
+
+  const other = turns(4).map((entry) => ({ ...entry, id: `other-${entry.id}` }) as Entry);
+  const renamed = other.map((entry) =>
+    entry.kind === "message"
+      ? { ...entry, message: { ...entry.message, id: MessageId.make(`other-${entry.message.id}`) } }
+      : entry,
+  );
+  await screen.rerender(
+    <MessagesTimeline
+      {...props}
+      routeThreadKey="environment-local:thread-second"
+      timelineEntries={renamed}
+    />,
+  );
+  // The pick made in the first thread is gone: the second thread's own end is marked.
+  await vi.waitFor(() =>
+    expect(screen.container.querySelector(".one-chat-outline [aria-current]")?.textContent).toBe(
+      "Question number 4",
+    ),
+  );
+});
+
+/** A file change the agent asks to apply, with its approval pending. */
+function fileChangeApprovalFixture() {
+  const fixture = makeStreamingTimelineFixture();
+  const [, , , user, work] = fixture.visibleTurnItems;
+  if (user?.item.type !== "user_message" || work?.item.type !== "dynamic_tool") {
+    throw new Error("Expected the live fixture items");
+  }
+  const requestId = RuntimeRequestId.make("file-approval");
+  const change = {
+    ...work,
+    position: work.position + 1,
+    sourceItemId: TurnItemId.make("change-0"),
+    item: {
+      ...work.item,
+      id: TurnItemId.make("change-0"),
+      type: "file_change" as const,
+      status: "completed" as const,
+      fileName: "server/src/math.ts",
+      additions: 12,
+      deletions: 3,
+    },
+  };
+  const request = {
+    ...work,
+    position: work.position + 2,
+    sourceItemId: TurnItemId.make("approval-file"),
+    item: {
+      ...work.item,
+      id: TurnItemId.make("approval-file"),
+      type: "approval_request" as const,
+      status: "waiting" as const,
+      requestId,
+      requestKind: "file-change" as const,
+      prompt: "Changed files",
+    },
+  };
+  const pending: PendingApproval = {
+    requestId,
+    requestKind: "file-change",
+    createdAt: fixture.time(6),
+    detail: "Changed files",
+    responseCapability: "live",
+  };
+  return {
+    runId: fixture.runId,
+    pending,
+    entries: deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [user, change, request],
+      optimisticMessages: [],
+    }),
+    latestRun: {
+      runId: fixture.runId,
+      status: "running" as const,
+      startedAt: fixture.time(5),
+      completedAt: null,
+    },
+  };
+}
+
+it.each(["chat", "code"] as const)(
+  "a pending file change approval names its file and change counts in %s mode",
+  async (mode) => {
+    using _mode = inMode(mode);
+    const turn = fileChangeApprovalFixture();
+    await using screen = await renderTimeline({
+      ...baseProps(),
+      timelineEntries: turn.entries,
+      latestRun: turn.latestRun,
+      isWorking: true,
+      runningRunId: turn.runId,
+      pendingApprovals: [turn.pending],
+      canOperateThread: true,
+      onRespondToApproval: async () => {},
+    });
+    const approval = screen.getByRole("group", { name: "File change approval" });
+    await expect.element(approval).toBeVisible();
+    await expect.element(approval.getByText("math.ts", { exact: true })).toBeVisible();
+    expect(approval.element().textContent).toContain("server/src/");
+    expect(approval.element().textContent).toContain("+12 −3");
+    expect(approval.element().textContent).not.toContain("Changed files");
+  },
+);
+
+it("Chat mode says Waiting for you while an approval is pending, and Code mode keeps the working line", async () => {
+  const turn = turnFixture({ approval: true, finished: false });
+  const props = {
+    ...baseProps(),
+    timelineEntries: turn.entries,
+    latestRun: turn.latestRun,
+    isWorking: true,
+    runningRunId: turn.runId,
+    activeTurnStartedAt: turn.latestRun.startedAt,
+    pendingApprovals: [turn.pending],
+    awaitingUser: "approval" as const,
+    canOperateThread: true,
+    onRespondToApproval: async () => {},
+  };
+  {
     using _mode = inMode("chat");
-    await using _viewport = await wideViewport(1100);
-    await using narrow = await renderTimeline({ ...baseProps(), timelineEntries: turns(5) });
-    const nav = narrow.container.querySelector<HTMLElement>(".one-chat-outline");
-    expect(nav).not.toBeNull();
-    expect(getComputedStyle(nav!).display).toBe("none");
+    await using screen = await renderTimeline(props);
+    await expect.element(screen.getByText("Waiting for you")).toBeVisible();
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector("[data-chat-waiting]")?.textContent ?? "").toMatch(
+        /Waiting for you\s*·\s*\d/,
+      ),
+    );
+    expect(screen.container.textContent).not.toContain("Working");
+    const mark = screen.container.querySelector<SVGElement>(
+      "[data-chat-waiting] .one-working-mark > svg",
+    )!;
+    expect(getComputedStyle(mark).animationName).toBe("none");
   }
   {
     using _mode = inMode("code");
-    await using _viewport = await wideViewport(1440);
-    await using code = await renderTimeline({ ...baseProps(), timelineEntries: turns(5) });
-    expect(code.container.querySelector(".one-chat-outline")).toBeNull();
+    await using screen = await renderTimeline(props);
+    await vi.waitFor(() =>
+      expect(screen.container.querySelector('[data-timeline-row-kind="working"]')).not.toBeNull(),
+    );
+    expect(screen.container.textContent).toContain("Working");
+    expect(screen.container.textContent).not.toContain("Waiting for you");
   }
+});
+
+/** A composer stand-in that records what the follow-up actions put in it. */
+function composerStandIn(initial: string) {
+  const state = { value: initial, focused: 0, accepts: true };
+  const handle = {
+    readSnapshot: () => ({ value: state.value }),
+    insertTextAtEnd: (text: string) => {
+      if (!state.accepts) return false;
+      state.value += text;
+      return true;
+    },
+    focusAtEnd: () => {
+      state.focused += 1;
+    },
+  } as unknown as NonNullable<ComponentProps<typeof ComposerHandleContext>["value"]>["current"];
+  return { state, ref: { current: handle } };
+}
+
+function followUpScene(composer: ReturnType<typeof composerStandIn>, props: TimelineProps) {
+  return (
+    <ComposerHandleContext value={composer.ref}>
+      <MessagesTimeline {...props} />
+    </ComposerHandleContext>
+  );
+}
+
+it("Chat mode offers follow-ups under the last finished answer only, and a pick fills the composer", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  const composer = composerStandIn("");
+  const props = { ...baseProps(), timelineEntries: turns(2) };
+  const container = document.createElement("div");
+  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+  await using screen = await render(followUpScene(composer, props), { container });
+
+  const groups = () => screen.container.querySelectorAll('[role="group"][aria-label="Follow up"]');
+  await vi.waitFor(() => expect(groups()).toHaveLength(1));
+  expect(groups()[0]!.closest("[data-message-id='answer-1']")).not.toBeNull();
+  const followUps = screen.getByRole("group", { name: "Follow up" });
+  await expect.element(followUps).toBeVisible();
+  expect(
+    followUps
+      .getByRole("button")
+      .elements()
+      .map((button) => button.textContent),
+  ).toEqual(["Go deeper", "Challenge this", "Quiz me on this"]);
+
+  await followUps.getByRole("button", { name: "Challenge this" }).click();
+  expect(composer.state.value).toBe("Challenge this: what is the strongest case against it?");
+  expect(composer.state.focused).toBe(1);
+
+  // Text the person already wrote stays as it is; the composer is only focused.
+  await followUps.getByRole("button", { name: "Go deeper" }).click();
+  expect(composer.state.value).toBe("Challenge this: what is the strongest case against it?");
+  expect(composer.state.focused).toBe(2);
+});
+
+it("Chat mode shows no follow-ups while a turn runs, while a request waits, or in Code mode", async () => {
+  using _motion = motion(true);
+  const composer = composerStandIn("");
+  const container = () => {
+    const element = document.createElement("div");
+    element.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+    return element;
+  };
+  const readyIn = (screen: { container: HTMLElement }) =>
+    screen.container.querySelector<HTMLElement>('[role="group"][aria-label="Follow up"]');
+  {
+    using _mode = inMode("chat");
+    const finished = turnFixture({ approval: false, finished: true });
+    await using idle = await render(
+      followUpScene(composer, {
+        ...baseProps(),
+        timelineEntries: finished.entries,
+        latestRun: finished.latestRun,
+      }),
+      { container: container() },
+    );
+    await vi.waitFor(() => expect(readyIn(idle)?.hasAttribute("data-ready")).toBe(true));
+
+    await using running = await render(
+      followUpScene(composer, {
+        ...baseProps(),
+        timelineEntries: finished.entries,
+        latestRun: finished.latestRun,
+        isWorking: true,
+        runningRunId: finished.runId,
+      }),
+      { container: container() },
+    );
+    await vi.waitFor(() => expect(readyIn(running)).not.toBeNull());
+    expect(readyIn(running)?.hasAttribute("data-ready")).toBe(false);
+    expect(readyIn(running)?.hasAttribute("inert")).toBe(true);
+
+    await using waiting = await render(
+      followUpScene(composer, {
+        ...baseProps(),
+        timelineEntries: finished.entries,
+        latestRun: finished.latestRun,
+        awaitingUser: "input",
+      }),
+      { container: container() },
+    );
+    await vi.waitFor(() => expect(readyIn(waiting)).not.toBeNull());
+    expect(readyIn(waiting)?.hasAttribute("data-ready")).toBe(false);
+  }
+  {
+    using _mode = inMode("code");
+    await using code = await render(
+      followUpScene(composer, { ...baseProps(), timelineEntries: turns(2) }),
+      { container: container() },
+    );
+    await vi.waitFor(() =>
+      expect(code.container.querySelector('[data-message-id="answer-1"]')).not.toBeNull(),
+    );
+    expect(readyIn(code)).toBeNull();
+  }
+});
+
+it("a follow-up does nothing when the composer refuses the text", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  const composer = composerStandIn("");
+  composer.state.accepts = false;
+  const container = document.createElement("div");
+  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+  await using screen = await render(
+    followUpScene(composer, { ...baseProps(), timelineEntries: turns(1) }),
+    { container },
+  );
+  await screen.getByRole("button", { name: "Go deeper" }).click();
+  expect(composer.state.value).toBe("");
+  expect(composer.state.focused).toBe(0);
 });
 
 function arrivals(container: HTMLElement) {

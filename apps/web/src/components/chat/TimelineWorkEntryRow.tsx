@@ -26,6 +26,7 @@ import {
   turnItemNeedsDetailFetch,
 } from "@t3tools/client-runtime/work-log/item-detail";
 import { claudeSkillInvocation } from "@t3tools/shared/toolActivity";
+import { commandDisplayText } from "@t3tools/client-runtime/work-log/command-label";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { memo, use, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
@@ -63,6 +64,8 @@ import {
   type TimelineWorkEntry,
 } from "./timelineRowContext";
 import { MESSAGE_HEADING_LEVEL, TimelineRowTimestamp } from "./TimelineRowParts";
+import { WorkLabelText } from "./TimelineWorkLabel";
+import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 import {
   failedToolIconClassName,
   toolIconAcceptsTint,
@@ -603,7 +606,19 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
                   linked
                 />
               ) : (
-                previewText
+                <WorkLabelText
+                  label={previewText}
+                  objects={[
+                    ...(workEntry.changedFiles ?? []).flatMap((path) => [
+                      path,
+                      formatWorkspaceRelativePath(path, workspaceRoot),
+                    ]),
+                    ...(workEntryReadOutput(workEntry, workspaceRoot)?.split("\n") ?? []),
+                    workEntry.command,
+                    workEntry.command ? commandDisplayText(workEntry.command) : null,
+                    workEntryRawCommand(workEntry),
+                  ]}
+                />
               )}
             </span>
             {answerPreview ? (
@@ -672,10 +687,8 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           {canExpandProjectedItem ? (
             <span className="flex size-4 shrink-0 items-center justify-center" aria-hidden>
               <ChevronRightIcon
-                className={cn(
-                  "size-3 shrink-0 text-icon-muted opacity-70 transition-transform duration-200",
-                  expanded && "rotate-90",
-                )}
+                data-one-caret=""
+                className={cn("size-3 shrink-0 text-icon-muted", expanded && "rotate-90")}
               />
             </span>
           ) : null}
@@ -720,7 +733,8 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
             />
           ) : (
             <>
-              {expandedBody ? (
+              {expandedBody &&
+              !(plainOutputFetches && previewText.includes(expandedBody.trim())) ? (
                 <pre className={toolCallExpandedBodyClassName}>{expandedBody}</pre>
               ) : null}
               {plainOutputFetches && workEntry.projectedItem ? (

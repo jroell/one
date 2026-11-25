@@ -65,7 +65,7 @@ function PullRequestRowLabels({ labels }: { labels: EnvironmentPullRequestEntry[
   );
 }
 
-const PAGE_ROW_CLASS = "px-3 py-2.5";
+const PAGE_ROW_CLASS = "px-3.5 py-2.5";
 
 export type PullRequestRowTarget = Pick<
   EnvironmentPullRequestEntry,
@@ -113,10 +113,9 @@ function PullRequestRowImpl({
       ref={statsRef}
       data-pull-request-stats-key={statsKey}
       data-pull-request-key={statsKey}
-      className={cn(
-        "flex items-center rounded-md [content-visibility:auto] [contain-intrinsic-block-size:56.5px]",
-        selected ? "bg-accent" : "hover:bg-accent/60",
-      )}
+      data-one-row=""
+      {...(selected ? { "data-selected": "" } : {})}
+      className="flex items-center [content-visibility:auto] [contain-intrinsic-block-size:60px]"
     >
       <button
         type="button"
@@ -130,11 +129,7 @@ function PullRequestRowImpl({
         onBlur={(event) => {
           if (!event.currentTarget.matches(":hover")) onIntent?.(null);
         }}
-        className={cn(
-          PULL_REQUEST_ROW_CLASS,
-          PAGE_ROW_CLASS,
-          "min-w-0 flex-1 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-        )}
+        className={cn(PULL_REQUEST_ROW_CLASS, PAGE_ROW_CLASS, "min-w-0 flex-1 cursor-pointer")}
       >
         <PullRequestRowGlyph
           state={entry.state}
@@ -146,6 +141,7 @@ function PullRequestRowImpl({
         <PullRequestRowLines
           number={
             <span
+              data-one-row-number=""
               className={PULL_REQUEST_ROW_NUMBER_CLASS}
               onContextMenu={(event) => {
                 event.preventDefault();

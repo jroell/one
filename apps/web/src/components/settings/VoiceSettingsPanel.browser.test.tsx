@@ -336,7 +336,9 @@ it("tests the selected model after download and preserves its transcript across 
           start: async () => {
             input.commitDraft(transcript, { start: transcript.length, end: transcript.length });
           },
+          startWithResult: async () => "declined",
           submitAfterDictation: () => {},
+          watchSubmission: (_listener, run) => run(),
           stop: async () => {},
           cancel: () => {},
           skipPostProcessing: () => {},

@@ -1456,7 +1456,7 @@ function settleSupersededReasoning(entries: ReadonlyArray<TimelineEntry>) {
   });
 }
 
-function workShownAsFinalAnswerOnly(
+export function workShownAsFinalAnswerOnly(
   entry: TimelineEntry,
   pendingApprovalRequestIds: ReadonlySet<RuntimeRequestId> | undefined,
 ): boolean {
@@ -1545,6 +1545,7 @@ function timelineRowEntries(
     | "latestRun"
     | "runningRunId"
     | "pendingApprovalRequestIds"
+    | "quietedEntryIds"
   >,
 ) {
   const visibility = input.toolCallVisibility ?? "showAll";
@@ -1580,6 +1581,12 @@ function timelineRowEntries(
         entry.kind !== "work" || !workEntryHiddenByToolCallVisibility(entry.entry, visibility),
     );
   }
+  // Quiet entries leave the rows only. The run's tail state (a parent working while its
+  // children run) still reads `input.timelineEntries`.
+  const quieted = input.quietedEntryIds;
+  if (quieted !== undefined && quieted.size > 0) {
+    shown = shown.filter((entry) => !quieted.has(entry.id));
+  }
   return withoutSubagentDelegationRows(settleSupersededReasoning(shown));
 }
 
@@ -1593,6 +1600,7 @@ function deriveTimelineTurnFolds(
     | "runningRunId"
     | "toolCallVisibility"
     | "revealedMessageId"
+    | "quietedEntryIds"
   >,
 ) {
   if (input.toolCallVisibility === "zen") return new Map<string, TurnFold>();
@@ -1638,6 +1646,11 @@ export function deriveMessagesTimelineRows(
     worktreeSetup?: WorktreeSetupSnapshot | null;
     toolCallVisibility?: ToolCallVisibility;
     revealedMessageId?: MessageId | null;
+    /**
+     * Chat mode's running turn: passive work whose rows give way to the working line, which is
+     * then the only status row. The entries stay in the input.
+     */
+    quietedEntryIds?: ReadonlySet<string> | undefined;
   },
   resolve: MessageResolver = m,
 ): MessagesTimelineRow[] {
@@ -1817,8 +1830,12 @@ export function deriveMessagesTimelineRows(
           };
         })()
       : null;
+  // Chat mode shows a failed tool as its own row, not behind the Thinking disclosure.
+  const chatSingleStatus = input.quietedEntryIds !== undefined;
   const activeWorkEntryIds = new Set(
-    activeWorkRow !== null || latestToolFailed ? activeToolEntries.map((entry) => entry.id) : [],
+    activeWorkRow !== null || (latestToolFailed && !chatSingleStatus)
+      ? activeToolEntries.map((entry) => entry.id)
+      : [],
   );
   // A bare `/compact` turn is the compaction itself: one compaction row stands in for its prompt
   // and working indicator, from the moment the turn starts. Likewise an answered "compact before
@@ -2399,7 +2416,7 @@ export function deriveMessagesTimelineRows(
     !compactionOnlyRunFinished &&
     (latestToolFailed || (!hasActivityRow && !input.pendingApprovalRequestIds?.size))
   ) {
-    const failedGroupAnchor = latestToolFailed ? activeWorkAnchor : undefined;
+    const failedGroupAnchor = latestToolFailed && !chatSingleStatus ? activeWorkAnchor : undefined;
     if (failedGroupAnchor) {
       const groupId = workGroupId(failedGroupAnchor.id);
       const expanded = input.expandedWorkGroupIds?.has(groupId) ?? false;
@@ -2420,12 +2437,15 @@ export function deriveMessagesTimelineRows(
         unsettledRunId === null
           ? 0
           : runningSubagentsAtRunTail(input.timelineEntries, unsettledRunId);
-      nextRows.push({
-        kind: "thinking",
-        id: LIVE_ACTIVITY_ROW_ID,
-        createdAt: input.activeTurnStartedAt ?? null,
-        ...(waitingOn > 0 ? { label: waitingOnSubagentsLabel(waitingOn, resolve) } : {}),
-      });
+      // Chat mode has one status line: the working row says it, so a bare Thinking row only repeats it.
+      if (!chatSingleStatus || waitingOn > 0) {
+        nextRows.push({
+          kind: "thinking",
+          id: LIVE_ACTIVITY_ROW_ID,
+          createdAt: input.activeTurnStartedAt ?? null,
+          ...(waitingOn > 0 ? { label: waitingOnSubagentsLabel(waitingOn, resolve) } : {}),
+        });
+      }
     }
   }
 
@@ -2544,6 +2564,7 @@ export function timelineTurnFoldRunIdsByEntryId(
     | "runningRunId"
     | "toolCallVisibility"
     | "revealedMessageId"
+    | "quietedEntryIds"
   >,
 ): ReadonlyMap<string, RunId> {
   const byEntryId = new Map<string, RunId>();
@@ -2578,6 +2599,7 @@ function replaceStreamingMessageRows(
     expandedWorkGroupIds: previousExpandedGroups,
     pendingApprovalRequestIds: previousPendingApprovalRequestIds,
     availableRevertTurnCounts: previousAvailableRevertTurnCounts,
+    quietedEntryIds: previousQuietedEntryIds,
     ...previousContext
   } = previous.input;
   const {
@@ -2589,6 +2611,7 @@ function replaceStreamingMessageRows(
     expandedWorkGroupIds,
     pendingApprovalRequestIds,
     availableRevertTurnCounts,
+    quietedEntryIds,
     ...context
   } = input;
   // Shell/checkpoint selectors rebuild summaries per event; compare contents.
@@ -2601,6 +2624,7 @@ function replaceStreamingMessageRows(
     !shallow(previousExpandedGroups, expandedWorkGroupIds) ||
     !shallow(previousPendingApprovalRequestIds, pendingApprovalRequestIds) ||
     !shallow(previousAvailableRevertTurnCounts, availableRevertTurnCounts) ||
+    !shallow(previousQuietedEntryIds, quietedEntryIds) ||
     !sameCheckpointSummaries(previousCheckpoints, turnDiffSummaries)
   ) {
     return null;
@@ -2620,6 +2644,8 @@ function replaceStreamingMessageRows(
     ) {
       return null;
     }
+    // A quieted entry has no row, so a streamed update to it changes nothing on screen.
+    if (quietedEntryIds?.has(entry.id)) continue;
     if (entry.kind === "work" && previousEntry.kind === "work") {
       if (!isStreamingThoughtUpdate(previousEntry.entry, entry.entry)) return null;
       thoughts.set(entry.id, entry.entry);

@@ -667,6 +667,10 @@ function Toasts({ position }: { position: ToastPosition }) {
                 {
                   "--toast-index": visibleIndex,
                   "--toast-offset-y": `${offsetY}px`,
+                  "--toast-timeout-ms":
+                    toast.type === "loading"
+                      ? 0
+                      : (toast.data?.dismissAfterVisibleMs ?? toast.timeout ?? 5000),
                 } as CSSProperties
               }
               swipeDirection={

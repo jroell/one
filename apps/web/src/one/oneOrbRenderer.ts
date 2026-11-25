@@ -38,6 +38,14 @@ export const LARGE_RING_PIXEL_RATIOS = [1.5, 1.25, 1] as const;
  * a second, so ten frames a second show the same motion for a third of the shading cost.
  */
 export const RESTING_FRAME_MS = 50;
+/**
+ * How long a settled idle ring keeps moving after the last sign that someone is there: its own
+ * `wake()`, or pointer, key, wheel or focus activity in the window. It then draws one last frame
+ * and schedules nothing until attention returns.
+ */
+export const ATTENTION_MS = 6000;
+/** Window events that show someone is there. */
+const ATTENTION_EVENTS = ["pointermove", "pointerdown", "keydown", "wheel", "focus"] as const;
 /** Longest step of the animation clock. A frame that arrives late must not make the ring jump. */
 const MAX_FRAME_SECONDS = 0.05;
 /** The same limit for a resting frame, which arrives `RESTING_FRAME_MS` after the last one. */
@@ -101,6 +109,32 @@ export function frameIntervalMs(
 ): number {
   return state === "idle" && isOrbSettled(motion, state, time, level) ? RESTING_FRAME_MS : 0;
 }
+
+/** What the next frame does. */
+export type FramePlan = Readonly<{
+  /** Milliseconds to wait before the frame: zero for full speed. */
+  intervalMs: number;
+  /** The ring is idle and settled, so it draws at the resting cadence. */
+  resting: boolean;
+  /** Nobody showed attention for `ATTENTION_MS`: the frame just drawn is the last until `wake()`. */
+  stop: boolean;
+}>;
+
+/** Decides the cadence, the scale and whether to stop, from the ring's motion and how long ago anyone was there. */
+export function restingPlan(
+  motion: OrbMotion,
+  state: OneOrbState,
+  time: number,
+  level: number,
+  sinceAttentionMs: number,
+): FramePlan {
+  const intervalMs = frameIntervalMs(motion, state, time, level);
+  const resting = intervalMs > 0;
+  return { intervalMs, resting, stop: resting && sinceAttentionMs >= ATTENTION_MS };
+}
+
+/** The plan for reduced motion: one frame per `wake()` at the normal scale, and no loop to stop. */
+const STILL_PLAN: FramePlan = { intervalMs: 0, resting: false, stop: false };
 
 /** How a frame loop is doing against the frame budget. */
 export type FrameBudget = Readonly<{
@@ -243,7 +277,8 @@ function releaseResources(gl: WebGLRenderingContext, resources: GlResources) {
 }
 
 /**
- * Draws the ring on a canvas until disposed, only while it can be seen, slowly while it rests.
+ * Draws the ring on a canvas until disposed, only while it can be seen, slowly while it rests,
+ * and not at all once it has rested for `ATTENTION_MS` with nobody there.
  * Returns null (after onUnsupported) without WebGL. A lost context keeps the canvas and
  * rebuilds the ring on restore.
  */
@@ -291,10 +326,10 @@ export function startOneOrb(
   let budget = FRAME_BUDGET_START;
   const resize = () => {
     if (!resources) return;
-    const ratio = Math.min(
-      window.devicePixelRatio || 1,
-      pixelRatioCap(canvas.clientWidth, budget.step),
-    );
+    // A resting ring keeps its full resolution: it is what people look at, and its last frame
+    // stays on screen. Its cost is bounded by ATTENTION_MS instead.
+    const cap = pixelRatioCap(canvas.clientWidth, budget.step);
+    const ratio = Math.min(window.devicePixelRatio || 1, cap);
     const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
     if (canvas.width !== width || canvas.height !== height) {
@@ -326,6 +361,10 @@ export function startOneOrb(
   const motion = (): OrbMotion => ({ spin, sway, tilt, pulse, energy, aura, reveal });
 
   let lastDrawn = Number.NEGATIVE_INFINITY;
+  /** The last sign that someone is there. */
+  let attentionAt = performance.now();
+  /** True after the final resting frame, while nothing is scheduled. */
+  let asleep = false;
   /** When the previous full-speed frame started, or null when the loop was not running at full speed. */
   let lastFullSpeedFrame: number | null = null;
 
@@ -368,7 +407,8 @@ export function startOneOrb(
     const state = input.getState();
     const level = Math.min(1, Math.max(0, input.getLevel()));
     const still = reducedMotion.matches;
-    const interval = still ? 0 : frameIntervalMs(motion(), state, time, level);
+    const plan = still ? STILL_PLAN : restingPlan(motion(), state, time, level, now - attentionAt);
+    const interval = plan.intervalMs;
     const wait = interval - (now - lastDrawn);
     if (interval > 0 && wait > 0) {
       lastFullSpeedFrame = null;
@@ -433,15 +473,25 @@ export function startOneOrb(
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    if (!still) schedule(frameIntervalMs(motion(), input.getState(), time, level));
+    if (still) return;
+    const next = restingPlan(motion(), input.getState(), time, level, now - attentionAt);
+    if (next.stop) asleep = true;
+    else schedule(next.intervalMs);
   };
   const wake = () => {
     last = performance.now();
+    attentionAt = last;
+    asleep = false;
     lastDrawn = Number.NEGATIVE_INFINITY;
     lastFullSpeedFrame = null;
     clearTimeout(timer);
     timer = undefined;
     schedule();
+  };
+  /** One timestamp write while the ring is awake; a ring that went to sleep draws again. */
+  const onActivity = () => {
+    if (asleep) wake();
+    else attentionAt = performance.now();
   };
   /** Draws when the ring can be seen again, and stops the queued frame when it cannot. */
   const syncWithVisibility = () => {
@@ -482,6 +532,9 @@ export function startOneOrb(
   watchDensity();
   document.addEventListener("visibilitychange", syncWithVisibility);
   reducedMotion.addEventListener("change", wake);
+  for (const type of ATTENTION_EVENTS) {
+    window.addEventListener(type, onActivity, { capture: true, passive: true });
+  }
 
   let disposed = false;
   const dispose = () => {
@@ -494,6 +547,9 @@ export function startOneOrb(
     densityQuery?.removeEventListener("change", onDensityChange);
     document.removeEventListener("visibilitychange", syncWithVisibility);
     reducedMotion.removeEventListener("change", wake);
+    for (const type of ATTENTION_EVENTS) {
+      window.removeEventListener(type, onActivity, { capture: true });
+    }
     canvas.removeEventListener("webglcontextlost", onContextLost);
     canvas.removeEventListener("webglcontextrestored", onContextRestored);
     if (resources) releaseResources(gl, resources);

@@ -22,6 +22,7 @@ import { msg, T, useGT, useMessages } from "gt-react";
 import { Fragment, useLayoutEffect, useState } from "react";
 
 import { usePrimarySettings } from "../../hooks/useSettings";
+import { cn } from "../../lib/utils";
 import { observeResize } from "../../lib/observeResize";
 import { environmentPresentations } from "../../state/presentation";
 import { useEnvironmentScope, readEnvironmentScope } from "../../state/session";
@@ -62,7 +63,16 @@ export function barColor(driver: ServerProvider["driver"]): string {
   return presentation?.color ?? "var(--foreground)";
 }
 
-export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
+export function PaceIcon({
+  pace,
+  detail,
+  className,
+}: {
+  readonly pace: LimitPace;
+  /** What the arrow is compared with, shown under the label. */
+  readonly detail?: string | undefined;
+  readonly className?: string | undefined;
+}) {
   const Icon = PACE[pace].icon;
   const m = useMessages();
   return (
@@ -72,13 +82,22 @@ export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
           <span
             role="img"
             aria-label={m(PACE[pace].label)}
-            className="inline-flex text-muted-foreground"
+            className={cn("inline-flex text-muted-foreground", className)}
           />
         }
       >
         <Icon className="size-3.5" aria-hidden />
       </TooltipTrigger>
-      <TooltipPopup side="top">{m(PACE[pace].label)}</TooltipPopup>
+      <TooltipPopup side="top">
+        {detail ? (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-foreground">{m(PACE[pace].label)}</span>
+            <span className="text-muted-foreground">{detail}</span>
+          </div>
+        ) : (
+          m(PACE[pace].label)
+        )}
+      </TooltipPopup>
     </Tooltip>
   );
 }
@@ -108,7 +127,7 @@ function paceMarkStyles(timeLeft: number | null) {
  * Pace mark styles for the bar given the returned ref. Below 6px there is no room for the gap
  * and tick, so the bar draws neither, as the mobile bars do.
  */
-export function usePaceMark(timeLeft: number | null) {
+function usePaceMark(timeLeft: number | null) {
   const [bar, setBar] = useState<HTMLElement | null>(null);
   const [roomy, setRoomy] = useState(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- measures the bar DOM width before paint and remeasures through a ResizeObserver
@@ -393,10 +412,12 @@ export function UsageLimitsSection({
   selectedEnvironmentIds,
   hiddenProviders,
   now,
+  refreshing = false,
 }: {
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
   readonly hiddenProviders: ReadonlySet<UsageProviderKind>;
   readonly now: number;
+  readonly refreshing?: boolean;
 }) {
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const hiddenDrivers = new Set<ServerProvider["driver"]>(
@@ -428,5 +449,5 @@ export function UsageLimitsSection({
       ];
     }),
   );
-  return <UsageLimitsPooled presentations={selected} now={now} />;
+  return <UsageLimitsPooled presentations={selected} now={now} loading={refreshing} />;
 }

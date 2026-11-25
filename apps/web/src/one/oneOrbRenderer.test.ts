@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  ATTENTION_MS,
   canDrawFrame,
   frameIntervalMs,
   FRAME_BUDGET_START,
   LARGE_RING_PIXEL_RATIOS,
   pixelRatioCap,
+  restingPlan,
   RESTING_FRAME_MS,
   SLOW_FRAME_MS,
   SLOW_FRAMES_BEFORE_STEP_DOWN,
@@ -73,6 +75,46 @@ describe("how long the ring waits between frames", () => {
     expect(frameIntervalMs({ ...IDLE_AT_REST, energy: 0.07 }, "idle", time, 0)).toBe(
       RESTING_FRAME_MS,
     );
+  });
+});
+
+describe("what the next frame does", () => {
+  it("keeps a settled idle ring at the resting cadence and scale until ATTENTION_MS has passed", () => {
+    expect(restingPlan(IDLE_AT_REST, "idle", 0, 0, ATTENTION_MS - 1)).toEqual({
+      intervalMs: RESTING_FRAME_MS,
+      resting: true,
+      stop: false,
+    });
+  });
+
+  it("stops a settled idle ring once ATTENTION_MS has passed since the last attention", () => {
+    expect(restingPlan(IDLE_AT_REST, "idle", 0, 0, ATTENTION_MS)).toEqual({
+      intervalMs: RESTING_FRAME_MS,
+      resting: true,
+      stop: true,
+    });
+  });
+
+  it.each<{ name: string; state: OneOrbState; motion: Partial<OrbMotion>; level: number }>([
+    { name: "the ring is thinking", state: "thinking", motion: { tilt: 1.12 }, level: 0 },
+    { name: "the ring is listening", state: "listening", motion: { tilt: 1.46 }, level: 0 },
+    { name: "the ring is speaking", state: "speaking", motion: { tilt: 1.26 }, level: 0 },
+    {
+      name: "the opening is still lighting the ring",
+      state: "idle",
+      motion: { reveal: 0.5 },
+      level: 0,
+    },
+    { name: "sound is playing", state: "idle", motion: {}, level: 0.3 },
+  ])("never stops or lowers the scale when $name, however long nobody was there", (input) => {
+    const plan = restingPlan(
+      { ...IDLE_AT_REST, ...input.motion },
+      input.state,
+      0,
+      input.level,
+      10 * ATTENTION_MS,
+    );
+    expect(plan).toEqual({ intervalMs: 0, resting: false, stop: false });
   });
 });
 
