@@ -9,6 +9,7 @@ import { useRightPanelStore } from "../rightPanelStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { installChatRouteCommands } from "./chatRouteCommands";
 import { isCommandAvailable } from "./commandRegistry";
+import { captureRunScope } from "./paletteRunScope";
 
 // Every environment grants the preview, so what decides is whether the preview is open.
 vi.mock(import("../state/session"), async (importOriginal) => ({
@@ -170,5 +171,43 @@ describe("chat route commands", () => {
 
     useRightPanelStore.getState().open(scopeThreadRef(environmentId, draftThreadId), "preview");
     expect(offered()).toEqual([true, true, true]);
+  });
+
+  it("ends a queued palette command's scope when its draft moves to another machine at the same address", () => {
+    const projectId = ProjectId.make("active");
+    const draftId = DraftId.make("draft-retarget");
+    const drafts = useComposerDraftStore.getState();
+    drafts.setProjectDraftThreadId(
+      { environmentId: EnvironmentId.make("mac"), projectId },
+      draftId,
+    );
+    const router = {
+      state: {
+        matches: [
+          { routeId: "__root__", pathname: "/", params: {} },
+          { routeId: "/_chat", pathname: "/", params: {} },
+          { routeId: "/_chat/draft/$draftId", pathname: `/draft/${draftId}`, params: { draftId } },
+        ],
+      },
+      history: { location: { href: `/draft/${draftId}` }, subscribe: () => () => {} },
+      subscribe: () => () => {},
+    } as unknown as AnyRouter;
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    stack.defer(() => useComposerDraftStore.getState().clearDraftThread(draftId));
+
+    const untouched = captureRunScope();
+    stack.defer(untouched.dispose);
+    expect(untouched.isValid()).toBe(true);
+
+    const queued = captureRunScope();
+    stack.defer(queued.dispose);
+    // Auto balance picks the other machine: the address and the draft id stay as they were.
+    useComposerDraftStore
+      .getState()
+      .setProjectDraftThreadId({ environmentId: EnvironmentId.make("linux"), projectId }, draftId);
+
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.environmentId).toBe("linux");
+    expect(queued.isValid()).toBe(false);
   });
 });

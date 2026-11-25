@@ -89,7 +89,7 @@ interface CloseTerminalShortcutInput {
 
 /**
  * Closes the focused right-panel terminal, else the drawer's active one. With neither on screen
- * there is nothing to close, so the command is not offered and a key is left unclaimed.
+ * there is nothing to close, so the command is not offered from the palette.
  */
 export function closeTerminalShortcut(input: CloseTerminalShortcutInput): ChatShortcutDefinition {
   const target = (terminalFocusOwner: TerminalFocusOwner | null) => {
@@ -101,10 +101,15 @@ export function closeTerminalShortcut(input: CloseTerminalShortcutInput): ChatSh
     return input.drawerOpen ? () => input.requestCloseTerminal(input.drawerActiveTerminalId) : null;
   };
   return {
-    run: ({ terminalFocusOwner }) => {
+    run: ({ event, terminalFocusOwner }) => {
       const close = target(terminalFocusOwner);
-      if (!close) return false;
-      close();
+      if (close) {
+        close();
+        return;
+      }
+      // A palette row reports that nothing ran. A key press in a writable chat is still claimed,
+      // as before, so a chord bound here (Backspace, Mod+W) never reaches the editor or browser.
+      if (!(event instanceof KeyboardEvent) || !input.hasWriteAccess()) return false;
     },
     canRun: ({ terminalFocusOwner }) => target(terminalFocusOwner) !== null,
   };

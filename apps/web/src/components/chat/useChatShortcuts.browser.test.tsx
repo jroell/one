@@ -180,6 +180,13 @@ it("offers Terminal: Close only while there is a terminal to close, and reports 
   expect(close.run({ event: { repeat: false, target: null }, terminalFocusOwner: null })).toBe(
     false,
   );
+  // A real key press is still claimed, so a chord such as Backspace never reaches the editor.
+  expect(
+    close.run({
+      event: new KeyboardEvent("keydown", { key: "Backspace" }),
+      terminalFocusOwner: null,
+    }),
+  ).toBeUndefined();
   expect(closed).toEqual(["drawer:default"]);
 });
 

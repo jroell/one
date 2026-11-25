@@ -66,6 +66,14 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     if (!target) return null;
     return target.kind === "server" ? scopedThreadKey(target.threadRef) : `draft:${target.draftId}`;
   };
+  // A draft can be retargeted to another machine without its URL or id changing, so a queued
+  // palette command also compares the machine and thread the draft resolves to.
+  const readRunScopeThreadKey = () => {
+    const target = readRouteTarget();
+    if (target?.kind !== "draft") return readRouteThreadKey();
+    const draft = useComposerDraftStore.getState().getDraftSession(target.draftId);
+    return `draft:${target.draftId}:${draft?.environmentId ?? ""}:${draft?.threadId ?? ""}`;
+  };
   const readRouteEnvironmentId = () => {
     const target = readRouteTarget();
     if (!target) return null;
@@ -215,13 +223,15 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   });
   const disposeRunScope = setRunScopeSource({
     readLocation: () => router.history.location.href,
-    readThreadKey: readRouteThreadKey,
+    readThreadKey: readRunScopeThreadKey,
     subscribe: (listener) => {
       const stopHistory = router.history.subscribe(listener);
       const stopResolved = router.subscribe("onResolved", listener);
+      const stopDrafts = useComposerDraftStore.subscribe(listener);
       return () => {
         stopHistory();
         stopResolved();
+        stopDrafts();
       };
     },
   });
