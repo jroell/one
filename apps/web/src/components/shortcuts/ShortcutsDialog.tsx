@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { T, useGT, useMessages } from "gt-react";
 import { Fragment, useRef, useState } from "react";
 
+import { spokenKeycapName } from "../../keybindings";
 import { useClientSettings } from "../../hooks/useSettings";
 import { primaryServerKeybindingsAtom } from "../../state/server";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
@@ -92,7 +93,16 @@ function ShortcutsDialogPopup() {
                             ) : null}
                             <KbdGroup>
                               {caps.map((cap) => (
-                                <Kbd key={cap}>{cap}</Kbd>
+                                <Kbd key={cap}>
+                                  {spokenKeycapName(cap) === cap ? (
+                                    cap
+                                  ) : (
+                                    <>
+                                      <span aria-hidden="true">{cap}</span>
+                                      <span className="sr-only">{spokenKeycapName(cap)}</span>
+                                    </>
+                                  )}
+                                </Kbd>
                               ))}
                             </KbdGroup>
                           </Fragment>

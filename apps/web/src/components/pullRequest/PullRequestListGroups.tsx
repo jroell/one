@@ -1,6 +1,6 @@
 import type { EnvironmentId, PullRequestAction } from "@t3tools/contracts";
 import { EyeIcon, LayersIcon, PenLineIcon, UsersIcon, type LucideIcon } from "lucide-react";
-import { useMessages } from "gt-react";
+import { useGT, useMessages } from "gt-react";
 import { useDeferredValue, type RefCallback } from "react";
 
 import { cn } from "~/lib/utils";
@@ -36,21 +36,47 @@ function firstPaintGroups<Group extends { entries: ReadonlyArray<unknown> }>(
   });
 }
 
+/**
+ * Name a group by why its rows are here. The rest, with nothing else on screen, is simply the
+ * list, and beside other groups it is everyone else's.
+ */
+export function pullRequestGroupNaming(
+  key: string,
+  alone: boolean,
+): "label" | "all" | "everyone-else" {
+  if (key !== "others") return "label";
+  return alone ? "all" : "everyone-else";
+}
+
 function PullRequestGroupHeader({
   group,
   count,
+  alone,
+  more,
 }: {
   group: { key: string; label: string };
   count: number;
+  /** The only group on screen: "Others" would name nothing. */
+  alone: boolean;
+  /** The host has more rows than this page holds, so the count is a floor. */
+  more: boolean;
 }) {
   const resolve = useMessages();
+  const gt = useGT();
   const Icon = GROUP_ICONS[group.key] ?? LayersIcon;
+  const naming = pullRequestGroupNaming(group.key, alone);
+  const name =
+    naming === "label"
+      ? resolve(group.label)
+      : naming === "all"
+        ? gt("All pull requests")
+        : gt("Everyone else");
   return (
     <div data-one-panel-head="" className="flex items-center gap-2 text-xs font-medium">
       <Icon aria-hidden className="size-3.5 shrink-0" />
-      <h2 className="shrink-0">{resolve(group.label)}</h2>
+      <h2 className="shrink-0">{name}</h2>
       <span data-one-count="" className="shrink-0 tabular-nums">
-        {count}
+        {more && group.key === "others" ? `${count}+` : count}
       </span>
     </div>
   );
@@ -58,6 +84,7 @@ function PullRequestGroupHeader({
 
 export function PullRequestListGroups({
   groups,
+  truncated,
   environmentLabels,
   query,
   selected,
@@ -72,6 +99,8 @@ export function PullRequestListGroups({
   onCloseSweepStart,
 }: {
   groups: ReadonlyArray<PullRequestGroup<EnvironmentPullRequestEntry>>;
+  /** The host holds more pull requests than the page loaded. */
+  truncated: boolean;
   /** Only when rows come from more than one server, so each says which. */
   environmentLabels: ReadonlyMap<EnvironmentId, string> | null;
   query: string;
@@ -103,6 +132,8 @@ export function PullRequestListGroups({
             {group.label ? (
               <PullRequestGroupHeader
                 group={group}
+                alone={groups.length === 1}
+                more={truncated}
                 count={counts.get(group.key) ?? group.entries.length}
               />
             ) : null}

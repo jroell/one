@@ -11,7 +11,9 @@ import { pickModelSelection } from "@t3tools/shared/model";
 import { AsyncResult } from "effect/reactivity";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { CheckIcon, MoreVertical, PlusIcon, ServerIcon } from "lucide-react";
+import { CheckIcon, MoreVertical, PlusIcon, ServerIcon, TypeIcon } from "lucide-react";
+import { SettingsEmptyState } from "./SettingsEmptyState";
+
 import { useId, useState } from "react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
 
@@ -107,7 +109,9 @@ export function TextGeneratorsSettings({
         }
       >
         {generators.length === 0 ? (
-          <SettingsRow
+          <SettingsEmptyState
+            className="min-h-40"
+            icon={<TypeIcon />}
             title={gt("No text generators yet")}
             description={gt(
               "Add a model API to write thread titles, commit messages, and other short text without starting a coding agent.",

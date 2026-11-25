@@ -106,6 +106,25 @@ describe("limitClock", () => {
     expect(limitClock([short(30 * 60_000), short(fiveHours - 30 * 60_000)], NOW)).toBeNull();
   });
 
+  it("gives no clock to accounts whose resets are hours apart even when both are beyond one window", () => {
+    // Two five-hour windows resetting six and nine hours from now are not yet in a window at all;
+    // clamping each to "no time elapsed" once made them look like one shared reset.
+    const short = (resetsInMs: number): ServerProviderUsageWindow => ({
+      ...window(resetsInMs),
+      windowDurationMins: 300,
+    });
+    expect(limitClock([short(6 * HOUR), short(9 * HOUR)], NOW)).toBeNull();
+  });
+
+  it("gives no clock to a reset that is already past, even beside one that is imminent", () => {
+    const short = (resetsInMs: number): ServerProviderUsageWindow => ({
+      ...window(resetsInMs),
+      windowDurationMins: 300,
+    });
+    expect(limitClock([short(-20 * HOUR), short(30_000)], NOW)).toBeNull();
+    expect(limitClock([short(-HOUR)], NOW)).toBeNull();
+  });
+
   it("gives no clock to a pool whose windows differ in length", () => {
     expect(
       limitClock([window(2 * HOUR), { ...window(2 * HOUR), windowDurationMins: 300 }], NOW),

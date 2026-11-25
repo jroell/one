@@ -4,10 +4,14 @@ import {
   type ManagedPolicySummary,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
-import { AuthorizedClientsHeaderAction } from "./AuthorizedClientsSettings";
+import {
+  AuthorizedClientsHeaderAction,
+  RevokeOtherClientsAction,
+} from "./AuthorizedClientsSettings";
 
 const localId = EnvironmentId.make("local");
 const serviceId = EnvironmentId.make("service");
@@ -52,9 +56,6 @@ const renderHeader = (environmentId: EnvironmentId) =>
     <AuthorizedClientsHeaderAction
       environmentId={environmentId}
       onPairingLinkCreated={() => {}}
-      clientSessions={null}
-      isRevokingOtherClients={false}
-      onRevokeOtherClients={() => {}}
       delegatableScopes={[]}
     />,
   );
@@ -76,5 +77,40 @@ describe("AuthorizedClientsHeaderAction", () => {
 
     await expect.element(screen.getByRole("button", { name: "Create link" })).toBeEnabled();
     expect(screen.getByRole("group", { name: denial }).query()).toBeNull();
+  });
+});
+
+describe("RevokeOtherClientsAction", () => {
+  it("asks before it signs out the other clients, and leaves them alone on Cancel", async () => {
+    const onRevoke = vi.fn();
+    await using screen = await render(
+      <RevokeOtherClientsAction
+        clientSessions={[{ current: true }, { current: false }] as never}
+        isRevoking={false}
+        onRevoke={onRevoke}
+      />,
+    );
+
+    await screen.getByRole("button", { name: "Revoke others" }).click();
+    expect(onRevoke).not.toHaveBeenCalled();
+    await expect.element(page.getByText("Sign out every other client?")).toBeVisible();
+
+    await screen.getByRole("button", { name: "Cancel" }).click();
+    expect(onRevoke).not.toHaveBeenCalled();
+
+    await screen.getByRole("button", { name: "Revoke others" }).click();
+    await screen.getByRole("button", { name: "Revoke others" }).click();
+    expect(onRevoke).toHaveBeenCalledOnce();
+  });
+
+  it("has nothing to revoke while this is the only client", async () => {
+    await using screen = await render(
+      <RevokeOtherClientsAction
+        clientSessions={[{ current: true }] as never}
+        isRevoking={false}
+        onRevoke={() => {}}
+      />,
+    );
+    await expect.element(screen.getByRole("button", { name: "Revoke others" })).toBeDisabled();
   });
 });

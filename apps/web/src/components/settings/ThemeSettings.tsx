@@ -226,12 +226,6 @@ function ThemeLibraryCard({
                               mode={selected.preview.mode}
                             />
                             {isActive ? (
-                              <span
-                                aria-hidden
-                                className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-inset ring-ring"
-                              />
-                            ) : null}
-                            {isActive ? (
                               <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full border border-border/70 bg-background text-foreground shadow-sm">
                                 {mode === "light" ? (
                                   <SunIcon className="size-2.5" />
@@ -921,7 +915,7 @@ export function ThemeLibrary({
           </Button>
           <Button size="xs" variant="outline" onClick={() => onImportOpenChange(true)}>
             <PlusIcon />
-            <T>Add theme</T>
+            <T>Import theme</T>
           </Button>
         </div>
       </div>

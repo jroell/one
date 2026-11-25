@@ -5,6 +5,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../test/render";
 import { openCommandPalette } from "../commandPaletteBus";
+import { setShortcutsDialogOpen, useShortcutsDialogStore } from "./shortcuts/shortcutsDialogStore";
 import { dispatchCommandPalette, useCommandPaletteStore } from "../commandPaletteStore";
 import { LAST_USED_PROJECT_STORAGE_KEY } from "../hooks/useHandleNewThread";
 import { removeLocalStorageItem } from "../hooks/useLocalStorage";
@@ -582,12 +583,34 @@ describe("CommandPalette commands", () => {
       .toMatchTextContent("Settings · Keyboard shortcuts");
   });
 
+  it("tells the shortcuts sheet and the shortcuts settings apart, and each opens its own destination", async () => {
+    setup(openThread());
+    await using screen = await render(<CommandPalette>{null}</CommandPalette>);
+    openCommandPalette({ query: "keyboard shortcuts" });
+
+    const sheet = page.getByRole("option", { name: /^Show keyboard shortcuts/ });
+    const settings = page.getByRole("option", { name: /^Edit keyboard shortcuts/ });
+    await expect.element(sheet).toBeVisible();
+    await expect.element(settings).toMatchTextContent("Edit shortcuts in Settings");
+
+    await userEvent.click(settings);
+    await vi.waitFor(() =>
+      expect(screen.router?.state.location.pathname).toBe("/settings/keybindings"),
+    );
+    expect(useShortcutsDialogStore.getState().open).toBe(false);
+
+    openCommandPalette({ query: "keyboard shortcuts" });
+    await userEvent.click(page.getByRole("option", { name: /^Show keyboard shortcuts/ }));
+    await vi.waitFor(() => expect(useShortcutsDialogStore.getState().open).toBe(true));
+    setShortcutsDialogOpen(false);
+  });
+
   it("opens the shortcuts sheet from its row with the filter focused, and Escape closes it", async () => {
     setup(openThread());
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
     openCommandPalette({ query: "keyboard shortcuts" });
     await expect
-      .element(page.getByRole("option", { name: /^Keyboard shortcuts/ }).first())
+      .element(page.getByRole("option", { name: /^Show keyboard shortcuts/ }))
       .toBeVisible();
     await userEvent.keyboard("{Enter}");
 

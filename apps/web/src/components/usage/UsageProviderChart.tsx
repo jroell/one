@@ -11,9 +11,9 @@ import {
   formatUsd,
 } from "@t3tools/shared/usageFormat";
 import { formatRelativeHourShort } from "@t3tools/shared/usageFormatCopy";
-import { cn } from "~/lib/utils";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "./usageProviders";
 import { observeResize } from "~/lib/observeResize";
+import { formatAxisUsd } from "./usageAxis";
 
 const VIEW_WIDTH = 960;
 const VIEW_HEIGHT = 260;
@@ -272,6 +272,35 @@ function seriesValue(series: ChartSeries, column: DayColumn | undefined) {
     : series.providers.reduce((sum, provider) => sum + bandValue(column, provider), 0);
 }
 
+export interface BarSegment {
+  readonly key: string;
+  readonly color: string;
+  /** Percent of the plot's height. */
+  readonly heightPercent: number;
+  /** The highest segment of the day, which carries the rounded top. */
+  readonly top: boolean;
+}
+
+/** The stacked segments of one day's bar, bottom first. Series with nothing that day are left out. */
+export function barSegments(
+  column: DayColumn,
+  series: readonly ChartSeries[],
+  max: number,
+): readonly BarSegment[] {
+  if (max <= 0) return [];
+  const plotShare = (VIEW_HEIGHT - PLOT_TOP) / VIEW_HEIGHT;
+  const present = series.flatMap((band) => {
+    const value = seriesValue(band, column);
+    return value > 0 ? [{ band, value }] : [];
+  });
+  return present.map(({ band, value }, index) => ({
+    key: band.key,
+    color: band.color,
+    heightPercent: (value / max) * plotShare * 100,
+    top: index === present.length - 1,
+  }));
+}
+
 function buildChart(
   periods: readonly string[],
   byPeriod: ReadonlyMap<string, DailyTotals | HourlyTotals>,
@@ -314,7 +343,6 @@ function UsageChartTooltip({
   readonly format: (value: number) => string;
 }) {
   const gt = useGT();
-  const partial = series.some((band) => band.loading);
   return (
     <div
       ref={tooltipRef}
@@ -346,12 +374,7 @@ function UsageChartTooltip({
               )}
               {bandLabel}
             </span>
-            <span
-              className={cn(
-                "tabular-nums",
-                band.loading ? "text-muted-foreground" : "text-foreground",
-              )}
-            >
+            <span className="text-foreground tabular-nums">
               {format(seriesValue(band, column))}
             </span>
           </div>
@@ -361,9 +384,7 @@ function UsageChartTooltip({
         <span className="text-muted-foreground">
           <T>Total</T>
         </span>
-        <span className={cn("tabular-nums", partial ? "text-muted-foreground" : "text-foreground")}>
-          {format(column?.total ?? 0)}
-        </span>
+        <span className="text-foreground tabular-nums">{format(column?.total ?? 0)}</span>
       </div>
     </div>
   );
@@ -376,6 +397,8 @@ function UsageChartPlot({
   series,
   format,
   formatTooltipPeriod,
+  label,
+  bars,
   children,
 }: {
   readonly periods: readonly string[];
@@ -384,8 +407,18 @@ function UsageChartPlot({
   readonly series: readonly ChartSeries[];
   readonly format: (value: number) => string;
   readonly formatTooltipPeriod: (period: string) => string;
-  readonly children: React.ReactNode;
+  /** The chart's name for assistive tech; the plot takes the arrow keys. */
+  readonly label: string;
+  /** Daily bars instead of an area plot: the bars' segments, one array per day. */
+  readonly bars?:
+    | {
+        readonly segments: readonly (readonly BarSegment[])[];
+        readonly gridlines: readonly number[];
+      }
+    | undefined;
+  readonly children?: React.ReactNode;
 }) {
+  const gt = useGT();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -436,10 +469,42 @@ function UsageChartPlot({
     const localX = Math.min(bounds.width, Math.max(0, event.clientX - bounds.left));
     const localY = Math.min(bounds.height, Math.max(0, event.clientY - bounds.top));
     const fraction = localX / bounds.width;
-    const index = Math.round(fraction * (periods.length - 1));
+    const index =
+      bars === undefined
+        ? Math.round(fraction * (periods.length - 1))
+        : Math.floor(fraction * periods.length);
     hoverPositionRef.current = { x: localX, y: localY };
     positionTooltip();
     setHoverIndex(Math.min(periods.length - 1, Math.max(0, index)));
+  };
+
+  /** Arrow keys walk the days, Home and End jump to the ends, Escape lets go. */
+  const handleKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const plot = plotRef.current;
+    if (plot === null || periods.length === 0) return;
+    const last = periods.length - 1;
+    const current = hoverIndex ?? (event.key === "ArrowLeft" ? last + 1 : -1);
+    const next =
+      event.key === "ArrowRight"
+        ? Math.min(last, current + 1)
+        : event.key === "ArrowLeft"
+          ? Math.max(0, current - 1)
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : null;
+    if (event.key === "Escape") {
+      hoverPositionRef.current = null;
+      setHoverIndex(null);
+      return;
+    }
+    if (next === null) return;
+    event.preventDefault();
+    const slot =
+      bars === undefined ? (last === 0 ? 0 : next / last) : (next + 0.5) / periods.length;
+    hoverPositionRef.current = { x: slot * plot.clientWidth, y: plot.clientHeight * 0.2 };
+    setHoverIndex(next);
   };
 
   const hoveredPeriod = hoverIndex === null ? undefined : periods[hoverIndex];
@@ -447,34 +512,80 @@ function UsageChartPlot({
   return (
     <div
       ref={plotRef}
-      className="relative min-h-56 flex-1"
+      role="group"
+      aria-label={label}
+      aria-description={gt("Use the left and right arrow keys to move between days")}
+      tabIndex={0}
+      className="usage-plot relative min-h-56 flex-1"
       onMouseMove={handleMove}
       onMouseLeave={() => {
         hoverPositionRef.current = null;
         setHoverIndex(null);
       }}
+      onKeyDown={handleKey}
+      onBlur={() => {
+        hoverPositionRef.current = null;
+        setHoverIndex(null);
+      }}
     >
-      <svg
-        className="h-full w-full"
-        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        {children}
-        {hoverIndex === null ? null : (
-          <line
-            x1={hoverIndex * stepX}
-            x2={hoverIndex * stepX}
-            y1={PLOT_TOP}
-            y2={VIEW_HEIGHT}
-            stroke="currentColor"
-            strokeWidth={1}
-            strokeDasharray="3 3"
-            className="text-muted-foreground"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-      </svg>
+      {bars === undefined ? (
+        <svg
+          className="h-full w-full"
+          viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          {children}
+          {hoverIndex === null ? null : (
+            <line
+              x1={hoverIndex * stepX}
+              x2={hoverIndex * stepX}
+              y1={PLOT_TOP}
+              y2={VIEW_HEIGHT}
+              stroke="currentColor"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              className="text-muted-foreground"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </svg>
+      ) : (
+        <div aria-hidden className="usage-bars">
+          {bars.gridlines.map((top) => (
+            <span
+              key={top}
+              className="usage-bars-gridline"
+              data-base={top >= 100 ? "" : undefined}
+              style={{ top: `${top}%` }}
+            />
+          ))}
+          <div
+            className="usage-bars-days"
+            style={{ gridTemplateColumns: `repeat(${periods.length}, minmax(0, 1fr))` }}
+          >
+            {periods.map((period, index) => (
+              <span
+                key={period}
+                className="usage-bars-day"
+                data-hover={hoverIndex === index ? "" : undefined}
+              >
+                {(bars.segments[index] ?? []).map((segment) => (
+                  <span
+                    key={segment.key}
+                    className="usage-bars-segment"
+                    data-top={segment.top ? "" : undefined}
+                    style={{
+                      height: `${segment.heightPercent}%`,
+                      backgroundColor: segment.color,
+                    }}
+                  />
+                ))}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {hoverIndex === null || hoveredPeriod === undefined ? null : (
         <UsageChartTooltip
@@ -519,9 +630,25 @@ export function UsageProviderChart({
   );
 
   const toY = (value: number) => valueToY(value, scale.max);
-  const seriesClassName = (loading: boolean) =>
-    cn("transition-opacity", loading && "opacity-40 delay-150");
   const format = metric === "tokens" ? formatTokens : (value: number) => formatUsd(value, locale);
+  const axisFormat =
+    metric === "tokens" ? formatTokens : (value: number) => formatAxisUsd(value, locale);
+  const chartLabel =
+    resolution === "hour"
+      ? metric === "tokens"
+        ? gt("Hourly processed tokens by provider")
+        : gt("Hourly cost by provider")
+      : metric === "tokens"
+        ? gt("Daily processed tokens by provider")
+        : gt("Daily cost by provider");
+  // 30 discrete days read as stacked bars; only the 24 hours stay a continuous area.
+  const bars =
+    resolution === "day"
+      ? {
+          segments: columns.map((column) => barSegments(column, series, scale.max)),
+          gridlines: scale.ticks.map((tick) => (toY(tick) / VIEW_HEIGHT) * 100),
+        }
+      : undefined;
   const formatPeriod = (period: string) =>
     resolution === "hour"
       ? formatHourShort(period, timeZone, hour12, locale)
@@ -542,7 +669,7 @@ export function UsageProviderChart({
                   className="absolute right-0 -translate-y-1/2 text-3xs text-muted-foreground tabular-nums"
                   style={{ top: `${(toY(tick) / VIEW_HEIGHT) * 100}%` }}
                 >
-                  {tick === 0 ? "0" : format(tick)}
+                  {tick === 0 ? "0" : axisFormat(tick)}
                 </span>
               ))
             : null}
@@ -555,6 +682,8 @@ export function UsageProviderChart({
           series={series}
           format={format}
           formatTooltipPeriod={formatTooltipPeriod}
+          label={chartLabel}
+          bars={bars}
         >
           {scale.ticks.map((tick) => {
             const y = toY(tick);
@@ -575,20 +704,13 @@ export function UsageProviderChart({
             );
           })}
 
-          {series.map(({ key, color, loading, area }) => (
-            <path
-              key={key}
-              d={area}
-              className={seriesClassName(loading)}
-              fill={color}
-              fillOpacity={0.5}
-            />
+          {series.map(({ key, color, area }) => (
+            <path key={key} d={area} fill={color} fillOpacity={0.5} />
           ))}
-          {series.map(({ key, color, loading, line }) => (
+          {series.map(({ key, color, line }) => (
             <path
               key={key}
               d={line}
-              className={seriesClassName(loading)}
               fill="none"
               stroke={color}
               strokeWidth={1.5}
@@ -621,15 +743,7 @@ export function UsageProviderChart({
           sr-only sits on a wrapper: Firefox does not clip a table's caption by the table's own box. */}
       <div className="sr-only">
         <table>
-          <caption>
-            {resolution === "hour"
-              ? metric === "tokens"
-                ? gt("Hourly processed tokens by provider")
-                : gt("Hourly cost by provider")
-              : metric === "tokens"
-                ? gt("Daily processed tokens by provider")
-                : gt("Daily cost by provider")}
-          </caption>
+          <caption>{chartLabel}</caption>
           <thead>
             <tr>
               <th scope="col">{resolution === "hour" ? gt("Hour") : gt("Day")}</th>

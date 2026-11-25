@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import "~/index.css";
+
 import { render } from "../../../test/render";
 import { UsageOverviewHeadline } from "./UsageOverviewHeadline";
 
@@ -21,5 +23,24 @@ describe("UsageOverviewHeadline", () => {
       { router: false },
     );
     await expect.element(screen.getByRole("heading", { name: sentence })).toBeVisible();
+  });
+
+  it("keeps the sentence at full strength while partial and says Updating instead, then says nothing", async () => {
+    const props = {
+      metric: "tokens",
+      provider: "Codex",
+      share: "57%",
+      total: "90.8B",
+      days: 30,
+    } as const;
+    await using screen = await render(<UsageOverviewHeadline {...props} loading />, {
+      router: false,
+    });
+    await expect.element(screen.getByText("Updating…")).toBeVisible();
+    // The numbers stay readable: no dimming, whatever is still loading.
+    expect(getComputedStyle(screen.getByRole("heading").element()).opacity).toBe("1");
+
+    await screen.rerender(<UsageOverviewHeadline {...props} />);
+    await expect.element(screen.getByText("Updating…")).not.toBeInTheDocument();
   });
 });

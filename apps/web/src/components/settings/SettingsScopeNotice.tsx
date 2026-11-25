@@ -1,16 +1,20 @@
 import { resolveEnvironmentMachineKind, type EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { useGT } from "gt-react";
-import { ChevronRightIcon, LayersIcon } from "lucide-react";
+import { T, useGT } from "gt-react";
+import { ChevronRightIcon, FolderPlusIcon, LayersIcon, PlusIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { openCommandPalette } from "../../commandPaletteBus";
 import { cn } from "../../lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { useEnvironments, type EnvironmentPresentation } from "../../state/environments";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { displayPath } from "./displayPath";
 import { ITEM_ROW_CLASSNAME } from "./itemRows";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import { SettingsGroup } from "./SettingsGroup";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
@@ -37,10 +41,13 @@ export function SettingsScopeNotice({
   eligibleEnvironmentIds,
   inline = false,
   quiet = false,
+  withAddProject = false,
 }: {
   children: string;
   /** Keeps the message for assistive tech only, when the page already says it on screen. */
   quiet?: boolean;
+  /** On the project list: an Add project action, and an empty state when there is no project. */
+  withAddProject?: boolean;
   /** Renders inside a section instead of as its own page. */
   inline?: boolean;
   target: "environment" | "all" | "project" | "checkout";
@@ -79,7 +86,7 @@ export function SettingsScopeNotice({
               };
           return {
             label: primary,
-            secondary: [secondary, member.workspaceRoot].filter(Boolean).join(" · "),
+            secondary: [secondary, displayPath(member.workspaceRoot)].filter(Boolean).join(" · "),
             icon: environmentIcon(environment),
             search: {
               project: group.projectKey,
@@ -99,7 +106,7 @@ export function SettingsScopeNotice({
               )
                 ? settingsScopeProjectMachines(group, environments)
                 : []),
-              group.workspaceRoot,
+              displayPath(group.workspaceRoot),
             ].join(" · "),
             icon: <ProjectFavicon project={group} className="size-4 shrink-0" />,
             search: selectProjectAxis(search, group.projectKey),
@@ -169,6 +176,30 @@ export function SettingsScopeNotice({
       </button>
     ));
   };
+  const addProject = (
+    <Button size="sm" variant="outline" onClick={() => openCommandPalette({ open: "add-project" })}>
+      <PlusIcon />
+      <T>Add project</T>
+    </Button>
+  );
+  if (withAddProject && projectGroups.length === 0) {
+    const empty = (
+      <SettingsEmptyState
+        icon={<FolderPlusIcon />}
+        title={gt("No projects yet")}
+        description={gt(
+          "A project is a folder with your code. Add one to start a thread in it, such as the repository you are working on.",
+        )}
+        action={
+          <Button onClick={() => openCommandPalette({ open: "add-project" })}>
+            <PlusIcon />
+            <T>Add project</T>
+          </Button>
+        }
+      />
+    );
+    return inline ? empty : <SettingsPageContainer>{empty}</SettingsPageContainer>;
+  }
   const notice = (
     <div className="space-y-3">
       <p
@@ -178,15 +209,24 @@ export function SettingsScopeNotice({
         {children}
       </p>
       <div className="space-y-4">
-        {choiceGroups.map((group) =>
-          group?.displayName ? (
-            <SettingsSection key={group.projectKey} title={group.displayName}>
-              {renderChoices(group)}
-            </SettingsSection>
-          ) : (
-            <SettingsGroup key={group?.projectKey ?? target}>{renderChoices(group)}</SettingsGroup>
-          ),
-        )}
+        {withAddProject ? (
+          <SettingsSection title={gt("Projects")} headerAction={addProject}>
+            {renderChoices(null)}
+          </SettingsSection>
+        ) : null}
+        {withAddProject
+          ? null
+          : choiceGroups.map((group) =>
+              group?.displayName ? (
+                <SettingsSection key={group.projectKey} title={group.displayName}>
+                  {renderChoices(group)}
+                </SettingsSection>
+              ) : (
+                <SettingsGroup key={group?.projectKey ?? target}>
+                  {renderChoices(group)}
+                </SettingsGroup>
+              ),
+            )}
       </div>
     </div>
   );

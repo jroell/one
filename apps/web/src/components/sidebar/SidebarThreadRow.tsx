@@ -228,7 +228,10 @@ function terminalProcessLabel(count: number, resolve: MessageResolver): string {
 function SidebarProviderStack(props: {
   thread: SidebarThreadSummary;
   providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
+  /** Names the glyph for assistive technology and in a tooltip; the card row's meta line does. */
+  labelled?: boolean;
 }) {
+  const gt = useGT();
   const stack = resolveThreadProviderStack(props.thread);
   const currentInstanceId = stack[stack.length - 1]!;
   const currentEntry = props.providerEntryByInstanceId.get(currentInstanceId) ?? null;
@@ -249,10 +252,31 @@ function SidebarProviderStack(props: {
       iconClassName="opacity-60"
     />
   );
+  const label = gt("Runs on {provider}", { provider: currentEntry.displayName });
+  const named = (glyphs: ReactNode) =>
+    props.labelled === true ? (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              role="img"
+              aria-label={label}
+              data-sidebar-provider=""
+              className="pointer-events-auto inline-flex shrink-0 items-center"
+            />
+          }
+        >
+          {glyphs}
+        </TooltipTrigger>
+        <TooltipPopup side="top">{label}</TooltipPopup>
+      </Tooltip>
+    ) : (
+      glyphs
+    );
   if (stack.length === 1) {
-    return <span className="inline-flex shrink-0 items-center">{current}</span>;
+    return named(<span className="inline-flex shrink-0 items-center">{current}</span>);
   }
-  return (
+  return named(
     <span className="inline-flex shrink-0 items-center gap-1.5">
       {stack.slice(0, -1).map((instanceId) => {
         const entry = props.providerEntryByInstanceId.get(instanceId);
@@ -269,7 +293,7 @@ function SidebarProviderStack(props: {
         );
       })}
       <span className="relative z-10 inline-flex items-center">{current}</span>
-    </span>
+    </span>,
   );
 }
 
@@ -1314,6 +1338,55 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       </span>
     </div>
   );
+  // The card row: the title and the time on one line, then one quiet line saying where the
+  // thread lives. The device appears only when the sidebar spans more than one or this thread
+  // is not on this one (the caller passes null otherwise).
+  const cardMetaEmpty =
+    !props.projectDisplayName &&
+    props.environmentLabel === null &&
+    prBadge === null &&
+    issueBadge === null &&
+    diff === null &&
+    runningTerminalIds.length === 0 &&
+    resolveThreadProviderStack(thread).length === 0;
+  const cardMetaLine = cardMetaEmpty ? null : (
+    <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-secondary-label text-xs">
+      {props.project ? (
+        <ProjectFavicon project={props.project} className="size-3.5 shrink-0" />
+      ) : null}
+      {props.projectDisplayName ? (
+        <span className="min-w-0 truncate">{props.projectDisplayName}</span>
+      ) : null}
+      {props.environmentLabel !== null ? (
+        <>
+          <span aria-hidden className="shrink-0 text-muted-foreground/50">
+            ·
+          </span>
+          <EnvironmentMachineIcon
+            aria-hidden
+            kind={props.environmentMachine}
+            className="size-3.5 shrink-0 text-icon-muted"
+          />
+          <span className="min-w-0 truncate">{props.environmentLabel}</span>
+        </>
+      ) : null}
+      <span className="min-w-0 flex-1" />
+      {terminalStatusIcon}
+      {prBadge}
+      {issueBadge}
+      {diff ? (
+        <span className="shrink-0 font-mono">
+          <span className="text-diff-addition-foreground">+{formatDiffCount(diff.insertions)}</span>{" "}
+          <span className="text-diff-deletion-foreground">−{formatDiffCount(diff.deletions)}</span>
+        </span>
+      ) : null}
+      <SidebarProviderStack
+        thread={thread}
+        providerEntryByInstanceId={props.providerEntryByInstanceId}
+        labelled
+      />
+    </div>
+  );
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
       <SidebarProviderStack
@@ -1542,8 +1615,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       // The hints are the rendered heights inside py-0.5. Revealing the open thread measures rows
       // that have not rendered yet, so a hint off by a pixel lands it a pixel short per row above.
       className={cn(
-        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_78px]",
-        metaLineEmpty && "[contain-intrinsic-size:auto_60px]",
+        "list-none py-0.5 [content-visibility:auto] [contain-intrinsic-size:auto_56px]",
+        cardMetaEmpty && "[contain-intrinsic-size:auto_36px]",
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1570,27 +1643,21 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         >
           <div
             className={cn(
-              "relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",
-              metaLineEmpty && "h-auto",
+              "relative z-10 h-13 px-(--sidebar-row-content-inset) py-1.75",
+              cardMetaEmpty && "h-auto",
             )}
           >
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}
-              {props.project ? (
-                <ProjectFavicon project={props.project} className="size-4 shrink-0" />
-              ) : null}
               {/* Left of the status slot, the pin would slide when hover swaps the
                 label for the wider row controls. */}
               {pinIndicator}
-              {props.projectDisplayName ? (
-                <span
-                  className={cn("min-w-0 flex-1 truncate font-normal text-secondary-label text-xs")}
-                >
-                  {props.projectDisplayName}
+              {title}
+              {isRegeneratingTitle ? (
+                <span role="status" className="sr-only">
+                  <T>Regenerating title</T>
                 </span>
-              ) : (
-                <span className="flex-1" />
-              )}
+              ) : null}
               {sortable?.isDragging ? (
                 dragDestination
               ) : (
@@ -1733,16 +1800,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               {props.sweepAction !== null ? dragDestination : null}
             </div>
-            <div className="mt-1 flex min-w-0 items-center gap-1.5">
-              {title}
-              {isRegeneratingTitle ? (
-                <span role="status" className="sr-only">
-                  <T>Regenerating title</T>
-                </span>
-              ) : null}
-              {titleLineIcons}
-            </div>
-            {metaLine}
+            {cardMetaLine}
           </div>
         </TooltipTrigger>
         {detailsTooltip}

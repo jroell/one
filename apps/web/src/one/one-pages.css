@@ -265,6 +265,19 @@
   background: var(--one-label-dot);
 }
 
+/* A neutral chip with a dot in the label's color. Only a blocked label keeps its hue in the text. */
+[data-one-label][data-tone="quiet"] {
+  --one-label-text: var(--one-text-quiet);
+  --one-label-fill: var(--one-hairline);
+  --one-label-edge: transparent;
+}
+
+.dark [data-one-label][data-tone="quiet"] {
+  --one-label-text: var(--one-text-quiet);
+  --one-label-fill: var(--one-hairline);
+  --one-label-edge: transparent;
+}
+
 [data-one-label][data-size="default"] {
   height: 1.375rem;
   padding-inline: 0.5rem 0.625rem;
@@ -467,10 +480,25 @@
   color: var(--one-text-quiet);
 }
 
-/* Two by two reads as a set; four in a row wraps into three and one. */
+/* An even grid: every starter the same width, label at the left and keycap at the right edge.
+   Four chips of different widths wrap into rows that do not line up. */
 [data-one-code-welcome] .one-chat-starters {
-  max-width: 31rem;
+  display: grid;
+  width: 100%;
+  max-width: 30rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14.5rem), 1fr));
+  gap: 0.5rem;
   margin-top: 1.75rem;
+}
+
+[data-one-code-welcome] .one-chip {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
+[data-one-code-welcome] .one-chip kbd {
+  margin-inline-start: auto;
 }
 
 /* A still warm glow behind the ring, painted once. */
@@ -497,7 +525,7 @@
 /* Pull requests and issues share one title: the opening's serif, regular weight. */
 [data-one-page-title] {
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  font-size: 1.75rem;
+  font-size: 1.875rem;
   font-weight: 400;
   line-height: 1.1;
   letter-spacing: 0.002em;
@@ -612,65 +640,69 @@
   }
 }
 
-/* ------------------------------------------------------------------ welcome */
-
-/* First-run setup: the mark, a serif headline, and the steps in one glass panel. */
-[data-one-welcome-title] {
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  font-size: clamp(2rem, 1.7rem + 0.9vw, 2.5rem);
-  font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: 0.002em;
-}
-
-[data-one-welcome-lead] {
-  color: var(--one-text-quiet);
-}
-
-[data-one-welcome-panel] {
-  position: relative;
-  border-top: 0;
-  border-radius: var(--one-panel-radius);
-  padding: 0.25rem 1.25rem;
-  background-color: var(--one-panel-fill);
-  background-image: var(--one-glass-sheen);
-  box-shadow:
-    0 0 0 1px var(--one-hairline),
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    var(--one-glass-shadow);
-}
-
-[data-one-welcome-section] {
-  border-bottom-color: var(--one-hairline);
-}
-
-[data-one-welcome-section]:last-child {
-  border-bottom: 0;
-}
-
-[data-one-welcome-section] > h2 {
-  color: var(--one-text-quiet);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-one-welcome] > * {
-    animation: one-card-in 380ms var(--one-ease-out) both;
-  }
-
-  [data-one-welcome] > :nth-child(2) {
-    animation-delay: 50ms;
-  }
-
-  [data-one-welcome] > :nth-child(3) {
-    animation-delay: 90ms;
-  }
-
-  [data-one-welcome] > :nth-child(4) {
-    animation-delay: 130ms;
-  }
-}
-
 /* Where the panel toggle sits matches the pull requests page, whose controls float at this edge. */
 [data-one-issues-header] {
   padding-inline-end: calc(var(--workspace-controls-right) + 1px);
+}
+
+/* A new thread's draft: the same welcome, with the project picker in the headline. It sits
+   above the centered composer, so it is compact, and its three starters share one row. */
+[data-one-code-welcome][data-draft] {
+  max-width: 46rem;
+}
+
+[data-one-code-welcome][data-draft] .one-chat-welcome-orb {
+  width: 4.5rem;
+}
+
+.one-chat-welcome-heading {
+  width: 100%;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  margin-top: 0.5rem;
+}
+
+.one-chat-welcome-heading {
+  --one-welcome-title-size: clamp(1.875rem, 1.6rem + 0.9vw, 2.5rem);
+}
+
+/* The project picker and the hidden fit check inside the headline take the headline's size, so
+   the sentence reads as one line of type. */
+.one-chat-welcome-heading h1,
+.one-chat-welcome-heading h1 :is(span, button),
+.one-chat-welcome-heading [aria-hidden="true"] span {
+  font-size: var(--one-welcome-title-size);
+  letter-spacing: 0.002em;
+}
+
+.one-chat-welcome-heading h1 {
+  color: var(--foreground);
+}
+
+.one-chat-welcome-heading p {
+  font-family: var(--font-sans);
+  color: var(--one-text-quiet);
+}
+
+[data-one-code-welcome][data-draft] .one-chat-starters {
+  max-width: 44rem;
+  margin-top: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+}
+
+/* On a phone the draft keeps the headline, project and composer: the ring shrinks and the
+   starters go, so nothing slides under the header. */
+@media (max-width: 639px) {
+  [data-one-code-welcome][data-draft] .one-chat-welcome-orb {
+    width: 3.5rem;
+  }
+
+  [data-one-code-welcome][data-draft] .one-chat-starters {
+    display: none;
+  }
+}
+
+/* The line under the title: what the list holds, quiet and tabular so counts do not jitter. */
+[data-one-page-subtitle] {
+  color: var(--one-text-quiet);
+  font-variant-numeric: tabular-nums;
 }

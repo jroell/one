@@ -289,6 +289,11 @@
   color: var(--foreground);
 }
 
+/* A version number is read, not typed: code that asks for sans gets it over the global code font. */
+[data-app-modal] code.font-sans {
+  font-family: inherit;
+}
+
 [data-settings-row-title] code {
   font-family: inherit;
   font-variant-numeric: tabular-nums;
@@ -323,20 +328,24 @@
     }
   }
 
-  /* Chip pickers (model and effort) split the column between their buttons. */
+  /* Chip pickers (model, then effort) stack in the column, each one as wide and tall as a select,
+     so what they read is never cut off. */
   [data-settings-control]:has(
       [data-chat-provider-model-picker-label],
       [data-composer-control-label]
     )
     > div {
+    flex-direction: column;
     flex-wrap: nowrap;
-    justify-content: stretch;
+    align-items: stretch;
+    justify-content: flex-start;
 
     > button {
-      flex: 1 1 0;
+      inline-size: 100%;
       min-inline-size: 0;
       max-inline-size: none;
-      justify-content: space-between;
+      justify-content: flex-start;
+      text-align: start;
     }
   }
 }
@@ -396,6 +405,31 @@
   min-inline-size: 0;
 }
 
+/* The neutral point of a slider that has one: a hairline tick across the track. */
+.settings-slider-track {
+  position: relative;
+}
+
+.settings-slider-detent {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 0.5rem;
+  block-size: 0.75rem;
+  inline-size: 1px;
+  margin-inline-start: -0.5px;
+  background: color-mix(in oklab, var(--foreground) 35%, transparent);
+  pointer-events: none;
+}
+
+.settings-slider-range:has(> :nth-child(3)) {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.settings-slider-range:has(> :nth-child(3)) > :last-child {
+  text-align: end;
+}
+
 .settings-slider-range {
   display: flex;
   justify-content: space-between;
@@ -431,9 +465,7 @@
     inset 0 1px 0 0 var(--one-glass-rim-top),
     0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
     0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
-  transition:
-    transform var(--one-move-ms) var(--one-ease-spring),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  transition: box-shadow var(--one-hover-ms) var(--one-ease-hover);
 }
 
 .settings-slider::-moz-range-thumb {
@@ -445,9 +477,7 @@
     inset 0 1px 0 0 var(--one-glass-rim-top),
     0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
     0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
-  transition:
-    transform var(--one-move-ms) var(--one-ease-spring),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  transition: box-shadow var(--one-hover-ms) var(--one-ease-hover);
 }
 
 .settings-slider:hover::-webkit-slider-thumb,
@@ -478,6 +508,29 @@
   box-shadow:
     0 0 0 2px var(--background),
     0 0 0 4px var(--ring);
+}
+
+/* The thumb swells and settles on the spring only when motion is allowed. The shared slider rules
+   also scale it on hover and press; reduced motion keeps it still. */
+@media (prefers-reduced-motion: no-preference) {
+  .settings-slider::-webkit-slider-thumb {
+    transition:
+      transform var(--one-move-ms) var(--one-ease-spring),
+      box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  }
+
+  .settings-slider::-moz-range-thumb {
+    transition:
+      transform var(--one-move-ms) var(--one-ease-spring),
+      box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-slider:is(:hover, :active)::-webkit-slider-thumb,
+  .settings-slider:is(:hover, :active)::-moz-range-thumb {
+    transform: none;
+  }
 }
 
 @media (pointer: coarse) {
@@ -700,4 +753,21 @@
     margin-inline: -0.375rem;
     block-size: 2.75rem;
   }
+}
+
+/* ------------------------------------------------------------- empty states */
+
+[data-settings-empty] [data-slot="empty-title"] {
+  font-family: var(--one-serif);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+[data-settings-empty] [data-slot="empty-description"] {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--settings-description);
 }

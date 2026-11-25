@@ -196,11 +196,6 @@ export function ThemePreviewCircles({
                     <>
                       <span
                         aria-hidden
-                        className="pointer-events-none absolute inset-0 rounded-full"
-                        style={{ boxShadow: "inset 0 0 0 2px var(--ring)" }}
-                      />
-                      <span
-                        aria-hidden
                         className="pointer-events-none absolute bottom-0.5 right-0.5 flex size-5 items-center justify-center rounded-full border border-border/70 bg-background text-foreground shadow-sm"
                       >
                         {mode === "light" ? (

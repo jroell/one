@@ -1,11 +1,12 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
-import { CheckIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "./button";
 import { renderClosingPositioner } from "./closing-positioner";
 import { Input, type InputProps } from "./input";
+import { SearchFieldFrame } from "./search-field";
 import { Spinner } from "./spinner";
 
 const Menu = MenuPrimitive.Root;
@@ -80,39 +81,33 @@ function MenuSearchInput({
   ...props
 }: Omit<InputProps, "className" | "size" | "unstyled" | "nativeInput"> & { busy?: boolean }) {
   return (
-    <label className="block min-w-0 shrink-0 cursor-text px-2 pt-1.5 pb-1">
-      <div
-        className="relative -translate-y-px border-b border-border/70 pb-1.5 transition-colors focus-within:border-ring"
-        data-slot="search-field"
-      >
-        {busy ? (
+    <SearchFieldFrame
+      inset="menu"
+      icon={
+        busy ? (
           <Spinner
             aria-hidden="true"
             size="md"
             tone="muted"
             className="pointer-events-none absolute top-1.5 left-0"
           />
-        ) : (
-          <SearchIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1.5 left-0 size-4 shrink-0 text-muted-foreground/55"
-          />
-        )}
-        <Input
-          {...props}
-          className="rounded-none bg-transparent text-sm [&_input]:h-6.5 [&_input]:ps-5 [&_input]:font-sans [&_input]:leading-6.5"
-          size="sm"
-          unstyled
-          onKeyDown={(event) => {
-            // Menu typeahead would otherwise take the letters; arrows still reach the items.
-            if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Escape") {
-              event.stopPropagation();
-            }
-            onKeyDown?.(event);
-          }}
-        />
-      </div>
-    </label>
+        ) : undefined
+      }
+    >
+      <Input
+        {...props}
+        className="rounded-none bg-transparent text-sm [&_input]:h-6.5 [&_input]:ps-5 [&_input]:font-sans [&_input]:leading-6.5"
+        size="sm"
+        unstyled
+        onKeyDown={(event) => {
+          // Menu typeahead would otherwise take the letters; arrows still reach the items.
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Escape") {
+            event.stopPropagation();
+          }
+          onKeyDown?.(event);
+        }}
+      />
+    </SearchFieldFrame>
   );
 }
 

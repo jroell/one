@@ -17,6 +17,7 @@ import {
   keybindingConflictLabels,
   keybindingFromKeyboardEvent,
   parseWhenExpressionDraft,
+  spokenShortcutLabel,
   shortcutToKeybindingInput,
   shortcutToKeybindingParts,
   unknownWhenVariables,
@@ -551,5 +552,30 @@ describe("commandLabel", () => {
       "Some new panel: open first tab",
     );
     expect(commandLabel("script.dev-server.run" as never)).toBe("Run script: Dev server");
+  });
+});
+
+describe("spokenShortcutLabel", () => {
+  const shortcut = (key: string, modifiers: object = {}) => ({
+    key,
+    modKey: false,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...modifiers,
+  });
+
+  it("says arrows, Enter and Mac modifiers by name, where the visual label draws glyphs", () => {
+    expect(spokenShortcutLabel(shortcut("arrowup", { altKey: true }), "MacIntel")).toBe(
+      "Option+Up arrow",
+    );
+    expect(
+      spokenShortcutLabel(shortcut("enter", { modKey: true, shiftKey: true }), "MacIntel"),
+    ).toBe("Shift+Command+Enter");
+    expect(spokenShortcutLabel(shortcut("arrowleft", { ctrlKey: true }), "Linux x86_64")).toBe(
+      "Ctrl+Left arrow",
+    );
+    expect(spokenShortcutLabel(shortcut("escape"), "Linux x86_64")).toBe("Esc");
   });
 });

@@ -245,11 +245,7 @@ function RetentionControl({
             <NumberFieldIncrement aria-label={gt("Increase {label}", { label })} />
           </NumberFieldGroup>
         </NumberField>
-      ) : (
-        <span className="text-xs text-muted-foreground">
-          <T>Off</T>
-        </span>
-      )}
+      ) : null}
       <Switch
         aria-label={label}
         checked={on}

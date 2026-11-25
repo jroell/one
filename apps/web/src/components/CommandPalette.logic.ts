@@ -6,6 +6,7 @@ import {
   rankSearchGroups,
   scoreSearchTerms,
   scoreThreadSearch,
+  threadRecentUse,
   type SearchMatchHint,
   type SearchRange,
   type ThreadSearchSubject,
@@ -204,13 +205,18 @@ export interface CommandPaletteItem {
   /** Thread rows rank by this, with use history, instead of by `searchTerms`. */
   readonly threadSearch?: ThreadSearchSubject;
   readonly threadRef?: ScopedThreadRef;
-  /** Where a thread row lives (project, machine, branch), so a list can name it once when every row shares it. */
-  readonly contextLabel?: string;
+  /**
+   * Where a thread row lives. The key is the identity (environment, project, branch, worktree), the
+   * label what to say. A list names the place once only when every row has the same key.
+   */
+  readonly context?: { readonly key: string; readonly label: string };
   /** Shown in place of the description when the match is not in the title. */
   readonly matchHint?: SearchMatchHint;
   readonly icon: ReactNode;
   readonly disabled?: boolean;
   readonly titleLeadingContent?: ReactNode;
+  /** Sits right after the title, ahead of any project context, such as the harness mark. */
+  readonly titleSuffixContent?: ReactNode;
   readonly titleTrailingContent?: ReactNode;
   readonly shortcutCommand?: KeybindingCommand;
   readonly secondary?: boolean;
@@ -245,7 +251,7 @@ export interface CommandPaletteGroup {
   readonly value: string;
   readonly label: string;
   /** What every row in the group has in common, said once beside the heading instead of per row. */
-  readonly caption?: string;
+  readonly caption?: { readonly key: string; readonly label: string };
   readonly items: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
 }
 
@@ -325,7 +331,7 @@ export function buildCommandPaletteRows(groups: ReadonlyArray<CommandPaletteGrou
         kind: "label",
         key: `group:${group.value}`,
         label: group.label,
-        ...(group.caption !== undefined ? { caption: group.caption } : {}),
+        ...(group.caption !== undefined ? { caption: group.caption.label } : {}),
         first: rows.length === 0,
       });
     }
@@ -340,7 +346,7 @@ export function buildCommandPaletteRows(groups: ReadonlyArray<CommandPaletteGrou
         key: `${group.value}:${item.value}`,
         item,
         itemIndex,
-        ...(group.caption !== undefined ? { sharedContext: group.caption } : {}),
+        ...(group.caption !== undefined ? { sharedContext: group.caption.key } : {}),
       });
     }
   }
@@ -461,8 +467,12 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
     icon: ReactNode;
     renderLeadingContent?: (thread: TThread) => ReactNode;
     renderTrailingContent?: (thread: TThread) => ReactNode;
+    renderTitleSuffix?: (thread: TThread) => ReactNode;
     renderDescription?: (thread: TThread, meta: { projectTitle: string | undefined }) => ReactNode;
-    contextOf?: (thread: TThread, meta: { projectTitle: string | undefined }) => string | null;
+    contextOf?: (
+      thread: TThread,
+      meta: { projectTitle: string | undefined },
+    ) => { key: string; label: string } | null;
     runThread: (thread: TThread) => Promise<void>;
     /** Makes the environment searchable; pass it only with two or more environments. */
     environmentLabelOf?: (thread: TThread) => string | null;
@@ -502,9 +512,10 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
       descriptionParts.push(resolve(msg("Current thread")));
     }
 
-    const contextLabel = input.contextOf?.(thread, { projectTitle });
+    const context = input.contextOf?.(thread, { projectTitle });
     const leadingContent = input.renderLeadingContent?.(thread);
     const trailingContent = input.renderTrailingContent?.(thread);
+    const suffixContent = input.renderTitleSuffix?.(thread);
     const description = input.renderDescription
       ? input.renderDescription(thread, { projectTitle })
       : descriptionParts.join(` · `);
@@ -533,8 +544,9 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
         ),
         icon: input.icon,
       },
-      contextLabel ? { contextLabel } : {},
+      context ? { context } : {},
       leadingContent ? { titleLeadingContent: leadingContent } : {},
+      suffixContent ? { titleSuffixContent: suffixContent } : {},
       trailingContent ? { titleTrailingContent: trailingContent } : {},
       // Last in its group: picking the thread already open does nothing.
       isCurrent ? { secondary: true } : {},
@@ -878,18 +890,29 @@ export function buildRootGroups(
 ): CommandPaletteGroup[] {
   const groups: CommandPaletteGroup[] = [];
   if (input.recentThreadItems.length > 0) {
-    const [first, ...rest] = input.recentThreadItems;
+    // The time on a recent row is the use the list is ordered by (last message or last open), so
+    // the order and the labels agree.
+    const recentThreadItems = input.recentThreadItems.map((item) => {
+      const usedAt = item.threadSearch ? threadRecentUse(item.threadSearch) : 0;
+      return usedAt > 0
+        ? {
+            ...item,
+            timestamp: formatRelativeTimeLabel(new Date(usedAt).toISOString(), undefined, resolve),
+          }
+        : item;
+    });
+    const [first, ...rest] = recentThreadItems;
     const sharedContext =
-      first?.contextLabel !== undefined &&
+      first?.context !== undefined &&
       rest.length > 0 &&
-      rest.every((item) => item.contextLabel === first.contextLabel)
-        ? first.contextLabel
+      rest.every((item) => item.context?.key === first.context?.key)
+        ? first.context
         : undefined;
     groups.push({
       value: "recent-threads",
       label: resolve(msg("Recent threads")),
       ...(sharedContext !== undefined ? { caption: sharedContext } : {}),
-      items: input.recentThreadItems,
+      items: recentThreadItems,
     });
   }
   for (const section of COMMAND_SECTIONS) {

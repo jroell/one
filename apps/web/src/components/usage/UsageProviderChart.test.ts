@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { UsageProviderKind } from "@t3tools/contracts";
 
-import { buildPeriodColumns, chartSeries } from "./UsageProviderChart";
+import { barSegments, buildPeriodColumns, chartSeries } from "./UsageProviderChart";
 
 describe("buildPeriodColumns", () => {
   const days = ["2026-08-01", "2026-08-02", "2026-08-03"];
@@ -93,5 +93,49 @@ describe("chartSeries", () => {
       new Set<UsageProviderKind>(["muse"]),
     );
     expect(series.find((band) => band.key === "others")?.loading).toBe(true);
+  });
+});
+
+describe("barSegments", () => {
+  const columnFor = (entries: Record<string, number>) =>
+    buildPeriodColumns(
+      ["2026-08-01"],
+      new Map([
+        [
+          "2026-08-01",
+          {
+            day: "2026-08-01",
+            costUsd: 0,
+            totalTokens: 0,
+            byProvider: new Map(
+              Object.entries(entries).map(([provider, tokens]) => [
+                provider as UsageProviderKind,
+                { costUsd: tokens, totalTokens: tokens },
+              ]),
+            ),
+          },
+        ],
+      ]),
+      "tokens",
+    )[0]!;
+  const none: ReadonlySet<UsageProviderKind> = new Set();
+
+  it("stacks each provider's share of the scale, biggest at the bottom, rounding only the top", () => {
+    const column = columnFor({ codex: 600, claude: 300 });
+    const series = chartSeries(["codex", "claude"], [column], none);
+    const segments = barSegments(column, series, 1000);
+    expect(segments.map((segment) => segment.key)).toEqual(["codex", "claude"]);
+    expect(segments.map((segment) => segment.top)).toEqual([false, true]);
+    // The plot leaves room above the tallest value, so 600 of 1000 is a bit under 60% of its height.
+    expect(segments[0]!.heightPercent).toBeGreaterThan(55);
+    expect(segments[0]!.heightPercent).toBeLessThan(60);
+    expect(segments[0]!.heightPercent / segments[1]!.heightPercent).toBeCloseTo(2, 5);
+  });
+
+  it("leaves out providers with nothing that day and draws nothing without a scale", () => {
+    const column = columnFor({ codex: 600 });
+    const series = chartSeries(["codex", "claude"], [column], none);
+    expect(barSegments(column, series, 1000).map((segment) => segment.key)).toEqual(["codex"]);
+    expect(barSegments(column, series, 0)).toEqual([]);
   });
 });

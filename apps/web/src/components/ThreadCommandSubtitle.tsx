@@ -49,18 +49,19 @@ export function ThreadCommandSubtitle(props: {
   acpRegistryAgentId?: string | undefined;
   acpRegistryIconUrl?: string | undefined;
   variant?: ThreadCommandSubtitleVariant;
-  contextLabel?: string;
+  contextKey?: string;
   className?: string;
 }) {
   const sharedContext = use(SharedThreadContext);
-  const contextShared = sharedContext !== null && sharedContext === props.contextLabel;
+  const contextShared = sharedContext !== null && sharedContext === props.contextKey;
   const variant = props.variant ?? THREAD_COMMAND_SUBTITLE_VARIANT;
   const isWorktree = props.worktreePath != null && props.worktreePath.trim().length > 0;
   const showHarness =
     variant !== "favicon-workspace" && props.driverKind != null && props.providerDisplayName;
 
-  const projectLabel = contextShared ? null : props.projectTitle?.trim() || null;
-  const branchLabel = contextShared ? null : props.branch?.trim() || null;
+  const projectLabel = props.projectTitle?.trim() || null;
+  const branchLabel = props.branch?.trim() || null;
+  const visibleContext = !contextShared && Boolean(projectLabel || branchLabel);
 
   if (!projectLabel && !branchLabel && !props.isCurrent && !showHarness) {
     return null;
@@ -73,34 +74,44 @@ export function ThreadCommandSubtitle(props: {
         props.className,
       )}
     >
-      {projectLabel ? (
-        <span className="inline-flex min-w-0 items-center gap-1">
-          {props.project ? (
-            <ProjectFavicon project={props.project} className="size-3 shrink-0" />
+      {contextShared ? (
+        // The list's heading says it once for the eye; each option keeps it for assistive tech, so
+        // it is still read after the heading has scrolled away.
+        <span className="sr-only">
+          {[projectLabel, props.environmentLabel, branchLabel].filter(Boolean).join(", ")}
+        </span>
+      ) : (
+        <>
+          {projectLabel ? (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              {props.project ? (
+                <ProjectFavicon project={props.project} className="size-3 shrink-0" />
+              ) : null}
+              <span className="min-w-0 truncate">{projectLabel}</span>
+              {props.environmentLabel ? (
+                <>
+                  <CommandPaletteMetaDot />
+                  <span className="shrink-0">{props.environmentLabel}</span>
+                </>
+              ) : null}
+            </span>
           ) : null}
-          <span className="min-w-0 truncate">{projectLabel}</span>
-          {props.environmentLabel ? (
+
+          {branchLabel ? (
             <>
-              <CommandPaletteMetaDot />
-              <span className="shrink-0">{props.environmentLabel}</span>
+              {projectLabel ? <CommandPaletteMetaDot /> : null}
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <WorkspaceIcon variant={variant} isWorktree={isWorktree} />
+                <MiddleTruncate value={branchLabel} />
+              </span>
             </>
           ) : null}
-        </span>
-      ) : null}
-
-      {branchLabel ? (
-        <>
-          {projectLabel ? <CommandPaletteMetaDot /> : null}
-          <span className="inline-flex min-w-0 items-center gap-1">
-            <WorkspaceIcon variant={variant} isWorktree={isWorktree} />
-            <MiddleTruncate value={branchLabel} />
-          </span>
         </>
-      ) : null}
+      )}
 
       {showHarness && props.driverKind ? (
         <>
-          {projectLabel || branchLabel ? <CommandPaletteMetaDot /> : null}
+          {visibleContext ? <CommandPaletteMetaDot /> : null}
           <ProviderInstanceIcon
             driverKind={props.driverKind}
             displayName={props.providerDisplayName ?? props.driverKind}
@@ -113,7 +124,7 @@ export function ThreadCommandSubtitle(props: {
 
       {props.isCurrent ? (
         <>
-          {projectLabel || branchLabel || showHarness ? <CommandPaletteMetaDot /> : null}
+          {visibleContext || showHarness ? <CommandPaletteMetaDot /> : null}
           <span className="shrink-0">
             <T>Current thread</T>
           </span>

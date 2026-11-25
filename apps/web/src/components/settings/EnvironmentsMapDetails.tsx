@@ -153,13 +153,16 @@ export function FleetDetails(props: FleetDetailsProps) {
     onSelect(focus);
     panel.current?.focus();
   };
+  // With nothing selected the fleet summary lives in the map's header, so no empty band here.
+  if (!connectProblem && !pair && !edge && !stack && !node)
+    return <div ref={panel} tabIndex={-1} />;
   return (
     <div
       ref={panel}
       tabIndex={-1}
       role="group"
       aria-label={gt("Details")}
-      className="min-h-20 border-t border-border/60 text-xs outline-none"
+      className="border-t border-border/60 text-xs outline-none"
     >
       {connectProblem ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border/60 px-3 py-2 sm:px-4">
@@ -218,9 +221,7 @@ export function FleetDetails(props: FleetDetailsProps) {
         />
       ) : node ? (
         <NodeDetails {...props} key={node.id} node={node} links={links} onSelect={selectWithin} />
-      ) : (
-        <FleetSummary graph={graph} links={links} />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -234,7 +235,8 @@ function Heading({ children, detail }: { children: ReactNode; detail?: ReactNode
   );
 }
 
-function FleetSummary({
+/** "3 machines, 2 links": the fleet in a line, for the map's own header. */
+export function FleetSummaryText({
   graph,
   links,
 }: {
@@ -245,28 +247,28 @@ function FleetSummary({
   const summary = fleetSummary(graph);
   const attention = links.filter((edge) => linkNeedsAttention(edge.health)).length;
   const { machines } = summary;
+  const counts =
+    summary.links !== null
+      ? gt(
+          "{machines, plural, one {# machine} other {# machines}}, {links, plural, =0 {no links} one {# link} other {# links}}",
+          { machines, links: summary.links },
+        )
+      : gt("{machines, plural, one {# machine} other {# machines}}", { machines });
   return (
-    <div className={SECTION}>
-      <Heading
-        detail={
-          summary.loading
-            ? gt("Loading links…")
-            : attention > 0
-              ? gt("{count, plural, one {# needs attention} other {# need attention}}", {
-                  count: attention,
-                  $context: "after a count of links: how many of those links have a problem",
-                })
-              : null
-        }
-      >
-        {summary.links !== null
-          ? gt(
-              "{machines, plural, one {# machine} other {# machines}}, {links, plural, =0 {no links} one {# link} other {# links}}",
-              { machines, links: summary.links },
-            )
-          : gt("{machines, plural, one {# machine} other {# machines}}", { machines })}
-      </Heading>
-    </div>
+    <>
+      <span className="font-medium text-foreground">{counts}</span>
+      {summary.loading ? (
+        <span> · {gt("Loading links…")}</span>
+      ) : attention > 0 ? (
+        <span>
+          {" · "}
+          {gt("{count, plural, one {# needs attention} other {# need attention}}", {
+            count: attention,
+            $context: "after a count of links: how many of those links have a problem",
+          })}
+        </span>
+      ) : null}
+    </>
   );
 }
 

@@ -127,3 +127,22 @@ it("gives a subagent the same status as the background work line", async () => {
     .element(page.getByRole("dialog").getByText("Waiting", { exact: true }))
     .toBeVisible();
 });
+
+it("lets the syncing line leave after a few seconds while a failed sync stays", async () => {
+  await using syncing = await render(
+    <ThreadNow attention={null} work={null} goal={null} syncPhase="syncing" />,
+    { router: false },
+  );
+  const line = syncing.container.querySelector("[data-composer-sync-status]")!;
+  const animation = getComputedStyle(line);
+  expect(animation.animationName).toBe("one-sync-leave");
+  expect(Number.parseFloat(animation.animationDelay)).toBeGreaterThanOrEqual(4);
+  expect(animation.animationFillMode).toBe("forwards");
+
+  await using failed = await render(
+    <ThreadNow attention={null} work={null} goal={null} syncPhase="failed" />,
+    { router: false },
+  );
+  const failedLine = failed.container.querySelector("[data-composer-sync-status]")!;
+  expect(getComputedStyle(failedLine).animationName).toBe("none");
+});

@@ -5,7 +5,6 @@ import { msg, useGT } from "gt-react";
 import {
   useEffect,
   useState,
-  useSyncExternalStore,
   type CSSProperties,
   type ComponentPropsWithoutRef,
   type KeyboardEvent,
@@ -467,44 +466,6 @@ interface ToastProviderProps extends Toast.Provider.Props {
   position?: ToastPosition;
 }
 
-// Base UI pauses every dismissal timer while the window is in the background, from the window's
-// own blur and focus events. The countdown line follows the same events, starting from "focused".
-let toastWindowInactive = false;
-function subscribeToastWindowFocus(onChange: () => void) {
-  toastWindowInactive = false;
-  const setInactive = (inactive: boolean) => (event: Event) => {
-    if (event.target !== window || toastWindowInactive === inactive) return;
-    toastWindowInactive = inactive;
-    onChange();
-  };
-  const onBlur = setInactive(true);
-  const onFocus = setInactive(false);
-  window.addEventListener("blur", onBlur, true);
-  window.addEventListener("focus", onFocus, true);
-  return () => {
-    window.removeEventListener("blur", onBlur, true);
-    window.removeEventListener("focus", onFocus, true);
-  };
-}
-const getToastWindowInactive = () => toastWindowInactive;
-const getServerToastWindowInactive = () => false;
-
-/**
- * How long Base UI will wait before dismissing this toast, or 0 when no single timer decides it
- * (loading, persistent, or a toast that also carries its own visible-time clock).
- */
-function toastDismissDelayMs(
-  toast: {
-    type?: string | undefined;
-    timeout?: number | undefined;
-    data?: ThreadToastData | undefined;
-  },
-  providerTimeoutMs: number,
-): number {
-  if (toast.type === "loading" || toast.data?.dismissAfterVisibleMs) return 0;
-  return Math.max(0, toast.timeout ?? providerTimeoutMs);
-}
-
 function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
   const routeTarget = useThreadRouteTarget();
   const activeDraftSession = useComposerDraftStore((store) =>
@@ -606,26 +567,15 @@ function ToastProvider({ children, position = "top-right", ...props }: ToastProv
   return (
     <Toast.Provider toastManager={toastManager} {...props}>
       {children}
-      <Toasts position={position} providerTimeoutMs={props.timeout ?? 5000} />
+      <Toasts position={position} />
     </Toast.Provider>
   );
 }
 
-function Toasts({
-  position,
-  providerTimeoutMs,
-}: {
-  position: ToastPosition;
-  providerTimeoutMs: number;
-}) {
+function Toasts({ position }: { position: ToastPosition }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
   const activeThreadRef = useActiveThreadRefFromRoute();
   const gt = useGT();
-  const windowInactive = useSyncExternalStore(
-    subscribeToastWindowFocus,
-    getToastWindowInactive,
-    getServerToastWindowInactive,
-  );
   const isTop = position.startsWith("top");
   const visibleToasts = toasts.filter((toast) =>
     shouldRenderThreadScopedToast(toast.data, activeThreadRef),
@@ -656,7 +606,6 @@ function Toasts({
         )}
         data-position={position}
         data-slot="toast-viewport"
-        data-window-inactive={windowInactive ? "" : undefined}
         style={
           {
             "--toast-frontmost-height": `${visibleToastLayout.frontmostHeight}px`,
@@ -732,16 +681,6 @@ function Toasts({
               <ThreadToastVisibleAutoDismiss
                 dismissAfterVisibleMs={toast.data?.dismissAfterVisibleMs}
                 toastId={toast.id}
-              />
-              <span
-                aria-hidden
-                data-slot="toast-timer"
-                key={`${toast.type}:${toastDismissDelayMs(toast, providerTimeoutMs)}`}
-                style={
-                  {
-                    "--toast-timeout-ms": toastDismissDelayMs(toast, providerTimeoutMs),
-                  } as CSSProperties
-                }
               />
               <div className={toastCornerDismissClass}>
                 <button

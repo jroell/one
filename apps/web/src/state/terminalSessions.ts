@@ -204,6 +204,30 @@ export function attachedTerminalSessionAtom(
   return attachedTerminalSessionFamily(JSON.stringify([environmentId, terminal]));
 }
 
+function attachSourceAtom(environmentId: EnvironmentId, terminal: TerminalAttachInput) {
+  const canOperate = sessionHasScope(
+    appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId)),
+    AuthTerminalOperateScope,
+  );
+  return canOperate
+    ? terminalEnvironment.attach({ environmentId, input: terminal })
+    : terminalEnvironment.observe({
+        environmentId,
+        input: { threadId: terminal.threadId, terminalId: terminal.terminalId },
+      });
+}
+
+/**
+ * Whether the attach (or observe) stream itself failed. A shell that fails to start also puts a
+ * message on the session, but its attachment succeeded, so the message alone cannot say which.
+ */
+export function terminalAttachFailed(
+  environmentId: EnvironmentId,
+  terminal: TerminalAttachInput,
+): boolean {
+  return appAtomRegistry.get(attachSourceAtom(environmentId, terminal))._tag === "Failure";
+}
+
 /**
  * Re-subscribes to the attach (or read-only observe) stream a session cached as failed. The
  * derived session atom only recomputes from that cached failure, so the stream atom under it is
@@ -213,18 +237,7 @@ export function retryTerminalSessionAttach(
   environmentId: EnvironmentId,
   terminal: TerminalAttachInput,
 ): void {
-  const canOperate = sessionHasScope(
-    appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId)),
-    AuthTerminalOperateScope,
-  );
-  appAtomRegistry.refresh(
-    canOperate
-      ? terminalEnvironment.attach({ environmentId, input: terminal })
-      : terminalEnvironment.observe({
-          environmentId,
-          input: { threadId: terminal.threadId, terminalId: terminal.terminalId },
-        }),
-  );
+  appAtomRegistry.refresh(attachSourceAtom(environmentId, terminal));
 }
 
 const NO_KNOWN_TERMINAL_SESSIONS_ATOM = Atom.make<ReadonlyArray<KnownTerminalSession> | null>(null);

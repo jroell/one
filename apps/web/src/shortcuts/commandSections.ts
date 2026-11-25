@@ -4,6 +4,7 @@ import { msg } from "gt-react";
 /** Headings shared by the command palette and the keyboard shortcuts sheet, in display order. */
 export const COMMAND_SECTIONS = [
   { id: "thread", title: msg("Thread", { $context: "command group heading" }) },
+  { id: "chat", title: msg("Chat", { $context: "command group heading" }) },
   { id: "composer", title: msg("Composer", { $context: "command group heading" }) },
   { id: "view", title: msg("View", { $context: "command group heading" }) },
   { id: "git", title: msg("Git", { $context: "command group heading" }) },
@@ -17,7 +18,7 @@ export type CommandSectionId = (typeof COMMAND_SECTIONS)[number]["id"];
 
 const SECTION_BY_PREFIX: Readonly<Record<string, CommandSectionId>> = {
   thread: "thread",
-  chat: "thread",
+  chat: "chat",
   composer: "composer",
   modelPicker: "composer",
   voiceChat: "composer",

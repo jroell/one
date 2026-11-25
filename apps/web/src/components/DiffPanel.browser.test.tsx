@@ -322,6 +322,64 @@ it.each([false, true])(
   },
 );
 
+async function renderLazyFile(stat: { path: string; binary?: boolean }) {
+  const context = setup("origin/orphan");
+  const metadata = preview();
+  const source = {
+    ...metadata.sources[0]!,
+    files: [{ previousPath: null, additions: 0, deletions: 0, ...stat }],
+  };
+  state.previews.set("main", Atom.make(AsyncResult.success({ ...metadata, sources: [source] })));
+  useDiffPanelStore.getState().selectBranchBaseRef(context.threadRef, "main");
+  const screen = await render(
+    <RegistryContext.Provider value={context.registry}>
+      <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
+        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+      </div>
+    </RegistryContext.Provider>,
+  );
+  return { context, screen, source };
+}
+
+it("labels a deferred file Binary from the server's flag before its patch loads", async () => {
+  const { context, screen } = await renderLazyFile({ path: "flagged-firmware", binary: true });
+  using _context = context;
+  await using _screen = screen;
+  await expect.element(screen.getByText("Binary", { exact: true })).toBeVisible();
+});
+
+it("labels a deferred file Binary from its loaded patch when an older server sends no flag", async () => {
+  const { context, screen, source } = await renderLazyFile({ path: "unflagged-firmware" });
+  using _context = context;
+  await using _screen = screen;
+  await userEvent.click(
+    screen.getByRole("button", { name: "Expand unflagged-firmware", exact: true }),
+  );
+  await act(() =>
+    context.registry.set(
+      context.patch,
+      AsyncResult.success({
+        ...source,
+        diff: "diff --git a/unflagged-firmware b/unflagged-firmware\nindex 1..2 100755\nBinary files a/unflagged-firmware and b/unflagged-firmware differ\n",
+      }),
+    ),
+  );
+  await expect
+    .element(screen.getByRole("button", { name: "Collapse unflagged-firmware", exact: true }))
+    .toHaveAttribute("aria-expanded", "true");
+  await expect.element(screen.getByText("Binary", { exact: true })).toBeVisible();
+});
+
+it("does not label a deferred file Binary when the server says it is not", async () => {
+  const { context, screen } = await renderLazyFile({ path: "unflagged-notes.db", binary: false });
+  using _context = context;
+  await using _screen = screen;
+  await expect
+    .element(screen.getByText("unflagged-notes.db", { exact: true }).first())
+    .toBeVisible();
+  await expect.element(screen.getByText("Binary", { exact: true })).not.toBeInTheDocument();
+});
+
 it("says a turn diff cut off at the server's size limit is incomplete", async () => {
   using context = setup("origin/orphan");
   state.checkpoints = [
@@ -352,7 +410,7 @@ it("says a turn diff cut off at the server's size limit is incomplete", async ()
     .toBeVisible();
 });
 
-async function renderTurnPatch(patchLines: string[]) {
+async function renderTurnPatch(patchLines: string[], width = 900) {
   const context = setup("origin/orphan");
   state.checkpoints = [
     {
@@ -369,8 +427,13 @@ async function renderTurnPatch(patchLines: string[]) {
   useDiffPanelStore.getState().selectTurn(context.threadRef, RunId.make("run"));
   const screen = await render(
     <RegistryContext.Provider value={context.registry}>
-      <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
-        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+      <div style={{ height: 600, width, display: "flex", flexDirection: "column" }}>
+        <DiffPanel
+          mode="embedded"
+          composerDraftTarget={context.threadRef}
+          workspaceMutationId={null}
+          visible
+        />
       </div>
     </RegistryContext.Provider>,
   );
@@ -388,6 +451,34 @@ it("labels an extensionless file Binary because the patch marks it binary", asyn
   await using _screen = screen;
   await expect.element(screen.getByText("firmware", { exact: true }).first()).toBeVisible();
   await expect.element(screen.getByText("Binary", { exact: true })).toBeVisible();
+});
+
+it("names the collapse button in text on a wide panel and only by icon on a narrow one", async () => {
+  const patch = [
+    "diff --git a/a.txt b/a.txt",
+    "--- a/a.txt",
+    "+++ b/a.txt",
+    "@@ -1 +1 @@",
+    "-a",
+    "+b",
+    "",
+  ];
+  const wide = await renderTurnPatch(patch, 900);
+  {
+    using _context = wide.context;
+    await using _screen = wide.screen;
+    await expect.element(wide.screen.getByText(/^(Collapse|Expand) all files$/)).toBeVisible();
+    expect(wide.screen.container.querySelectorAll("[data-one-toolbar-sep]").length).toBeGreaterThan(
+      0,
+    );
+  }
+  const narrow = await renderTurnPatch(patch, 420);
+  using _context = narrow.context;
+  await using _screen = narrow.screen;
+  await expect
+    .element(narrow.screen.getByRole("button", { name: /^(Collapse|Expand) all files$/ }))
+    .toBeVisible();
+  await expect.element(narrow.screen.getByText(/^(Collapse|Expand) all files$/)).not.toBeVisible();
 });
 
 it("does not label a mode-only change to notes.db Binary", async () => {

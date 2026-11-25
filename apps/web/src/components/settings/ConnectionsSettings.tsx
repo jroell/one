@@ -141,6 +141,7 @@ import {
 import {
   AdvertisedEndpointListRow,
   AuthorizedClientsHeaderAction,
+  RevokeOtherClientsAction,
   NetworkAccessDescription,
   PairingClientsList,
 } from "./AuthorizedClientsSettings";
@@ -1432,11 +1433,11 @@ function ConnectionsSettingsContent({
             ) : null}
             {accessEnvironment ? (
               <details className="group px-3 sm:px-4">
-                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                   <T>Permissions</T>
                   <ChevronRightIcon
                     aria-hidden
-                    className="size-3 text-muted-foreground group-open:rotate-90"
+                    className="size-4 text-muted-foreground group-open:rotate-90"
                   />
                 </summary>
                 <SessionPermissions
@@ -1467,15 +1468,6 @@ function ConnectionsSettingsContent({
                     environmentId={accessEnvironmentId}
                     delegatableScopes={currentSessionScopes ?? []}
                     onPairingLinkCreated={handlePairingLinkCreated}
-                    clientSessions={
-                      canReadAccess &&
-                      authAccessChanges.error === null &&
-                      authAccessChanges.data?.type === "snapshot"
-                        ? desktopClientSessions
-                        : null
-                    }
-                    isRevokingOtherClients={isRevokingOtherDesktopClients}
-                    onRevokeOtherClients={requestRevokeOtherClients}
                   />
                 ) : undefined
               }
@@ -1496,6 +1488,17 @@ function ConnectionsSettingsContent({
                   </p>
                 )}
               </ScrollArea>
+              {canWriteAccess && canReadAccess ? (
+                <RevokeOtherClientsAction
+                  clientSessions={
+                    authAccessChanges.error === null && authAccessChanges.data?.type === "snapshot"
+                      ? desktopClientSessions
+                      : null
+                  }
+                  isRevoking={isRevokingOtherDesktopClients}
+                  onRevoke={requestRevokeOtherClients}
+                />
+              ) : null}
             </FoldedSettingsSection>
           ) : null}
           {canReadAccess &&

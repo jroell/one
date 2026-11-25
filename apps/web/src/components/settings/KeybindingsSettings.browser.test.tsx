@@ -76,7 +76,7 @@ describe("Esc in a shortcut recorder", () => {
       name: "new binding",
       field: newField,
       open: async () => {
-        await activate(page.getByRole("button", { name: "Add keybinding" }), "click");
+        await activate(page.getByRole("button", { name: "Add shortcut" }), "click");
         await activate(newField, "focus");
       },
       expectReset: async () => {
@@ -118,7 +118,7 @@ describe("Esc in a shortcut recorder", () => {
       name: "new binding",
       field: newField,
       open: async () => {
-        await activate(page.getByRole("button", { name: "Add keybinding" }), "click");
+        await activate(page.getByRole("button", { name: "Add shortcut" }), "click");
         await activate(newField, "focus");
       },
     },
@@ -195,7 +195,7 @@ it("Esc in the keybindings search clears the query without closing Settings", as
       </DialogPopup>
     </Dialog>,
   );
-  const search = page.getByRole("searchbox", { name: "Search keybindings" });
+  const search = page.getByRole("searchbox", { name: "Search shortcuts" });
   await search.fill("sidebar");
   for (const composition of [
     { key: "Escape", isComposing: true, keyCode: 27 },
@@ -266,7 +266,7 @@ it("re-enables Save when a When editor closes on an expression it could not pars
 
 it("filters actions and allows additional shortcuts for assigned commands", async () => {
   await using screen = await render(<KeybindingsSettingsPanel />);
-  await screen.getByRole("button", { name: "Add keybinding" }).click();
+  await screen.getByRole("button", { name: "Add shortcut" }).click();
   const dialog = page.getByRole("dialog", { name: "Command", exact: true });
   const search = dialog.getByRole("combobox", { name: "Search", exact: true });
   await expect.element(search).toHaveFocus();
@@ -314,6 +314,14 @@ it("shows a command's alternate keys on one row, as glyphs, with its condition i
       screen.getByRole("button", { name: /^Edit shortcut for Queue: edit last queued message: / }),
     )
     .toHaveTextContent("Alt↑");
+  // The keycap draws a glyph; the button's accessible name speaks it.
+  await expect
+    .element(
+      screen.getByRole("button", {
+        name: "Edit shortcut for Queue: edit last queued message: Alt+Up arrow",
+      }),
+    )
+    .toBeVisible();
   const condition = screen.getByRole("button", { name: "Edit when clause for Chat: new" });
   await expect.element(condition).toHaveTextContent("not in the terminal");
 });

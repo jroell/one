@@ -68,11 +68,15 @@ interface SettingsScopeMenuProps {
   readonly onChange: (next: SettingsScopeSearch) => void;
 }
 
+const FILTER_PATHS: ReadonlySet<string> = new Set(["/settings/archived", "/settings/diagnostics"]);
+
 export function SettingsScopeSentence() {
   const scope = useOptionalSettingsScope();
   const pathname = useLocation({ select: (location) => location.pathname });
   const { environments } = useEnvironments();
   if (scope === null || SETTINGS_DEVICE_ONLY_PATHS.has(pathname)) return null;
+  // Legal notices have no scope to apply settings to.
+  if (pathname === "/settings/open-source-licenses") return null;
   const props: SettingsScopeMenuProps = {
     value: scope.search,
     singleEnvironment: scope.singleEnvironment,
@@ -86,6 +90,26 @@ export function SettingsScopeSentence() {
   const environment = <EnvironmentScopeMenu {...props} />;
   const checkout = <CheckoutScopeMenu {...props} />;
   const onEnvironment = scope.search.machine || scope.scope.kind === "checkout";
+  // These pages list things rather than hold settings, so their bar reads as a filter.
+  if (FILTER_PATHS.has(pathname)) {
+    return (
+      <p
+        data-settings-scope=""
+        className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-sm text-muted-foreground sm:px-4"
+      >
+        <T context="settings filter sentence; each variable is a menu">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0">Showing</span>
+            <Var>{project}</Var>
+          </span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0">on</span>
+            <Var>{environment}</Var>
+          </span>
+        </T>
+      </p>
+    );
+  }
   // The project list is the choice, so a bar that also asks which project would contradict it.
   // Only the machine filter stays, and only when there is more than one machine to filter by.
   if (pathname === "/settings/projects" && !scope.search.project) {

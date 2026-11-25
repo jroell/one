@@ -38,6 +38,56 @@
   --ui-select-tint-faint: color-mix(in oklch, var(--one-brand) 7%, transparent);
   --ui-select-ring: color-mix(in oklch, var(--one-brand) 72%, transparent);
 
+  /*
+   * Status tokens: one set for danger, warning, success and info, in both themes.
+   *   fg     text and icons on the page or on a tint: 4.5:1 or better
+   *   fill   a dot, a bar, a ring or a large shape: 3:1 or better against the page
+   *   tint   a faint wash behind a banner or badge
+   *   solid  a filled button or chip that carries --ui-on-solid text: 4.5:1 or better
+   * Warning is orange (hue 50), clearly apart from the gold brand (hue 85), so a warning beside
+   * a gold button never reads as one more brand color. Use these instead of raw amber, red or
+   * emerald; page CSS can write color: var(--ui-warning-fg) or .ui-text-warning.
+   */
+  --ui-on-solid: #fff;
+  --ui-danger-fg: oklch(0.5 0.19 27);
+  --ui-danger-fill: oklch(0.58 0.21 27);
+  --ui-danger-solid: oklch(0.52 0.2 27);
+  --ui-warning-fg: oklch(0.48 0.13 48);
+  --ui-warning-fill: oklch(0.62 0.16 50);
+  --ui-warning-solid: oklch(0.5 0.13 48);
+  --ui-success-fg: oklch(0.44 0.11 155);
+  --ui-success-fill: oklch(0.58 0.14 155);
+  --ui-success-solid: oklch(0.46 0.12 155);
+  --ui-info-fg: oklch(0.45 0.14 255);
+  --ui-info-fill: oklch(0.56 0.17 255);
+  --ui-info-solid: oklch(0.48 0.16 255);
+  --ui-danger-tint: color-mix(in oklch, var(--ui-danger-fill) 9%, transparent);
+  --ui-warning-tint: color-mix(in oklch, var(--ui-warning-fill) 10%, transparent);
+  --ui-success-tint: color-mix(in oklch, var(--ui-success-fill) 9%, transparent);
+  --ui-info-tint: color-mix(in oklch, var(--ui-info-fill) 9%, transparent);
+
+  /*
+   * The modal material. One blurred layer per modal (the frame), never one per card. Cards are a
+   * faint tint over the frame with a hairline. The frame reads the active theme's raised surface
+   * (the base surface on light) and the user's glass opacity setting.
+   */
+  --ui-modal-base: var(--ui-surface-base);
+  --ui-modal-surface: color-mix(
+    in srgb,
+    color-mix(in oklch, var(--one-brand) 2.5%, var(--ui-modal-base)) var(--glass-opacity),
+    transparent
+  );
+  --ui-modal-blur: blur(calc(var(--glass-blur) * 1.5))
+    saturate(calc(var(--glass-saturation) + 0.25));
+  --ui-card-surface: color-mix(in srgb, var(--ui-surface-overlay) 72%, transparent);
+  --ui-specular: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 55%) 0,
+    rgb(255 255 255 / 18%) 2.5rem,
+    transparent 9rem
+  );
+  --ui-warm-glow: color-mix(in oklch, var(--one-brand) 6%, transparent);
+
   --ui-radius: var(--control-radius, 0.5rem);
   --ui-radius-float: 0.75rem;
   --ui-radius-item: 0.5rem;
@@ -51,7 +101,7 @@
   --ui-edge-strong: color-mix(in srgb, var(--foreground) 17%, transparent);
   --ui-hover: color-mix(in srgb, var(--foreground) 6%, transparent);
   --ui-press: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --ui-highlight: color-mix(in oklch, var(--one-brand) 9%, var(--foreground) 5%);
+  --ui-highlight: color-mix(in oklab, var(--one-brand) 9%, var(--foreground) 5%);
   --ui-muted-text: color-mix(in srgb, var(--muted-foreground) 82%, var(--foreground));
 
   /* Shade falls into a recess and light catches the edge of a raised thing. */
@@ -64,12 +114,35 @@
   /* Small controls with no other cue (checkbox, radio, an off switch) keep an edge above 3:1. */
   --ui-control-edge: color-mix(in srgb, var(--foreground) 52%, transparent);
   --ui-field-inset: inset 0 1px 2px var(--ui-shade), 0 1px 0 var(--ui-lit);
-  --ui-invalid: var(--destructive-foreground);
-  --ui-invalid-edge: color-mix(in oklch, var(--destructive) 70%, transparent);
+  --ui-invalid: var(--ui-danger-fg);
+  --ui-invalid-edge: color-mix(in oklch, var(--ui-danger-fill) 70%, transparent);
 
   @variant dark {
-    --ui-surface-raised: color-mix(in srgb, var(--foreground) 5.5%, var(--background));
-    --ui-surface-overlay: color-mix(in srgb, var(--foreground) 8.5%, var(--background));
+    --ui-danger-fg: oklch(0.76 0.15 25);
+    --ui-danger-fill: oklch(0.66 0.2 25);
+    --ui-danger-solid: oklch(0.55 0.19 25);
+    --ui-warning-fg: oklch(0.8 0.13 62);
+    --ui-warning-fill: oklch(0.72 0.16 55);
+    --ui-warning-solid: oklch(0.52 0.13 50);
+    --ui-success-fg: oklch(0.8 0.14 155);
+    --ui-success-fill: oklch(0.7 0.15 155);
+    --ui-success-solid: oklch(0.47 0.12 155);
+    --ui-info-fg: oklch(0.78 0.11 250);
+    --ui-info-fill: oklch(0.66 0.15 255);
+    --ui-info-solid: oklch(0.5 0.15 255);
+    --ui-danger-tint: color-mix(in oklch, var(--ui-danger-fill) 14%, transparent);
+    --ui-warning-tint: color-mix(in oklch, var(--ui-warning-fill) 14%, transparent);
+    --ui-success-tint: color-mix(in oklch, var(--ui-success-fill) 13%, transparent);
+    --ui-info-tint: color-mix(in oklch, var(--ui-info-fill) 13%, transparent);
+    --ui-modal-base: var(--ui-surface-raised);
+    --ui-card-surface: color-mix(in srgb, var(--foreground) 3.5%, transparent);
+    --ui-specular: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 9%) 0,
+      rgb(255 255 255 / 3%) 2.5rem,
+      transparent 9rem
+    );
+    --ui-warm-glow: color-mix(in oklch, var(--one-brand) 9%, transparent);
     --ui-focus: var(--ring);
     --ui-shade: rgb(0 0 0 / 55%);
     --ui-shade-deep: rgb(0 0 0 / 70%);
@@ -83,6 +156,19 @@
     --ui-field-edge-hover: color-mix(in srgb, var(--foreground) 28%, transparent);
     --ui-control-edge: color-mix(in srgb, var(--foreground) 44%, transparent);
   }
+}
+
+/* The stepped dark surfaces belong to the default theme. A chosen theme brings its own raised and
+   overlay colors, and those win. */
+html:not([data-theme-id]).dark,
+html[data-theme-id=""].dark {
+  --ui-surface-raised: color-mix(in srgb, var(--foreground) 5.5%, var(--background));
+  --ui-surface-overlay: color-mix(in srgb, var(--foreground) 8.5%, var(--background));
+}
+
+html[data-theme-id]:not([data-theme-id=""]) {
+  --ui-surface-raised: var(--app-theme-surface-raised, var(--card));
+  --ui-surface-overlay: var(--app-theme-surface-overlay, var(--popover));
 }
 
 html:not([data-theme-id]):not(.dark),
@@ -174,15 +260,15 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-button][data-variant="destructive"] {
-  border-color: color-mix(in oklch, var(--destructive) 62%, black);
-  background-color: color-mix(in oklch, var(--destructive) 80%, black);
+  border-color: color-mix(in oklch, var(--ui-danger-solid) 80%, black);
+  background-color: var(--ui-danger-solid);
   background-image: linear-gradient(to bottom, rgb(255 255 255 / 14%), transparent 62%);
-  color: white;
+  color: var(--ui-on-solid);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 24%),
     inset 0 -1px 0 rgb(0 0 0 / 16%),
-    0 1px 2px color-mix(in oklch, var(--destructive) 34%, transparent),
-    0 5px 12px -6px color-mix(in oklch, var(--destructive) 50%, transparent);
+    0 1px 2px color-mix(in oklch, var(--ui-danger-fill) 34%, transparent),
+    0 5px 12px -6px color-mix(in oklch, var(--ui-danger-fill) 50%, transparent);
 }
 
 /* Secondary and outline: quiet glass with the lit top edge. */
@@ -235,7 +321,7 @@ html[data-theme-id=""]:not(.dark) {
   }
 
   [data-button][data-variant="destructive"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
-    background-color: color-mix(in oklch, var(--destructive) 74%, black);
+    background-color: color-mix(in oklch, var(--ui-danger-solid) 92%, black);
   }
 
   :is([data-button][data-variant="outline"], [data-button][data-variant="glass"]):hover:not(
@@ -248,8 +334,8 @@ html[data-theme-id=""]:not(.dark) {
   }
 
   [data-button][data-variant="destructive-outline"]:hover:not(:disabled, :active) {
-    border-color: color-mix(in oklch, var(--destructive) 48%, transparent);
-    background-color: color-mix(in oklch, var(--destructive) 7%, var(--popover));
+    border-color: color-mix(in oklch, var(--ui-danger-fill) 48%, transparent);
+    background-color: color-mix(in oklch, var(--ui-danger-fill) 7%, var(--popover));
   }
 
   [data-button][data-variant="secondary"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
@@ -266,8 +352,8 @@ html[data-theme-id=""]:not(.dark) {
   }
 
   [data-button][data-variant="ghost-destructive"]:hover:not(:disabled, :active) {
-    background-color: color-mix(in oklch, var(--destructive) 9%, transparent);
-    color: var(--destructive-foreground);
+    background-color: color-mix(in oklch, var(--ui-danger-fill) 9%, transparent);
+    color: var(--ui-danger-fg);
   }
 }
 
@@ -279,7 +365,7 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-button][data-variant="destructive"]:is(:active, [data-pressed]):not(:disabled) {
-  background-color: color-mix(in oklch, var(--destructive) 68%, black);
+  background-color: color-mix(in oklch, var(--ui-danger-solid) 84%, black);
   background-image: none;
   box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
 }
@@ -431,7 +517,7 @@ html[data-theme-id=""]:not(.dark) {
   box-shadow:
     inset 0 1px 2px var(--ui-shade),
     0 0 0 1px var(--ui-invalid),
-    0 0 0 4px color-mix(in oklch, var(--destructive) 24%, transparent);
+    0 0 0 4px color-mix(in oklch, var(--ui-danger-fill) 24%, transparent);
 }
 
 :is([data-slot="input-control"], [data-slot="textarea-control"]):not([data-unstyled]):has(
@@ -1059,8 +1145,8 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-slot="menu-item"][data-variant="destructive"][data-highlighted] {
-  background-color: color-mix(in oklch, var(--destructive) 11%, transparent);
-  color: var(--destructive-foreground);
+  background-color: color-mix(in oklch, var(--ui-danger-fill) 11%, transparent);
+  color: var(--ui-danger-fg);
 }
 
 :is(
@@ -1178,13 +1264,13 @@ html[data-theme-id=""]:not(.dark) {
   [data-variant="warning"],
   [data-variant="error"]
 ) {
-  --ui-badge-tone: var(--info);
+  --ui-badge-tone: var(--ui-info-fill);
   background-color: color-mix(in oklch, var(--ui-badge-tone) 11%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ui-badge-tone) 24%, transparent);
 }
 
 [data-slot="badge"][data-variant="success"] {
-  --ui-badge-tone: var(--success);
+  --ui-badge-tone: var(--ui-success-fill);
 }
 
 /* On light surfaces the semantic text colors sit just above 4.5:1; a touch darker keeps it there
@@ -1200,27 +1286,27 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-slot="badge"][data-variant="info"] {
-  --ui-badge-text: var(--info-foreground);
+  --ui-badge-text: var(--ui-info-fg);
 }
 
 [data-slot="badge"][data-variant="success"] {
-  --ui-badge-text: var(--success-foreground);
+  --ui-badge-text: var(--ui-success-fg);
 }
 
 [data-slot="badge"][data-variant="warning"] {
-  --ui-badge-text: var(--warning-foreground);
+  --ui-badge-text: var(--ui-warning-fg);
 }
 
 [data-slot="badge"][data-variant="error"] {
-  --ui-badge-text: var(--destructive-foreground);
+  --ui-badge-text: var(--ui-danger-fg);
 }
 
 [data-slot="badge"][data-variant="warning"] {
-  --ui-badge-tone: var(--warning);
+  --ui-badge-tone: var(--ui-warning-fill);
 }
 
 [data-slot="badge"][data-variant="error"] {
-  --ui-badge-tone: var(--destructive);
+  --ui-badge-tone: var(--ui-danger-fill);
 }
 
 [data-slot="badge"]:is([data-variant="default"], [data-variant="destructive"]) {
@@ -1233,7 +1319,7 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-slot="badge"][data-variant="destructive"] {
-  background-color: color-mix(in oklch, var(--destructive) 80%, black);
+  background-color: var(--ui-danger-solid);
 }
 
 [data-slot="alert"] {
@@ -1247,11 +1333,11 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 [data-slot="alert"][data-variant="warning"] {
-  --ui-alert-text: var(--warning-foreground);
+  --ui-alert-text: var(--ui-warning-fg);
 }
 
 [data-slot="alert"][data-variant="error"] {
-  --ui-alert-text: var(--error-foreground);
+  --ui-alert-text: var(--ui-danger-fg);
 }
 
 [data-slot="alert-title"] {
@@ -1386,27 +1472,27 @@ html[data-theme-id=""]:not(.dark) {
 
 /* ------------------------------------------------------------ toast accent */
 
-/* A toast says what kind it is with a colored edge along its start side, and a timed one shows how
-   long it has left as a hairline that runs out. Hovering or focusing it pauses the line, as it
-   pauses the timer. */
+/* A toast says what kind it is with a colored edge along its start side. A countdown line was tried
+   and removed: Base UI keeps its dismissal timers private and resets them on updates, so a line
+   drawn beside them can drift from the real time left. */
 [data-slot="toast-viewport"] > .dropdown-glass {
   --ui-toast-accent: transparent;
 }
 
 [data-slot="toast-viewport"] > .dropdown-glass[data-type="error"] {
-  --ui-toast-accent: var(--destructive);
+  --ui-toast-accent: var(--ui-danger-fill);
 }
 
 [data-slot="toast-viewport"] > .dropdown-glass[data-type="success"] {
-  --ui-toast-accent: var(--success);
+  --ui-toast-accent: var(--ui-success-fill);
 }
 
 [data-slot="toast-viewport"] > .dropdown-glass[data-type="warning"] {
-  --ui-toast-accent: var(--warning);
+  --ui-toast-accent: var(--ui-warning-fill);
 }
 
 [data-slot="toast-viewport"] > .dropdown-glass[data-type="info"] {
-  --ui-toast-accent: var(--info);
+  --ui-toast-accent: var(--ui-info-fill);
 }
 
 [data-slot="toast-viewport"] > .dropdown-glass {
@@ -1417,42 +1503,6 @@ html[data-theme-id=""]:not(.dark) {
     inset 0 -1px 0 0 var(--one-glass-rim-bottom),
     0 0 0 1px color-mix(in srgb, var(--foreground) 7%, transparent),
     var(--one-glass-shadow);
-}
-
-[data-slot="toast-timer"] {
-  position: absolute;
-  inset-inline: 0.75rem;
-  bottom: 0;
-  height: 2px;
-  border-radius: 2px;
-  background-color: var(--ui-toast-accent);
-  opacity: 0.55;
-  pointer-events: none;
-  transform-origin: left center;
-  animation: one-toast-timer calc(var(--toast-timeout-ms, 0) * 1ms) linear forwards;
-}
-
-/* Base UI pauses every dismissal timer while the viewport is hovered or has focus, and while the
-   window is in the background. The line stops on the same conditions, for every toast at once. */
-.dropdown-glass[data-expanded] > [data-slot="toast-timer"],
-[data-slot="toast-viewport"][data-window-inactive] [data-slot="toast-timer"] {
-  animation-play-state: paused;
-}
-
-.dropdown-glass[data-limited] > [data-slot="toast-timer"] {
-  display: none;
-}
-
-@keyframes one-toast-timer {
-  to {
-    transform: scaleX(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-slot="toast-timer"] {
-    display: none;
-  }
 }
 
 /* ------------------------------------------------------------ the surfaces */
@@ -1532,7 +1582,6 @@ html[data-theme-id=""]:not(.dark) {
 
 [data-slot="search-field"]:focus-within {
   border-bottom-color: var(--ui-focus);
-  box-shadow: 0 1px 0 0 var(--ui-focus);
 }
 
 [data-slot="search-field"] > svg {
@@ -1612,4 +1661,206 @@ html[data-theme-id=""]:not(.dark) {
   font-weight: 400;
   line-height: 1.15;
   letter-spacing: -0.005em;
+}
+
+/* ------------------------------------------------------------ status utilities */
+
+.ui-text-danger {
+  color: var(--ui-danger-fg);
+}
+
+.ui-text-warning {
+  color: var(--ui-warning-fg);
+}
+
+.ui-text-success {
+  color: var(--ui-success-fg);
+}
+
+.ui-text-info {
+  color: var(--ui-info-fg);
+}
+
+/* ----------------------------------------------------------------- numbers */
+
+/*
+ * Numbers are sans with tabular figures, so columns line up and a value does not jump as it
+ * changes. Monospace is for code, paths, commit hashes and keyboard keys only; a version, a count,
+ * a price, a percentage or a diff stat is a number, not code.
+ */
+.one-num,
+[data-slot="table"],
+[data-slot="badge"],
+[data-slot="number-field-input"],
+[data-slot="calendar"],
+[data-slot="toast-title"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.one-num {
+  font-family: var(--font-sans, inherit);
+}
+
+/* ------------------------------------------------------------- modal material */
+
+/*
+ * Settings, Usage and every other route modal are one pane of glass. The frame is the only blurred
+ * layer: a warm translucent surface over the blurred app, a lit top edge, and a soft specular
+ * wash along the top that reads as a reflection. The panes and cards inside it are transparent
+ * or a faint tint, so the glass shows through them. The pointer-following reflection runs on the
+ * frame's edge (data-one-reflect).
+ */
+[data-app-modal] {
+  /* Fades and fills inside the modal blend into the frame's own color, not the page's. */
+  --background: color-mix(in oklch, var(--one-brand) 2.5%, var(--ui-modal-base));
+  --settings-page-bg: transparent;
+  --settings-panel-bg: var(--ui-card-surface);
+  background-color: var(--ui-modal-surface);
+  background-image:
+    var(--ui-specular), radial-gradient(52% 16rem at 14% 0, var(--ui-warm-glow), transparent 72%);
+  background-repeat: no-repeat;
+  -webkit-backdrop-filter: var(--ui-modal-blur);
+  backdrop-filter: var(--ui-modal-blur);
+  box-shadow:
+    inset 0 1px 0 0 var(--one-glass-rim-top),
+    inset 0 0 0 1px var(--one-glass-rim),
+    var(--one-glass-shadow);
+}
+
+[data-app-modal] [data-settings-nav] {
+  background-color: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  [data-app-modal] {
+    background-color: var(--ui-surface-raised);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-app-modal] {
+    background-color: var(--ui-surface-raised);
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ------------------------------------------------------------- the shortcut sheet */
+
+/* Twenty pixels between the title and the filter. */
+[data-shortcuts-sheet] [data-slot="dialog-header"] {
+  gap: 1.25rem;
+}
+
+/*
+ * Selected state, the last two cases: a tab strip is a segmented switch, so its chosen tab is the
+ * raised thumb (see the toggle group). A highlighted palette row is a list row, so it takes the
+ * brand tint like every other list row. Cards and tiles take the ring.
+ */
+
+/* ------------------------------------------------------------- status tones */
+
+/* Banners, toasts and the warning button draw from the status tokens, not from raw amber, red or
+   emerald. A banner is a faint tint, a hairline in the status color and text that keeps 4.5:1. */
+[data-slot="alert"][data-variant="error"] {
+  --ui-tone-fg: var(--ui-danger-fg);
+  --ui-tone-fill: var(--ui-danger-fill);
+  --ui-tone-tint: var(--ui-danger-tint);
+}
+
+[data-slot="alert"][data-variant="warning"] {
+  --ui-tone-fg: var(--ui-warning-fg);
+  --ui-tone-fill: var(--ui-warning-fill);
+  --ui-tone-tint: var(--ui-warning-tint);
+}
+
+[data-slot="alert"][data-variant="success"] {
+  --ui-tone-fg: var(--ui-success-fg);
+  --ui-tone-fill: var(--ui-success-fill);
+  --ui-tone-tint: var(--ui-success-tint);
+}
+
+[data-slot="alert"][data-variant="info"] {
+  --ui-tone-fg: var(--ui-info-fg);
+  --ui-tone-fill: var(--ui-info-fill);
+  --ui-tone-tint: var(--ui-info-tint);
+}
+
+[data-slot="alert"]:is(
+  [data-variant="error"],
+  [data-variant="warning"],
+  [data-variant="success"],
+  [data-variant="info"]
+) {
+  border-color: color-mix(in oklch, var(--ui-tone-fill) 36%, transparent);
+  background-color: var(--ui-tone-tint);
+}
+
+[data-slot="alert"]:is(
+    [data-variant="error"],
+    [data-variant="warning"],
+    [data-variant="success"],
+    [data-variant="info"]
+  )
+  svg {
+  color: var(--ui-tone-fg);
+}
+
+[data-slot="alert"]:is([data-variant="error"], [data-variant="warning"]) {
+  color: var(--ui-tone-fg);
+}
+
+[data-button][data-variant="warning-outline"] {
+  border-color: color-mix(in oklch, var(--ui-warning-fill) 40%, transparent);
+  background-color: var(--ui-warning-tint);
+  color: var(--ui-warning-fg);
+}
+
+@media (hover: hover) {
+  [data-button][data-variant="warning-outline"]:hover:not(:disabled, :active) {
+    border-color: color-mix(in oklch, var(--ui-warning-fill) 55%, transparent);
+    background-color: color-mix(in oklch, var(--ui-warning-fill) 16%, transparent);
+  }
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="error"] [data-slot="toast-icon"] svg {
+  color: var(--ui-danger-fg);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="warning"] [data-slot="toast-icon"] svg {
+  color: var(--ui-warning-fg);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="success"] [data-slot="toast-icon"] svg {
+  color: var(--ui-success-fg);
+}
+
+[data-slot="toast-viewport"] > .dropdown-glass[data-type="info"] [data-slot="toast-icon"] svg {
+  color: var(--ui-info-fg);
+}
+
+/* ------------------------------------------------------- the default theme's status colors */
+
+/*
+ * The app's older status tokens (text-warning, bg-success, text-destructive and the rest) resolve
+ * to raw Tailwind amber, emerald and red. For the default theme they now point at the status
+ * tokens above, so every screen gets the same tuned set: warning in orange beside the gold brand,
+ * text that keeps 4.5:1 on the page and on a tint. A chosen theme keeps the colors it brings.
+ */
+html:not([data-theme-id]),
+html[data-theme-id=""] {
+  --error: var(--ui-danger-fill);
+  --error-foreground: var(--ui-danger-fg);
+  --error-surface: var(--ui-danger-tint);
+  --destructive: var(--ui-danger-fill);
+  --destructive-foreground: var(--ui-danger-fg);
+  --warning: var(--ui-warning-fill);
+  --warning-foreground: var(--ui-warning-fg);
+  --warning-surface: var(--ui-warning-tint);
+  --success: var(--ui-success-fill);
+  --success-foreground: var(--ui-success-fg);
+  --info: var(--ui-info-fill);
+  --info-foreground: var(--ui-info-fg);
 }

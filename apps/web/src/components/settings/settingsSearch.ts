@@ -1057,9 +1057,11 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "keybindings",
-    title: msg("Keyboard shortcuts"),
+    // Not the sheet's name: the command palette also lists a "Keyboard shortcuts" action that opens
+    // the quick sheet, and this one opens the editor in Settings.
+    title: msg("Edit keyboard shortcuts"),
     to: "/settings/keybindings",
-    searchTerms: [msg("keyboard shortcuts hotkeys commands bindings json")],
+    searchTerms: [msg("keyboard shortcuts keybindings hotkeys commands bindings json")],
   },
   ...KEYBINDING_SEARCH_ITEMS,
   {

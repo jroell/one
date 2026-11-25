@@ -7,7 +7,7 @@ import type {
 import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../../i18n/messages";
-import { shortcutConflictKey, shortcutForContext } from "../../keybindings";
+import { shortcutConflictKey, shortcutForContext, spokenKeycapName } from "../../keybindings";
 import { COMMAND_SECTIONS, commandSectionFor } from "../../shortcuts/commandSections";
 import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import {
@@ -358,7 +358,11 @@ export function buildShortcutSections(
       row.label,
       row.command,
       row.qualifier ?? "",
-      ...row.matchKeys.map((caps) => caps.join(" ")),
+      ...row.matchKeys.flatMap((caps) => [
+        caps.join(" "),
+        // The names, so "enter" or "up" finds a key the sheet draws as a glyph.
+        caps.map(spokenKeycapName).join(" "),
+      ]),
     ].some((text) => text.toLowerCase().includes(needle));
   const rowsBySection = new Map<string, ShortcutSheetRow[]>();
   for (const sheetRow of sheetRows) {

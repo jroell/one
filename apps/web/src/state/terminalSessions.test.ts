@@ -11,11 +11,12 @@ import {
   knownTerminalSessionsAtom,
   retryTerminalSessionAttach,
   selectKnownTerminalSessions,
+  terminalAttachFailed,
 } from "./terminalSessions";
 
 const attachCalls = vi.hoisted(() => [] as unknown[]);
 // Like the real family, one attach atom per launch, so a refresh reaches the cached stream.
-const attachStream = vi.hoisted(() => ({ evaluations: 0, atom: null as unknown }));
+const attachStream = vi.hoisted(() => ({ evaluations: 0, atom: null as unknown, failed: false }));
 const metadataAtom = await vi.hoisted(async () => {
   const { AsyncResult, Atom } = await import("effect/reactivity");
   return Atom.make<AsyncResult.AsyncResult<ReadonlyArray<TerminalSummary>>>(
@@ -30,7 +31,9 @@ vi.mock("./terminal", async () => {
         attachCalls.push(request);
         attachStream.atom ??= Atom.make(() => {
           attachStream.evaluations += 1;
-          return AsyncResult.initial(true);
+          return attachStream.failed
+            ? AsyncResult.failure(Cause.fail(new Error("attach failed")))
+            : AsyncResult.initial(true);
         });
         return attachStream.atom;
       },
@@ -182,5 +185,18 @@ describe("retryTerminalSessionAttach", () => {
     retryTerminalSessionAttach(environmentA, input);
     expect(attachStream.evaluations).toBeGreaterThan(attached);
     unsubscribe();
+  });
+});
+
+describe("terminalAttachFailed", () => {
+  it("is true only when the attachment result failed, not when the shell inside it did", () => {
+    const input = { threadId: threadA, terminalId: "terminal-provenance", cwd: "/repo" };
+    attachStream.failed = false;
+    retryTerminalSessionAttach(environmentA, input);
+    expect(terminalAttachFailed(environmentA, input)).toBe(false);
+    attachStream.failed = true;
+    retryTerminalSessionAttach(environmentA, input);
+    expect(terminalAttachFailed(environmentA, input)).toBe(true);
+    attachStream.failed = false;
   });
 });

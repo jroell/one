@@ -62,6 +62,12 @@ describe("language a reply is read in", () => {
     expect(replyLanguage("大氣光散射屈折現象青空天空物理原理가", "en-US")).toBe("ko");
   });
 
+  it("keeps a Chinese page's language when one kana letter ends a short Chinese sentence", () => {
+    expect(replyLanguage("光線反射あ", "zh-CN")).toBe("zh-CN");
+    expect(replyLanguage("光線反射あ", "en-US")).toBe("zh");
+    expect(replyLanguage("光線反射ありがとう", "zh-CN")).toBe("ja");
+  });
+
   it("keeps a Chinese page's language when a middle dot or one stray kana letter sits in Chinese text", () => {
     expect(replyLanguage("光在每一滴水中发生折射・反射或散射。", "zh-CN")).toBe("zh-CN");
     expect(replyLanguage("光在每一滴水中发生折射・反射或散射。", "en-US")).toBe("zh");

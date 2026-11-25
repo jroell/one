@@ -255,7 +255,7 @@ describe("UsageLimitsPooled card chips and labels", () => {
     windowMins: WEEK_MINUTES,
   });
 
-  it("says Ahead of pace only while spending is faster than the window, and nothing otherwise", async () => {
+  it("says Runs out early only while spending is faster than the window, and nothing otherwise", async () => {
     await using screen = await render(
       <UsageLimitsPooled
         presentations={presentations([account("codex", "Codex", [weekly(83)])])}
@@ -263,7 +263,7 @@ describe("UsageLimitsPooled card chips and labels", () => {
       />,
       { router: false },
     );
-    await expect.element(screen.getByText("Ahead of pace")).toBeVisible();
+    await expect.element(screen.getByText("Runs out early")).toBeVisible();
 
     await screen.rerender(
       <UsageLimitsPooled
@@ -271,7 +271,7 @@ describe("UsageLimitsPooled card chips and labels", () => {
         now={now}
       />,
     );
-    await expect.element(screen.getByText("Ahead of pace")).not.toBeInTheDocument();
+    await expect.element(screen.getByText("Runs out early")).not.toBeInTheDocument();
   });
 
   it("writes banked reset credits in words next to the reset time", async () => {
@@ -291,5 +291,151 @@ describe("UsageLimitsPooled card chips and labels", () => {
       />,
     );
     await expect.element(screen.getByText("1 credit")).toBeVisible();
+  });
+});
+
+describe("UsageLimitsPooled headline ranking and labels", () => {
+  const weekly = (usedPercent: number, elapsedShare: number): WindowSpec => ({
+    label: "Weekly",
+    kind: "weekly",
+    usedPercent,
+    resetsInMs: WEEK_MINUTES * MINUTE * (1 - elapsedShare),
+    windowMins: WEEK_MINUTES,
+  });
+
+  it("names an empty HTTP quota with no duration ahead of a healthy limit with a forecast", async () => {
+    const quota = {
+      id: "acme",
+      kind: "http",
+      label: "Acme API",
+      accounts: [],
+      quotaAccounts: [
+        {
+          id: "key",
+          label: "Key",
+          windows: [
+            {
+              id: "month",
+              label: "Monthly",
+              kind: "monthly",
+              usedPercent: 100,
+              resetsAt: new Date(now + 3 * 24 * HOUR).toISOString(),
+            },
+          ],
+        },
+      ],
+    };
+    // 25% used an hour into a five-hour window forecasts three hours, yet it is not empty.
+    const providers = presentations([account("codex", "Codex", [session(25, 4 * HOUR)])], [quota]);
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    await expect
+      .element(screen.getByText("Acme API monthly is the one to watch: 0% left, 3d 0h to go."))
+      .toBeVisible();
+  });
+
+  it("names an exhausted pool that has no shared clock ahead of a forecast elsewhere", async () => {
+    const providers = presentations([
+      account("codex", "Plus", [session(100, 30 * MINUTE)]),
+      account("codex", "Pro", [session(100, 270 * MINUTE)]),
+      account("claudeAgent", "Claude", [weekly(40, 0.1)]),
+    ]);
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    await expect
+      .element(screen.getByText("Codex session is the one to watch: 0% left, 30m to go."))
+      .toBeVisible();
+  });
+
+  it("counts down to the next refill that restores usage, skipping a reset that restores nothing", async () => {
+    // The first reset belongs to an account with nothing spent, so it refills nothing; the
+    // three spent accounts reset together four and a half hours out.
+    const providers = presentations([
+      account("codex", "Plus", [session(0, 30 * MINUTE)]),
+      account("codex", "ProA", [session(100, 270 * MINUTE)]),
+      account("codex", "ProB", [session(100, 270 * MINUTE)]),
+      account("codex", "ProC", [session(100, 270 * MINUTE)]),
+    ]);
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    await expect
+      .element(screen.getByText("Codex session is the one to watch: 25% left, 4h 30m to go."))
+      .toBeVisible();
+  });
+
+  it("recognizes Codex's built-in monthly credit limit by its identity, not as a source label", async () => {
+    const providers = presentations([
+      account("codex", "Codex", [
+        {
+          id: "individual",
+          label: "Monthly credit limit",
+          kind: "monthly",
+          usedPercent: 95,
+          resetsInMs: 10 * 24 * HOUR,
+          windowMins: 30 * 24 * 60,
+        },
+      ]),
+    ]);
+    await using screen = await render(<UsageLimitsPooled presentations={providers} now={now} />, {
+      router: false,
+    });
+    await expect
+      .element(
+        screen.getByText("Codex monthly credit limit is the one to watch: 5% left, 10d 0h to go."),
+      )
+      .toBeVisible();
+  });
+});
+
+describe("UsageLimitsPooled $0 spend cap at both widths", () => {
+  const cappedPool = () =>
+    presentations([
+      account("claudeAgent", "Funded", [
+        {
+          id: "spend",
+          label: "Monthly spend",
+          kind: "monthly",
+          usedPercent: 30,
+          resetsInMs: 10 * 24 * HOUR,
+          windowMins: 30 * 24 * 60,
+        },
+      ]),
+      account("claudeAgent", "Capped", [session(10, 150 * MINUTE)], { zeroSpendCap: true }),
+    ]);
+
+  const shown = (element: Element | null) =>
+    element === null ? false : getComputedStyle(element).display !== "none";
+
+  const rendered = async (width: number) => {
+    const container = document.createElement("div");
+    container.style.width = `${width}px`;
+    const screen = await render(<UsageLimitsPooled presentations={cappedPool()} now={now} />, {
+      router: false,
+      container,
+    });
+    const card = screen.container.querySelector(".usage-legend-static")?.closest(".usage-limit");
+    return { screen, card };
+  };
+
+  it("names the capped account in the legend row when the bar is narrow", async () => {
+    const { screen, card } = await rendered(300);
+    await using _screen = screen;
+    expect(shown(card?.querySelector(".usage-legend-static") ?? null)).toBe(true);
+    expect(card?.querySelector(".usage-legend-static")?.textContent).toContain("Capped");
+    expect(shown(card?.querySelector(".usage-seg-name") ?? null)).toBe(false);
+  });
+
+  it("names the capped account and its cap in the segment caption when the bar is wide", async () => {
+    const { screen, card } = await rendered(1100);
+    await using _screen = screen;
+    const caption = [...(card?.querySelectorAll(".usage-seg-name") ?? [])].find((node) =>
+      (node.textContent ?? "").includes("Capped"),
+    );
+    expect(shown(caption ?? null)).toBe(true);
+    expect(caption?.textContent).toContain("$0 cap");
+    expect(shown(card?.querySelector(".usage-legend-static") ?? null)).toBe(false);
   });
 });

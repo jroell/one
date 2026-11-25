@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { labelChipOklch, labelChipTone, type LabelChipPart } from "./labelChipTone";
+import {
+  labelChipEmphasis,
+  labelChipOklch,
+  labelChipTone,
+  type LabelChipPart,
+} from "./labelChipTone";
 
 /** OKLCH to sRGB, clipped to gamut the way a browser's fallback does it. */
 function oklchToRgb(l: number, c: number, hue: number): [number, number, number] {
@@ -121,5 +126,15 @@ describe("label chip color", () => {
     expect(labelChipTone(null)).toBeNull();
     expect(labelChipTone("blue")).toBeNull();
     expect(labelChipTone("#12345")).toBeNull();
+  });
+});
+
+describe("label chip emphasis", () => {
+  it("keeps color in the text only for a blocked label", () => {
+    expect(labelChipEmphasis("takeover:blocked")).toBe("alert");
+    expect(labelChipEmphasis("Blocked on review")).toBe("alert");
+    for (const name of ["vouch:trusted", "size:L", "needs-rebase", "unblocked-soon", "bug"]) {
+      expect(labelChipEmphasis(name)).toBe("quiet");
+    }
   });
 });

@@ -1301,6 +1301,7 @@ export function PullRequestsPage() {
       ) : (
         <PullRequestListGroups
           groups={displayGroups}
+          truncated={listData?.truncated === true}
           environmentLabels={capableEnvironments.length > 1 ? environmentLabels : null}
           query={typedParsed.text}
           selected={selected}
@@ -1430,7 +1431,25 @@ export function PullRequestsPage() {
       }
     />
   );
+  const listedPullRequests = displayGroups.flatMap((group) => group.entries);
+  const repositoryCount = new Set(listedPullRequests.map((entry) => entry.repository)).size;
+  // The host answers in pages of PAGE_SIZE and says when more remain, so a full page is a floor.
+  const pullRequestsSubtitle =
+    listedPullRequests.length === 0
+      ? null
+      : gt(
+          "{count} {state, select, open {open} closed {closed} merged {merged} other {in total}} across {repositories, plural, one {# repository} other {# repositories}}",
+          {
+            count:
+              listData?.truncated === true
+                ? `${listedPullRequests.length}+`
+                : String(listedPullRequests.length),
+            state: search.state,
+            repositories: repositoryCount,
+          },
+        );
   const columnProps = {
+    subtitle: pullRequestsSubtitle,
     refreshing,
     onRefresh: () => void refreshFromHost(),
     searchValue: search.q ?? "",

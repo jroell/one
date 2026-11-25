@@ -555,3 +555,9 @@ describe("server model preferences", () => {
     expect(decodeServerSettingsPatch(input)).toEqual(input);
   });
 });
+
+describe("branch naming defaults", () => {
+  it("starts new branches under the One prefix for settings that never chose one", () => {
+    expect(DEFAULT_SERVER_SETTINGS.branchNamePrefix).toBe("one");
+  });
+});

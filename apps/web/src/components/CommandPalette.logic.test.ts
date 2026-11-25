@@ -185,6 +185,27 @@ describe("buildThreadActionItems", () => {
     expect(runThread).toHaveBeenCalledWith(remote);
   });
 
+  it("puts what a caller renders for the title suffix on the item, apart from the description", () => {
+    const [item] = buildThreadActionItems({
+      threads: [makeThread()],
+      projectByKey: new Map([[`${LOCAL_ENVIRONMENT_ID}:${PROJECT_ID}`, { title: "Project" }]]),
+      icon: null,
+      renderTitleSuffix: () => "harness mark",
+      contextOf: (thread, { projectTitle }) => ({
+        key: `${thread.environmentId}:${thread.projectId}`,
+        label: projectTitle ?? "",
+      }),
+      runThread: async (_thread) => undefined,
+    });
+
+    expect(item?.titleSuffixContent).toBe("harness mark");
+    expect(item?.description).toBe("Project");
+    expect(item?.context).toEqual({
+      key: `${LOCAL_ENVIRONMENT_ID}:${PROJECT_ID}`,
+      label: "Project",
+    });
+  });
+
   it("ranks thread title matches ahead of contextual project-name matches", () => {
     const threadItems = buildThreadActionItems({
       threads: [
@@ -1019,34 +1040,71 @@ describe("buildRootGroups", () => {
     ]);
   });
 
-  it("names the place once beside Recent threads when every recent row shares it, and not when rows differ", () => {
-    const row = (value: string, contextLabel: string) => ({
+  it("names the place once beside Recent threads only when every recent row is in the same place by identity", () => {
+    const row = (value: string, key: string, label: string) => ({
       ...action(value, value),
-      contextLabel,
+      context: { key, label },
     });
     const same = buildRootGroups({
       actionItems: [],
       recentThreadItems: [
-        row("thread:env:1", "server · Local · custom/main"),
-        row("thread:env:2", "server · Local · custom/main"),
+        row("thread:env:1", "env\u0000p1\u0000main", "server · Local · main"),
+        row("thread:env:2", "env\u0000p1\u0000main", "server · Local · main"),
       ],
     });
-    expect(same[0]?.caption).toBe("server · Local · custom/main");
+    expect(same[0]?.caption?.label).toBe("server · Local · main");
 
-    const mixed = buildRootGroups({
+    const otherBranch = buildRootGroups({
       actionItems: [],
       recentThreadItems: [
-        row("thread:env:1", "server · Local · custom/main"),
-        row("thread:env:2", "server · Local · other"),
+        row("thread:env:1", "env\u0000p1\u0000main", "server · Local · main"),
+        row("thread:env:2", "env\u0000p1\u0000other", "server · Local · other"),
       ],
     });
-    expect(mixed[0]?.caption).toBeUndefined();
+    expect(otherBranch[0]?.caption).toBeUndefined();
+
+    // Two different projects that happen to have the same title are not one place.
+    const sameLabelDifferentProject = buildRootGroups({
+      actionItems: [],
+      recentThreadItems: [
+        row("thread:env:1", "env\u0000p1\u0000main", "server · Local · main"),
+        row("thread:env:2", "env\u0000p2\u0000main", "server · Local · main"),
+      ],
+    });
+    expect(sameLabelDifferentProject[0]?.caption).toBeUndefined();
 
     const single = buildRootGroups({
       actionItems: [],
-      recentThreadItems: [row("thread:env:1", "server · Local · custom/main")],
+      recentThreadItems: [row("thread:env:1", "env\u0000p1\u0000main", "server · Local · main")],
     });
     expect(single[0]?.caption).toBeUndefined();
+  });
+
+  it("labels a recent row with the time the list orders it by, not the thread's last update", () => {
+    const now = Date.parse("2026-03-20T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const recentRow = (value: string, activityAt: number, openedAt: number | null) => ({
+        ...action(value, value),
+        timestamp: "9d ago",
+        threadSearch: {
+          activityAt,
+          opens: openedAt === null ? null : { openedAt },
+        } as never,
+      });
+      const groups = buildRootGroups({
+        actionItems: [],
+        recentThreadItems: [
+          recentRow("thread:env:1", now - 3 * 3_600_000, now - 60_000),
+          recentRow("thread:env:2", now - 2 * 3_600_000, null),
+        ],
+      });
+
+      expect(groups[0]?.items.map((item) => item.timestamp)).toEqual(["1m ago", "2h ago"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps every action heading when the list is narrowed to actions with >", () => {

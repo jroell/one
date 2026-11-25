@@ -1875,6 +1875,7 @@
   "5cfaaa20c460c328": "Épingler le projet",
   "24adf508b4c5d6b5": "Paramètres du projet",
   "b84aab627c7ea22a": "Exécute cette commande",
+  "0e4e652b19e678cd": "Modifier les raccourcis dans les réglages",
   "60e47b3da5901619": "Paramètres · {section}",
   "0c659f9a193255dd": "Échec de l’ajout du projet",
   "4b3fc098d5a08a66": "Les chemins de style Windows ne sont pris en charge que sous Windows.",
@@ -3075,7 +3076,6 @@
   "37d95099eda1cb07": "Mentionner un fichier",
   "9ad3991623c13e3a": "Rechercher dans le projet",
   "e880959d9520231a": "Vérifier les modifications",
-  "4ddc6c71a3c1e1f0": "Ouvrir la palette de commandes",
   "ed5bcda94f8073c3": "Pour commencer",
   "08f1f52863b218eb": "Apprendre quelque chose",
   "e03b497cd0a72c68": "Apprenez-moi à propos de ",
@@ -3175,6 +3175,7 @@
   "cbee198401377241": "Ouvrez One dans l’app desktop pour utiliser l’aperçu intégré.",
   "25b9aae7f44e4030": "{mode, select, system {Apparence : système} light {Apparence : clair} other {Apparence : sombre}}",
   "2ee68a0e8a4986c2": "Fil",
+  "fea77d3c094dee44": "Discussion",
   "88e9d83bcac42b73": "Zone de saisie",
   "7fce70215a6aea24": "Affichage",
   "3ef5788ff1a3de48": "Git",
@@ -5374,7 +5375,7 @@
   "300a948f90c4d75c": "Revenir en arrière",
   "2a50e229df85d553": "Avancer",
   "4f58bcacf894c5bc": "Non disponible",
-  "1ab50db28dbddd0d": "Raccourcis clavier",
+  "a6351e5f8a90ab28": "Afficher les raccourcis clavier",
   "db5d85fdadff2f5b": "Copier le chemin de l’espace de travail",
   "7b24be8e29a2efc5": "Copier l’ID du fil",
   "d733142d9607d7ff": "Reporter jusqu’à",
@@ -6139,11 +6140,11 @@
   "f77af0fd4c6acea1": "Plus récents",
   "fe29b2b34080619c": "Tous les gestionnaires",
   "fc18975e50af8dca": "Le chargement de la page suivante a échoué.",
+  "a6737de3dffa9050": "{count} {state, select, open {ouvertes} closed {fermées} other {au total}} dans {scopes, plural, one {# dépôt} other {# dépôts}}",
   "59319a2f40023e3e": "Chargement des problèmes…",
   "17113c6308c69f67": "Toujours en attente de la liste des tickets du gestionnaire…",
   "283ada62d3847554": "{count, plural, one {{count} projet} other {{count} projets}}",
   "7cae1b414ae74c6b": "Ce gestionnaire de tickets ne peut pas être lu pour le moment.",
-  "beea95f3311c84c0": "Fil d’Ariane des tickets",
   "c0926cae8b3e947a": "Sélectionnez d’abord un ticket",
   "86798f07ba2d7f4d": "Rechercher des tickets",
   "6a96bfc102d57501": "Trier les tickets",
@@ -7072,6 +7073,8 @@
   "8609ab062945a0a3": "Projet",
   "be82c3e203203181": "Tout le monde",
   "fcc675dbe55a5611": "Auteur",
+  "674dc753b74de6d8": "Toutes les pull requests",
+  "b7b2530c4d0e5fcb": "Tous les autres",
   "06d8c3317102cfcb": "Vidéo de la pull request",
   "36690ee5d989e07e": [
     "Ouvrir la pièce jointe sur",
@@ -7350,7 +7353,6 @@
   "4df7e2ef5ba0996e": "Filtrer par état",
   "aa438f6db9597d39": "Filtrer par participation",
   "97741cf036d64f60": "Filtrer par hôte",
-  "0a5b811066a10ee6": "Fil d’Ariane des pull requests",
   "d650b40b3b6eab7b": "Filtrer par fournisseur",
   "f5926df9debd9736": "Tous les fournisseurs",
   "54f15ec501a87fa2": "Actualiser les pull requests",
@@ -7371,6 +7373,7 @@
   "5273c939581221e9": "Tous les serveurs",
   "1e25e91acb23adbc": "Trier les pull requests",
   "df6dce0b31c89f02": "Trier",
+  "d04bf8247e87cb89": "{count} {state, select, open {ouvertes} closed {fermées} merged {fusionnées} other {au total}} dans {repositories, plural, one {# dépôt} other {# dépôts}}",
   "78ed532fd774df56": "Charger plus de pull requests",
   "406cdde8249ecb16": "Affinez votre recherche pour trouver plus de pull requests.",
   "1362562f4efdf26d": "Impossible de charger les pull requests",
@@ -7765,7 +7768,7 @@
   "3ce9741f164fb944": "Impossible de charger les fils archivés",
   "ad25ae072f65b934": "Aucun fil archivé",
   "4e690f420bcbdb5d": "Vérification des environnements connectés.",
-  "89d08a5be3347890": "Les fils archivés apparaîtront ici.",
+  "c28ff6128cff0944": "Archiver un fil depuis la barre latérale pour le mettre de côté, par exemple une expérience terminée qu'on voudra peut-être reprendre.",
   "5d3ed45f43611ff4": [
     "Archivé ",
     {
@@ -7780,6 +7783,7 @@
       "v": "rt"
     }
   ],
+  "74855b1be943c9f4": "Retour aux fils",
   "ae85d885630b0e51": "{count, plural, one {{count} portée} other {{count} portées}}",
   "129431563dc043bc": "{label} : afficher {scopes}",
   "02df8efa1f3f4ba1": "Impossible de copier le lien de l’app hébergée",
@@ -7804,9 +7808,10 @@
   "ec8d754031dc72fd": "Dernière connexion à {time}",
   "b7406be04f4d7735": "Pas encore connecté.",
   "595a1c9d5f762fef": "Portées du client",
+  "1e2d7d617ac0d4ff": "Se déconnecter de tous les autres clients ?",
+  "b76eda9aa9bec002": "Révoquer les autres",
   "06ec30a199134db1": "Échec de la création de l’URL d’appairage.",
   "79b1490795e4c205": "Impossible de créer l’URL d’appairage",
-  "b76eda9aa9bec002": "Révoquer les autres",
   "04ab01b535a8e3a8": "ex. iPad du salon",
   "274fac14d65ab9cc": "Standard",
   "e0dde491debc2517": "Les commandes du terminal peuvent lire ou modifier des fichiers selon les autorisations du compte serveur.",
@@ -8764,8 +8769,8 @@
   "d51a7a2bb6b8c406": "Associer à {target} avec un code d’appairage",
   "f4ca5e62fb54a3a7": "Déposez sur une machine pour associer",
   "11e67016507a6daa": "Deux associations, une dans chaque sens.",
-  "352169e91766aeb4": "{count, plural, one {# demande votre attention} other {# demandent votre attention}}",
   "d53ada50331e6041": "{machines, plural, one {# machine} other {# machines}}, {links, plural, =0 {aucune association} one {# association} other {# associations}}",
+  "352169e91766aeb4": "{count, plural, one {# demande votre attention} other {# demandent votre attention}}",
   "3e8441af6148878f": "Expire le {date}",
   "4daaa2288b63a801": "{count, plural, one {# lien entrant} other {# liens entrants}}",
   "baf297d0add1d61b": "{count, plural, one {# environnement} other {# environnements}}",
@@ -9049,7 +9054,7 @@
   "28973e22f1e5b45a": "Fil : aller à {n}",
   "8eba2873dc2d817d": "Sélecteur de modèle : aller au modèle {n}",
   "4473d0791a405a08": "Exécuter le script : {name}",
-  "03f8789fc359bc15": "Rechercher des raccourcis clavier",
+  "6516055cdbb1b570": "Rechercher des raccourcis",
   "1d55c82866fd5242": "Condition inconnue : {condition}",
   "41a022fbed1b1d49": "Conditions inconnues : {conditions}",
   "2396bc6fbb953b89": "En conflit avec {command}.",
@@ -9070,6 +9075,7 @@
   "a974eca924f7ed52": "Non attribué",
   "337a261bf1551d16": "Raccourci clavier de {command}",
   "bd8e87512fd9bdf2": "Non attribué",
+  "ed87878eb94309c3": "toujours",
   "4da9b09518a3f47a": "Actions pour {command}",
   "5cbab536dac9dc5f": "Retirer l’attribution",
   "cd710f3021f96ea8": "Supprimer",
@@ -9088,7 +9094,6 @@
   "9d0d7048a404b46a": "Le raccourci clavier n’a pas été enregistré.",
   "34aeeaeda3a7d566": "Impossible de supprimer le raccourci clavier",
   "ba374aebd2c09ade": "Le raccourci clavier n’a pas été supprimé.",
-  "1b298f8bdfbdac33": "Ouvrir keybindings.json",
   "38aae3d3373b7e6e": "Connectez un environnement pour modifier les raccourcis clavier.",
   "523dd4a75f84834c": "Cette connexion peut afficher les raccourcis clavier mais pas les modifier.",
   "baeefb0498641e45": "One ne reconnaît pas encore cette condition. Vous pouvez l’enregistrer, mais elle ne correspondra peut-être pas, sauf si l’environnement d’exécution la fournit.",
@@ -9096,7 +9101,8 @@
   "bc73d7a0c9ccc021": "Corrigez l’expression ci-dessus pour continuer l’édition visuelle.",
   "7189314b73d9fe61": "Non attribué",
   "d188aae2ef2f1815": "Aucun raccourci clavier attribué. Cliquez sur Non attribué pour en définir un.",
-  "d3866ead082d14e5": "Ajouter un raccourci clavier",
+  "88b7d02ffbcc7963": "Ajouter un raccourci",
+  "57c2a15f70f082e7": "Ouvrir le JSON",
   "d4345c90894a3220": "Ouvrir keybindings.json",
   "e56a8d51219efaa0": "Aucun raccourci clavier ne correspond à votre recherche.",
   "90a258fff61fd77e": "Désactivé",
@@ -9105,7 +9111,7 @@
   "f29d1dade4dde8aa": "Les agents n'envoient aucun retour à l'équipe T3.",
   "33a9a12a20e1af9f": "À votre demande, les agents vous présentent un court rapport sur One et l'envoient à l'équipe T3 si vous l'approuvez.",
   "efe3e77f15cf325d": "Les agents signalent aussi spontanément les problèmes qu'ils rencontrent dans One, comme un outil T3 qui échoue.",
-  "45fa271ea0e1ac8e": "Bêta",
+  "86e5791f7887ad07": "Bêta et alpha",
   "efdf9cb0275b29e8": "Affiche la barre latérale sous forme de dossiers de projet. Les fils épinglés restent en haut, et Reportés et Clos restent sous les dossiers.",
   "9b9df5ba41c4a8e2": "Regrouper les fils par projet",
   "f079556d67367fe7": "Affiche les fils des dossiers sur deux lignes : le titre, puis la branche, la pull request et l’agent.",
@@ -9136,15 +9142,15 @@
     },
     ". La désactivation arrête tous les liens invités."
   ],
-  "bff0033ea41eb38e": [
-    "Permet aux agents d’ici de travailler sur vos autres machines, et aux leurs de travailler ici. Activez l’option sur chaque machine, puis associez-les dans",
+  "f20f2bcc7ecb43f7": [
+    "Permettre aux agents d'ici de travailler sur d'autres machines, et à ceux d'ailleurs de travailler ici. Activer sur chaque machine, puis les lier dans",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "Connexions"
+      "c": "Environnements"
     },
-    ". Tant qu’elle est désactivée, rien de nouveau ne démarre via une association ; les tâches en cours se terminent."
+    ". Tant que c'est désactivé, rien de nouveau ne démarre via un lien ; les tâches en cours se terminent."
   ],
   "55a33cae5e983e80": [
     "Permet au panneau Appareils de louer des simulateurs et des émulateurs depuis votre propre pool",
@@ -9297,7 +9303,6 @@
   "8c93ed63299ff531": "Rechercher dans les licences open source",
   "15e4ee1ea3804857": "Rechercher des licences",
   "c62b241e92231253": "Mentions tierces",
-  "63e2c8e62b42ac1e": "Rechercher des licences",
   "c25215fb0fe7b236": "Les mentions open source ne sont pas disponibles",
   "dfabc4c20ab78d41": "Aucune licence ne correspond à cette recherche.",
   "a6f0345697704afa": "Chargement des mentions open source…",
@@ -9595,6 +9600,7 @@
   "21d0ef064eefa159": "Statut",
   "f31ce60f3f118c0d": "Nom affiché",
   "c45028de5c2f6cbb": "Libellé de l’instance",
+  "3bbe58d50d03670f": "Teinte l'insigne de ce fournisseur dans le sélecteur de modèles.",
   "cf69675106e4bf46": "Configuration",
   "22078dd501ba3102": "Environnement d’exécution",
   "288c2d92df27a68c": "Modèles",
@@ -9763,8 +9769,8 @@
   "8188ba79577edefb": "Compte Cursor",
   "bf587581b2a3d24d": "Utilise CURSOR_API_KEY. Retirez-la de l’environnement de ce fournisseur pour vous connecter via le navigateur.",
   "b0481e41f335f1d2": "Réinitialiser les paramètres du fournisseur {provider} à la valeur par défaut",
-  "1a0c999db1e9896a": "Ajouter un fournisseur",
   "5f4280344b1853ea": "Actualiser le statut du fournisseur",
+  "1a0c999db1e9896a": "Ajouter un fournisseur",
   "b298eb788d3443ee": "Configuration d’Antigravity",
   "21668b75015a6d1d": "Appareil qui exécute ce fournisseur.",
   "b9ddc0d5fbea1b16": "Configuration indisponible",
@@ -9809,6 +9815,8 @@
   "5c0c973276a61fdb": "Impossible d’enregistrer l’autorisation de routage des pull requests",
   "1bfcffe8411e2439": "Routage des pull requests de {environment}",
   "ae4761ddc038b102": "Les machines auxquelles vous faites confiance ici peuvent lire les données des PR via l’accès à la gestion de versions des unes et des autres. Activez les deux machines. Lire et agir peut utiliser des autorisations plus larges que celles de la machine qui les possède. Ne s’applique qu’à cet appareil.",
+  "b7d35abd8f6a3321": "Masqué",
+  "9e8b7675aab946c3": "Afficher",
   "02bca2d9c90e5f1e": "{value} s",
   "af22f973466903c3": "{value} min",
   "401ba3f2391d8742": "{value} h",
@@ -10538,6 +10546,8 @@
   "6d59e1e516e53d17": "Voir les licences",
   "941d08db15f62d17": "Archivé",
   "e122b2428c0d03a5": "Ouvrir tous les environnements",
+  "aa472c4648c09ebd": "Aucun projet pour l'instant",
+  "11ea64975143be6e": "Un projet est un dossier contenant du code. Ajouter un projet pour démarrer un fil à l'intérieur, par exemple le dépôt sur lequel on travaille.",
   "484e14e77577d042": "Portée des environnements",
   "3c2a43018b7c4901": "Aucun environnement",
   "8a6691c39f4cb27a": "Tous les environnements",
@@ -10548,6 +10558,40 @@
   "470ad8c54049d1e1": "Rechercher des checkouts",
   "7e2dfdd9f97fc027": "Portée des projets",
   "1cf216566c1ee064": "Projet indisponible",
+  "63df6f43274e75eb": [
+    {
+      "t": "span",
+      "i": 1,
+      "c": [
+        {
+          "t": "span",
+          "i": 2,
+          "c": "Affichage de"
+        },
+        {
+          "i": 3,
+          "k": "_gt_value_3",
+          "v": "v"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "i": 4,
+      "c": [
+        {
+          "t": "span",
+          "i": 5,
+          "c": "sur"
+        },
+        {
+          "i": 6,
+          "k": "_gt_value_6",
+          "v": "v"
+        }
+      ]
+    }
+  ],
   "db943e13e0f37b06": {
     "t": "span",
     "i": 1,
@@ -10856,6 +10900,8 @@
   "05224ee5939749b2": "Impossible de vérifier l’accès à la capture",
   "23bef225aef43439": "Impossible de fermer la configuration de la capture",
   "99f329fec9abbc60": "Instantanés",
+  "0fe1647d9d4e8788": "Les instantanés nécessitent l'application de bureau",
+  "0c0c0621b7920c11": "Un instantané capture une fenêtre de l'ordinateur et l'ajoute à un fil, par exemple la boîte d'erreur pour laquelle on souhaite de l'aide.",
   "971338fc9021c3db": "Mise à jour des paramètres de capture…",
   "33ccb41fd69b950f": "Activer les captures",
   "c23b8320eed9fea3": "Inclut le texte et les contrôles quand l’app les rend disponibles.",
@@ -10870,6 +10916,7 @@
   "a4a21025e979a813": "Faire clignoter la fenêtre capturée",
   "cf4131f390292403": "Anime les fenêtres capturées jusque dans votre brouillon.",
   "87157007bde61ece": "Animer les captures",
+  "1ea1faa49f823960": "Obtenir l'application de bureau",
   "a766c46982759c44": "Changer le raccourci",
   "b5f3ce16ca9e62f8": "Autorisations du raccourci",
   "b8366d1d16d38d54": [
@@ -11140,6 +11187,8 @@
   "6985d8cfe8f3f2f2": "Rien de détecté pour l’instant",
   "5b17411e32ec9ee8": "Installez Git sur le serveur, ajoutez les intégrations d’hébergement ou identifiants facultatifs dont votre espace de travail a besoin, puis relancez l’analyse.",
   "52f500fa58827159": "Analyser à nouveau l’environnement serveur",
+  "dc9196f13649cb21": "Git",
+  "5de615d0a0519b8a": "Jujutsu",
   "845de59dc5599bbd": "Gestion de versions",
   "3bd42b40bd62ca11": "Fournisseurs de gestion de versions",
   "d6738114d4de6d92": [
@@ -11752,6 +11801,7 @@
   "ca8b75a7d7d7ce7e": "Dupliquer le thème",
   "f2043e87a10cb831": "Modifier le thème",
   "595bdeefcdc9bf31": "Exporter le fichier de thème",
+  "4cbeefb1f6d8a5ac": "Importer un thème",
   "b480281b3791b685": "Choisissez ce qu’affiche la carte de détails du fil. Vous pouvez aussi faire un clic droit sur la carte.",
   "662288b90e19635f": "Réinitialiser les détails du fil à la valeur par défaut",
   "871d059d88548434": "Détails du fil : {enabled} sur {total} activés",
@@ -11816,6 +11866,7 @@
     }
   ],
   "39f64d971ba424b5": "Aucune source de suivi de l’utilisation configurée.",
+  "31723a5ee9fd5a09": "Ajouter un hub ou une source HTTP pour voir le quota d'un autre service, par exemple un proxy partagé.",
   "dbd877abdc2c7c81": "Source de quotas HTTP",
   "4cf6a373a7535324": "{name} · Désactivé",
   "c792e744936dbe1b": "Ajouter une source HTTP",
@@ -12086,6 +12137,7 @@
   "81d0d1e78b196630": "Général",
   "afda415d2d75a5d3": "Discussion",
   "4beeab8d1814b251": "Diffs et pull requests",
+  "1ab50db28dbddd0d": "Raccourcis clavier",
   "2ab325baee3ec9a3": "Tâches planifiées",
   "0a59e086514a62a9": "Gestion de versions et tickets",
   "1de0df2b8a4fb96e": "Partage et accès",
@@ -12224,7 +12276,8 @@
   "82136480255a5106": "OTel OTLP télémétrie export points de terminaison journaux traces métriques Grafana",
   "659d081051faf7ff": "journaux traces processus historique des ressources échecs spans cpu mémoire",
   "5eaeacfa9f82051a": "rapport bug problème t3 équipe envoyer retour agents outils automatique à ma demande",
-  "f537f91e1ee41d47": "raccourcis clavier touches commandes associations json",
+  "7563e5672f951d26": "Modifier les raccourcis clavier",
+  "2c2fa1369876364f": "raccourcis clavier keybindings touches rapides commandes bindings json",
   "1ba01e7ceed64b95": "fenêtre capture capture d’écran",
   "279b1cceb779ff38": "Inclure le texte de l’app",
   "7fa82a838459b368": "capture données d’accessibilité texte structure interface éléments confidentialité omettre contexte agent",
@@ -12334,6 +12387,7 @@
   "f2749efd2aac8fac": "à",
   "f01bf5f570d7a574": "ou",
   "d29982ab91fc2e20": "Accueil de One",
+  "f4df476c37cf9f24": "{page} : cliquer pour revenir",
   "8e9626aa27cb188a": "Tickets",
   "9d2fc1003e82feb1": "Utilisation",
   "20283eb1dd6119f9": "{count, plural, one {{count} pièce jointe} other {{count} pièces jointes}}",
@@ -12364,6 +12418,7 @@
   "bcda2ccaa871dc46": "Nouveau fil dans le projet actuel : Shift+clic ({shortcut})",
   "aa5c379423baace1": "Nouveau fil dans le projet actuel : Shift+clic",
   "9d9d32b401d2931a": "{count, plural, one {{count} processus de terminal en cours} other {{count} processus de terminal en cours}}",
+  "3ff15a75485b6c42": "Fonctionne sur {provider}",
   "ade06f6723949b39": "Une erreur s’est produite",
   "021fe65858278fe9": "Reporter le fil",
   "e7c18f33bc1326f7": "Configuration",
@@ -12574,6 +12629,9 @@
   "8790ba57600f2fda": "{count, plural, one {{count} crédit} other {{count} crédits}}",
   "7aaaff1c6484f25c": "Segment",
   "8bcab2ef61de6518": "Plafond de 0 $",
+  "ad8ce9055f5e9d22": "Quota restant",
+  "27a0a424f318ed9f": "Déficit",
+  "cc88c25a314f4b6b": "Épuisé avant la fin",
   "b2442d038d36f243": "Comparé à la part de la fenêtre déjà écoulée",
   "578ad261df360720": "Toutes les limites sont confortables.",
   "de5b6f2aa9941c18": "{provider}, {window} : à surveiller. Il reste {remaining} %.",
@@ -12770,6 +12828,7 @@
       "v": "v"
     }
   ],
+  "f4333a1dfa10ab01": "Utiliser les flèches gauche et droite pour passer d'un jour à l'autre",
   "435dd01dc4455e95": "Tokens traités par heure et par fournisseur",
   "37069a5ef57ee9fa": "Coût par heure et par fournisseur",
   "aa73a1b4208bc912": "Tokens traités par jour et par fournisseur",
@@ -12780,11 +12839,15 @@
   "684e516076de81fe": "Standard",
   "3bbcc1b826fef537": "Rapide",
   "66796576034c18ea": "Ultrarapide",
-  "ac9c16c34de713a6": "session",
-  "1d05cd1f382fffdf": "hebdomadaire",
-  "98417ff4ee2fea2c": "mensuel",
-  "aa32257e1ef37622": "dépenses mensuelles",
-  "f132a02d81f70dea": "global",
+  "1292d11de3e340a4": "session",
+  "a16cacc637bf03c5": "hebdomadaire",
+  "038d394feb0d3b10": "mensuel",
+  "4d7aa34c6515c420": "dépenses mensuelles",
+  "15a4d4d94f083d34": "limite mensuelle de crédits",
+  "a53b7a5cf007ae8c": "global",
+  "7dd380d90851d3b3": "Modèles Cursor",
+  "8652207aaedebc55": "autres modèles",
+  "443c9c2642c0f4f4": "abonnement",
   "218d7bca77da345b": "{target} fait correspondre ce modèle. Retirez-le de « Appliquer à » ou effacez d’abord sa correspondance.",
   "60ccdf9bdb7c3149": "Faites correspondre à un autre modèle.",
   "3155a2bd93dd97d9": "{field} est requis sur {target}.",

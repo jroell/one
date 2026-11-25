@@ -1875,6 +1875,7 @@
   "5cfaaa20c460c328": "Fixar projeto",
   "24adf508b4c5d6b5": "Configurações do projeto",
   "b84aab627c7ea22a": "Executa este comando",
+  "0e4e652b19e678cd": "Editar atalhos em Configurações",
   "60e47b3da5901619": "Configurações · {section}",
   "0c659f9a193255dd": "Falha ao adicionar o projeto",
   "4b3fc098d5a08a66": "Caminhos no estilo Windows só são compatíveis com o Windows.",
@@ -3075,7 +3076,6 @@
   "37d95099eda1cb07": "Mencionar um arquivo",
   "9ad3991623c13e3a": "Pesquisar no projeto",
   "e880959d9520231a": "Revisar alterações",
-  "4ddc6c71a3c1e1f0": "Abrir a paleta de comandos",
   "ed5bcda94f8073c3": "Formas de começar",
   "08f1f52863b218eb": "Aprender algo",
   "e03b497cd0a72c68": "Me ensine sobre ",
@@ -3175,6 +3175,7 @@
   "cbee198401377241": "Abra o One no app para desktop para usar a pré-visualização no app.",
   "25b9aae7f44e4030": "{mode, select, system {Aparência: sistema} light {Aparência: clara} other {Aparência: escura}}",
   "2ee68a0e8a4986c2": "Thread",
+  "fea77d3c094dee44": "Chat",
   "88e9d83bcac42b73": "Campo de mensagem",
   "7fce70215a6aea24": "Exibir",
   "3ef5788ff1a3de48": "Git",
@@ -5373,7 +5374,7 @@
   "300a948f90c4d75c": "Voltar",
   "2a50e229df85d553": "Avançar",
   "4f58bcacf894c5bc": "Indisponível",
-  "1ab50db28dbddd0d": "Atalhos de teclado",
+  "a6351e5f8a90ab28": "Mostrar atalhos de teclado",
   "db5d85fdadff2f5b": "Copiar caminho do workspace",
   "7b24be8e29a2efc5": "Copiar ID da thread",
   "d733142d9607d7ff": "Adiar até",
@@ -6138,11 +6139,11 @@
   "f77af0fd4c6acea1": "Mais recentes",
   "fe29b2b34080619c": "Todos os gerenciadores",
   "fc18975e50af8dca": "Falha ao carregar a próxima página.",
+  "a6737de3dffa9050": "{count} {state, select, open {abertas} closed {fechadas} other {no total}} em {scopes, plural, one {# repositório} other {# repositórios}}",
   "59319a2f40023e3e": "Carregando problemas…",
   "17113c6308c69f67": "Ainda aguardando o gerenciador listar os problemas…",
   "283ada62d3847554": "{count, plural, one {{count} projeto} other {{count} projetos}}",
   "7cae1b414ae74c6b": "Não é possível ler este rastreador agora.",
-  "beea95f3311c84c0": "Trilha das issues",
   "c0926cae8b3e947a": "Selecione uma issue primeiro",
   "86798f07ba2d7f4d": "Pesquisar issues",
   "6a96bfc102d57501": "Ordenar issues",
@@ -7071,6 +7072,8 @@
   "8609ab062945a0a3": "Projeto",
   "be82c3e203203181": "Qualquer pessoa",
   "fcc675dbe55a5611": "Autor",
+  "674dc753b74de6d8": "Todos os pull requests",
+  "b7b2530c4d0e5fcb": "Todos os outros",
   "06d8c3317102cfcb": "Vídeo do pull request",
   "36690ee5d989e07e": [
     "Abrir o anexo no",
@@ -7349,7 +7352,6 @@
   "4df7e2ef5ba0996e": "Filtrar por estado",
   "aa438f6db9597d39": "Filtrar por envolvimento",
   "97741cf036d64f60": "Filtrar por host",
-  "0a5b811066a10ee6": "Trilha dos pull requests",
   "d650b40b3b6eab7b": "Filtrar por provedor",
   "f5926df9debd9736": "Todos os provedores",
   "54f15ec501a87fa2": "Atualizar pull requests",
@@ -7370,6 +7372,7 @@
   "5273c939581221e9": "Todos os servidores",
   "1e25e91acb23adbc": "Ordenar pull requests",
   "df6dce0b31c89f02": "Ordenar",
+  "d04bf8247e87cb89": "{count} {state, select, open {abertas} closed {fechadas} merged {mescladas} other {no total}} em {repositories, plural, one {# repositório} other {# repositórios}}",
   "78ed532fd774df56": "Carregar mais pull requests",
   "406cdde8249ecb16": "Refine sua pesquisa para encontrar mais pull requests.",
   "1362562f4efdf26d": "Não foi possível carregar os pull requests",
@@ -7764,7 +7767,7 @@
   "3ce9741f164fb944": "Não foi possível carregar as threads arquivadas",
   "ad25ae072f65b934": "Nenhuma thread arquivada",
   "4e690f420bcbdb5d": "Verificando os ambientes conectados.",
-  "89d08a5be3347890": "As threads arquivadas aparecerão aqui.",
+  "c28ff6128cff0944": "Arquivar uma thread na barra lateral para deixá-la de lado, como um experimento concluído que talvez seja preciso retomar.",
   "5d3ed45f43611ff4": [
     "Arquivada ",
     {
@@ -7779,6 +7782,7 @@
       "v": "rt"
     }
   ],
+  "74855b1be943c9f4": "Voltar para as threads",
   "ae85d885630b0e51": "{count, plural, one {{count} escopo} other {{count} escopos}}",
   "129431563dc043bc": "{label}: mostrar {scopes}",
   "02df8efa1f3f4ba1": "Não foi possível copiar o link do app hospedado",
@@ -7803,9 +7807,10 @@
   "ec8d754031dc72fd": "Última conexão às {time}",
   "b7406be04f4d7735": "Ainda não conectado.",
   "595a1c9d5f762fef": "Escopos do cliente",
+  "1e2d7d617ac0d4ff": "Desconectar todos os outros clientes?",
+  "b76eda9aa9bec002": "Revogar os outros",
   "06ec30a199134db1": "Falha ao criar a URL de pareamento.",
   "79b1490795e4c205": "Não foi possível criar a URL de pareamento",
-  "b76eda9aa9bec002": "Revogar os outros",
   "04ab01b535a8e3a8": "ex.: iPad da sala",
   "274fac14d65ab9cc": "Padrão",
   "e0dde491debc2517": "Os comandos do terminal podem ler ou alterar arquivos conforme as permissões da conta do servidor.",
@@ -8763,8 +8768,8 @@
   "d51a7a2bb6b8c406": "Vincular a {target} com um código de pareamento",
   "f4ca5e62fb54a3a7": "Solte sobre uma máquina para vincular",
   "11e67016507a6daa": "Dois vínculos, um em cada sentido.",
-  "352169e91766aeb4": "{count, plural, one {# precisa de atenção} other {# precisam de atenção}}",
   "d53ada50331e6041": "{machines, plural, one {# máquina} other {# máquinas}}, {links, plural, =0 {sem vínculos} one {# vínculo} other {# vínculos}}",
+  "352169e91766aeb4": "{count, plural, one {# precisa de atenção} other {# precisam de atenção}}",
   "3e8441af6148878f": "Expira em {date}",
   "4daaa2288b63a801": "{count, plural, one {# vínculo de entrada} other {# vínculos de entrada}}",
   "baf297d0add1d61b": "{count, plural, one {# ambiente} other {# ambientes}}",
@@ -9048,7 +9053,7 @@
   "28973e22f1e5b45a": "Thread: ir para {n}",
   "8eba2873dc2d817d": "Seletor de modelo: ir para o modelo {n}",
   "4473d0791a405a08": "Executar script: {name}",
-  "03f8789fc359bc15": "Pesquisar atalhos de teclado",
+  "6516055cdbb1b570": "Pesquisar atalhos",
   "1d55c82866fd5242": "Condição desconhecida: {condition}",
   "41a022fbed1b1d49": "Condições desconhecidas: {conditions}",
   "2396bc6fbb953b89": "Conflita com {command}.",
@@ -9069,6 +9074,7 @@
   "a974eca924f7ed52": "Não atribuído",
   "337a261bf1551d16": "Atalho de teclado de {command}",
   "bd8e87512fd9bdf2": "Não atribuído",
+  "ed87878eb94309c3": "sempre",
   "4da9b09518a3f47a": "Ações de {command}",
   "5cbab536dac9dc5f": "Remover atribuição",
   "cd710f3021f96ea8": "Remover",
@@ -9087,7 +9093,6 @@
   "9d0d7048a404b46a": "O atalho de teclado não foi salvo.",
   "34aeeaeda3a7d566": "Não foi possível remover o atalho de teclado",
   "ba374aebd2c09ade": "O atalho de teclado não foi removido.",
-  "1b298f8bdfbdac33": "Abrir keybindings.json",
   "38aae3d3373b7e6e": "Conecte um ambiente para alterar os atalhos de teclado.",
   "523dd4a75f84834c": "Esta conexão pode ver os atalhos de teclado, mas não alterá-los.",
   "baeefb0498641e45": "O One ainda não reconhece esta condição. Ela pode ser salva, mas talvez não corresponda a menos que o runtime a forneça.",
@@ -9095,7 +9100,8 @@
   "bc73d7a0c9ccc021": "Corrija a expressão acima para continuar editando visualmente.",
   "7189314b73d9fe61": "Não atribuído",
   "d188aae2ef2f1815": "Nenhum atalho de teclado atribuído. Clique em Não atribuído para definir um.",
-  "d3866ead082d14e5": "Adicionar atalho de teclado",
+  "88b7d02ffbcc7963": "Adicionar atalho",
+  "57c2a15f70f082e7": "Abrir JSON",
   "d4345c90894a3220": "Abrir keybindings.json",
   "e56a8d51219efaa0": "Nenhum atalho de teclado corresponde à sua pesquisa.",
   "90a258fff61fd77e": "Desativado",
@@ -9104,7 +9110,7 @@
   "f29d1dade4dde8aa": "Os agentes não enviam feedback para a equipe do T3.",
   "33a9a12a20e1af9f": "Quando você pede, os agentes mostram um breve relatório sobre o One e o enviam para a equipe do T3 se você aprovar.",
   "efe3e77f15cf325d": "Os agentes também relatam por conta própria os problemas que encontram no One, como uma ferramenta do T3 que falhou.",
-  "45fa271ea0e1ac8e": "Beta",
+  "86e5791f7887ad07": "Beta e alfa",
   "efdf9cb0275b29e8": "Mostra a barra lateral como pastas de projeto. Threads fixadas ficam no topo, e Adiadas e Concluídas ficam abaixo das pastas.",
   "9b9df5ba41c4a8e2": "Agrupar threads por projeto",
   "f079556d67367fe7": "Mostra as threads das pastas em duas linhas: o título e, abaixo, o branch, o pull request e o agente.",
@@ -9135,15 +9141,15 @@
     },
     ". Desativar encerra todos os links de convidado."
   ],
-  "bff0033ea41eb38e": [
-    "Permite que os agentes daqui trabalhem nas suas outras máquinas, e os delas aqui. Ative em cada máquina e depois vincule-as em",
+  "f20f2bcc7ecb43f7": [
+    "Permite que os agentes daqui trabalhem em outras máquinas, e os de lá, aqui. Ativar em cada máquina e depois vinculá-las em",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "Conexões"
+      "c": "Ambientes"
     },
-    ". Enquanto desativado, nada novo começa por um vínculo; as tarefas em execução terminam."
+    ". Enquanto estiver desativado, nada novo começa por um vínculo; as tarefas em execução são concluídas."
   ],
   "55a33cae5e983e80": [
     "Permite que o painel Dispositivo reserve simuladores e emuladores do seu próprio pool",
@@ -9296,7 +9302,6 @@
   "8c93ed63299ff531": "Pesquisar licenças de código aberto",
   "15e4ee1ea3804857": "Pesquisar licenças",
   "c62b241e92231253": "Avisos de terceiros",
-  "63e2c8e62b42ac1e": "Pesquisar licenças",
   "c25215fb0fe7b236": "Os avisos de código aberto não estão disponíveis",
   "dfabc4c20ab78d41": "Nenhuma licença corresponde a essa pesquisa.",
   "a6f0345697704afa": "Carregando avisos de código aberto…",
@@ -9595,6 +9600,7 @@
   "21d0ef064eefa159": "Status",
   "f31ce60f3f118c0d": "Nome de exibição",
   "c45028de5c2f6cbb": "Rótulo da instância",
+  "3bbe58d50d03670f": "Colore o selo deste provedor no seletor de modelos.",
   "cf69675106e4bf46": "Configuração",
   "22078dd501ba3102": "Runtime",
   "288c2d92df27a68c": "Modelos",
@@ -9763,8 +9769,8 @@
   "8188ba79577edefb": "Conta do Cursor",
   "bf587581b2a3d24d": "Usando CURSOR_API_KEY. Remova-a do ambiente deste provedor para entrar pelo navegador.",
   "b0481e41f335f1d2": "Redefinir as configurações do provedor {provider} para o padrão",
-  "1a0c999db1e9896a": "Adicionar provedor",
   "5f4280344b1853ea": "Atualizar status do provedor",
+  "1a0c999db1e9896a": "Adicionar provedor",
   "b298eb788d3443ee": "Configuração do Antigravity",
   "21668b75015a6d1d": "Dispositivo que executa este provedor.",
   "b9ddc0d5fbea1b16": "Configuração indisponível",
@@ -9809,6 +9815,8 @@
   "5c0c973276a61fdb": "Não foi possível salvar a permissão de roteamento de pull requests",
   "1bfcffe8411e2439": "Roteamento de pull requests de {environment}",
   "ae4761ddc038b102": "As máquinas em que você confia aqui podem ler dados de PRs pelo acesso ao controle de versão umas das outras. Ative nas duas máquinas. \"Ler e agir\" pode usar permissões mais amplas que as da máquina dona delas. Isso vale só para este dispositivo.",
+  "b7d35abd8f6a3321": "Oculto",
+  "9e8b7675aab946c3": "Mostrar",
   "02bca2d9c90e5f1e": "{value}s",
   "af22f973466903c3": "{value}min",
   "401ba3f2391d8742": "{value}h",
@@ -10538,6 +10546,8 @@
   "6d59e1e516e53d17": "Ver licenças",
   "941d08db15f62d17": "Arquivado",
   "e122b2428c0d03a5": "Abrir todos os ambientes",
+  "aa472c4648c09ebd": "Nenhum projeto ainda",
+  "11ea64975143be6e": "Um projeto é uma pasta com código. Adicionar um para iniciar uma thread nele, como o repositório no qual se está trabalhando.",
   "484e14e77577d042": "Escopo de ambiente",
   "3c2a43018b7c4901": "Nenhum ambiente",
   "8a6691c39f4cb27a": "Todos os ambientes",
@@ -10548,6 +10558,40 @@
   "470ad8c54049d1e1": "Pesquisar checkouts",
   "7e2dfdd9f97fc027": "Escopo de projeto",
   "1cf216566c1ee064": "Projeto indisponível",
+  "63df6f43274e75eb": [
+    {
+      "t": "span",
+      "i": 1,
+      "c": [
+        {
+          "t": "span",
+          "i": 2,
+          "c": "Mostrando"
+        },
+        {
+          "i": 3,
+          "k": "_gt_value_3",
+          "v": "v"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "i": 4,
+      "c": [
+        {
+          "t": "span",
+          "i": 5,
+          "c": "em"
+        },
+        {
+          "i": 6,
+          "k": "_gt_value_6",
+          "v": "v"
+        }
+      ]
+    }
+  ],
   "db943e13e0f37b06": {
     "t": "span",
     "i": 1,
@@ -10856,6 +10900,8 @@
   "05224ee5939749b2": "Não foi possível verificar o acesso à captura",
   "23bef225aef43439": "Não foi possível fechar a configuração da captura",
   "99f329fec9abbc60": "Snapshots",
+  "0fe1647d9d4e8788": "Snapshots precisam do app de desktop",
+  "0c0c0621b7920c11": "Um snapshot captura uma janela do computador e a anexa a uma thread, como a caixa de erro em que se precisa de ajuda.",
   "971338fc9021c3db": "Atualizando configurações de captura…",
   "33ccb41fd69b950f": "Ativar snapshots",
   "c23b8320eed9fea3": "Inclui texto e controles quando o app os disponibiliza.",
@@ -10870,6 +10916,7 @@
   "a4a21025e979a813": "Piscar a janela capturada",
   "cf4131f390292403": "Anima as janelas capturadas até o seu rascunho.",
   "87157007bde61ece": "Animar snapshots",
+  "1ea1faa49f823960": "Baixar o app de desktop",
   "a766c46982759c44": "Alterar atalho",
   "b5f3ce16ca9e62f8": "Permissões do atalho",
   "b8366d1d16d38d54": [
@@ -11140,6 +11187,8 @@
   "6985d8cfe8f3f2f2": "Nada detectado ainda",
   "5b17411e32ec9ee8": "Instale o Git no servidor, adicione as integrações de hospedagem opcionais ou as credenciais de que seu workspace precisa e faça uma nova varredura.",
   "52f500fa58827159": "Verificar novamente o ambiente do servidor",
+  "dc9196f13649cb21": "Git",
+  "5de615d0a0519b8a": "Jujutsu",
   "845de59dc5599bbd": "Controle de versão",
   "3bd42b40bd62ca11": "Provedores de controle de versão",
   "d6738114d4de6d92": [
@@ -11752,6 +11801,7 @@
   "ca8b75a7d7d7ce7e": "Duplicar tema",
   "f2043e87a10cb831": "Editar tema",
   "595bdeefcdc9bf31": "Exportar arquivo de tema",
+  "4cbeefb1f6d8a5ac": "Importar tema",
   "b480281b3791b685": "Escolha o que o cartão de detalhes da thread mostra. Você também pode clicar com o botão direito no cartão.",
   "662288b90e19635f": "Redefinir os detalhes da thread para o padrão",
   "871d059d88548434": "Detalhes da thread: {enabled} de {total} ativados",
@@ -11816,6 +11866,7 @@
     }
   ],
   "39f64d971ba424b5": "Nenhuma fonte de uso configurada.",
+  "31723a5ee9fd5a09": "Adicionar um hub ou uma fonte HTTP para ver a cota de outro serviço, como um proxy compartilhado.",
   "dbd877abdc2c7c81": "Fonte de cotas HTTP",
   "4cf6a373a7535324": "{name} · Desativado",
   "c792e744936dbe1b": "Adicionar fonte HTTP",
@@ -12086,6 +12137,7 @@
   "81d0d1e78b196630": "Geral",
   "afda415d2d75a5d3": "Chat",
   "4beeab8d1814b251": "Diffs e pull requests",
+  "1ab50db28dbddd0d": "Atalhos de teclado",
   "2ab325baee3ec9a3": "Tarefas agendadas",
   "0a59e086514a62a9": "Controle de versão e issues",
   "1de0df2b8a4fb96e": "Compartilhamento e acesso",
@@ -12224,7 +12276,8 @@
   "82136480255a5106": "OTel OTLP telemetria exportar endpoints logs traces métricas Grafana",
   "659d081051faf7ff": "logs traces processos histórico de recursos falhas spans cpu memória",
   "5eaeacfa9f82051a": "relatório bug problema t3 equipe enviar feedback agentes ferramentas automático quando eu pedir",
-  "f537f91e1ee41d47": "atalhos de teclado teclas de atalho comandos bindings json",
+  "7563e5672f951d26": "Editar atalhos de teclado",
+  "2c2fa1369876364f": "atalhos de teclado keybindings teclas de atalho comandos bindings json",
   "1ba01e7ceed64b95": "janela captura captura de tela",
   "279b1cceb779ff38": "Incluir texto do app",
   "7fa82a838459b368": "captura acessibilidade dados texto estrutura da UI elementos privacidade omitir contexto do agente",
@@ -12334,6 +12387,7 @@
   "f2749efd2aac8fac": "a",
   "f01bf5f570d7a574": "ou",
   "d29982ab91fc2e20": "Início do One",
+  "f4df476c37cf9f24": "{page}: clique para voltar",
   "8e9626aa27cb188a": "Issues",
   "9d2fc1003e82feb1": "Uso",
   "20283eb1dd6119f9": "{count, plural, one {{count} anexo} other {{count} anexos}}",
@@ -12364,6 +12418,7 @@
   "bcda2ccaa871dc46": "Nova thread no projeto atual: Shift+clique ({shortcut})",
   "aa5c379423baace1": "Nova thread no projeto atual: Shift+clique",
   "9d9d32b401d2931a": "{count, plural, one {{count} processo de terminal em execução} other {{count} processos de terminal em execução}}",
+  "3ff15a75485b6c42": "Roda em {provider}",
   "ade06f6723949b39": "Ocorreu um erro",
   "021fe65858278fe9": "Adiar thread",
   "e7c18f33bc1326f7": "Configurando",
@@ -12574,6 +12629,9 @@
   "8790ba57600f2fda": "{count, plural, one {{count} crédito} other {{count} créditos}}",
   "7aaaff1c6484f25c": "Segmento",
   "8bcab2ef61de6518": "Limite de $0",
+  "ad8ce9055f5e9d22": "Cota restante",
+  "27a0a424f318ed9f": "Déficit",
+  "cc88c25a314f4b6b": "Acaba antes",
   "b2442d038d36f243": "Comparado com quanto da janela já passou",
   "578ad261df360720": "Todos os limites estão folgados.",
   "de5b6f2aa9941c18": "{provider}, {window}: o que requer atenção. Resta {remaining}%.",
@@ -12770,6 +12828,7 @@
       "v": "v"
     }
   ],
+  "f4333a1dfa10ab01": "Mover entre os dias com as setas esquerda e direita",
   "435dd01dc4455e95": "Tokens processados por hora, por provedor",
   "37069a5ef57ee9fa": "Custo por hora, por provedor",
   "aa73a1b4208bc912": "Tokens processados por dia, por provedor",
@@ -12780,11 +12839,15 @@
   "684e516076de81fe": "Padrão",
   "3bbcc1b826fef537": "Rápido",
   "66796576034c18ea": "Ultrarrápido",
-  "ac9c16c34de713a6": "sessão",
-  "1d05cd1f382fffdf": "semanal",
-  "98417ff4ee2fea2c": "mensal",
-  "aa32257e1ef37622": "gasto mensal",
-  "f132a02d81f70dea": "geral",
+  "1292d11de3e340a4": "sessão",
+  "a16cacc637bf03c5": "semanal",
+  "038d394feb0d3b10": "mensal",
+  "4d7aa34c6515c420": "gasto mensal",
+  "15a4d4d94f083d34": "limite mensal de créditos",
+  "a53b7a5cf007ae8c": "geral",
+  "7dd380d90851d3b3": "Modelos do Cursor",
+  "8652207aaedebc55": "outros modelos",
+  "443c9c2642c0f4f4": "assinatura",
   "218d7bca77da345b": "{target} mapeia este modelo. Remova-o de \"Aplicar a\" ou limpe o mapeamento dele primeiro.",
   "60ccdf9bdb7c3149": "Mapeie para outro modelo.",
   "3155a2bd93dd97d9": "{field} é obrigatório em {target}.",

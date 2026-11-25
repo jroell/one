@@ -415,3 +415,15 @@ describe("movedSettingsPath", () => {
     expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();
   });
 });
+
+describe("the keyboard shortcuts settings entry", () => {
+  it("is titled apart from the palette's shortcuts sheet and still found by what people type", () => {
+    const entry = SETTINGS_SEARCH_ITEMS.find((item) => item.id === "keybindings")!;
+    expect(decodeMsg(entry.title)).toBe("Edit keyboard shortcuts");
+    for (const query of ["keyboard shortcuts", "hotkeys", "keybindings"]) {
+      expect(searchSettings(query, SETTINGS_SEARCH_ITEMS).map((item) => item.id)).toContain(
+        "keybindings",
+      );
+    }
+  });
+});

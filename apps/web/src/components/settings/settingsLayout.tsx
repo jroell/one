@@ -234,9 +234,8 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   const targetRef = useSettingsSearchTarget<HTMLElement>(sectionProps.id);
-  // An action beside the title (Providers' add button) needs the title to stay in view.
-  const repeatsPageTitle =
-    title === useContext(SettingsPageTitleContext) && titleAction === undefined && !icon;
+  // A title that only repeats the page's is left to screen readers; an icon makes it a label.
+  const repeatsPageTitle = title === useContext(SettingsPageTitleContext) && !icon;
 
   return (
     <section

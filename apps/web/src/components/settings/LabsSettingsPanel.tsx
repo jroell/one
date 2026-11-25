@@ -37,7 +37,7 @@ export function LabsSettingsPanel() {
   const gt = useGT();
   return (
     <SettingsPageContainer>
-      <SettingsSection id="beta" title={gt("Beta")}>
+      <SettingsSection id="beta" title={gt("Beta and alpha")}>
         <BoringSidebarRow />
         {/* Clerk is only mounted when this build has T3 Connect. */}
         {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
@@ -188,7 +188,7 @@ function LinkedEnvironmentsRow() {
           Let agents here work on your other machines, and theirs here. Turn it on for each machine,
           then link them in{" "}
           <Link to="/settings/connections" className="underline underline-offset-2">
-            Connections
+            Environments
           </Link>
           . While off, nothing new starts over a link; running tasks finish.
         </T>

@@ -83,6 +83,7 @@ import {
   PROVIDER_STATUS_STYLES,
   getProviderStatusKey,
   getProviderSummary,
+  providerPlanLabel,
   getProviderVersionLabel,
   providerAuthLabel,
 } from "./providerStatus";
@@ -1010,7 +1011,7 @@ export function ProviderInstanceCard({
   ) : null;
 
   const versionCodeNode = versionLabel ? (
-    <code className="text-xs text-muted-foreground">{versionLabel}</code>
+    <code className="font-sans text-xs tabular-nums text-muted-foreground">{versionLabel}</code>
   ) : null;
 
   const statusDotNode =
@@ -1197,7 +1198,7 @@ export function ProviderInstanceCard({
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
               {versionLabel ? (
-                <code className="max-w-24 shrink-0 truncate text-xs text-muted-foreground">
+                <code className="max-w-24 shrink-0 truncate font-sans text-xs tabular-nums text-muted-foreground">
                   {versionLabel}
                 </code>
               ) : null}
@@ -1211,13 +1212,15 @@ export function ProviderInstanceCard({
                 <span
                   tabIndex={statusDiagnostic ? 0 : undefined}
                   aria-live="polite"
-                  className="pointer-events-auto line-clamp-2 [overflow-wrap:anywhere]"
+                  className="pointer-events-auto block min-w-0 truncate"
                 >
                   {updateProgress ? (
                     gt("Updating · {progress}", { progress: updateProgress })
                   ) : (
                     <>
-                      {summary.headline}
+                      {isAuthenticated && authLabel && !needsAttention
+                        ? providerPlanLabel(authLabel)
+                        : summary.headline}
                       {needsAttention && inlineStatusDetail ? ` · ${inlineStatusDetail}` : null}
                     </>
                   )}
@@ -1371,12 +1374,6 @@ export function ProviderInstanceCard({
                 readOnly && "opacity-50 select-none",
               )}
             >
-              <ProviderAccentColorPicker
-                layout="inline"
-                displayName={displayName}
-                value={accentColor}
-                onCommit={updateAccentColor}
-              />
               <DraftInput
                 id={`provider-instance-${instanceId}-display-name`}
                 size="sm"
@@ -1385,6 +1382,24 @@ export function ProviderInstanceCard({
                 onCommit={updateDisplayName}
                 placeholder={driverOption?.label ?? gt("Instance label")}
                 spellCheck={false}
+              />
+            </div>
+          }
+        />
+        <SettingsRow
+          title={gt("Accent color")}
+          description={gt("Tints this provider's badge in the model picker.")}
+          control={
+            <div
+              inert={readOnly}
+              aria-disabled={readOnly || undefined}
+              className={cn(readOnly && "opacity-50 select-none")}
+            >
+              <ProviderAccentColorPicker
+                layout="inline"
+                displayName={displayName}
+                value={accentColor}
+                onCommit={updateAccentColor}
               />
             </div>
           }
@@ -1428,7 +1443,10 @@ export function ProviderInstanceCard({
         <div
           inert={readOnly}
           aria-disabled={readOnly || undefined}
-          className={readOnly ? "opacity-50 select-none" : undefined}
+          className={cn(
+            "border-t border-(--settings-hairline) pt-6",
+            readOnly && "opacity-50 select-none",
+          )}
         >
           <FoldedSettingsSection
             key={instanceId}

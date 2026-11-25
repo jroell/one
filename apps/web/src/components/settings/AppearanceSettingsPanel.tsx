@@ -20,6 +20,12 @@ import {
   type SidebarStageBackdropVariant,
   useEnvironmentStageLabel,
 } from "../SidebarStageBackdrop";
+import {
+  CONTRAST_NEUTRAL,
+  contrastToPosition,
+  positionToContrast,
+  stepContrast,
+} from "./contrastSlider.logic";
 import { useCustomThemes } from "../../hooks/useCustomThemes";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { useTheme } from "../../hooks/useTheme";
@@ -94,13 +100,29 @@ const EFFORT_DISPLAY_LABELS: Record<EffortDisplay, string> = {
 };
 
 /** The two ends of a slider's range, so a thumb's place on the track can be read. */
-function SliderRange({ min, max, unit }: { min: number; max: number; unit: string }) {
+function SliderRange({
+  min,
+  mid,
+  max,
+  unit,
+}: {
+  min: number;
+  mid?: number;
+  max: number;
+  unit: string;
+}) {
   return (
     <span aria-hidden className="settings-slider-range">
       <span>
         {min}
         {unit}
       </span>
+      {mid === undefined ? null : (
+        <span>
+          {mid}
+          {unit}
+        </span>
+      )}
       <span>
         {max}
         {unit}
@@ -156,9 +178,7 @@ export function AppearanceSettingsPanel() {
     "--settings-slider-progress": `${glassOpacityRatio * 100}%`,
     "--settings-slider-fill-offset": `${0.5 - glassOpacityRatio}rem`,
   } as CSSProperties;
-  const appearanceContrastRatio =
-    (settings.appearanceContrast - MIN_APPEARANCE_CONTRAST) /
-    (MAX_APPEARANCE_CONTRAST - MIN_APPEARANCE_CONTRAST);
+  const appearanceContrastRatio = contrastToPosition(settings.appearanceContrast) / 100;
   const appearanceContrastSliderStyle = {
     "--settings-slider-progress": `${appearanceContrastRatio * 100}%`,
     "--settings-slider-fill-offset": `${0.5 - appearanceContrastRatio}rem`,
@@ -212,26 +232,39 @@ export function AppearanceSettingsPanel() {
               <div className="settings-slider-track">
                 <input
                   aria-label={gt("Contrast")}
+                  aria-valuetext={`${settings.appearanceContrast}%`}
                   className="settings-slider min-w-0 flex-1"
                   id="appearance-contrast"
-                  max={MAX_APPEARANCE_CONTRAST}
-                  min={MIN_APPEARANCE_CONTRAST}
+                  max={100}
+                  min={0}
                   onChange={(event) => {
-                    const appearanceContrast = Number(event.currentTarget.value);
-                    if (
-                      Number.isInteger(appearanceContrast) &&
-                      appearanceContrast >= MIN_APPEARANCE_CONTRAST &&
-                      appearanceContrast <= MAX_APPEARANCE_CONTRAST
-                    ) {
+                    const appearanceContrast = positionToContrast(
+                      Number(event.currentTarget.value),
+                    );
+                    if (appearanceContrast !== settings.appearanceContrast) {
                       updateSettings({ appearanceContrast });
                     }
                   }}
-                  step={5}
+                  onKeyDown={(event) => {
+                    const appearanceContrast = stepContrast(settings.appearanceContrast, event.key);
+                    if (appearanceContrast === null) return;
+                    event.preventDefault();
+                    if (appearanceContrast !== settings.appearanceContrast) {
+                      updateSettings({ appearanceContrast });
+                    }
+                  }}
+                  step="any"
                   style={appearanceContrastSliderStyle}
                   type="range"
-                  value={settings.appearanceContrast}
+                  value={contrastToPosition(settings.appearanceContrast)}
                 />
-                <SliderRange min={MIN_APPEARANCE_CONTRAST} max={MAX_APPEARANCE_CONTRAST} unit="%" />
+                <span aria-hidden className="settings-slider-detent" />
+                <SliderRange
+                  min={MIN_APPEARANCE_CONTRAST}
+                  mid={CONTRAST_NEUTRAL}
+                  max={MAX_APPEARANCE_CONTRAST}
+                  unit="%"
+                />
               </div>
               <output className="settings-slider-readout" htmlFor="appearance-contrast">
                 {settings.appearanceContrast}%

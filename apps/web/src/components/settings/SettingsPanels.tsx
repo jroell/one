@@ -2547,7 +2547,7 @@ export function AboutSettingsPanel() {
   const telemetryOff = managedTelemetryOffMessage(primaryPolicy, messages);
   return (
     <SettingsPageContainer>
-      <AboutHero />
+      <AboutHero {...(isElectron || HOSTED_APP_CHANNEL ? {} : { id: setting("app-version").id })} />
       <SettingsSection id="about" title={gt("App")}>
         {primaryPolicy ? (
           <SettingsRow
@@ -2573,15 +2573,8 @@ export function AboutSettingsPanel() {
         ) : null}
         {isElectron || HOSTED_APP_CHANNEL ? (
           <AboutVersionSection />
-        ) : (
-          <>
-            <SettingsRow
-              id={setting("app-version").id}
-              title={<AboutVersionTitle />}
-              description={gt("Current version of the application.")}
-            />
-          </>
-        )}
+        ) : // The hero above already says the version, and there is no update to check here.
+        null}
         <MobileAppSettingsRow />
         {primaryEnvironmentId === null ? null : (
           <SettingsRow

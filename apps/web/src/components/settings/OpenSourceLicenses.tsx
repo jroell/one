@@ -22,7 +22,6 @@ import { m } from "../../i18n/messages";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 class LicenseManifestLoadError extends Schema.TaggedError<LicenseManifestLoadError>()(
@@ -98,7 +97,9 @@ function LicenseNoticeRow({
             <span className="flex min-w-0 flex-1 items-baseline gap-2">
               <span className="truncate font-medium text-foreground">{entry.name}</span>
               {entry.version ? (
-                <code className="shrink-0 text-xs text-muted-foreground">{entry.version}</code>
+                <code className="shrink-0 font-sans text-xs tabular-nums text-muted-foreground">
+                  {entry.version}
+                </code>
               ) : null}
             </span>
             <span className="max-w-[42%] shrink-0 truncate text-xs text-muted-foreground">
@@ -157,70 +158,37 @@ function LicenseCount({
 function LicenseHeaderAction({
   query,
   onQueryChange,
-  searchOpen,
-  onSearchOpenChange,
   filteredCount,
   totalCount,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
-  searchOpen: boolean;
-  onSearchOpenChange: (open: boolean) => void;
   filteredCount: number;
   totalCount: number;
 }) {
   const gt = useGT();
-  if (!searchOpen) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <LicenseCount filteredCount={filteredCount} totalCount={totalCount} />
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                aria-label={gt("Search open-source licenses")}
-                onClick={() => onSearchOpenChange(true)}
-                size="icon-micro"
-                type="button"
-                variant="ghost-muted"
-              >
-                <SearchIcon className="size-3" />
-              </Button>
-            }
-          />
-          <TooltipPopup side="top">
-            <T>Search licenses</T>
-          </TooltipPopup>
-        </Tooltip>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       <div className="hidden sm:block">
         <LicenseCount filteredCount={filteredCount} totalCount={totalCount} />
       </div>
-      <InputGroup className="w-36 sm:w-44">
+      <InputGroup className="w-44 sm:w-56">
         <InputGroupAddon>
-          <SearchIcon aria-hidden className="size-3" />
+          <SearchIcon aria-hidden className="size-3.5" />
         </InputGroupAddon>
         <InputGroupInput
           aria-label={gt("Search open-source licenses")}
-          autoFocus
-          onBlur={() => {
-            if (query.length === 0) onSearchOpenChange(false);
-          }}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             event.preventDefault();
             event.stopPropagation();
-            // Unmounting the focused input lets the dialog move focus to a control whose
-            // tooltip would swallow the next Esc; the surface keeps Esc closing Settings.
+            if (query.length > 0) {
+              onQueryChange("");
+              return;
+            }
+            // Leaving the field lets the dialog take focus; the surface keeps Esc closing Settings.
             event.currentTarget.closest<HTMLElement>("[data-app-modal]")?.focus();
-            onQueryChange("");
-            onSearchOpenChange(false);
           }}
           placeholder={gt("Search licenses")}
           size="sm"
@@ -255,7 +223,6 @@ export function OpenSourceLicensesPanel() {
   const result = useAtomValue(licenseManifestAtom);
   const retry = useAtomRefresh(licenseManifestAtom);
   const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [openEntryKey, setOpenEntryKey] = useState<string | null>(null);
   const manifest = result._tag === "Success" ? result.value : null;
   const entries = manifest?.entries ?? [];
@@ -277,8 +244,6 @@ export function OpenSourceLicensesPanel() {
             <LicenseHeaderAction
               query={query}
               onQueryChange={setQuery}
-              searchOpen={searchOpen}
-              onSearchOpenChange={setSearchOpen}
               filteredCount={filteredEntries.length}
               totalCount={entries.length}
             />

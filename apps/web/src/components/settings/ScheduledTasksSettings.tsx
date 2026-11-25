@@ -116,14 +116,7 @@ import {
 import { Label } from "../ui/label";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "../ui/menu";
 import { ToggleGroup, Toggle } from "../ui/toggle-group";
-import {
-  Empty,
-  EmptyContent,
-  EmptyHeader,
-  EmptyTitle,
-  EmptyDescription,
-  EmptyMedia,
-} from "../ui/empty";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -506,19 +499,11 @@ export function ScheduledTasksSettings(target: {
             <SettingsRow title={scope.message} />
           </SettingsSection>
         ) : environments.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Clock3Icon />
-              </EmptyMedia>
-              <EmptyTitle>
-                <T>No environments available</T>
-              </EmptyTitle>
-              <EmptyDescription>
-                <T>Connect an environment to manage scheduled tasks.</T>
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <SettingsEmptyState
+            icon={<Clock3Icon />}
+            title={<T>No environments available</T>}
+            description={<T>Connect an environment to manage scheduled tasks.</T>}
+          />
         ) : environments.length > 1 ? (
           <ScheduledTaskEnvironmentList
             environmentId={linkedEnvironmentId}
@@ -728,25 +713,19 @@ function NoScheduledTasks({
   readonly canCreate: boolean;
 }) {
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Clock3Icon />
-        </EmptyMedia>
-        <EmptyTitle>
-          <T>No scheduled tasks yet</T>
-        </EmptyTitle>
-        <EmptyDescription>
-          <T>Scheduled tasks run a prompt on a timer, such as a morning summary of open work.</T>
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
+    <SettingsEmptyState
+      icon={<Clock3Icon />}
+      title={<T>No scheduled tasks yet</T>}
+      description={
+        <T>Scheduled tasks run a prompt on a timer, such as a morning summary of open work.</T>
+      }
+      action={
         <Button disabled={!canCreate} onClick={onCreate}>
           <PlusIcon />
           <T>New task</T>
         </Button>
-      </EmptyContent>
-    </Empty>
+      }
+    />
   );
 }
 

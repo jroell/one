@@ -3618,8 +3618,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             jumpLabel={
                               showJumpHints ? (jumpLabelByKey.get(threadKey) ?? null) : null
                             }
+                            // The device is named only where it tells rows apart: when more than one
+                            // is connected, or this thread lives on another one.
                             environmentLabel={
-                              environmentLabelById.get(thread.environmentId) ?? null
+                              environmentLabelById.size > 1 ||
+                              (primaryEnvironmentId !== null &&
+                                thread.environmentId !== primaryEnvironmentId)
+                                ? (environmentLabelById.get(thread.environmentId) ?? null)
+                                : null
                             }
                             environmentMachine={
                               environmentMachineById.get(thread.environmentId) ?? "server"

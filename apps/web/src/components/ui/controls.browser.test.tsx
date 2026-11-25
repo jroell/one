@@ -7,7 +7,14 @@ import { Button } from "./button";
 import { Checkbox } from "./checkbox";
 import { Input } from "./input";
 import { Menu, MenuCheckboxItem, MenuPopup, MenuTrigger } from "./menu";
-import { CommandDialog, CommandDialogPopup, CommandInput, Command } from "./command";
+import {
+  Command,
+  CommandDialog,
+  CommandDialogPopup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "./command";
 import { SearchField } from "./search-field";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./select";
 import { ToastProvider, toastManager } from "./toast";
@@ -228,40 +235,23 @@ describe("switch", () => {
   });
 });
 
-describe("toast countdown line", () => {
-  const timers = () =>
-    [...document.querySelectorAll<HTMLElement>("[data-slot=toast-timer]")].map(
-      (line) => getComputedStyle(line).animationPlayState,
-    );
-
-  it("every timed toast's line stops while any toast is hovered, and while the window is in the background", async () => {
+describe("toast", () => {
+  it("draws no countdown line, since Base UI keeps its dismissal timers private and resets them on updates", async () => {
     await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
-    toastManager.add({ type: "info", title: "First toast", timeout: 60_000 });
-    toastManager.add({ type: "info", title: "Second toast", timeout: 60_000 });
-    await expect.poll(timers).toEqual(["running", "running"]);
+    toastManager.add({ type: "info", title: "Timed toast", timeout: 60_000 });
+    await expect.element(page.getByText("Timed toast")).toBeVisible();
 
-    await userEvent.hover(page.getByText("Second toast"));
-    await expect
-      .poll(timers, { message: "hover pauses both, as Base UI does" })
-      .toEqual(["paused", "paused"]);
-
-    await userEvent.unhover(page.getByText("Second toast"));
-    await expect.poll(timers).toEqual(["running", "running"]);
-
-    window.dispatchEvent(new Event("blur"));
-    await expect.poll(timers, { message: "window blur pauses both" }).toEqual(["paused", "paused"]);
-    window.dispatchEvent(new Event("focus"));
-    await expect.poll(timers).toEqual(["running", "running"]);
+    expect(document.querySelector("[data-slot=toast-timer]")).toBeNull();
     toastManager.close();
   });
 
-  it("a toast with no single dismissal timer draws no running line", async () => {
+  it("marks its type with an accent edge on the start side", async () => {
     await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
-    toastManager.add({ type: "loading", title: "Working", timeout: 60_000 });
-    await expect.element(page.getByText("Working")).toBeVisible();
+    toastManager.add({ type: "error", title: "Could not save", timeout: 60_000 });
+    await expect.element(page.getByText("Could not save")).toBeVisible();
 
-    const line = document.querySelector<HTMLElement>("[data-slot=toast-timer]")!;
-    expect(getComputedStyle(line).animationDuration).toBe("0s");
+    const toast = document.querySelector<HTMLElement>("[data-slot=toast-viewport] > [data-type]")!;
+    expect(getComputedStyle(toast).boxShadow).toContain("2px 0px 0px 0px");
     toastManager.close();
   });
 });
@@ -349,6 +339,32 @@ describe("surface levels", () => {
     }));
 });
 
+describe("surface levels in a chosen theme", () => {
+  it("a custom dark theme's own raised and overlay colors win over the stepped defaults, and the glass uses them", () => {
+    const root = document.documentElement;
+    root.classList.add("dark");
+    root.dataset.themeId = "test-theme";
+    root.style.setProperty("--app-theme-surface-raised", "rgb(40, 14, 14)");
+    root.style.setProperty("--app-theme-surface-overlay", "rgb(14, 14, 60)");
+    const probe = document.createElement("div");
+    probe.className = "dropdown-glass";
+    document.body.append(probe);
+    try {
+      expect(resolved("var(--ui-surface-raised)")).toBe(resolved("rgb(40, 14, 14)"));
+      expect(resolved("var(--ui-surface-overlay)")).toBe(resolved("rgb(14, 14, 60)"));
+      expect(getComputedStyle(probe).backgroundColor).toBe(
+        resolved("color-mix(in srgb, rgb(14, 14, 60) var(--glass-opacity), transparent)"),
+      );
+    } finally {
+      probe.remove();
+      root.classList.remove("dark");
+      delete root.dataset.themeId;
+      root.style.removeProperty("--app-theme-surface-raised");
+      root.style.removeProperty("--app-theme-surface-overlay");
+    }
+  });
+});
+
 describe("selected state", () => {
   it("a tile that opts in draws a brand ring and tint only while selected", async () => {
     await using screen = await render(
@@ -397,8 +413,10 @@ describe("search fields", () => {
 
     await userEvent.tab();
 
-    await expect.poll(() => getComputedStyle(field).borderBottomColor).not.toBe(rest);
-    await expect.poll(() => getComputedStyle(field).boxShadow).toContain("0px 1px 0px 0px");
+    await expect
+      .poll(() => getComputedStyle(field).borderBottomColor)
+      .toBe(resolved("var(--ui-focus)"));
+    expect(rest).not.toBe(resolved("var(--ui-focus)"));
     expect(screen.container.querySelector("[data-slot=kbd]")?.textContent).toBe("/");
   });
 
@@ -427,5 +445,228 @@ describe("search fields", () => {
     expect(getComputedStyle(control).boxShadow, "no glow around the field itself").toBe("none");
     expect(getComputedStyle(control).borderTopColor).toBe("rgba(0, 0, 0, 0)");
     expect(getComputedStyle(input).fontSize).toBe("17px");
+  });
+});
+
+function rgba(css: string): [number, number, number, number] {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 1;
+  const context = canvas.getContext("2d", { willReadFrequently: true })!;
+  context.fillStyle = css;
+  context.fillRect(0, 0, 1, 1);
+  const [r = 0, g = 0, b = 0, a = 255] = context.getImageData(0, 0, 1, 1).data;
+  return [r, g, b, a / 255];
+}
+
+/** Layers painted over a backdrop, nearest layer last, as one opaque color. */
+function composite(layers: ReadonlyArray<string>, backdrop: string): string {
+  let [r, g, b] = rgba(backdrop);
+  for (const layer of layers) {
+    const [lr, lg, lb, la] = rgba(layer);
+    [r, g, b] = [lr * la + r * (1 - la), lg * la + g * (1 - la), lb * la + b * (1 - la)];
+  }
+  return `rgb(${r} ${g} ${b})`;
+}
+
+function hue([r, g, b]: [number, number, number]): number {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max === min) return 0;
+  const d = max - min;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+
+describe("modal glass", () => {
+  it.each(["light", "dark"] as const)(
+    "text on the modal frame and on a card is at least 4.5:1 over the worst backdrop, black or white, in %s",
+    (scheme) =>
+      inScheme(scheme, async () => {
+        await using screen = await render(
+          <div data-app-modal="">
+            <div data-testid="card" style={{ background: "var(--ui-card-surface)" }}>
+              Card
+            </div>
+          </div>,
+          { router: false },
+        );
+        const frame = getComputedStyle(screen.container.querySelector("[data-app-modal]")!);
+        const card = getComputedStyle(screen.getByTestId("card").element());
+        expect(frame.backdropFilter, "the frame blurs what is behind it").toMatch(
+          /blur\(.+saturate\(/,
+        );
+
+        // The page's own color, and a mid tone halfway toward the opposite end, as an image or a code
+        // block behind the modal would give.
+        const backdrops =
+          scheme === "light"
+            ? ["rgb(252 252 252)", "rgb(140 140 140)"]
+            : ["rgb(0 0 0)", "rgb(120 120 120)"];
+        for (const backdrop of backdrops) {
+          const onFrame = composite([frame.backgroundColor], backdrop);
+          const onCard = composite([frame.backgroundColor, card.backgroundColor], backdrop);
+          for (const [surface, name] of [
+            [onFrame, "frame"],
+            [onCard, "card"],
+          ] as const) {
+            for (const text of ["var(--foreground)", "var(--ui-muted-text)"]) {
+              expect(
+                contrast(resolved(text, "color"), surface),
+                `${text} on the ${name} over ${backdrop}`,
+              ).toBeGreaterThanOrEqual(4.5);
+            }
+          }
+        }
+      }),
+  );
+
+  it("the frame follows the user's glass opacity and is translucent, and a card is a tint rather than an opaque grey", async () => {
+    document.documentElement.classList.add("dark");
+    document.documentElement.style.setProperty("--glass-opacity", "50%");
+    try {
+      await using screen = await render(
+        <div data-app-modal="">
+          <div data-testid="card" style={{ background: "var(--ui-card-surface)" }} />
+        </div>,
+        { router: false },
+      );
+      const [, , , frameAlpha] = rgba(
+        getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor,
+      );
+      const [, , , cardAlpha] = rgba(
+        getComputedStyle(screen.getByTestId("card").element()).backgroundColor,
+      );
+      expect(frameAlpha).toBeCloseTo(0.5, 1);
+      expect(cardAlpha).toBeLessThan(0.1);
+    } finally {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.style.removeProperty("--glass-opacity");
+    }
+  });
+
+  it("a custom theme's raised color tints its frame, not the default theme's", async () => {
+    const root = document.documentElement;
+    root.classList.add("dark");
+    root.dataset.themeId = "test-theme";
+    root.style.setProperty("--app-theme-surface-raised", "rgb(10, 40, 10)");
+    root.style.setProperty("--app-theme-message-action", "rgb(200, 150, 20)");
+    try {
+      await using screen = await render(<div data-app-modal="" />, { router: false });
+      const [r, g, b] = rgba(
+        getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor,
+      );
+      expect(g - r, "green leads red").toBeGreaterThan(15);
+      expect(g - b).toBeGreaterThan(15);
+    } finally {
+      root.classList.remove("dark");
+      delete root.dataset.themeId;
+      root.style.removeProperty("--app-theme-surface-raised");
+      root.style.removeProperty("--app-theme-message-action");
+    }
+  });
+});
+
+describe("status tokens", () => {
+  const statuses = ["danger", "warning", "success", "info"] as const;
+
+  it.each(["light", "dark"] as const)(
+    "each status text is at least 4.5:1 on the page and on its tint, its fill at least 3:1 against the page, and white text at least 4.5:1 on its solid in %s",
+    (scheme) =>
+      inScheme(scheme, () => {
+        const page_ = resolved("var(--background)");
+        for (const status of statuses) {
+          const fg = resolved(`var(--ui-${status}-fg)`, "color");
+          const tint = resolved(`var(--ui-${status}-tint)`);
+          expect(contrast(fg, page_), `${status} text on the page`).toBeGreaterThanOrEqual(4.5);
+          expect(
+            contrast(fg, composite([tint], page_)),
+            `${status} text on its tint`,
+          ).toBeGreaterThanOrEqual(4.5);
+          expect(
+            contrast(resolved(`var(--ui-${status}-fill)`), page_),
+            `${status} fill on the page`,
+          ).toBeGreaterThanOrEqual(3);
+          expect(
+            contrast(
+              resolved("var(--ui-on-solid)", "color"),
+              resolved(`var(--ui-${status}-solid)`),
+            ),
+            `white on ${status} solid`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }),
+  );
+
+  it.each(["light", "dark"] as const)(
+    "warning is orange, clearly apart from the gold brand fill, in %s",
+    (scheme) =>
+      inScheme(scheme, () => {
+        const warning = hue(channels(resolved("var(--ui-warning-fill)")));
+        const gold = hue(channels(resolved("var(--ui-fill)")));
+        expect(gold - warning).toBeGreaterThanOrEqual(12);
+      }),
+  );
+});
+
+describe("status tokens across the app", () => {
+  it("the app's older warning, success, info and error tokens follow the status set in the default theme, and a chosen theme keeps its own", () => {
+    for (const [old, now] of [
+      ["--warning", "--ui-warning-fill"],
+      ["--success", "--ui-success-fill"],
+      ["--info", "--ui-info-fill"],
+      ["--destructive", "--ui-danger-fill"],
+    ] as const) {
+      expect(resolved(`var(${old})`), old).toBe(resolved(`var(${now})`));
+    }
+
+    const root = document.documentElement;
+    root.dataset.themeId = "test-theme";
+    root.style.setProperty("--app-theme-warning", "rgb(10, 200, 10)");
+    try {
+      expect(resolved("var(--warning)")).toBe(resolved("rgb(10, 200, 10)"));
+    } finally {
+      delete root.dataset.themeId;
+      root.style.removeProperty("--app-theme-warning");
+    }
+  });
+});
+
+describe("numbers", () => {
+  it("a number is sans with tabular figures, and monospace stays for code", async () => {
+    await using screen = await render(
+      <>
+        <span className="one-num" data-testid="num">
+          1,204
+        </span>
+        <span data-testid="body">Body</span>
+      </>,
+      { router: false },
+    );
+    const num = getComputedStyle(screen.getByTestId("num").element());
+    expect(num.fontVariantNumeric).toContain("tabular-nums");
+    expect(num.fontFamily).toBe(getComputedStyle(screen.getByTestId("body").element()).fontFamily);
+    expect(num.fontFamily).not.toMatch(/mono/i);
+  });
+});
+
+describe("selected palette row", () => {
+  it("the highlighted palette row takes the brand tint every list row uses", async () => {
+    await using _screen = await render(
+      <Command items={["One"]}>
+        <CommandList>
+          {(item: string) => (
+            <CommandItem active value={item}>
+              {item}
+            </CommandItem>
+          )}
+        </CommandList>
+      </Command>,
+      { router: false },
+    );
+    const row = document.querySelector<HTMLElement>("[data-slot=command-item]")!;
+
+    await expect
+      .poll(() => getComputedStyle(row).backgroundColor)
+      .toBe(resolved("var(--ui-highlight)"));
   });
 });

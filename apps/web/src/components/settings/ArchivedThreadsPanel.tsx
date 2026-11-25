@@ -4,6 +4,7 @@ import { contextMenuSourceOf } from "../../contextMenuSource";
 import { m as resolveMessage } from "~/i18n/messages";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { Spinner } from "~/components/ui/spinner";
+import { useCloseAppModal } from "../sidebar/mainAppLocation";
 import { ArchiveIcon, ArchiveX, Trash2Icon } from "lucide-react";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { presentThreadShell } from "@t3tools/client-runtime/state/shell";
@@ -20,6 +21,7 @@ import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { RelativeTime } from "../RelativeTime";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
@@ -89,6 +91,7 @@ export function ArchivedThreadsPanel() {
   const gt = useGT();
   const m = useMessages();
   const { scope, groups: projectGroups, environments } = useSettingsScope();
+  const closeAppModal = useCloseAppModal();
   const { unarchiveThread, confirmAndDeleteThread } = useThreadActions();
   const pendingActionsRef = useRef(new Set<string>());
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set());
@@ -320,26 +323,36 @@ export function ArchivedThreadsPanel() {
         <SettingsSection
           id={isLoadingArchive ? undefined : searchableSetting("archive").id}
           title={searchableSetting("archive").title}
+          hideTitle
+          variant="plain"
         >
-          <SettingsRow
+          <SettingsEmptyState
+            icon={isLoadingArchive ? <Spinner size="sm" tone="muted" /> : <ArchiveIcon />}
             title={
-              <span className="inline-flex items-center gap-2">
-                {isLoadingArchive ? (
-                  <Spinner size="sm" tone="muted" />
-                ) : (
-                  <ArchiveIcon className="size-3.5 text-muted-foreground" />
-                )}
-                {isLoadingArchive
-                  ? gt("Loading archived threads")
-                  : archiveError
-                    ? gt("Could not load archived threads")
-                    : gt("No archived threads")}
-              </span>
+              isLoadingArchive
+                ? gt("Loading archived threads")
+                : archiveError
+                  ? gt("Could not load archived threads")
+                  : gt("No archived threads")
             }
             description={
               isLoadingArchive
                 ? gt("Checking connected environments.")
-                : (archiveError ?? gt("Archived threads will appear here."))
+                : (archiveError ??
+                  gt(
+                    "Archive a thread from the sidebar to set it aside, such as a finished experiment you may want back.",
+                  ))
+            }
+            action={
+              isLoadingArchive ? undefined : archiveError ? (
+                <Button onClick={refreshArchivedThreads}>
+                  <T>Retry</T>
+                </Button>
+              ) : (
+                <Button onClick={() => void closeAppModal()}>
+                  <T>Back to threads</T>
+                </Button>
+              )
             }
           />
         </SettingsSection>

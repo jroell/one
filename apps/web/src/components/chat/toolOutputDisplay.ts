@@ -25,11 +25,13 @@ function envelopeText(block: unknown): string | null {
 }
 
 /**
- * Providers can return tool output as serialized content blocks with every newline escaped.
- * Only an array or object made entirely of the known blocks is decoded. Any other text, such
- * as a bare JSON literal like `""`, comes back exactly as it arrived.
+ * A tool call's result can arrive as serialized content blocks with every newline escaped.
+ * That happens only on a dynamic tool item, so only that item type is decoded, and only when it
+ * is made entirely of the known blocks. Command output is whatever the command printed: a
+ * command that prints this same JSON gets it back exactly.
  */
-export function toolOutputDisplayText(output: string): string {
+export function toolOutputDisplayText(output: string, itemType: string): string {
+  if (itemType !== "dynamic_tool") return output;
   const trimmed = output.trim();
   if (trimmed.length < 2 || (trimmed[0] !== "[" && trimmed[0] !== "{")) return output;
   let parsed: unknown;

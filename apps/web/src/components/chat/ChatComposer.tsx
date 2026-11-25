@@ -382,6 +382,12 @@ export interface ChatComposerHandle {
   setMultipleModelSelections: (selections: ReadonlyArray<ModelSelection>) => void;
 }
 
+interface SubmitComposerOptions {
+  readonly afterDictation?: boolean;
+  /** Told the message id when the turn request goes out with it; never when the send is abandoned. */
+  readonly onMessageSent?: (messageId: string) => void;
+}
+
 export interface ChatComposerProps {
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
@@ -488,6 +494,9 @@ export interface ChatComposerProps {
     e?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
+    directAnnotation?: undefined,
+    detachedOverride?: undefined,
+    onMessageSent?: (messageId: string) => void,
   ) => void;
   captureDetachedSend?: () => (
     e?: { preventDefault: () => void },
@@ -501,6 +510,7 @@ export interface ChatComposerProps {
       readonly prompt: string;
       readonly sendContext: ReturnType<ChatComposerHandle["getSendContext"]>;
     },
+    onMessageSent?: (messageId: string) => void,
   ) => void;
   onResume: () => void;
   onInterrupt: () => void;
@@ -2312,15 +2322,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     (
       dispatchMode?: ComposerDispatchMode,
       submissionIntent?: ComposerSubmissionIntent,
-      options?: { readonly afterDictation?: boolean },
+      options?: SubmitComposerOptions,
     ) => void
   >(() => {});
   const submitComposer = (
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
-    options?: { readonly afterDictation?: boolean },
+    options?: SubmitComposerOptions,
   ) => {
+    const onMessageSent = options?.onMessageSent;
     if (voiceInputActive && !options?.afterDictation) {
       event?.preventDefault();
       const queuedOwnerKey = attachmentTargetKey;
@@ -2342,7 +2353,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         const stillLive =
           composerMountedRef.current && attachmentTargetKeyRef.current === queuedOwnerKey;
         if (stillLive) {
-          submitComposerRef.current(dispatchMode, submissionIntent, { afterDictation: true });
+          submitComposerRef.current(dispatchMode, submissionIntent, {
+            afterDictation: true,
+            ...(onMessageSent ? { onMessageSent } : {}),
+          });
           return;
         }
         if (
@@ -2363,24 +2377,31 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           submissionTarget: capturedSubmissionTarget,
           event: undefined,
           onSend: (sendEvent) => {
-            capturedDetachedSend(sendEvent, resolvedDispatchMode, submissionIntent, undefined, {
-              prompt: transcribedText,
-              sendContext: {
-                ...capturedSendContext,
-                ...(latestDraft
-                  ? {
-                      images: latestDraft.images,
-                      files: latestDraft.files,
-                      terminalContexts: latestDraft.terminalContexts,
-                      previewAnnotations: latestDraft.previewAnnotations,
-                      reviewComments: latestDraft.reviewComments,
-                      threadContexts: latestDraft.threadContexts,
-                      environmentContexts: latestDraft.environmentContexts,
-                    }
-                  : {}),
+            capturedDetachedSend(
+              sendEvent,
+              resolvedDispatchMode,
+              submissionIntent,
+              undefined,
+              {
                 prompt: transcribedText,
+                sendContext: {
+                  ...capturedSendContext,
+                  ...(latestDraft
+                    ? {
+                        images: latestDraft.images,
+                        files: latestDraft.files,
+                        terminalContexts: latestDraft.terminalContexts,
+                        previewAnnotations: latestDraft.previewAnnotations,
+                        reviewComments: latestDraft.reviewComments,
+                        threadContexts: latestDraft.threadContexts,
+                        environmentContexts: latestDraft.environmentContexts,
+                      }
+                    : {}),
+                  prompt: transcribedText,
+                },
               },
-            });
+              onMessageSent,
+            );
             return true;
           },
         });
@@ -2436,6 +2457,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               canSteer,
             }),
           submissionIntent,
+          undefined,
+          undefined,
+          onMessageSent,
         );
         return !providerInputRejectedRef.current;
       },
@@ -2457,8 +2481,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const voiceStart = useStableCallback((signal?: AbortSignal) =>
     speechInput.startWithResult(signal ? { signal } : undefined),
   );
-  const voiceSubmit = useStableCallback(() => {
-    submitComposerRef.current();
+  const voiceSubmit = useStableCallback((onSent: (messageId: string) => void) => {
+    submitComposerRef.current(undefined, undefined, { onMessageSent: onSent });
   });
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
   // True when the draft with this key was sent and became the thread this composer now writes to.
@@ -2474,8 +2498,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const publishesVoice = voiceChatHost && !hiddenThread;
   // Voice chat sends a spoken question on its own, so it is offered only when the
   // composer is free: nothing waiting for an answer, and no queued message being edited.
+  // A fan-out to several models has no single thread whose reply could be read.
   const voiceAvailable =
     speechInput.available &&
+    multipleModelSelections === null &&
     !dictationDisabled &&
     !isEditingQueuedMessage &&
     !isComposerApprovalState &&
@@ -2524,7 +2550,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         (await whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () =>
           voiceStart(signal),
         )) ?? "declined",
-      submit: () => whileCommitted(voiceBridgeOwner, composerDraftTargetKey, voiceSubmit),
+      submit: (onSent) =>
+        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => voiceSubmit(onSent)),
       cancel: voiceCancel,
     });
   }, [

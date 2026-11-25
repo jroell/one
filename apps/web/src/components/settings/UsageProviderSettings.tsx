@@ -1,6 +1,8 @@
 import type { EnvironmentId, UnifiedSettings } from "@t3tools/contracts";
 import { T, useGT, Var } from "gt-react";
-import { PlusIcon } from "lucide-react";
+import { GaugeIcon, PlusIcon } from "lucide-react";
+import { SettingsEmptyState } from "./SettingsEmptyState";
+
 import { useState } from "react";
 
 import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
@@ -57,7 +59,14 @@ export function UsageProviderSettings({
         }
       >
         {entries.length === 0 ? (
-          <SettingsRow title={gt("No usage sources configured.")} />
+          <SettingsEmptyState
+            className="min-h-40"
+            icon={<GaugeIcon />}
+            title={gt("No usage sources configured.")}
+            description={gt(
+              "Add a hub or an HTTP source to see quota from another service, such as a shared proxy.",
+            )}
+          />
         ) : (
           entries.map(([id, source]) => {
             const kindLabel = source.kind === "http" ? gt("HTTP quota source") : CLI_PROXY_NAME;

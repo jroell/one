@@ -1,5 +1,5 @@
+import { useGT } from "gt-react";
 import { useState } from "react";
-import { flushSync } from "react-dom";
 
 import { cn } from "../../lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -32,10 +32,9 @@ export function RedactedSensitiveText(props: {
   readonly hideTooltip: string;
   readonly className?: string;
 }) {
-  const [visibility, setVisibility] = useState<"hidden" | "hiding" | "revealed">("hidden");
-  const revealed = visibility === "revealed";
+  const gt = useGT();
+  const [revealed, setRevealed] = useState(false);
   const value = props.value?.trim();
-  const redacted = value ? redactedPlaceholder(value) : "";
 
   if (!value) return null;
 
@@ -45,30 +44,24 @@ export function RedactedSensitiveText(props: {
         render={
           <button
             type="button"
+            aria-label={props.ariaLabel}
+            aria-pressed={revealed}
             className={cn(
-              "min-w-0 cursor-pointer rounded-sm font-mono text-2xs leading-normal transition hover:text-foreground",
-              revealed ? "text-muted-foreground" : "select-none text-muted-foreground blur-xs",
+              "inline-flex min-w-0 cursor-pointer items-center gap-2 rounded-sm text-2xs leading-normal text-(--settings-description) transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
               props.className,
             )}
-            onClick={(event) => {
-              if (!revealed) return setVisibility("revealed");
-              const button = event.currentTarget;
-              flushSync(() => setVisibility("hiding"));
-              const finishHiding = () =>
-                setVisibility((current) => (current === "hiding" ? "hidden" : current));
-              const blur = button
-                .getAnimations()
-                .find(
-                  (animation) =>
-                    animation instanceof CSSTransition && animation.transitionProperty === "filter",
-                );
-              // Theme changes suppress the transition; a reversed one settles once revealed.
-              if (blur) void blur.finished.then(finishHiding, finishHiding);
-              else finishHiding();
-            }}
-            aria-label={props.ariaLabel}
+            onClick={() => setRevealed((current) => !current)}
           >
-            {visibility === "hidden" ? redacted : value}
+            {revealed ? (
+              <span className="min-w-0 truncate tabular-nums text-foreground">{value}</span>
+            ) : (
+              <span className="inline-flex h-5 items-center rounded-full bg-foreground/8 px-2 font-medium">
+                {gt("Hidden", { $context: "a value kept out of sight until revealed" })}
+              </span>
+            )}
+            <span className="shrink-0 underline-offset-2 hover:underline">
+              {revealed ? gt("Hide") : gt("Show")}
+            </span>
           </button>
         }
       />

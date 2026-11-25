@@ -299,6 +299,22 @@ describe("MessagesTimeline work rows", () => {
     });
   });
 
+  it("puts the One ring beside a finished turn's final answer and nowhere else", async () => {
+    const runId = RunId.make("answer-run");
+    await using screen = await renderTimeline([
+      message("Question", {}, "question"),
+      message("Progress", { role: "assistant", runId }, "progress"),
+      message("Final answer text", { role: "assistant", runId }, "final"),
+    ]);
+    await expect.element(screen.getByText("Final answer text", { exact: true })).toBeVisible();
+    const marks = screen.container.querySelectorAll("[data-one-answer-mark]");
+    expect(marks).toHaveLength(1);
+    const answer = marks[0]!.closest("[data-one-answer]")!;
+    expect(answer.textContent).toContain("Final answer text");
+    // The column holds for every assistant message, so the ring arriving moves no text.
+    expect(answer.hasAttribute("data-one-assistant")).toBe(true);
+  });
+
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
     const props = baseProps();
     const runId = RunId.make("completed-run");

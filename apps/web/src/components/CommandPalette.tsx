@@ -1954,9 +1954,12 @@ function OpenCommandPaletteDialog(props: {
         title: messages(item.title),
         description: runnable
           ? gt("Runs this command")
-          : gt("Settings · {section}", {
-              section: messages(SETTINGS_SECTION_LABELS[item.to]),
-            }),
+          : item.id === "keybindings"
+            ? // Same name as the sheet's action, so the description says which one edits.
+              gt("Edit shortcuts in Settings")
+            : gt("Settings · {section}", {
+                section: messages(SETTINGS_SECTION_LABELS[item.to]),
+              }),
         ...(item.secondary ? { secondary: true } : {}),
         ...(command !== null ? { shortcutCommand: command } : {}),
         icon: <SettingsIcon className={ITEM_ICON_CLASS} />,

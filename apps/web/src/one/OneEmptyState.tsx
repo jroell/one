@@ -3,7 +3,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useParams } from "@tanstack/react-router";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import type { KeybindingCommand } from "@t3tools/contracts";
-import { createContext, use } from "react";
+import { createContext, use, type ReactNode } from "react";
 import {
   AudioLinesIcon,
   AtSignIcon,
@@ -22,7 +22,6 @@ import { Kbd } from "~/components/ui/kbd";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { shortcutLabelForCommand } from "~/keybindings";
-import { useRightPanelStore } from "~/rightPanelStore";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useProject, useThreadShell } from "~/state/entities";
 import { resolveThreadRouteTarget } from "~/threadRoutes";
@@ -47,6 +46,15 @@ function greetingFor(hour: number, gt: ReturnType<typeof useGT>): string {
  * timelines get the plain placeholder.
  */
 export const MainConversationContext = createContext(false);
+
+/**
+ * The conversation's own way of opening the diff panel, with whether it can: a plain folder
+ * with no repository has no diff, and the thread's regular control says so. Absent outside it.
+ */
+export const ReviewChangesContext = createContext<{
+  readonly available: boolean;
+  readonly open: () => void;
+} | null>(null);
 
 /** Shown in a thread with no messages yet. */
 export function OneEmptyState() {
@@ -85,14 +93,18 @@ interface CodeStarter {
   readonly run: () => void;
 }
 
-/** The code mode welcome: a greeting, the project, and four things to do first. */
-export function CodeWelcome() {
+/**
+ * The code mode welcome: a greeting, the project, and things to do first. A new thread's draft
+ * passes its own `heading`, which names the project as a picker and offers to start without one.
+ */
+export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) {
   const gt = useGT();
   const composer = useComposerHandleContext();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const params = useParams({ strict: false }) as Record<string, string | undefined>;
   const target = resolveThreadRouteTarget(params);
   const threadRef = target?.kind === "server" ? target.threadRef : null;
+  const review = use(ReviewChangesContext);
   const shell = useThreadShell(threadRef);
   const project = useProject(shell ? scopeProjectRef(shell.environmentId, shell.projectId) : null);
 
@@ -118,33 +130,43 @@ export function CodeWelcome() {
       command: "projectSearch.toggle",
       run: () => dispatchCommandPalette({ _tag: "ToggleMode", mode: "content" }),
     },
-    ...(threadRef
+    ...(review?.available
       ? [
           {
             id: "changes",
             icon: FileDiffIcon,
             label: gt("Review changes"),
             command: "diff.toggle",
-            run: () => useRightPanelStore.getState().open(threadRef, "diff"),
+            run: review.open,
           } satisfies CodeStarter,
         ]
       : []),
     {
       id: "palette",
       icon: SquareTerminalIcon,
-      label: gt("Open the command palette"),
+      label: gt("Command palette"),
       command: "commandPalette.toggle",
       run: () => dispatchCommandPalette({ _tag: "SetOpen", open: true }),
     },
   ];
 
   return (
-    <div className="one-chat-welcome" data-one-code-welcome="">
+    <div
+      className="one-chat-welcome"
+      data-one-code-welcome=""
+      {...(heading === undefined ? {} : { "data-draft": "" })}
+    >
       <WelcomeOrb />
-      <h1 className="one-chat-welcome-title">
-        <T>What are we building?</T>
-      </h1>
-      {project ? <p className="one-chat-welcome-lead">{project.title}</p> : null}
+      {heading === undefined ? (
+        <>
+          <h1 className="one-chat-welcome-title">
+            <T>What are we building?</T>
+          </h1>
+          {project ? <p className="one-chat-welcome-lead">{project.title}</p> : null}
+        </>
+      ) : (
+        <div className="one-chat-welcome-heading">{heading}</div>
+      )}
       <ul className="one-chat-starters" aria-label={gt("Ways to start")}>
         {starters.map((starter) => {
           const keycap =

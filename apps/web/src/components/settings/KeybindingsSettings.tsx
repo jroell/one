@@ -43,7 +43,6 @@ import {
 
 import { isElectron } from "../../env";
 import { useOpenInPreferredEditor } from "../../editorPreferences";
-import { formatShortcutLabel } from "../../keybindings";
 import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import { cn } from "../../lib/utils";
 import { serverEnvironment } from "../../state/server";
@@ -90,6 +89,7 @@ import {
   keybindingFromKeyboardEvent,
   parseWhenExpressionDraft,
   groupKeybindingRows,
+  spokenShortcutLabel,
   type KeybindingCommandOption,
   type KeybindingGroup,
   type KeybindingRow,
@@ -142,8 +142,8 @@ function KeybindingsSearchInput({
             onChange("");
           } else event.currentTarget.blur();
         }}
-        placeholder={gt("Search keybindings")}
-        aria-label={gt("Search keybindings")}
+        placeholder={gt("Search shortcuts")}
+        aria-label={gt("Search shortcuts")}
       />
     </div>
   );
@@ -891,7 +891,7 @@ function KeybindingKeyControl({
             command: commandLabel(row.command, m),
             shortcut: row.isUnassigned
               ? gt("Unassigned", { $context: "keyboard shortcut with no key assigned" })
-              : formatShortcutLabel(row.binding.shortcut),
+              : spokenShortcutLabel(row.binding.shortcut),
           })}
           className={cn(
             "inline-flex h-8 cursor-pointer items-center rounded-md border border-transparent px-1.5 sm:h-7 outline-none transition-colors hover:border-border/70 hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-ring/24",
@@ -965,7 +965,7 @@ function WhenClauseControl({
             }
             aria-label={editLabel}
           >
-            <span className="truncate">{describeWhen(value, m) || gt("Always")}</span>
+            <span className="truncate">{describeWhen(value, m) || gt("always")}</span>
             <ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
           </PopoverTrigger>
           <PopoverContent align="start" sideOffset={6}>
@@ -1079,7 +1079,7 @@ function KeybindingRowWhen({
   const m = useMessages();
   return (
     <span className="flex h-6 items-center gap-1.5">
-      <span className="text-xs leading-none text-muted-foreground/70">
+      <span className="text-xs leading-none text-(--settings-description)">
         {gt("When", { $context: "heading for keybinding conditions" })}
       </span>
       <WhenClauseControl
@@ -1446,7 +1446,7 @@ function NewKeybindingSettingsRow(props: NewKeybindingProps) {
       title={gt("New keybinding")}
       description={
         <span className="flex h-6 items-center gap-1.5">
-          <span className="text-xs leading-none text-muted-foreground/70">
+          <span className="text-xs leading-none text-(--settings-description)">
             {gt("When", { $context: "heading for keybinding conditions" })}
           </span>
           <NewKeybindingWhen draft={draft} variables={variables} />
@@ -1717,7 +1717,7 @@ export function KeybindingsSettingsPanel() {
             onClick={() => setIsAddingBinding(true)}
           >
             <PlusIcon aria-hidden className="size-4" />
-            <T>Add keybinding</T>
+            <T>Add shortcut</T>
           </Button>
           <Tooltip>
             <TooltipTrigger
@@ -1725,12 +1725,11 @@ export function KeybindingsSettingsPanel() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
                   disabled={!keybindingsConfigPath || !canOpenKeybindingsFile}
                   onClick={openKeybindingsFile}
-                  aria-label={gt("Open keybindings.json")}
                 >
                   <FileJsonIcon aria-hidden className="size-4" />
+                  <T>Open JSON</T>
                 </Button>
               }
             />

@@ -122,7 +122,11 @@ function MicrophoneRow(props: {
         isDragging && "relative z-10 rounded-lg bg-background shadow-md",
       )}
     >
-      <span className="text-xs tabular-nums text-muted-foreground">{props.position}</span>
+      {props.count > 1 ? (
+        <span className="text-xs tabular-nums text-muted-foreground">{props.position}</span>
+      ) : (
+        <span aria-hidden />
+      )}
       <span className="col-span-2 text-sm leading-5 break-words @min-[32rem]/settings-row:col-span-1">
         {name}
       </span>

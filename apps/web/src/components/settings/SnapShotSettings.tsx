@@ -8,7 +8,9 @@ import {
   type DesktopSnapShotSetupAction,
   type SnapShotShortcut,
 } from "@t3tools/contracts";
-import { PlayIcon } from "lucide-react";
+import { PlayIcon, ScanIcon } from "lucide-react";
+import { DESKTOP_DOWNLOAD_URL } from "../../branding";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useContext, useRef, useState } from "react";
@@ -362,6 +364,29 @@ export function SnapShotSettings() {
     const saved = await save({ snapShotShortcut: candidate }).finally(() => setSetupBusy(false));
     return Boolean(saved?.shortcutRegistered || saved?.shortcutPending);
   };
+
+  if (!bridge) {
+    return (
+      <SettingsPageContainer>
+        <SettingsSection id="snap-shot" title={gt("Snapshots")} hideTitle variant="plain">
+          <SettingsEmptyState
+            icon={<ScanIcon />}
+            title={gt("Snapshots need the desktop app")}
+            description={gt(
+              "A snapshot captures a window on your computer and attaches it to a thread, such as the error dialog you want help with.",
+            )}
+            action={
+              <Button
+                render={<a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noreferrer noopener" />}
+              >
+                <T>Get the desktop app</T>
+              </Button>
+            }
+          />
+        </SettingsSection>
+      </SettingsPageContainer>
+    );
+  }
 
   return (
     <SettingsPageContainer>

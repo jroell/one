@@ -1,5 +1,5 @@
 import type { ServerProviderUsageWindow } from "@t3tools/contracts";
-import { elapsedShare, type LimitPace } from "@t3tools/shared/usageLimits";
+import type { LimitPace } from "@t3tools/shared/usageLimits";
 
 /** The mobile subscription widgets already turn the figure to the danger color at 10% left. */
 const CRITICAL_REMAINING_PERCENT = 10;
@@ -77,28 +77,27 @@ export function projectLimit(input: {
 const SAME_RESET_MARGIN_MS = 60_000;
 
 /**
- * The window clock of a card. One account has its own. A pool of accounts has a clock only when
- * every account is timed, all windows are the same length and all reset within a minute of each
- * other; otherwise no single clock describes the pool, and averaging them would invent a reset
- * that belongs to no account.
+ * A pool has one clock only when every account is in an active window, all windows are the same
+ * length and all raw reset timestamps are within a minute. Otherwise there is none: averaging
+ * would invent a reset that belongs to no account.
  */
 export function limitClock(
   windows: readonly ServerProviderUsageWindow[],
   now: number,
 ): { readonly windowMs: number; readonly msToReset: number } | null {
   const timed = windows.flatMap((window) => {
-    const elapsed = elapsedShare(window, now);
-    return elapsed === null || window.windowDurationMins === undefined
-      ? []
-      : [{ windowMs: window.windowDurationMins * 60_000, elapsed }];
+    const resetAt = window.resetsAt === undefined ? Number.NaN : Date.parse(window.resetsAt);
+    if (window.windowDurationMins === undefined || !Number.isFinite(resetAt)) return [];
+    const windowMs = window.windowDurationMins * 60_000;
+    const msToReset = resetAt - now;
+    // A reset in the past, or one further off than the window is long, is not an active window.
+    return windowMs > 0 && msToReset > 0 && msToReset <= windowMs ? [{ windowMs, resetAt }] : [];
   });
   const first = timed[0];
   if (first === undefined || timed.length !== windows.length) return null;
   if (timed.some((entry) => entry.windowMs !== first.windowMs)) return null;
-  const toReset = timed.map((entry) => (1 - entry.elapsed) * entry.windowMs);
-  if (Math.max(...toReset) - Math.min(...toReset) > SAME_RESET_MARGIN_MS) return null;
-  return {
-    windowMs: first.windowMs,
-    msToReset: toReset.reduce((sum, ms) => sum + ms, 0) / toReset.length,
-  };
+  const resets = timed.map((entry) => entry.resetAt);
+  if (Math.max(...resets) - Math.min(...resets) > SAME_RESET_MARGIN_MS) return null;
+  const meanReset = resets.reduce((sum, at) => sum + at, 0) / resets.length;
+  return { windowMs: first.windowMs, msToReset: meanReset - now };
 }

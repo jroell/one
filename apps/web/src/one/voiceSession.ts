@@ -37,6 +37,8 @@ export type VoiceSessionState = Readonly<{
   startedAsDraft: boolean;
   /** The conversation as it stood when the current question was sent; only what follows can be its answer. */
   sentAfter: ReplyAnchor | null;
+  /** The send in flight, so only the composer call that carries it can name the question's id. */
+  submission: string | null;
   /** The id the composer gave the sent question, so its row can be told from another client's prompt. */
   messageId: string | null;
   /** The reply being read aloud. */
@@ -53,9 +55,9 @@ export type VoiceSessionEvent =
   /** The draft this conversation started in became a saved thread when its first question was sent. */
   | { readonly type: "promoted"; readonly threadKey: string }
   | { readonly type: "stop" }
-  | { readonly type: "sent"; readonly after: ReplyAnchor }
-  /** The id the composer gave the question, known once it sends the transcript. */
-  | { readonly type: "identified"; readonly messageId: string }
+  | { readonly type: "sent"; readonly after: ReplyAnchor; readonly submission: string }
+  /** The composer is sending `submission`'s question to the thread under this id. */
+  | { readonly type: "identified"; readonly submission: string; readonly messageId: string }
   | { readonly type: "working" }
   /** The turn is over. `reply` is its finished answer, or null when it ended with nothing to read. */
   | { readonly type: "replied"; readonly reply: SpokenReply | null }
@@ -70,6 +72,7 @@ export const VOICE_SESSION_OFF: VoiceSessionState = {
   threadKey: null,
   startedAsDraft: false,
   sentAfter: null,
+  submission: null,
   messageId: null,
   reply: null,
   readIds: [],
@@ -104,13 +107,16 @@ export function reduceVoiceSession(
             ...state,
             stage: "sending",
             sentAfter: event.after,
+            submission: event.submission,
             messageId: null,
             reply: null,
             error: null,
           }
         : state;
     case "identified":
-      return (state.stage === "sending" || state.stage === "thinking") && state.messageId === null
+      return (state.stage === "sending" || state.stage === "thinking") &&
+        state.submission === event.submission &&
+        state.messageId === null
         ? { ...state, messageId: event.messageId }
         : state;
     case "working":
@@ -120,7 +126,14 @@ export function reduceVoiceSession(
       if (state.stage === "thinking") {
         // A turn that ends with nothing to read goes straight back to listening.
         return event.reply === null
-          ? { ...state, stage: "listening", sentAfter: null, messageId: null, reply: null }
+          ? {
+              ...state,
+              stage: "listening",
+              sentAfter: null,
+              submission: null,
+              messageId: null,
+              reply: null,
+            }
           : { ...state, stage: "speaking", reply: event.reply, ...markRead(state, event.reply) };
       }
       return state.stage === "sending" && event.reply !== null
@@ -130,7 +143,14 @@ export function reduceVoiceSession(
       if (state.stage !== "speaking") return state;
       // A late end event of an earlier reading must not finish this one.
       if (event.replyId !== undefined && event.replyId !== state.reply?.id) return state;
-      return { ...state, stage: "listening", sentAfter: null, messageId: null, reply: null };
+      return {
+        ...state,
+        stage: "listening",
+        sentAfter: null,
+        submission: null,
+        messageId: null,
+        reply: null,
+      };
     case "failed":
       // Nothing was heard or the send was refused: listen again rather than hang.
       return state.stage === "sending"
@@ -138,6 +158,7 @@ export function reduceVoiceSession(
             ...state,
             stage: "listening",
             sentAfter: null,
+            submission: null,
             messageId: null,
             error: event.message ?? null,
           }
@@ -388,13 +409,12 @@ export function dispatchVoiceSession(event: VoiceSessionEvent): void {
   for (const listener of listeners) listener();
 }
 
-/**
- * The composer calls this with the id it gave a message it is about to send. The question voice
- * chat is waiting on takes it, if the message comes from the composer of this conversation's thread.
- */
-export function claimVoiceMessage(threadKey: string, messageId: string): void {
-  if (session.threadKey !== threadKey) return;
-  dispatchVoiceSession({ type: "identified", messageId });
+let submissionCount = 0;
+
+/** A name for one spoken question's send, so a late report from an abandoned send names nothing. */
+export function newVoiceSubmission(): string {
+  submissionCount += 1;
+  return `voice-submission-${submissionCount}`;
 }
 
 export function getVoiceSession(): VoiceSessionState {

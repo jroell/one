@@ -1875,6 +1875,7 @@
   "5cfaaa20c460c328": "Fijar proyecto",
   "24adf508b4c5d6b5": "Ajustes del proyecto",
   "b84aab627c7ea22a": "Ejecuta este comando",
+  "0e4e652b19e678cd": "Editar atajos en Ajustes",
   "60e47b3da5901619": "Ajustes · {section}",
   "0c659f9a193255dd": "No se pudo añadir el proyecto",
   "4b3fc098d5a08a66": "Las rutas de estilo Windows solo son compatibles en Windows.",
@@ -3075,7 +3076,6 @@
   "37d95099eda1cb07": "Mencionar un archivo",
   "9ad3991623c13e3a": "Buscar en el proyecto",
   "e880959d9520231a": "Revisar cambios",
-  "4ddc6c71a3c1e1f0": "Abrir la paleta de comandos",
   "ed5bcda94f8073c3": "Formas de empezar",
   "08f1f52863b218eb": "Aprender algo",
   "e03b497cd0a72c68": "Enséñame sobre ",
@@ -3175,6 +3175,7 @@
   "cbee198401377241": "Abre One en la app de escritorio para usar la vista previa integrada.",
   "25b9aae7f44e4030": "{mode, select, system {Apariencia: sistema} light {Apariencia: clara} other {Apariencia: oscura}}",
   "2ee68a0e8a4986c2": "Hilo",
+  "fea77d3c094dee44": "Chat",
   "88e9d83bcac42b73": "Cuadro de redacción",
   "7fce70215a6aea24": "Vista",
   "3ef5788ff1a3de48": "Git",
@@ -5373,7 +5374,7 @@
   "300a948f90c4d75c": "Atrás",
   "2a50e229df85d553": "Adelante",
   "4f58bcacf894c5bc": "No disponible",
-  "1ab50db28dbddd0d": "Atajos de teclado",
+  "a6351e5f8a90ab28": "Mostrar atajos de teclado",
   "db5d85fdadff2f5b": "Copiar ruta del espacio de trabajo",
   "7b24be8e29a2efc5": "Copiar ID del hilo",
   "d733142d9607d7ff": "Posponer hasta",
@@ -6138,11 +6139,11 @@
   "f77af0fd4c6acea1": "Más recientes",
   "fe29b2b34080619c": "Todos los gestores",
   "fc18975e50af8dca": "No se pudo cargar la página siguiente.",
+  "a6737de3dffa9050": "{count} {state, select, open {abiertas} closed {cerradas} other {en total}} en {scopes, plural, one {# repositorio} other {# repositorios}}",
   "59319a2f40023e3e": "Cargando incidencias…",
   "17113c6308c69f67": "Seguimos esperando a que el gestor muestre las incidencias…",
   "283ada62d3847554": "{count, plural, one {{count} proyecto} other {{count} proyectos}}",
   "7cae1b414ae74c6b": "Ahora mismo no se puede leer este gestor de issues.",
-  "beea95f3311c84c0": "Ruta de navegación de issues",
   "c0926cae8b3e947a": "Selecciona primero una issue",
   "86798f07ba2d7f4d": "Buscar issues",
   "6a96bfc102d57501": "Ordenar issues",
@@ -7071,6 +7072,8 @@
   "8609ab062945a0a3": "Proyecto",
   "be82c3e203203181": "Cualquiera",
   "fcc675dbe55a5611": "Autor",
+  "674dc753b74de6d8": "Todos los pull requests",
+  "b7b2530c4d0e5fcb": "Todos los demás",
   "06d8c3317102cfcb": "Vídeo de la pull request",
   "36690ee5d989e07e": [
     "Abrir el adjunto en",
@@ -7349,7 +7352,6 @@
   "4df7e2ef5ba0996e": "Filtrar por estado",
   "aa438f6db9597d39": "Filtrar por participación",
   "97741cf036d64f60": "Filtrar por host",
-  "0a5b811066a10ee6": "Ruta de navegación de pull requests",
   "d650b40b3b6eab7b": "Filtrar por proveedor",
   "f5926df9debd9736": "Todos los proveedores",
   "54f15ec501a87fa2": "Actualizar pull requests",
@@ -7370,6 +7372,7 @@
   "5273c939581221e9": "Todos los servidores",
   "1e25e91acb23adbc": "Ordenar pull requests",
   "df6dce0b31c89f02": "Ordenar",
+  "d04bf8247e87cb89": "{count} {state, select, open {abiertas} closed {cerradas} merged {fusionadas} other {en total}} en {repositories, plural, one {# repositorio} other {# repositorios}}",
   "78ed532fd774df56": "Cargar más pull requests",
   "406cdde8249ecb16": "Acota tu búsqueda para encontrar más pull requests.",
   "1362562f4efdf26d": "No se pudieron cargar las pull requests",
@@ -7764,7 +7767,7 @@
   "3ce9741f164fb944": "No se pudieron cargar los hilos archivados",
   "ad25ae072f65b934": "No hay hilos archivados",
   "4e690f420bcbdb5d": "Comprobando los entornos conectados.",
-  "89d08a5be3347890": "Los hilos archivados aparecerán aquí.",
+  "c28ff6128cff0944": "Archivar un hilo desde la barra lateral para apartarlo, como un experimento terminado al que quizá se quiera volver.",
   "5d3ed45f43611ff4": [
     "Archivado ",
     {
@@ -7779,6 +7782,7 @@
       "v": "rt"
     }
   ],
+  "74855b1be943c9f4": "Volver a los hilos",
   "ae85d885630b0e51": "{count, plural, one {{count} ámbito} other {{count} ámbitos}}",
   "129431563dc043bc": "{label}: mostrar {scopes}",
   "02df8efa1f3f4ba1": "No se pudo copiar el enlace de la app alojada",
@@ -7803,9 +7807,10 @@
   "ec8d754031dc72fd": "Última conexión a las {time}",
   "b7406be04f4d7735": "Aún no se ha conectado.",
   "595a1c9d5f762fef": "Ámbitos del cliente",
+  "1e2d7d617ac0d4ff": "¿Cerrar sesión en todos los demás clientes?",
+  "b76eda9aa9bec002": "Revocar los demás",
   "06ec30a199134db1": "No se pudo crear la URL de emparejamiento.",
   "79b1490795e4c205": "No se pudo crear la URL de emparejamiento",
-  "b76eda9aa9bec002": "Revocar los demás",
   "04ab01b535a8e3a8": "p. ej., iPad del salón",
   "274fac14d65ab9cc": "Estándar",
   "e0dde491debc2517": "Los comandos de terminal pueden leer o modificar archivos según los permisos de la cuenta del servidor.",
@@ -8763,8 +8768,8 @@
   "d51a7a2bb6b8c406": "Vincular con {target} con un código de emparejamiento",
   "f4ca5e62fb54a3a7": "Suelta sobre una máquina para vincular",
   "11e67016507a6daa": "Dos vínculos, uno en cada sentido.",
-  "352169e91766aeb4": "{count, plural, one {# requiere atención} other {# requieren atención}}",
   "d53ada50331e6041": "{machines, plural, one {# máquina} other {# máquinas}}, {links, plural, =0 {sin vínculos} one {# vínculo} other {# vínculos}}",
+  "352169e91766aeb4": "{count, plural, one {# requiere atención} other {# requieren atención}}",
   "3e8441af6148878f": "Caduca el {date}",
   "4daaa2288b63a801": "{count, plural, one {# vínculo entrante} other {# vínculos entrantes}}",
   "baf297d0add1d61b": "{count, plural, one {# entorno} other {# entornos}}",
@@ -9048,7 +9053,7 @@
   "28973e22f1e5b45a": "Hilo: ir a {n}",
   "8eba2873dc2d817d": "Selector de modelo: ir al modelo {n}",
   "4473d0791a405a08": "Ejecutar script: {name}",
-  "03f8789fc359bc15": "Buscar atajos de teclado",
+  "6516055cdbb1b570": "Buscar atajos",
   "1d55c82866fd5242": "Condición desconocida: {condition}",
   "41a022fbed1b1d49": "Condiciones desconocidas: {conditions}",
   "2396bc6fbb953b89": "Entra en conflicto con {command}.",
@@ -9069,6 +9074,7 @@
   "a974eca924f7ed52": "Sin asignar",
   "337a261bf1551d16": "Atajo de teclado de {command}",
   "bd8e87512fd9bdf2": "Sin asignar",
+  "ed87878eb94309c3": "siempre",
   "4da9b09518a3f47a": "Acciones de {command}",
   "5cbab536dac9dc5f": "Quitar asignación",
   "cd710f3021f96ea8": "Quitar",
@@ -9087,7 +9093,6 @@
   "9d0d7048a404b46a": "No se guardó el atajo de teclado.",
   "34aeeaeda3a7d566": "No se pudo quitar el atajo de teclado",
   "ba374aebd2c09ade": "No se quitó el atajo de teclado.",
-  "1b298f8bdfbdac33": "Abrir keybindings.json",
   "38aae3d3373b7e6e": "Conecta un entorno para cambiar los atajos de teclado.",
   "523dd4a75f84834c": "Esta conexión puede ver los atajos de teclado, pero no cambiarlos.",
   "baeefb0498641e45": "One aún no reconoce esta condición. Se puede guardar, pero puede que no coincida a menos que el runtime la proporcione.",
@@ -9095,7 +9100,8 @@
   "bc73d7a0c9ccc021": "Corrige la expresión de arriba para seguir editando visualmente.",
   "7189314b73d9fe61": "Sin asignar",
   "d188aae2ef2f1815": "No hay atajo de teclado asignado. Haz clic en Sin asignar para definir uno.",
-  "d3866ead082d14e5": "Añadir atajo de teclado",
+  "88b7d02ffbcc7963": "Añadir atajo",
+  "57c2a15f70f082e7": "Abrir JSON",
   "d4345c90894a3220": "Abrir keybindings.json",
   "e56a8d51219efaa0": "Ningún atajo de teclado coincide con tu búsqueda.",
   "90a258fff61fd77e": "Desactivado",
@@ -9104,7 +9110,7 @@
   "f29d1dade4dde8aa": "Los agentes no envían comentarios al equipo de T3.",
   "33a9a12a20e1af9f": "Cuando lo pides, los agentes te muestran un breve informe sobre One y lo envían al equipo de T3 si lo apruebas.",
   "efe3e77f15cf325d": "Los agentes también informan por su cuenta de los problemas que encuentran en One, como una herramienta de T3 que falla.",
-  "45fa271ea0e1ac8e": "Beta",
+  "86e5791f7887ad07": "Beta y alfa",
   "efdf9cb0275b29e8": "Muestra la barra lateral como carpetas de proyecto. Los hilos fijados se quedan arriba, y Pospuestos y Resueltos se quedan debajo de las carpetas.",
   "9b9df5ba41c4a8e2": "Agrupar hilos por proyecto",
   "f079556d67367fe7": "Muestra los hilos de las carpetas en dos líneas: el título y, debajo, la rama, la pull request y el agente.",
@@ -9135,15 +9141,15 @@
     },
     ". Al desactivarlo se detienen todos los enlaces de invitado."
   ],
-  "bff0033ea41eb38e": [
-    "Permite que los agentes de aquí trabajen en tus otras máquinas, y los de ellas aquí. Actívalo en cada máquina y luego vincúlalas en",
+  "f20f2bcc7ecb43f7": [
+    "Permite que los agentes de aquí trabajen en otras máquinas, y los de allí, aquí. Activar esta opción en cada máquina y luego vincularlas en",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "Conexiones"
+      "c": "Entornos"
     },
-    ". Mientras esté desactivado, no se inicia nada nuevo a través de un vínculo; las tareas en curso terminan."
+    ". Mientras esté desactivada, no se inicia nada nuevo a través de un enlace; las tareas en curso terminan."
   ],
   "55a33cae5e983e80": [
     "Permite que el panel Dispositivo alquile simuladores y emuladores de tu propio",
@@ -9295,7 +9301,6 @@
   "8c93ed63299ff531": "Buscar licencias de código abierto",
   "15e4ee1ea3804857": "Buscar licencias",
   "c62b241e92231253": "Avisos de terceros",
-  "63e2c8e62b42ac1e": "Buscar licencias",
   "c25215fb0fe7b236": "Los avisos de código abierto no están disponibles",
   "dfabc4c20ab78d41": "Ninguna licencia coincide con esa búsqueda.",
   "a6f0345697704afa": "Cargando avisos de código abierto…",
@@ -9593,6 +9598,7 @@
   "21d0ef064eefa159": "Estado",
   "f31ce60f3f118c0d": "Nombre visible",
   "c45028de5c2f6cbb": "Etiqueta de la instancia",
+  "3bbe58d50d03670f": "Tiñe la insignia de este proveedor en el selector de modelos.",
   "cf69675106e4bf46": "Configuración",
   "22078dd501ba3102": "Entorno de ejecución",
   "288c2d92df27a68c": "Modelos",
@@ -9761,8 +9767,8 @@
   "8188ba79577edefb": "Cuenta de Cursor",
   "bf587581b2a3d24d": "Usando CURSOR_API_KEY. Quítala del entorno de este proveedor para iniciar sesión en el navegador.",
   "b0481e41f335f1d2": "Restablecer los ajustes del proveedor {provider} al valor predeterminado",
-  "1a0c999db1e9896a": "Añadir proveedor",
   "5f4280344b1853ea": "Actualizar estado del proveedor",
+  "1a0c999db1e9896a": "Añadir proveedor",
   "b298eb788d3443ee": "Configuración de Antigravity",
   "21668b75015a6d1d": "Dispositivo que ejecuta este proveedor.",
   "b9ddc0d5fbea1b16": "Configuración no disponible",
@@ -9807,6 +9813,8 @@
   "5c0c973276a61fdb": "No se pudo guardar el permiso de enrutamiento de pull requests",
   "1bfcffe8411e2439": "Enrutamiento de pull requests de {environment}",
   "ae4761ddc038b102": "Las máquinas en las que confías aquí pueden leer datos de PR a través del acceso al control de versiones de las otras. Activa ambas máquinas. Leer y actuar puede usar permisos más amplios que los de la máquina propietaria. Solo se aplica a este dispositivo.",
+  "b7d35abd8f6a3321": "Oculto",
+  "9e8b7675aab946c3": "Mostrar",
   "02bca2d9c90e5f1e": "{value} s",
   "af22f973466903c3": "{value} min",
   "401ba3f2391d8742": "{value} h",
@@ -10536,6 +10544,8 @@
   "6d59e1e516e53d17": "Ver licencias",
   "941d08db15f62d17": "Archivado",
   "e122b2428c0d03a5": "Abrir todos los entornos",
+  "aa472c4648c09ebd": "Todavía no hay proyectos",
+  "11ea64975143be6e": "Un proyecto es una carpeta con código. Añadir uno para iniciar un hilo en él, por ejemplo el repositorio en el que se trabaja.",
   "484e14e77577d042": "Ámbito de entornos",
   "3c2a43018b7c4901": "No hay entornos",
   "8a6691c39f4cb27a": "Todos los entornos",
@@ -10546,6 +10556,40 @@
   "470ad8c54049d1e1": "Buscar checkouts",
   "7e2dfdd9f97fc027": "Ámbito de proyectos",
   "1cf216566c1ee064": "Proyecto no disponible",
+  "63df6f43274e75eb": [
+    {
+      "t": "span",
+      "i": 1,
+      "c": [
+        {
+          "t": "span",
+          "i": 2,
+          "c": "Mostrando"
+        },
+        {
+          "i": 3,
+          "k": "_gt_value_3",
+          "v": "v"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "i": 4,
+      "c": [
+        {
+          "t": "span",
+          "i": 5,
+          "c": "en"
+        },
+        {
+          "i": 6,
+          "k": "_gt_value_6",
+          "v": "v"
+        }
+      ]
+    }
+  ],
   "db943e13e0f37b06": {
     "t": "span",
     "i": 1,
@@ -10854,6 +10898,8 @@
   "05224ee5939749b2": "No se pudo verificar el acceso de captura",
   "23bef225aef43439": "No se pudo cerrar la configuración de captura",
   "99f329fec9abbc60": "Instantáneas",
+  "0fe1647d9d4e8788": "Las instantáneas necesitan la app de escritorio",
+  "0c0c0621b7920c11": "Una instantánea captura una ventana del ordenador y la adjunta a un hilo, por ejemplo el cuadro de error en el que se necesita ayuda.",
   "971338fc9021c3db": "Actualizando los ajustes de captura…",
   "33ccb41fd69b950f": "Activar capturas",
   "c23b8320eed9fea3": "Incluye texto y controles cuando la app los ofrece.",
@@ -10868,6 +10914,7 @@
   "a4a21025e979a813": "Destellar la ventana capturada",
   "cf4131f390292403": "Anima las ventanas capturadas hacia tu borrador.",
   "87157007bde61ece": "Animar capturas",
+  "1ea1faa49f823960": "Obtener la app de escritorio",
   "a766c46982759c44": "Cambiar atajo",
   "b5f3ce16ca9e62f8": "Permisos del atajo",
   "b8366d1d16d38d54": [
@@ -11136,6 +11183,8 @@
   "6985d8cfe8f3f2f2": "Aún no se ha detectado nada",
   "5b17411e32ec9ee8": "Instala Git en el servidor, añade las integraciones de hosting opcionales o las credenciales que necesite tu espacio de trabajo y vuelve a escanear.",
   "52f500fa58827159": "Volver a escanear el entorno del servidor",
+  "dc9196f13649cb21": "Git",
+  "5de615d0a0519b8a": "Jujutsu",
   "845de59dc5599bbd": "Control de versiones",
   "3bd42b40bd62ca11": "Proveedores de control de versiones",
   "d6738114d4de6d92": [
@@ -11747,6 +11796,7 @@
   "ca8b75a7d7d7ce7e": "Duplicar tema",
   "f2043e87a10cb831": "Editar tema",
   "595bdeefcdc9bf31": "Exportar archivo de tema",
+  "4cbeefb1f6d8a5ac": "Importar tema",
   "b480281b3791b685": "Elige qué muestra la tarjeta de detalles del hilo. También puedes hacer clic derecho en la tarjeta.",
   "662288b90e19635f": "Restablecer los detalles del hilo al valor predeterminado",
   "871d059d88548434": "Detalles del hilo: {enabled} de {total} activados",
@@ -11811,6 +11861,7 @@
     }
   ],
   "39f64d971ba424b5": "No hay fuentes de uso configuradas.",
+  "31723a5ee9fd5a09": "Añadir un hub o una fuente HTTP para ver la cuota de otro servicio, por ejemplo un proxy compartido.",
   "dbd877abdc2c7c81": "Fuente de cuotas HTTP",
   "4cf6a373a7535324": "{name} · Deshabilitado",
   "c792e744936dbe1b": "Añadir fuente HTTP",
@@ -12081,6 +12132,7 @@
   "81d0d1e78b196630": "General",
   "afda415d2d75a5d3": "Chat",
   "4beeab8d1814b251": "Diffs y pull requests",
+  "1ab50db28dbddd0d": "Atajos de teclado",
   "2ab325baee3ec9a3": "Tareas programadas",
   "0a59e086514a62a9": "Control de versiones e issues",
   "1de0df2b8a4fb96e": "Compartir y acceso",
@@ -12219,7 +12271,8 @@
   "82136480255a5106": "OTel OTLP telemetría exportar endpoints registros trazas métricas Grafana",
   "659d081051faf7ff": "registros trazas procesos historial de recursos fallos spans cpu memoria",
   "5eaeacfa9f82051a": "informe error problema t3 equipo enviar comentarios agentes herramientas automático cuando lo pida",
-  "f537f91e1ee41d47": "atajos de teclado teclas rápidas comandos combinaciones json",
+  "7563e5672f951d26": "Editar atajos de teclado",
+  "2c2fa1369876364f": "atajos de teclado keybindings teclas rápidas comandos bindings json",
   "1ba01e7ceed64b95": "ventana captura captura de pantalla",
   "279b1cceb779ff38": "Incluir el texto de la app",
   "7fa82a838459b368": "capturar datos de accesibilidad texto estructura de la interfaz elementos privacidad omitir contexto del agente",
@@ -12329,6 +12382,7 @@
   "f2749efd2aac8fac": "a",
   "f01bf5f570d7a574": "o",
   "d29982ab91fc2e20": "Inicio de One",
+  "f4df476c37cf9f24": "{page}: clic para volver",
   "8e9626aa27cb188a": "Issues",
   "9d2fc1003e82feb1": "Uso",
   "20283eb1dd6119f9": "{count, plural, one {{count} adjunto} other {{count} adjuntos}}",
@@ -12359,6 +12413,7 @@
   "bcda2ccaa871dc46": "Nuevo hilo en el proyecto actual: Shift+clic ({shortcut})",
   "aa5c379423baace1": "Nuevo hilo en el proyecto actual: Shift+clic",
   "9d9d32b401d2931a": "{count, plural, one {{count} proceso de terminal en ejecución} other {{count} procesos de terminal en ejecución}}",
+  "3ff15a75485b6c42": "Se ejecuta en {provider}",
   "ade06f6723949b39": "Se produjo un error",
   "021fe65858278fe9": "Posponer hilo",
   "e7c18f33bc1326f7": "Preparando",
@@ -12569,6 +12624,9 @@
   "8790ba57600f2fda": "{count, plural, one {{count} crédito} other {{count} créditos}}",
   "7aaaff1c6484f25c": "Segmento",
   "8bcab2ef61de6518": "Límite de 0 $",
+  "ad8ce9055f5e9d22": "Cuota restante",
+  "27a0a424f318ed9f": "Déficit",
+  "cc88c25a314f4b6b": "Se agota antes",
   "b2442d038d36f243": "Comparado con cuánto del periodo ya ha pasado",
   "578ad261df360720": "Todos los límites están bien.",
   "de5b6f2aa9941c18": "{provider}, {window}: el que hay que vigilar. Queda el {remaining} %.",
@@ -12765,6 +12823,7 @@
       "v": "v"
     }
   ],
+  "f4333a1dfa10ab01": "Moverse entre días con las flechas izquierda y derecha",
   "435dd01dc4455e95": "Tokens procesados por hora y proveedor",
   "37069a5ef57ee9fa": "Coste por hora y proveedor",
   "aa73a1b4208bc912": "Tokens procesados por día y proveedor",
@@ -12775,11 +12834,15 @@
   "684e516076de81fe": "Estándar",
   "3bbcc1b826fef537": "Rápida",
   "66796576034c18ea": "Ultrarrápida",
-  "ac9c16c34de713a6": "sesión",
-  "1d05cd1f382fffdf": "semanal",
-  "98417ff4ee2fea2c": "mensual",
-  "aa32257e1ef37622": "gasto mensual",
-  "f132a02d81f70dea": "general",
+  "1292d11de3e340a4": "sesión",
+  "a16cacc637bf03c5": "semanal",
+  "038d394feb0d3b10": "mensual",
+  "4d7aa34c6515c420": "gasto mensual",
+  "15a4d4d94f083d34": "límite mensual de créditos",
+  "a53b7a5cf007ae8c": "general",
+  "7dd380d90851d3b3": "Modelos de Cursor",
+  "8652207aaedebc55": "otros modelos",
+  "443c9c2642c0f4f4": "suscripción",
   "218d7bca77da345b": "{target} asigna este modelo. Quítalo de \"Aplicar a\" o borra antes su asignación.",
   "60ccdf9bdb7c3149": "Asígnalo a un modelo distinto.",
   "3155a2bd93dd97d9": "{field} es obligatorio en {target}.",

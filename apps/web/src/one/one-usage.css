@@ -4,6 +4,14 @@
  * Motion is transform, translate and opacity only, and stops under reduced motion.
  */
 
+:root {
+  --usage-provider-grok: oklch(0.52 0.11 195);
+}
+
+:root.dark {
+  --usage-provider-grok: oklch(0.76 0.11 195);
+}
+
 .usage-page,
 .usage-panel {
   --usage-text: var(--contrast-foreground);
@@ -86,12 +94,10 @@
 
 /* ---------------------------------------------------------- limits page */
 
-/* The limits column holds a comfortable measure and sits in the upper third, not under the header. */
+/* Limits shares the page's column and its headline row with Cost and Tokens, so switching tabs
+   moves nothing. */
 .usage-limits {
   width: 100%;
-  max-width: 56rem;
-  margin-inline: auto;
-  padding-top: clamp(0rem, 6vh, 3.5rem);
   gap: 2.25rem;
 }
 
@@ -103,6 +109,27 @@
   gap: 0.375rem;
   padding-inline: 0.25rem;
   animation: usage-appear var(--one-move-ms) ease-out backwards;
+}
+
+/* A partial or carried total keeps full strength; this one line says it can still change. It holds
+   its row either way, so the headline does not move when it appears. */
+.usage-updating {
+  display: flex;
+  min-height: 1rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--usage-text-muted);
+}
+
+.usage-updating:not(:empty)::before {
+  content: "";
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--primary);
+  animation: usage-breathe 1.4s ease-in-out infinite alternate;
 }
 
 .usage-headline {
@@ -319,6 +346,50 @@
   .usage-meta-item:hover {
     color: var(--usage-text);
   }
+}
+
+/* The one-line key under the first meter. */
+.usage-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0.375rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--usage-text-muted);
+}
+
+.usage-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.usage-key-fill,
+.usage-key-hatch {
+  width: 1.25rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+
+.usage-key-fill {
+  background: linear-gradient(180deg, var(--usage-text-muted), var(--usage-text));
+  opacity: 0.85;
+}
+
+.usage-key-tick {
+  width: 1.5px;
+  height: 0.75rem;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--usage-text) 82%, transparent);
+}
+
+.usage-key-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning) 70%, transparent) 0 1px,
+    transparent 1px 4px
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 /* ----------------------------------------------------------------- meter */
@@ -728,13 +799,16 @@ button.usage-legend:active {
   gap: 0.75rem;
 }
 
+/* The headline sentence is the page's title; "Usage" is the quiet label above it, the same on
+   every tab. */
 .usage-title {
   flex-shrink: 0;
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: -0.005em;
-  color: var(--usage-text, var(--foreground));
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--usage-text-muted, var(--muted-foreground));
 }
 
 .usage-chips {
@@ -888,7 +962,7 @@ button.usage-legend:active {
 
 @container usage-page (min-width: 56rem) {
   .usage-summary {
-    grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 19rem) minmax(0, 1fr);
   }
 }
 
@@ -931,6 +1005,19 @@ button.usage-legend:active {
 }
 
 /* A provider's share, drawn with the same recessed channel and lit fill as a limit. */
+/* Every provider row has one layout: name and value on line one, facts on line two. */
+.usage-provider-facts {
+  display: flex;
+  gap: 0.375rem;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--usage-text-muted);
+}
+
 .usage-share-mini,
 .usage-share-mini-skeleton {
   display: block;
@@ -963,6 +1050,7 @@ button.usage-legend:active {
 }
 
 .usage-metrics {
+  overflow: hidden;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   padding-block: 0.25rem;
@@ -970,7 +1058,7 @@ button.usage-legend:active {
 
 @container usage-page (min-width: 36rem) {
   .usage-metrics {
-    grid-template-columns: repeat(var(--usage-metrics, 5), minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
@@ -986,6 +1074,11 @@ button.usage-legend:active {
   .usage-metric + .usage-metric {
     border-inline-start: 1px solid var(--usage-hairline);
   }
+}
+
+.usage-metric[data-emphasis] {
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  box-shadow: inset 0 1px 0 0 var(--one-glass-rim-top);
 }
 
 .usage-metric > :first-child {
@@ -1173,6 +1266,72 @@ button.usage-legend:active {
   box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--one-reflection) 50%, transparent);
 }
 
+/* The daily chart: one stacked bar per day, 1px between days, a 2px rounded top, and a rule on the
+   day the pointer or the arrow keys are on. */
+.usage-plot {
+  border-radius: 0.5rem;
+  outline: none;
+}
+
+.usage-plot:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.usage-bars {
+  position: absolute;
+  inset: 0;
+}
+
+.usage-bars-gridline {
+  position: absolute;
+  inset-inline: 0;
+  height: 0;
+  border-top: 1px dotted color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+.usage-bars-gridline[data-base] {
+  border-top-style: solid;
+  border-top-color: color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+.usage-bars-days {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.usage-bars-day {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 1px;
+}
+
+.usage-bars-day[data-hover]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.usage-bars-segment {
+  position: relative;
+  width: 100%;
+  max-width: 2.5rem;
+  min-height: 2px;
+  flex-shrink: 0;
+}
+
+.usage-bars-segment[data-top] {
+  border-start-start-radius: 2px;
+  border-start-end-radius: 2px;
+}
+
 /* Chart: dotted gridlines, no hard axis, a glass tooltip. */
 .usage-gridline {
   color: color-mix(in srgb, var(--foreground) 14%, transparent);
@@ -1191,17 +1350,11 @@ button.usage-legend:active {
     var(--one-glass-shadow);
 }
 
-/* The modal's bottom edge never slices a panel: content fades into the surface there. It rides
-   the bottom of the scroll area and drops to the end of the page when scrolled all the way. */
-.usage-fade {
-  position: sticky;
-  bottom: 0;
-  height: 2.5rem;
-  margin-top: -2.5rem;
-  margin-bottom: -3rem;
-  flex-shrink: 0;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--background));
+/* The modal's bottom edge never slices a panel: the last two rems of the scroll area fade out. The
+   page keeps three rems of padding below its last panel, so at the end of the scroll nothing is
+   faded. A mask, so it works on whatever material the modal has. */
+.usage-scroll [data-slot="scroll-area-viewport"] {
+  mask-image: linear-gradient(to bottom, rgb(0 0 0) calc(100% - 2rem), transparent);
 }
 
 /* --------------------------------------------------------- reduced motion */
@@ -1210,6 +1363,7 @@ button.usage-legend:active {
   .usage-meter-fill,
   .usage-meter-halo,
   .usage-headline-block,
+  .usage-updating::before,
   .usage-share-fill,
   .usage-share-mini::after,
   .usage-table-row > td,

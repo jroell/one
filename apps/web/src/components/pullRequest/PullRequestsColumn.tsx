@@ -18,7 +18,7 @@ import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { PullRequestCompactFilterMenu } from "./PullRequestCompactFilterMenu";
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import { INVOLVEMENT_TABS, resolveFilterOptions, STATE_TABS } from "./pullRequestListOptions";
-import { ListPageTitle, useSlashFocusesSearch } from "./ListPageChrome";
+import { ListPageBand, ListPageTitle, useSlashFocusesSearch } from "./ListPageChrome";
 
 function ExpandableSearch({
   searchInput,
@@ -96,7 +96,10 @@ export function PullRequestsColumn({
   maximizedAway,
   listBody,
   scrollRef,
+  subtitle = null,
 }: {
+  /** What the list holds, from the loaded rows; null while there are none to count. */
+  subtitle?: string | null;
   refreshing: boolean;
   onRefresh: () => void;
   searchValue: string;
@@ -221,15 +224,7 @@ export function PullRequestsColumn({
               ) : null}
             </WorkspaceBreadcrumbItem>
           </WorkspaceBreadcrumb>
-        ) : (
-          <WorkspaceBreadcrumb ariaLabel={gt("Pull requests breadcrumb")}>
-            <WorkspaceBreadcrumbItem current>
-              <ListPageTitle>
-                <T>Pull requests</T>
-              </ListPageTitle>
-            </WorkspaceBreadcrumbItem>
-          </WorkspaceBreadcrumb>
-        )}
+        ) : null}
         <div className="min-w-0 flex-1" />
         {condensed ? (
           <div ref={topbarSearchRef} className="flex shrink items-center gap-1.5">
@@ -253,7 +248,8 @@ export function PullRequestsColumn({
         data-one-scroll=""
         className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto"
       >
-        <WorkspacePageContainer width="expanded" className="min-h-full gap-4">
+        <WorkspacePageContainer width="expanded" className="min-h-full gap-5 pt-0">
+          <ListPageBand title={<T>Pull requests</T>} subtitle={subtitle} />
           <div className="flex flex-col gap-3">
             <div ref={inFlowSearchRef} className="flex flex-wrap items-center gap-2">
               <div className="min-w-0 basis-full @lg/pr-list:basis-0 @lg/pr-list:flex-1">

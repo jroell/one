@@ -2,7 +2,6 @@ import type { OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  claimVoiceMessage,
   createSilenceDetector,
   dispatchVoiceSession,
   getVoiceSession,
@@ -31,7 +30,7 @@ describe("voice chat turn order", () => {
   it("goes from listening to sending, thinking, speaking and back to listening", () => {
     const stages = [
       { type: "start", threadKey: "t1" } as const,
-      { type: "sent", after: NOTHING_BEFORE } as const,
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" } as const,
       { type: "working" } as const,
       { type: "replied", reply: ANSWER } as const,
       { type: "spoken" } as const,
@@ -46,7 +45,7 @@ describe("voice chat turn order", () => {
     const after = { afterId: "a1", count: 4 };
     const state = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after },
+      { type: "sent", after, submission: "s1" },
     ]);
     expect(state.sentAfter).toEqual(after);
   });
@@ -54,7 +53,7 @@ describe("voice chat turn order", () => {
   it("reads a finished answer that was seen without any frame showing the thread working", () => {
     const state = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "replied", reply: ANSWER },
     ]);
     expect(state).toMatchObject({ stage: "speaking", reply: ANSWER });
@@ -63,7 +62,7 @@ describe("voice chat turn order", () => {
   it("keeps the reply it began reading, whatever arrives while it is read", () => {
     const speaking = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "working" },
       { type: "replied", reply: ANSWER },
     ]);
@@ -75,7 +74,7 @@ describe("voice chat turn order", () => {
   it("ignores the end of an earlier reading once another reply is being read", () => {
     const speaking = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "working" },
       { type: "replied", reply: ANSWER },
     ]);
@@ -86,7 +85,7 @@ describe("voice chat turn order", () => {
   it("holds an error from a failed send until the person tries again, then clears it", () => {
     const failed = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "failed", message: "Voice input took too long" },
     ]);
     expect(failed).toMatchObject({ stage: "listening", error: "Voice input took too long" });
@@ -96,7 +95,7 @@ describe("voice chat turn order", () => {
   it("listens again when a turn ends with nothing new to read", () => {
     const state = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "working" },
       { type: "replied", reply: null },
     ]);
@@ -106,7 +105,7 @@ describe("voice chat turn order", () => {
   it("listens again when the question could not be sent", () => {
     const state = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "failed" },
     ]);
     expect(state.stage).toBe("listening");
@@ -115,7 +114,7 @@ describe("voice chat turn order", () => {
   it("stops from every stage", () => {
     const turn: ReadonlyArray<VoiceSessionEvent> = [
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "working" },
       { type: "replied", reply: ANSWER },
     ];
@@ -128,7 +127,7 @@ describe("voice chat turn order", () => {
   it("follows a draft to the saved thread it becomes once its question is sent", () => {
     const sent = run([
       { type: "start", threadKey: "draft-1", isDraft: true },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
     ]);
     const promoted = reduceVoiceSession(sent, { type: "promoted", threadKey: "thread-9" });
     expect(promoted).toMatchObject({ stage: "sending", threadKey: "thread-9" });
@@ -141,7 +140,7 @@ describe("voice chat turn order", () => {
   it("does not follow a saved thread, or a draft that has not sent anything, to another key", () => {
     const saved = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
     ]);
     expect(reduceVoiceSession(saved, { type: "promoted", threadKey: "t2" })).toBe(saved);
     const listeningDraft = run([{ type: "start", threadKey: "draft-1", isDraft: true }]);
@@ -153,7 +152,7 @@ describe("voice chat turn order", () => {
   it("keeps the thread it started in through a whole turn", () => {
     const state = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "working" },
       { type: "replied", reply: ANSWER },
       { type: "spoken" },
@@ -319,11 +318,11 @@ describe("which answer belongs to the question voice chat sent", () => {
   it("remembers each reply and run it began reading", () => {
     const state = run([
       { type: "start", threadKey: "t1" },
-      { type: "sent", after: NOTHING_BEFORE },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
       { type: "replied", reply: { id: "a2", text: "Light bends.", runId: "r2" } },
       { type: "spoken" },
-      { type: "sent", after: NOTHING_BEFORE },
-      { type: "identified", messageId: "m3" },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s2" },
+      { type: "identified", submission: "s2", messageId: "m3" },
     ]);
     expect(state).toMatchObject({
       stage: "sending",
@@ -383,26 +382,28 @@ describe("cards that wait for the person", () => {
 });
 
 describe("the composer's message id reaches the conversation that is waiting for it", () => {
-  const sending = () => {
+  const sending = (submission: string) => {
     dispatchVoiceSession({ type: "stop" });
     dispatchVoiceSession({ type: "start", threadKey: "t1" });
-    dispatchVoiceSession({ type: "sent", after: NOTHING_BEFORE });
+    dispatchVoiceSession({ type: "sent", after: NOTHING_BEFORE, submission });
   };
 
-  it("is taken by the question of the thread it was sent from, once", () => {
-    sending();
-    claimVoiceMessage("t1", "m1");
-    claimVoiceMessage("t1", "m2");
+  it("is taken from the send that carries the current submission, once", () => {
+    sending("s1");
+    dispatchVoiceSession({ type: "identified", submission: "s1", messageId: "m1" });
+    dispatchVoiceSession({ type: "identified", submission: "s1", messageId: "m2" });
     expect(getVoiceSession().messageId).toBe("m1");
     dispatchVoiceSession({ type: "stop" });
   });
 
-  it("is ignored when another thread's composer sent it, or when no question is waiting", () => {
-    sending();
-    claimVoiceMessage("t2", "m1");
+  it("is ignored from a send that was abandoned before the current question, or after the conversation ended", () => {
+    sending("s1");
+    dispatchVoiceSession({ type: "failed" });
+    dispatchVoiceSession({ type: "sent", after: NOTHING_BEFORE, submission: "s2" });
+    dispatchVoiceSession({ type: "identified", submission: "s1", messageId: "late" });
     expect(getVoiceSession().messageId).toBeNull();
     dispatchVoiceSession({ type: "stop" });
-    claimVoiceMessage("t1", "m1");
+    dispatchVoiceSession({ type: "identified", submission: "s2", messageId: "later" });
     expect(getVoiceSession().messageId).toBeNull();
   });
 });

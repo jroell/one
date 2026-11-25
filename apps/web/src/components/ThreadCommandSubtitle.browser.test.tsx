@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
+import "~/index.css";
 import { render } from "../../test/render";
 import { SharedThreadContext, ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
 
-const CONTEXT = "server · Local · custom/main";
+const KEY = "env-1\u0000project-1\u0000custom/main\u0000";
 
 function Subtitle() {
   return (
@@ -15,7 +16,7 @@ function Subtitle() {
       branch="custom/main"
       worktreePath={null}
       isCurrent={false}
-      contextLabel={CONTEXT}
+      contextKey={KEY}
     />
   );
 }
@@ -28,21 +29,24 @@ describe("ThreadCommandSubtitle", () => {
     await expect.element(page.getByText("custom/main")).toBeVisible();
   });
 
-  it("leaves out the project and branch when its list already names them once", async () => {
+  it("hides the project and branch from the eye when its list names them once, but keeps them for assistive tech", async () => {
     await using screen = await render(
-      <SharedThreadContext value={CONTEXT}>
+      <SharedThreadContext value={KEY}>
         <Subtitle />
       </SharedThreadContext>,
       { router: false },
     );
 
-    expect(screen.container.textContent ?? "").not.toContain("server");
-    expect(screen.container.textContent ?? "").not.toContain("custom/main");
+    const hidden = screen.container.querySelector<HTMLElement>(".sr-only")!;
+    expect(hidden.textContent).toBe("server, Local, custom/main");
+    const box = hidden.getBoundingClientRect();
+    expect(box.width).toBeLessThanOrEqual(1);
+    expect(box.height).toBeLessThanOrEqual(1);
   });
 
   it("keeps the project and branch when the list names a different place", async () => {
     await using _screen = await render(
-      <SharedThreadContext value="other · Local · main">
+      <SharedThreadContext value="env-1\u0000project-1\u0000other\u0000">
         <Subtitle />
       </SharedThreadContext>,
       { router: false },

@@ -48,7 +48,7 @@ export function ProjectsSettings() {
       ) : unavailable ? (
         unavailable
       ) : (
-        <SettingsScopeNotice quiet target="project">
+        <SettingsScopeNotice quiet withAddProject target="project">
           {gt("Choose a project to manage its name, icon, checkouts and actions.")}
         </SettingsScopeNotice>
       )}

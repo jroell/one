@@ -48,7 +48,7 @@ import { IssueGlyph, issueTrackerPresentation } from "~/components/issue/issuePr
 import { PullRequestDetailPanel } from "~/components/pullRequest/PullRequestDetailPanel";
 import { PullRequestMarkdownPanelContext } from "~/components/pullRequest/PullRequestMarkdown";
 import { PullRequestListGhost } from "~/components/pullRequest/PullRequestGhosts";
-import { ListPageTitle, useSlashFocusesSearch } from "~/components/pullRequest/ListPageChrome";
+import { ListPageBand, useSlashFocusesSearch } from "~/components/pullRequest/ListPageChrome";
 import {
   PullRequestFilterOptionIcon,
   pullRequestProjectKey,
@@ -64,7 +64,6 @@ import { SavedViewsMenu } from "~/components/SavedViewsMenu";
 import { PullRequestCompactFilterMenu } from "../pullRequest/PullRequestCompactFilterMenu";
 import { PullRequestsUnavailableState } from "~/components/pullRequest/PullRequestsUnavailableState";
 import { RightPanelTabs } from "~/components/RightPanelTabs";
-import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem } from "~/components/WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "~/components/WorkspacePageContainer";
 import { WorkspacePageHeader } from "~/components/WorkspacePageHeader";
 import { PanelLayoutControls } from "~/components/chat/PanelLayoutControls";
@@ -513,6 +512,23 @@ export function IssuesPage() {
 
   const showTracker = groups.length > 1;
   const noneAnswered = list.answers.length === 0;
+  const shownIssueCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
+  const issueScopeCount = new Set(
+    groups.flatMap((group) => group.rows.map((row) => row.scope.toLowerCase())),
+  ).size;
+  // A tracker that says it has more makes the count a floor, not a total.
+  const issuesMore = groups.some((group) => group.more.length > 0);
+  const issuesSubtitle =
+    shownIssueCount === 0
+      ? null
+      : gt(
+          "{count} {state, select, open {open} closed {closed} other {in total}} across {scopes, plural, one {# repository} other {# repositories}}",
+          {
+            count: issuesMore ? `${shownIssueCount}+` : String(shownIssueCount),
+            state: search.status,
+            scopes: issueScopeCount,
+          },
+        );
 
   const listBody: ReactNode = !issuesSupported ? (
     <PullRequestsUnavailableState
@@ -689,13 +705,6 @@ export function IssuesPage() {
             data-one-issues-header=""
             className="relative"
           >
-            <WorkspaceBreadcrumb ariaLabel={gt("Issues breadcrumb")}>
-              <WorkspaceBreadcrumbItem current>
-                <ListPageTitle>
-                  <T context="page title, list of issues">Issues</T>
-                </ListPageTitle>
-              </WorkspaceBreadcrumbItem>
-            </WorkspaceBreadcrumb>
             <div className="min-w-0 flex-1" />
             <div
               className="flex items-center gap-1 [-webkit-app-region:no-drag]"
@@ -725,7 +734,11 @@ export function IssuesPage() {
             data-one-scroll=""
             className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto"
           >
-            <WorkspacePageContainer width="expanded" className="min-h-full gap-4">
+            <WorkspacePageContainer width="expanded" className="min-h-full gap-5 pt-0">
+              <ListPageBand
+                title={<T context="page title, list of issues">Issues</T>}
+                subtitle={issuesSubtitle}
+              />
               <div className="flex flex-wrap items-center gap-2">
                 <div className="min-w-0 basis-full @lg/issue-list:min-w-48 @lg/issue-list:basis-0 @lg/issue-list:flex-1">
                   <PullRequestSearchInput

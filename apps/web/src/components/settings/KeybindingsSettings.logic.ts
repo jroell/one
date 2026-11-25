@@ -787,3 +787,24 @@ export function keybindingFromKeyboardEvent(
   parts.push(keyToken);
   return parts.join("+");
 }
+
+const SPOKEN_MODIFIERS: Readonly<Record<string, string>> = {
+  "\u2303": "Control",
+  "\u2325": "Option",
+  "\u21e7": "Shift",
+  "\u2318": "Command",
+};
+const SPOKEN_KEYS: Readonly<Record<string, string>> = {
+  "\u2191": "Up arrow",
+  "\u2193": "Down arrow",
+  "\u2190": "Left arrow",
+  "\u2192": "Right arrow",
+  "\u21b5": "Enter",
+};
+
+/** A shortcut as a screen reader should say it: the glyphs of the visual label become names. */
+export function spokenShortcutLabel(shortcut: KeybindingShortcut, platform?: string): string {
+  return formatShortcutLabel(shortcut, platform)
+    .replace(/[\u2303\u2325\u21e7\u2318]/g, (glyph) => `${SPOKEN_MODIFIERS[glyph]}+`)
+    .replace(/[\u2191\u2193\u2190\u2192\u21b5]/g, (glyph) => SPOKEN_KEYS[glyph]!);
+}

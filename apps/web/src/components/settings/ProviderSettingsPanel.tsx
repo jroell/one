@@ -85,14 +85,7 @@ import {
 } from "../ProviderUpdateLaunchNotification.logic";
 import { ProviderUpdatesAction } from "../ProviderUpdatesAction";
 import { Button } from "../ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "../ui/empty";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import { ScrollArea } from "../ui/scroll-area";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -212,7 +205,7 @@ function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }
       {lastCheckedRelative.suffix ? (
         <T context="the time is an elapsed time such as 5m">
           Checked{" "}
-          <span className="font-mono tabular-nums">
+          <span className="tabular-nums">
             <Var>{lastCheckedRelative.value}</Var>
           </span>{" "}
           ago
@@ -267,14 +260,12 @@ function ProviderSettingsPlaceholder({
           "scrollbar-gutter-both flex overflow-x-hidden overflow-y-auto",
         )}
       >
-        <Empty>
-          <EmptyMedia variant="icon">{icon}</EmptyMedia>
-          <EmptyHeader>
-            <EmptyTitle>{title}</EmptyTitle>
-            <EmptyDescription>{description}</EmptyDescription>
-          </EmptyHeader>
-          {children ? <EmptyContent className="max-w-xl">{children}</EmptyContent> : null}
-        </Empty>
+        <SettingsEmptyState
+          icon={icon}
+          title={title}
+          description={description}
+          action={children ? <div className="max-w-xl">{children}</div> : undefined}
+        />
       </SettingsGroup>
     </SettingsSection>
   );
@@ -1031,27 +1022,6 @@ export function EnvironmentProviderSettings({
       <SettingsSection
         {...searchableSetting("providers")}
         variant="plain"
-        titleAction={
-          canAddProvider ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon-xs"
-                    variant="ghost-muted"
-                    onClick={() => setIsAddInstanceDialogOpen(true)}
-                    aria-label={gt("Add provider")}
-                  >
-                    <PlusIcon />
-                  </Button>
-                }
-              />
-              <TooltipPopup side="top">
-                <T>Add provider</T>
-              </TooltipPopup>
-            </Tooltip>
-          ) : null
-        }
         headerAction={
           // The ghost button's padding would inset its label, so pull the text to the card edge.
           <div className="-me-2 flex min-w-0 items-center gap-2">
@@ -1108,7 +1078,7 @@ export function EnvironmentProviderSettings({
             "overflow-hidden @min-[48rem]/providers:grid @min-[48rem]/providers:grid-cols-[17rem_minmax(0,1fr)]",
           )}
         >
-          <div className="border-b border-border/60 bg-muted/10 @min-[48rem]/providers:flex @min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-col @min-[48rem]/providers:border-r @min-[48rem]/providers:border-b-0">
+          <div className="border-b border-border/60 @min-[48rem]/providers:flex @min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-col @min-[48rem]/providers:self-start @min-[48rem]/providers:border-r @min-[48rem]/providers:border-b @min-[48rem]/providers:border-b-border/60">
             <ScrollArea
               scrollFade
               chainVerticalScroll

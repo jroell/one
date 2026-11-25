@@ -21,15 +21,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsibleContent } from "../ui/collapsible";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "../ui/empty";
-import { Skeleton } from "../ui/skeleton";
+import { SettingsEmptyState } from "./SettingsEmptyState";
+import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
@@ -66,7 +59,6 @@ const VCS_ICONS: Partial<Record<VcsDriverKind, Icon>> = {
   jj: JujutsuIcon,
 };
 
-const SOURCE_CONTROL_SKELETON_ROWS = ["primary", "secondary"] as const;
 function optionLabel(value: Option.Option<string>): string | null {
   return Option.getOrNull(value);
 }
@@ -393,16 +385,26 @@ function useWaitedLongerThan(active: boolean, ms: number): boolean {
   return active && waited;
 }
 
-function SourceControlSectionSkeleton({
+interface PendingDiscoveryItem {
+  readonly key: string;
+  readonly label: string;
+  readonly icon: ReactNode;
+}
+
+/** The tools this page asks about, named while the server checks which are installed. */
+function SourceControlPendingSection({
   title,
   headerAction,
   waiting,
+  items,
 }: {
   readonly title: string;
   readonly headerAction?: ReactNode;
   /** Says what the page is waiting for, and what to do when it takes too long. */
   readonly waiting?: ReactNode;
+  readonly items: ReadonlyArray<PendingDiscoveryItem>;
 }) {
+  const gt = useGT();
   return (
     <SettingsSection title={title} headerAction={headerAction}>
       {waiting ? (
@@ -413,29 +415,18 @@ function SourceControlSectionSkeleton({
           {waiting}
         </div>
       ) : null}
-      {SOURCE_CONTROL_SKELETON_ROWS.map((row) => (
-        <div key={row} className="first:rounded-t-xl last:rounded-b-xl px-3 py-3 sm:px-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
-                  <Skeleton className="size-4.5" />
-                  <Skeleton
-                    shape="pill"
-                    className="pointer-events-none absolute -left-0.5 -top-0.5 size-2"
-                    aria-hidden
-                  />
-                </span>
-                <Skeleton shape="pill" className="h-4 w-28" />
-                <Skeleton shape="pill" className="h-5 w-14" />
-              </div>
-              <Skeleton shape="pill" className="h-3 w-full max-w-xs" />
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Skeleton className="size-7" />
-              <Skeleton shape="pill" className="h-5 w-9" />
-            </div>
-          </div>
+      {items.map((item) => (
+        <div key={item.key} className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
+          <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+            <span className="inline-flex size-5 shrink-0 items-center justify-center">
+              {item.icon}
+            </span>
+            <span className="truncate">{item.label}</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-(--settings-description)">
+            <Spinner size="sm" tone="muted" />
+            {gt("Checking…")}
+          </span>
         </div>
       ))}
     </SettingsSection>
@@ -457,29 +448,23 @@ function EmptySourceControlDiscovery({
 
   return (
     <SettingsSection id={searchableSetting("source-control").id} title={gt("Server environment")}>
-      <Empty>
-        <EmptyMedia variant="icon">
-          <PullRequestGlyph.pullRequest />
-        </EmptyMedia>
-        <EmptyHeader>
-          <EmptyTitle>
-            {hasError ? gt("Could not scan the server environment") : gt("Nothing detected yet")}
-          </EmptyTitle>
-          <EmptyDescription>
-            {hasError
-              ? error
-              : gt(
-                  "Install Git on the server, add optional hosting integrations or credentials your workspace needs, then rescan.",
-                )}
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
+      <SettingsEmptyState
+        icon={<PullRequestGlyph.pullRequest />}
+        title={hasError ? gt("Could not scan the server environment") : gt("Nothing detected yet")}
+        description={
+          hasError
+            ? error
+            : gt(
+                "Install Git on the server, add optional hosting integrations or credentials your workspace needs, then rescan.",
+              )
+        }
+        action={
           <Button size="sm" variant="outline" onClick={onScan} disabled={isPending}>
             <RefreshIcon size="sm" refreshing={isPending} />
             {hasError ? <T>Retry</T> : <T>Scan</T>}
           </Button>
-        </EmptyContent>
-      </Empty>
+        }
+      />
     </SettingsSection>
   );
 }
@@ -623,7 +608,15 @@ export function SourceControlSettingsPanel() {
         </SettingsSection>
       ) : isInitialScanPending ? (
         <>
-          <SourceControlSectionSkeleton
+          <SourceControlPendingSection
+            items={[
+              { key: "git", label: gt("Git"), icon: <GitIcon className="size-4.5" aria-hidden /> },
+              {
+                key: "jj",
+                label: gt("Jujutsu"),
+                icon: <JujutsuIcon className="size-4.5" aria-hidden />,
+              },
+            ]}
             title={`${gt("Version control")}${environmentSuffix}`}
             headerAction={scanButton}
             waiting={
@@ -643,7 +636,17 @@ export function SourceControlSettingsPanel() {
               )
             }
           />
-          <SourceControlSectionSkeleton title={gt("Source control providers")} />
+          <SourceControlPendingSection
+            title={gt("Source control providers")}
+            items={sourceControlClients.definitions.map((definition) => {
+              const Icon = sourceControlIcon(definition);
+              return {
+                key: definition.kind,
+                label: definition.label,
+                icon: Icon ? <Icon className="size-4.5" aria-hidden /> : null,
+              };
+            })}
+          />
         </>
       ) : hasDiscoveryItems ? (
         <>

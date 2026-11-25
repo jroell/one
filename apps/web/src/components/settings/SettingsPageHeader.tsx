@@ -104,11 +104,6 @@ export const SETTINGS_PAGE_INTROS: Readonly<Record<string, SettingsPageIntro>> =
   },
 };
 
-/** True for a settings page that exists. An unknown address under /settings opens General. */
-export function isKnownSettingsPathname(pathname: string): boolean {
-  return SETTINGS_PAGE_INTROS[pathname.replace(/\/+$/, "") || "/"] !== undefined;
-}
-
 /** The current page's intro, or null for an address that has none. */
 export function useSettingsPageIntro() {
   const m = useMessages();

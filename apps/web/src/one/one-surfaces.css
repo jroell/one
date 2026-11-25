@@ -828,3 +828,165 @@ html:not([data-one-mode="chat"]) [data-one-launcher-title] {
 [data-minimap-strip][data-in-view="true"]::after {
   background-color: var(--one-brand);
 }
+
+/* ============================================================== diff toolbar groups */
+
+/* Refresh and collapse, then the view options, then the filters: three clusters, a hairline apart. */
+[data-one-toolbar-sep] {
+  align-self: center;
+  flex-shrink: 0;
+  width: 1px;
+  height: 1rem;
+  margin-inline: 0.25rem;
+  background-color: var(--one-hairline-strong);
+}
+
+/* ===================================================================== the answer */
+
+/* An answer is the thing the work produced, so it takes a shape: 15px on a 24px line, indented to
+   the column the work rows' labels sit in, with the One ring in the gutter once the turn is done.
+   The indent holds for every assistant message, so nothing moves when streaming ends and the
+   ring arrives. */
+html:not([data-one-mode="chat"]) [data-one-assistant] {
+  padding-inline-start: 1.875rem;
+  padding-block-start: 0.5rem;
+}
+
+html:not([data-one-mode="chat"]) [data-one-assistant] .chat-markdown {
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  color: var(--foreground);
+}
+
+html:not([data-one-mode="chat"]) [data-one-answer] {
+  padding-block-start: 1rem;
+}
+
+[data-one-answer-mark] {
+  display: none;
+}
+
+html:not([data-one-mode="chat"]) [data-one-answer-mark] {
+  position: absolute;
+  inset-inline-start: 0.375rem;
+  inset-block-start: 1.125rem;
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px var(--one-brand-glow));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-one-answer-mark] {
+    animation: one-details-in 320ms var(--one-ease-out) both;
+  }
+}
+
+/* Between turns: the user's message opens a turn with room above it. */
+html:not([data-one-mode="chat"]) [data-timeline-row-kind="message"][data-message-role="user"] {
+  padding-block-start: 1rem;
+}
+
+/* "Worked for 11s" is a control, not a heading: 12px, quiet, and it lights on hover. */
+html:not([data-one-mode="chat"]) [data-timeline-row-kind="turn-fold"] button {
+  font-size: 0.75rem;
+}
+
+/* =============================================================== thread chrome details */
+
+/* A line of the previous message used to sit half under the header at full strength, which reads
+   as a cut line. The fade now starts at the header's edge and runs 28px below it. */
+html:not([data-one-mode="chat"]) .messages-timeline-scroll.topbar-scroll-fade {
+  --one-top-fade: 1.75rem;
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--workspace-titlebar-scroll-fade-height) - 2px),
+      black calc(var(--workspace-titlebar-scroll-fade-height) + var(--one-top-fade))
+    ),
+    linear-gradient(black, black), linear-gradient(black, black);
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--workspace-titlebar-scroll-fade-height) - 2px),
+      black calc(var(--workspace-titlebar-scroll-fade-height) + var(--one-top-fade))
+    ),
+    linear-gradient(black, black), linear-gradient(black, black);
+  -webkit-mask-size:
+    100% calc(var(--workspace-titlebar-scroll-fade-height) + var(--one-top-fade) + 1px),
+    100% calc(100% - var(--workspace-titlebar-scroll-fade-height) - var(--one-top-fade)),
+    var(--app-scrollbar-width) 100%;
+  mask-size:
+    100% calc(var(--workspace-titlebar-scroll-fade-height) + var(--one-top-fade) + 1px),
+    100% calc(100% - var(--workspace-titlebar-scroll-fade-height) - var(--one-top-fade)),
+    var(--app-scrollbar-width) 100%;
+}
+
+/* "Syncing messages…" is for a sync you are waiting on. A thread that is only not live yet keeps
+   that phase indefinitely, so the line leaves after a few seconds instead of sitting at rest.
+   A failure stays. */
+@keyframes one-sync-leave {
+  to {
+    opacity: 0;
+    visibility: hidden;
+    height: 0;
+    padding-block: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-composer-sync-status="syncing"] {
+    animation: one-sync-leave 400ms var(--one-ease-out) 4s forwards;
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-composer-sync-status="syncing"] {
+    animation: one-sync-leave 1ms linear 4s forwards;
+    overflow: hidden;
+  }
+}
+
+/* The tick ladder at the left edge is a map of the conversation. It rests quiet and wakes when
+   you reach for it, and each tick names its turn in a card on hover. */
+html:not([data-one-mode="chat"]) [data-testid="timeline-minimap"][data-persistent-gutter="true"] {
+  opacity: 0.42;
+}
+
+html:not([data-one-mode="chat"])
+  [data-testid="timeline-minimap"][data-persistent-gutter="true"]:is(:hover, :focus-within) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-testid="timeline-minimap"][data-persistent-gutter="true"] {
+    transition: opacity var(--one-move-ms) var(--one-ease-out);
+  }
+}
+
+/* The run context row is a menu before a thread starts and fixed after. The fixed row keeps the
+   menu's chevron slot, with a lock in it, so the folder icon holds the same place in both. */
+[data-thread-panel-run-context] > span[data-composer-context-control] {
+  position: relative;
+  padding-inline-end: 2.625rem;
+}
+
+[data-thread-panel-run-context] > span[data-composer-context-control]::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 0.5rem;
+  inset-block: 0;
+  margin-block: auto;
+  width: 1rem;
+  height: 1rem;
+  background-color: var(--muted-foreground);
+  opacity: 0.7;
+  -webkit-mask: center / contain no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E");
+  mask: center / contain no-repeat
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E");
+}

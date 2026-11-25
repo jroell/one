@@ -13,7 +13,10 @@ import {
 } from "@t3tools/contracts";
 import {
   effectiveShortcutsForCommand,
+  formatShortcutKeySpokenName,
   formatShortcutLabel,
+  formatShortcutSpokenLabel,
+  spokenKeycapName,
   isRichTextBoldShortcut,
   isSidebarToggleShortcut,
   isTerminalNewShortcut,
@@ -1127,5 +1130,22 @@ describe("Usage shortcuts", () => {
         platform: "Linux",
       }),
     );
+  });
+});
+
+describe("shortcut spoken names", () => {
+  it("names the keys the label draws as glyphs, so an accessible label can say them", () => {
+    assert.strictEqual(formatShortcutKeySpokenName("arrowup"), "Up arrow");
+    assert.strictEqual(formatShortcutKeySpokenName("enter"), "Enter");
+    assert.strictEqual(formatShortcutKeySpokenName("k"), "K");
+    assert.strictEqual(spokenKeycapName("\u2318"), "Command");
+    assert.strictEqual(spokenKeycapName("Esc"), "Esc");
+  });
+
+  it("speaks a whole shortcut in words for each platform", () => {
+    const shortcut = { key: "arrowup", modKey: true, shiftKey: true } as KeybindingShortcut;
+    assert.strictEqual(formatShortcutSpokenLabel(shortcut, "MacIntel"), "Shift Command Up arrow");
+    assert.strictEqual(formatShortcutSpokenLabel(shortcut, "Linux x86_64"), "Ctrl Shift Up arrow");
+    assert.strictEqual(formatShortcutLabel(shortcut, "MacIntel"), "\u21e7\u2318\u2191");
   });
 });

@@ -1,5 +1,5 @@
 import { workspaceAreaProps } from "../lib/workspaceFocus";
-import { Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
+import { Navigate, Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { T, useGT, useMessages, Var } from "gt-react";
 import { RotateCcwIcon } from "lucide-react";
@@ -22,7 +22,6 @@ import {
   useSettingsSearchHasNoResults,
 } from "../components/settings/SettingsSearchContext";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
-import { isKnownSettingsPathname } from "../components/settings/SettingsPageHeader";
 import { SettingsPageContainer } from "../components/settings/settingsLayout";
 import {
   retainSettingsScope,
@@ -228,7 +227,16 @@ function SettingsRouteLayout() {
   );
 }
 
+/**
+ * The router renders this under the settings layout when no page matches the address, by its own
+ * rules for case and trailing slashes, so an address it does match is never sent away.
+ */
+function SettingsAddressNotFound() {
+  return <Navigate to="/settings/general" search replace />;
+}
+
 export const Route = createFileRoute("/_chat/settings")({
+  notFoundComponent: SettingsAddressNotFound,
   validateSearch: validateSettingsRouteSearch,
   search: { middlewares: [retainSettingsScope] },
   beforeLoad: async ({ location }) => {
@@ -237,10 +245,6 @@ export const Route = createFileRoute("/_chat/settings")({
     }
     const moved = movedSettingsPath(location.pathname, location.hash);
     if (moved) throw redirect({ to: moved, search: true, hash: true, replace: true });
-    // An address that is no page would open an empty window.
-    if (!isKnownSettingsPathname(location.pathname)) {
-      throw redirect({ to: "/settings/general", search: true, replace: true });
-    }
   },
   component: SettingsRouteLayout,
 });

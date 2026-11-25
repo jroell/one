@@ -45,7 +45,12 @@ import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ResetCreditDialog, barColor, useResetCredit } from "./UsageLimits";
 import { LimitMeter } from "./UsageMeter";
-import { inlineWindowName, type LimitCandidate, tightestLimit } from "./usageHeadline";
+import {
+  inlineWindowName,
+  type LimitCandidate,
+  tightestLimit,
+  type WindowIdentity,
+} from "./usageHeadline";
 import { type LimitProjection, limitClock, meterState, projectLimit } from "./usageMeterState";
 import {
   collectExternalUsageLinks,
@@ -624,6 +629,27 @@ function nextResetMs(pool: LimitPoolWindow, now: number): number | null {
   return next === undefined ? null : next.at - now;
 }
 
+/** The encoding, said once under the first meter: what the fill, the tick and the hatching mean. */
+function MeterLegend() {
+  const gt = useGT();
+  return (
+    <p className="usage-key">
+      <span className="usage-key-item">
+        <span aria-hidden className="usage-key-fill" />
+        {gt("Quota left")}
+      </span>
+      <span className="usage-key-item">
+        <span aria-hidden className="usage-key-tick" />
+        {gt("Even pace")}
+      </span>
+      <span className="usage-key-item">
+        <span aria-hidden className="usage-key-hatch" />
+        {gt("Shortfall")}
+      </span>
+    </p>
+  );
+}
+
 function ProjectionLine({ projection }: { readonly projection: LimitProjection }) {
   const m = useMessages();
   switch (projection.kind) {
@@ -721,7 +747,7 @@ function PoolWindowCard({
         {pool.pace === "ahead" ? (
           <Tooltip>
             <TooltipTrigger render={<span className="usage-pace-chip" tabIndex={0} />}>
-              {gt("Ahead of pace")}
+              {gt("Runs out early")}
             </TooltipTrigger>
             <TooltipPopup side="top">
               {gt("Compared with how much of the window has passed")}
@@ -777,6 +803,7 @@ function PoolWindowCard({
             ) : null}
           </div>
         ) : null}
+        {row === 0 ? <MeterLegend /> : null}
       </div>
       {description ? <p className="usage-limit-note">{description}</p> : null}
     </div>
@@ -858,7 +885,7 @@ function LimitsSkeleton() {
 
 interface WatchedLimit {
   readonly provider: string;
-  readonly windowLabel: string;
+  readonly window: WindowIdentity;
   readonly remainingPercent: number;
   /** Time to the next real reset, when the limit reports one. */
   readonly resetInMs: number | null;
@@ -876,7 +903,12 @@ function watchableLimits(
     displayLimitWindows(pool).map((window): LimitCandidate<WatchedLimit> => ({
       subject: {
         provider: providerClients.get(pool.driver)?.label ?? String(pool.driver),
-        windowLabel: window.label,
+        // A Codex pool is keyed by kind, so the reported window's own id is its first member's.
+        window: {
+          id: window.members[0]?.window.id ?? window.id,
+          kind: window.kind,
+          label: window.label,
+        },
         remainingPercent: window.remainingPercent,
         resetInMs: nextResetMs(window, now),
       },
@@ -891,7 +923,7 @@ function watchableLimits(
         return {
           subject: {
             provider: source.label,
-            windowLabel: window.label,
+            window: { id: window.id, kind: window.kind, label: window.label },
             remainingPercent: remainingPercent(window),
             resetInMs: resetAt > now ? resetAt - now : null,
           },
@@ -919,14 +951,14 @@ function LimitsSummary({
   const candidates = watchableLimits(pools, quotaSources, now);
   const tightest = tightestLimit(candidates);
   if (tightest === undefined) return null;
-  const { provider, windowLabel, resetInMs } = tightest.subject;
+  const { provider, window, resetInMs } = tightest.subject;
   const watching =
     tightest.projection.kind === "runs-out" ||
     tightest.projection.kind === "exhausted" ||
     meterState(tightest.remainingPercent) !== "comfortable";
   const parts = {
     provider,
-    window: inlineWindowName(windowLabel, m),
+    window: inlineWindowName(window, m),
     remaining: tightest.remainingPercent,
   };
   const headline = !watching

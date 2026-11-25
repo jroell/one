@@ -484,30 +484,23 @@ describe("EnvironmentProviderSettings provider list", () => {
 });
 
 describe("EnvironmentProviderSettings account email", () => {
-  it("keeps the real email until the hide blur finishes", async () => {
+  it("keeps the email behind a Hidden pill until it is revealed, and hides it again", async () => {
     await setup();
     const email = "developer@example.com";
     await setProviders([{ ...provider(), auth: { status: "authenticated", email } }]);
     await using _screen = await render(panel({ targetInstanceId: codexId }));
     const toggle = page.getByRole("button", { name: "Toggle account email visibility" });
-    const button = toggle.element() as HTMLButtonElement;
 
-    await act(() => button.click());
-    for (const animation of button.getAnimations()) animation.finish();
-    await expect.element(toggle).toHaveTextContent(email);
+    await expect.element(toggle).toMatchTextContent("Hidden");
+    await expect.element(toggle).not.toMatchTextContent("developer@example.com");
 
-    await act(() => button.click());
-    const blur = button
-      .getAnimations()
-      .find(
-        (animation) =>
-          animation instanceof CSSTransition && animation.transitionProperty === "filter",
-      )!;
-    blur.pause();
-    expect(button.textContent).toBe(email);
+    await userEvent.click(toggle);
+    await expect.element(toggle).toMatchTextContent("developer@example.com");
+    await expect.element(toggle).toHaveAttribute("aria-pressed", "true");
 
-    await act(() => blur.finish());
-    await expect.element(toggle).not.toHaveTextContent(email);
+    await userEvent.click(toggle);
+    await expect.element(toggle).toMatchTextContent("Hidden");
+    await expect.element(toggle).not.toMatchTextContent("developer@example.com");
   });
 });
 

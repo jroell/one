@@ -67,7 +67,6 @@ import { recordPromptSent } from "../GitHubStarPrompt";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { newMessageId, newThreadId } from "~/lib/utils";
-import { claimVoiceMessage } from "~/one/voiceSession";
 import { readPendingWorkspaceDefault, useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import {
@@ -428,6 +427,8 @@ export function useComposerSend(input: ComposerSendInput) {
       readonly prompt: string;
       readonly sendContext: ReturnType<NonNullable<ComposerHandleRef["current"]>["getSendContext"]>;
     },
+    /** Told the message id at the moment the turn request goes out with it; never when the send ends first. */
+    onMessageSent?: (messageId: string) => void,
   ) => {
     e?.preventDefault();
     // What the user pressed send on; uploads below can take a while, and a redirect must not
@@ -1092,7 +1093,6 @@ export function useComposerSend(input: ComposerSendInput) {
       composerAttachmentsSnapshot.map((attachment) => attachment.id),
     );
     const messageIdForSend = newMessageId();
-    claimVoiceMessage(composerTargetKey(composerDraftTarget), messageIdForSend);
     const messageCreatedAt = new Date().toISOString();
     const outgoingMessageText = formatOutgoingPrompt({
       provider: ctxSelectedProvider,
@@ -1576,6 +1576,7 @@ export function useComposerSend(input: ComposerSendInput) {
           )
         : null;
       if (backgroundThreadRef) beginBackgroundDraftSubmissionByRef(backgroundThreadRef);
+      onMessageSent?.(messageIdForSend);
       const startPromise = startThreadTurn({
         environmentId,
         input: {

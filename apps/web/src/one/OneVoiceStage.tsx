@@ -21,6 +21,7 @@ import {
   dispatchVoiceSession,
   getVoiceSession,
   hasPendingBlockingRequest,
+  newVoiceSubmission,
   ownsMicrophone,
   pendingFeedbackCardIds,
   replyAnchor,
@@ -213,8 +214,11 @@ function ActiveVoiceStage({
       dispatchVoiceSession({ type: "stop" });
       return;
     }
-    dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages) });
-    current.bridge.submit();
+    const submission = newVoiceSubmission();
+    dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages), submission });
+    current.bridge.submit((messageId) =>
+      dispatchVoiceSession({ type: "identified", submission, messageId }),
+    );
   };
   const submitRef = useRef(submit);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the frame loop calling the committed submit
@@ -509,7 +513,8 @@ function ActiveVoiceStage({
           begin();
           return;
         }
-        if (retried) {
+        // The engine dropped it since the first check: there is nothing left to retry.
+        if (retried || !synthesis.pending) {
           finish();
           return;
         }

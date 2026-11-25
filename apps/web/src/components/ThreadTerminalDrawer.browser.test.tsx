@@ -19,6 +19,7 @@ import { useRightPanelStore } from "../rightPanelStore";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
 import { extractTerminalLinks } from "../terminal-links";
 import { expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 import { act, fakeTimers, render } from "../../test/render";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
 
@@ -37,11 +38,12 @@ const fixture = vi.hoisted(() => ({
     _generation?: number,
   ) => {},
   sessionEvent: (_thread: ScopedThreadRef, _type: "snapshot" | "restarted", _pid = 123) => {},
-  failSession: (_thread: ScopedThreadRef, _error: string | null) => {},
+  failSession: (_thread: ScopedThreadRef, _message: string) => {},
   surfaceOptions: [] as GhosttyTerminalSurfaceOptions[],
   reportedSize: null as { cols: number; rows: number } | null,
   resizeCommand: {},
   openCommand: {},
+  attachFailed: false,
   retries: [] as Array<{ environmentId: string; threadId: string; terminalId: string }>,
   opens: [] as Array<{ threadId: string; terminalId: string; cwd: string }>,
   runWrite: (): Promise<{ _tag: "Success" }> => Promise.resolve({ _tag: "Success" }),
@@ -125,12 +127,18 @@ vi.mock("../state/terminalSessions", async () => {
         : { output: { ...EMPTY_TERMINAL_SESSION_STATE.output, generation } }),
     });
   };
-  fixture.failSession = (thread, error) => {
-    appAtomRegistry.set(session(thread.environmentId, thread.threadId), {
+  // The server's own error event, run through the client's reducer, so the session carries
+  // the same message a real startup failure puts on it.
+  fixture.failSession = (thread, message) => {
+    const atom = session(thread.environmentId, thread.threadId);
+    appAtomRegistry.set(atom, {
       ...EMPTY_TERMINAL_SESSION_STATE,
-      status: "error",
-      error,
-      version: 0,
+      ...applyTerminalAttachStreamEvent(EMPTY_TERMINAL_SESSION_STATE, {
+        type: "error",
+        threadId: thread.threadId,
+        terminalId: "term-1",
+        message,
+      }),
     });
   };
   fixture.sessionEvent = (thread, type, pid = 123) => {
@@ -162,6 +170,7 @@ vi.mock("../state/terminalSessions", async () => {
   return {
     attachedTerminalSessionAtom: (environmentId: EnvironmentId, terminal: { threadId: ThreadId }) =>
       session(environmentId, terminal.threadId),
+    terminalAttachFailed: () => fixture.attachFailed,
     retryTerminalSessionAttach: (
       environmentId: EnvironmentId,
       terminal: { threadId: string; terminalId: string },
@@ -250,6 +259,7 @@ vi.mock("../hooks/useSettings", async () => {
 function Drawer(props: {
   threadRef: ScopedThreadRef;
   cwd?: string;
+  onHeightChange?: (height: number) => void;
   onCloseTerminal: (terminalId: string, threadRef?: ScopedThreadRef) => void;
   keybindings?: ResolvedKeybindingsConfig;
 }) {
@@ -268,7 +278,7 @@ function Drawer(props: {
       onNewTerminal={() => {}}
       onActiveTerminalChange={() => {}}
       onCloseTerminal={props.onCloseTerminal}
-      onHeightChange={() => {}}
+      onHeightChange={props.onHeightChange ?? (() => {})}
       onAddTerminalContext={() => {}}
       keybindings={props.keybindings ?? []}
     />
@@ -300,6 +310,7 @@ function setup(originalStatus: "starting" | "exited" = "exited") {
   fixture.runWrite = () => Promise.resolve({ _tag: "Success" });
   fixture.retries = [];
   fixture.opens = [];
+  fixture.attachFailed = false;
   fixture.metadata.clear();
   useRightPanelStore.setState(useRightPanelStore.getInitialState());
   useTerminalUiStateStore.setState(useTerminalUiStateStore.getInitialState());
@@ -357,38 +368,72 @@ it("names every toolbar button and says the shell is starting until it runs", as
     .not.toBeInTheDocument();
 });
 
-it("keeps the drawer's top edge on the resize grip instead of under the header", async () => {
+it("drags the drawer taller from its top edge, which the header does not cover", async () => {
+  const { original } = setup("starting");
+  fixture.setSession(original, "running", 1);
+  const onHeightChange = vi.fn();
+  await using screen = await render(
+    <div style={{ height: 700, display: "flex", flexDirection: "column" }}>
+      <div data-testid="above" style={{ flex: 1 }} />
+      <Drawer threadRef={original} onCloseTerminal={() => {}} onHeightChange={onHeightChange} />
+    </div>,
+  );
+  const drawer = screen.container.querySelector("[data-thread-terminal-drawer]")!;
+  const handle = drawer.querySelector<HTMLElement>("[data-one-resize-handle]")!;
+  await expect.element(screen.getByRole("button", { name: /^New Terminal/ })).toBeVisible();
+  const rect = drawer.getBoundingClientRect();
+  expect(document.elementFromPoint(rect.left + rect.width / 2, rect.top + 3)).toBe(handle);
+
+  // A real pointer drag from the grip to a point 120px above it.
+  const above = screen.getByTestId("above");
+  await userEvent.dragAndDrop(handle, above, {
+    sourcePosition: { x: 40, y: 3 },
+    targetPosition: { x: 40, y: Math.max(1, rect.top - 120) },
+  });
+  expect(onHeightChange).toHaveBeenCalledTimes(1);
+  expect(onHeightChange.mock.calls[0]![0]).toBeGreaterThan(240);
+});
+
+it("sizes the grip strip like the drag handle, including on a touch screen", async () => {
   const { original } = setup("starting");
   fixture.setSession(original, "running", 1);
   await using screen = await render(<Drawer threadRef={original} onCloseTerminal={() => {}} />);
-  const drawer = screen.container.querySelector("[data-thread-terminal-drawer]")!;
-  const handle = drawer.querySelector("[data-one-resize-handle]")!;
-  await expect.element(screen.getByRole("button", { name: /^New Terminal/ })).toBeVisible();
-  const rect = drawer.getBoundingClientRect();
-  const atTopEdge = document.elementFromPoint(rect.left + rect.width / 2, rect.top + 3);
-  expect(atTopEdge).toBe(handle);
+  const handle = screen.container.querySelector("[data-one-resize-handle]")!;
+  const strip = screen.container.querySelector("[data-one-terminal-grip-strip]")!;
+  const heights = (element: Element) =>
+    element.className.split(/\s+/).filter((name) => /^(any-pointer-coarse:)?h-/.test(name));
+  // Same height tokens at fine and coarse pointers: the strip always holds the handle.
+  expect(heights(strip).toSorted()).toEqual(heights(handle).toSorted());
+  expect(heights(handle)).toContain("any-pointer-coarse:h-4");
 });
 
-it("Retry re-subscribes to the attach after a stream failure and reopens a shell that failed", async () => {
+it("Retry re-subscribes to the attach when the attachment itself failed", async () => {
   const { original } = setup("starting");
   fixture.failSession(original, "Connection lost");
+  fixture.attachFailed = true;
   await using screen = await render(<Drawer threadRef={original} onCloseTerminal={() => {}} />);
   await screen.getByRole("button", { name: "Retry" }).click();
   expect(fixture.retries).toEqual([
-    {
-      environmentId: original.environmentId,
-      threadId: original.threadId,
-      terminalId: "term-1",
-    },
+    { environmentId: original.environmentId, threadId: original.threadId, terminalId: "term-1" },
   ]);
   expect(fixture.opens).toEqual([]);
+});
 
-  await act(() => fixture.failSession(original, null));
+it("Retry reopens a shell whose startup failed with a message, and the running session replaces the error", async () => {
+  const { original } = setup("starting");
+  fixture.failSession(original, "spawn /bin/zsh ENOENT");
+  await using screen = await render(<Drawer threadRef={original} onCloseTerminal={() => {}} />);
+  await expect.element(screen.getByText("spawn /bin/zsh ENOENT")).toBeVisible();
+
   await screen.getByRole("button", { name: "Retry" }).click();
-  expect(fixture.retries).toHaveLength(1);
+  expect(fixture.retries).toEqual([]);
   expect(fixture.opens).toEqual([
     { threadId: original.threadId, terminalId: "term-1", cwd: "/repo" },
   ]);
+
+  await act(() => fixture.sessionEvent(original, "restarted"));
+  await expect.element(screen.getByText("spawn /bin/zsh ENOENT")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
 });
 
 it("closes an exited terminal on its own thread after navigating to one reusing its ID", async () => {

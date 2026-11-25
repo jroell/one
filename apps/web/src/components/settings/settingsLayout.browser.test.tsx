@@ -91,8 +91,9 @@ describe("settings layout", () => {
         .getByRole("textbox", { name: "Binary path" })
         .element()
         .closest("[data-slot=input-control]")!,
-      // The two chips of a picker are measured together, as one control.
-      page.getByRole("button", { name: "Model model" }).element().parentElement!,
+      // A picker's two chips stack, each as wide and tall as a select.
+      page.getByRole("button", { name: "Model model" }).element(),
+      page.getByRole("button", { name: "Model effort" }).element(),
     ].map((element) => element.getBoundingClientRect());
     expect(new Set(controls.map((rect) => Math.round(rect.width)))).toEqual(new Set([240]));
     expect(new Set(controls.map((rect) => Math.round(rect.right))).size).toBe(1);
@@ -145,7 +146,7 @@ describe("settings layout", () => {
         <SettingsSection title="Composer">
           <SettingsRow title="Send shortcut" />
         </SettingsSection>
-        <SettingsSection title="Chat" titleAction={<Button aria-label="Add">+</Button>}>
+        <SettingsSection title="Chat" icon={<span aria-hidden>*</span>}>
           <SettingsRow title="Another" />
         </SettingsSection>
       </SettingsPageContainer>,
@@ -156,10 +157,10 @@ describe("settings layout", () => {
       [...screen.container.querySelectorAll<HTMLElement>("h2")].find(
         (candidate) => candidate.textContent === name,
       )!;
-    const repeats = [...screen.container.querySelectorAll<HTMLElement>("h2")].filter(
-      (candidate) => candidate.textContent === "Chat",
+    const repeats = [...screen.container.querySelectorAll<HTMLElement>("h2")].filter((candidate) =>
+      candidate.textContent?.endsWith("Chat"),
     );
-    // The repeat is hidden; the same title stays when an action sits beside it.
+    // The repeat is hidden; the same title stays when it carries an icon.
     expect(repeats.map((h) => h.getBoundingClientRect().width > 1)).toEqual([false, true]);
     expect(heading("Composer").getBoundingClientRect().width).toBeGreaterThan(1);
   });

@@ -31,7 +31,7 @@ import { Badge } from "../ui/badge";
 import { InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { PullRequestReviewOutcome } from "./pullRequestDetail.logic";
-import { labelChipStyle, labelChipTone } from "./labelChipTone";
+import { labelChipEmphasis, labelChipStyle, labelChipTone } from "./labelChipTone";
 import { pullRequestLabelColor } from "./pullRequestList.logic";
 import {
   PULL_REQUEST_STATE_PRESENTATION,
@@ -58,6 +58,7 @@ export function PullRequestLabelChip({
     <span
       data-one-label=""
       data-size={size}
+      data-tone={labelChipEmphasis(label.name)}
       {...(tone ? { "data-colored": "" } : {})}
       className={cn("inline-flex min-w-0 max-w-40 shrink", className)}
       {...(focusable && label.description ? { tabIndex: 0 } : {})}

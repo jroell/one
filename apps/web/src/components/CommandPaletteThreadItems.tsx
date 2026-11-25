@@ -39,6 +39,7 @@ import { formatRelativeTimeLabel } from "../timestampFormat";
 import { buildThreadActionItems, ITEM_ICON_CLASS } from "./CommandPalette.logic";
 import { useEnvironmentLookups, useProjectLookups } from "./CommandPaletteLookups";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
+import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import {
   ThreadRowLeadingStatus,
   ThreadRowTrailingStatus,
@@ -94,6 +95,21 @@ function useConnectedThreadSearch(query: string) {
  * Every visible thread as a palette item, plus, for a non-empty
  * `threadSearchQuery`, the threads whose messages match, best first.
  */
+/** Which project, machine, branch and worktree a thread is in, by identity rather than by label. */
+function threadContextKey(thread: {
+  environmentId: string;
+  projectId: string;
+  branch: string | null;
+  worktreePath: string | null;
+}): string {
+  return [
+    thread.environmentId,
+    thread.projectId,
+    thread.branch ?? "",
+    thread.worktreePath ?? "",
+  ].join("\u0000");
+}
+
 export function useCommandPaletteThreadItems(input: {
   readonly activeThread: { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null;
   readonly threadSearchQuery: string;
@@ -137,8 +153,9 @@ export function useCommandPaletteThreadItems(input: {
           <ThreadRowTrailingStatus thread={thread} />
         </>
       ),
-      contextOf: (thread, { projectTitle }) =>
-        [
+      contextOf: (thread, { projectTitle }) => ({
+        key: threadContextKey(thread),
+        label: [
           projectTitle,
           projectEnvironmentLocationById.get(thread.environmentId)?.label ??
             gt("Remote", { $context: "machine location" }),
@@ -146,6 +163,27 @@ export function useCommandPaletteThreadItems(input: {
         ]
           .filter(Boolean)
           .join(" · "),
+      }),
+      renderTitleSuffix: (thread) => {
+        const modelInstanceId =
+          thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
+        const providerEntry =
+          providerEntryByEnvironmentAndInstanceId.get(
+            `${thread.environmentId}:${modelInstanceId}`,
+          ) ?? null;
+        if (providerEntry?.driverKind == null) return null;
+        return (
+          <ProviderInstanceIcon
+            driverKind={providerEntry.driverKind}
+            displayName={
+              thread.runtime?.providerName ?? providerEntry.displayName ?? modelInstanceId
+            }
+            acpRegistryAgentId={providerEntry.acpRegistryAgentId}
+            acpRegistryIconUrl={providerEntry.acpRegistryIconUrl}
+            iconClassName="size-3 shrink-0 text-muted-foreground opacity-80"
+          />
+        );
+      },
       renderDescription: (thread, { projectTitle }) => {
         const modelInstanceId =
           thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
@@ -162,14 +200,8 @@ export function useCommandPaletteThreadItems(input: {
               gt("Remote", { $context: "machine location" })
             }
             branch={thread.branch}
-            contextLabel={[
-              projectTitle,
-              projectEnvironmentLocationById.get(thread.environmentId)?.label ??
-                gt("Remote", { $context: "machine location" }),
-              thread.branch,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+            contextKey={threadContextKey(thread)}
+            variant="favicon-workspace"
             worktreePath={thread.worktreePath}
             isCurrent={
               thread.id === activeThread?.id && thread.environmentId === activeThread.environmentId

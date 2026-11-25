@@ -38,7 +38,7 @@ describe("voice chat follows the thread the composer has committed", () => {
 
   it("keeps a conversation going when the new thread is the draft its first question was sent from", () => {
     using _open = conversation({ threadKey: "draft-1", isDraft: true });
-    dispatchVoiceSession({ type: "sent", after: { afterId: null, count: 0 } });
+    dispatchVoiceSession({ type: "sent", after: { afterId: null, count: 0 }, submission: "s1" });
 
     commitVoiceThread("composer", "thread-9", (draftKey) => draftKey === "draft-1");
     expect(getVoiceSession()).toMatchObject({ stage: "sending", threadKey: "thread-9" });

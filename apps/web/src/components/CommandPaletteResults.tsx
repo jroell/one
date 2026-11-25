@@ -64,11 +64,13 @@ export function CommandPaletteResults(props: CommandPaletteResultsProps) {
             <CommandGroupLabel>
               {group.label}
               {group.caption ? (
-                <span className="ms-2 font-normal text-muted-foreground/80">{group.caption}</span>
+                <span className="ms-2 font-normal text-muted-foreground/80">
+                  {group.caption.label}
+                </span>
               ) : null}
             </CommandGroupLabel>
           ) : null}
-          <SharedThreadContext value={group.caption ?? null}>
+          <SharedThreadContext value={group.caption?.key ?? null}>
             <CommandCollection>
               {(item) =>
                 item.disabled ? (
@@ -231,6 +233,7 @@ function DisabledCommandPaletteResultRow(props: {
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
             {props.item.titleLeadingContent}
             <CommandPaletteTitle item={props.item} />
+            {props.item.titleSuffixContent}
             <ThreadRowContext item={props.item} />
           </span>
           {props.item.threadContentMatch ? (
@@ -247,6 +250,7 @@ function DisabledCommandPaletteResultRow(props: {
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
           {props.item.titleLeadingContent}
           <CommandPaletteTitle item={props.item} />
+          {props.item.titleSuffixContent}
         </span>
       )}
       {props.item.titleTrailingContent}
@@ -296,6 +300,7 @@ function CommandPaletteResultRow(props: {
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
             {props.item.titleLeadingContent}
             <CommandPaletteTitle item={props.item} />
+            {props.item.titleSuffixContent}
             <ThreadRowContext item={props.item} />
           </span>
           {props.item.threadContentMatch ? (
@@ -312,6 +317,7 @@ function CommandPaletteResultRow(props: {
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
           {props.item.titleLeadingContent}
           <CommandPaletteTitle item={props.item} />
+          {props.item.titleSuffixContent}
         </span>
       )}
       {props.item.titleTrailingContent}

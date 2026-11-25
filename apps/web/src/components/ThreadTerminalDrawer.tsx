@@ -87,7 +87,11 @@ import { useClientSettings } from "../hooks/useSettings";
 import { getFileMetadataQueryAtom } from "../hooks/useFileMetadata";
 import { FileMetadataThreadContext } from "../hooks/FileMetadataThreadProvider";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { attachedTerminalSessionAtom, retryTerminalSessionAttach } from "../state/terminalSessions";
+import {
+  attachedTerminalSessionAtom,
+  retryTerminalSessionAttach,
+  terminalAttachFailed,
+} from "../state/terminalSessions";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
 import { previewEnvironment } from "../state/preview";
@@ -1238,8 +1242,11 @@ function TerminalSessionViewport({
   // A failed stream re-subscribes to the attach. A shell that ran and failed restarts through
   // the same permission-checked open the new terminal action uses.
   const retryTerminal = () => {
-    const session = readTerminalSession();
-    if (session.error === null && session.status === "error") {
+    // A shell failure arrives with a message too, so the attachment result says which this is.
+    if (
+      !terminalAttachFailed(environmentId, attachInput) &&
+      readTerminalSession().status === "error"
+    ) {
       if (!hasTerminalWriteAccess()) return;
       void runTerminalOpen({
         environmentId,

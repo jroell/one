@@ -5,6 +5,9 @@ import { PIERRE_TREE_UNSAFE_CSS } from "../../pierre-tree-theme";
  * the selected row carries a brand tick and a rim, and keyboard focus draws a ring.
  */
 const FILE_TREE_CHROME_CSS = `
+  :host {
+    --trees-indent-guide-bg-override: color-mix(in srgb, currentColor 13%, transparent);
+  }
   button[data-type='item'][aria-selected='true'] {
     box-shadow:
       inset 2px 0 0 var(--one-brand, currentColor),

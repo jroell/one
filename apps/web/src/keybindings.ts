@@ -252,6 +252,50 @@ export function formatShortcutKeyLabel(key: string): string {
   return key.slice(0, 1).toUpperCase() + key.slice(1);
 }
 
+const KEYCAP_SPOKEN_NAMES: Readonly<Record<string, string>> = {
+  "\u2191": "Up arrow",
+  "\u2193": "Down arrow",
+  "\u2190": "Left arrow",
+  "\u2192": "Right arrow",
+  "\u21b5": "Enter",
+  "\u2303": "Control",
+  "\u2325": "Option",
+  "\u21e7": "Shift",
+  "\u2318": "Command",
+};
+
+/** What a screen reader or a search should call a drawn keycap: "\u21b5" is "Enter", "\u2318" is "Command". */
+export function spokenKeycapName(cap: string): string {
+  return KEYCAP_SPOKEN_NAMES[cap] ?? cap;
+}
+
+/** The spoken name of a key, for the same keys `formatShortcutKeyLabel` draws as glyphs. */
+export function formatShortcutKeySpokenName(key: string): string {
+  return spokenKeycapName(formatShortcutKeyLabel(key));
+}
+
+/**
+ * A shortcut in words, for accessible labels: "Command Shift Up arrow". The glyph label from
+ * `formatShortcutLabel` is for the eye only.
+ */
+export function formatShortcutSpokenLabel(
+  shortcut: KeybindingShortcut,
+  platform = navigator.platform,
+): string {
+  const useMetaForMod = isMacPlatform(platform);
+  const parts: string[] = [];
+  if (shortcut.ctrlKey || (shortcut.modKey && !useMetaForMod)) {
+    parts.push(useMetaForMod ? "Control" : "Ctrl");
+  }
+  if (shortcut.altKey) parts.push(useMetaForMod ? "Option" : "Alt");
+  if (shortcut.shiftKey) parts.push("Shift");
+  if (shortcut.metaKey || (shortcut.modKey && useMetaForMod)) {
+    parts.push(useMetaForMod ? "Command" : "Meta");
+  }
+  parts.push(formatShortcutKeySpokenName(shortcut.key));
+  return parts.join(" ");
+}
+
 export function formatShortcutLabel(
   shortcut: KeybindingShortcut,
   platform = navigator.platform,

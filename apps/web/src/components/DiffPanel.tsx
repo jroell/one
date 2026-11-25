@@ -28,7 +28,7 @@ import {
   ChevronsUpDownIcon,
 } from "lucide-react";
 import * as Schema from "effect/Schema";
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { useCodeViewFileReveal } from "./diffs/useCodeViewFileReveal";
 import { useCodeViewScrollRestore } from "./diffs/useCodeViewScrollRestore";
 import { useFilesystemReadAccess } from "~/state/filesystem";
@@ -140,6 +140,47 @@ const NO_TURN_DIFF_SECTIONS: ReadonlyArray<TurnDiffSection> = [];
 const DIFF_FILE_TREE_STORAGE_KEY = "t3code.diffFileTreeOpen";
 
 const EMPTY_COLLAPSED_DIFF_FILE_KEYS: ReadonlySet<string> = new Set();
+
+/** An icon button that grows a text label when the header is wide enough to carry it. */
+function DiffHeaderAction(props: {
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label={props.label}
+              onClick={props.onClick}
+              className="@min-[44rem]/diff-header:hidden"
+            />
+          }
+        >
+          {props.children}
+        </TooltipTrigger>
+        <TooltipPopup side="top">{props.tooltip}</TooltipPopup>
+      </Tooltip>
+      <Button
+        type="button"
+        size="xs"
+        variant="ghost"
+        aria-label={props.label}
+        onClick={props.onClick}
+        className="hidden @min-[44rem]/diff-header:inline-flex"
+      >
+        {props.children}
+        <span aria-hidden>{props.label}</span>
+      </Button>
+    </>
+  );
+}
 
 function DiffFileCollapseToggle({
   filePath,
@@ -719,6 +760,7 @@ export default function DiffPanel({
     renderableFiles,
     remainingFileCount,
     loadNextFiles,
+    loadedBinaryPaths,
   } = useReviewFilePatches({
     environmentId: activeThread?.environmentId,
     cwd: branchDiffPreview.data?.cwd,
@@ -1425,51 +1467,30 @@ export default function DiffPanel({
           </span>
         ) : null}
         {canRefreshGitDiff && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={isRefreshingDiff ? gt("Refreshing diff") : gt("Refresh diff")}
-                  onClick={refreshDiffFromUserAction}
-                />
-              }
-            >
-              <RefreshIcon size="sm" refreshing={isRefreshingDiff} />
-            </TooltipTrigger>
-            <TooltipPopup side="top">
-              {isRefreshingDiff ? gt("Refreshing diff…") : gt("Refresh diff")}
-            </TooltipPopup>
-          </Tooltip>
+          <DiffHeaderAction
+            label={isRefreshingDiff ? gt("Refreshing diff") : gt("Refresh diff")}
+            tooltip={isRefreshingDiff ? gt("Refreshing diff…") : gt("Refresh diff")}
+            onClick={refreshDiffFromUserAction}
+          >
+            <RefreshIcon size="sm" refreshing={isRefreshingDiff} />
+          </DiffHeaderAction>
         )}
         {diffFileKeys.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={
-                    allDiffFilesCollapsed ? gt("Expand all files") : gt("Collapse all files")
-                  }
-                  onClick={toggleDiffFileCollapse}
-                />
-              }
-            >
-              {allDiffFilesCollapsed ? (
-                <ChevronsUpDownIcon className="size-3.5" />
-              ) : (
-                <ChevronsDownUpIcon className="size-3.5" />
-              )}
-            </TooltipTrigger>
-            <TooltipPopup side="top">
-              {allDiffFilesCollapsed ? gt("Expand all files") : gt("Collapse all files")}
-            </TooltipPopup>
-          </Tooltip>
+          <DiffHeaderAction
+            label={allDiffFilesCollapsed ? gt("Expand all files") : gt("Collapse all files")}
+            tooltip={allDiffFilesCollapsed ? gt("Expand all files") : gt("Collapse all files")}
+            onClick={toggleDiffFileCollapse}
+          >
+            {allDiffFilesCollapsed ? (
+              <ChevronsUpDownIcon className="size-3.5" />
+            ) : (
+              <ChevronsDownUpIcon className="size-3.5" />
+            )}
+          </DiffHeaderAction>
         )}
+        {canRefreshGitDiff || diffFileKeys.length > 0 ? (
+          <span aria-hidden data-one-toolbar-sep="" />
+        ) : null}
         <span className={cn("contents", narrowHeaderHidden)}>
           <ToggleGroup
             aria-label={gt("Diff layout")}
@@ -1537,6 +1558,9 @@ export default function DiffPanel({
             {diffIgnoreWhitespace ? gt("Show whitespace changes") : gt("Hide whitespace changes")}
           </TooltipPopup>
         </Tooltip>
+        {testFileCount > 0 || diffFileKeys.length > 0 ? (
+          <span aria-hidden data-one-toolbar-sep="" />
+        ) : null}
         {testFileCount > 0 && (
           <Tooltip>
             <TooltipTrigger
@@ -1768,7 +1792,11 @@ export default function DiffPanel({
                             stat?.deletions ??
                             fileDiff.hunks.reduce((sum, hunk) => sum + hunk.deletionLines, 0)
                           }
-                          binary={stat ? stat.binary === true : patchBinaryPaths.has(path)}
+                          binary={
+                            stat
+                              ? (stat.binary ?? loadedBinaryPaths.has(path))
+                              : patchBinaryPaths.has(path)
+                          }
                         />
                       );
                     }}

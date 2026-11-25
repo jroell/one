@@ -196,18 +196,21 @@ function PullRequestRowImpl({
                   }
                 />
               ) : null}
-              <PullRequestChangeBreakdownStat
-                environmentId={entry.environmentId}
-                reference={{
-                  projectId: entry.projectId,
-                  host: entry.host,
-                  repository: entry.repository,
-                  number: entry.number,
-                }}
-                additions={entry.additions}
-                deletions={entry.deletions}
-                className="font-mono"
-              />
+              {/* Narrow lists give the title the room the figures would take. */}
+              <span className="inline-flex @max-md/pr-list:hidden">
+                <PullRequestChangeBreakdownStat
+                  environmentId={entry.environmentId}
+                  reference={{
+                    projectId: entry.projectId,
+                    host: entry.host,
+                    repository: entry.repository,
+                    number: entry.number,
+                  }}
+                  additions={entry.additions}
+                  deletions={entry.deletions}
+                  className="font-mono"
+                />
+              </span>
             </>
           }
           metaClassName="@container/pr-row-meta"

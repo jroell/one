@@ -36,6 +36,14 @@ export function providerAuthLabel(
   return auth.label ?? auth.type;
 }
 
+/** A plan as a list subtitle wants it: "ChatGPT Pro 200 Subscription" is "ChatGPT Pro". */
+export function providerPlanLabel(label: string): string {
+  return label
+    .replace(/\s+subscription$/i, "")
+    .replace(/\s+\d+$/, "")
+    .trim();
+}
+
 // Antigravity's local health check verifies installation, not Google sign-in.
 // API-key and Agent Platform warnings still need attention.
 function isAntigravitySignInUnchecked(provider: ServerProvider): boolean {

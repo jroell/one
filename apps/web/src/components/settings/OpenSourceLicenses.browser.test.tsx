@@ -31,28 +31,20 @@ it("Esc in the license search closes it without closing Settings", async () => {
   );
   const settings = page.getByRole("dialog", { name: "Settings" });
   const search = page.getByRole("searchbox", { name: "Search open-source licenses" });
-  const openSearch = async () => {
-    const button = page.getByRole("button", { name: "Search open-source licenses" });
-    await expect.element(button).toBeVisible();
-    (button.element() as HTMLElement).focus();
-    await userEvent.keyboard("{Enter}");
-    await expect.element(search).toHaveFocus();
-  };
-  await openSearch();
+  await expect.element(search).toBeVisible();
   await search.fill("react");
+  await expect.element(search).toHaveFocus();
 
+  // Esc clears the query and keeps the field.
   await userEvent.keyboard("{Escape}");
-
   await expect.element(settings).toHaveAttribute("data-open");
-  await expect.element(search).not.toBeInTheDocument();
-  await expect.element(settings).toHaveFocus();
-
-  await openSearch();
   await expect.element(search).toHaveValue("");
-  await userEvent.keyboard("{Escape}");
+  await expect.element(search).toHaveFocus();
 
+  // Esc on the empty field hands focus to the dialog without closing it.
+  await userEvent.keyboard("{Escape}");
   await expect.element(settings).toHaveAttribute("data-open");
-  await expect.element(search).not.toBeInTheDocument();
+  await expect.element(search).toBeVisible();
   await expect.element(settings).toHaveFocus();
 
   await userEvent.keyboard("{Escape}");

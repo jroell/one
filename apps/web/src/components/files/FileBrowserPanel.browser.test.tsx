@@ -83,6 +83,12 @@ function sizedContainer(): HTMLElement {
   return container;
 }
 
+function tallContainer(): HTMLElement {
+  const container = document.createElement("div");
+  container.style.cssText = "display:flex;flex-direction:column;height:640px;width:300px";
+  return container;
+}
+
 function withDirectoryListing(listing: readonly ProjectEntry[]): Disposable {
   directory.entries = listing;
   return {
@@ -93,7 +99,58 @@ function withDirectoryListing(listing: readonly ProjectEntry[]): Disposable {
   };
 }
 
+// Chromium reports (pointer: fine) here; the tree reads the media query once when it is created.
+function withCoarsePointer(): Disposable {
+  const real = window.matchMedia.bind(window);
+  const spy = vi.spyOn(window, "matchMedia").mockImplementation((query) =>
+    query.includes("pointer: coarse")
+      ? ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        } as MediaQueryList)
+      : real(query),
+  );
+  return { [Symbol.dispose]: () => spy.mockRestore() };
+}
+
 describe("FileBrowserPanel", () => {
+  it("reveals a file at the bottom of a long tree on the 44px rows a touch screen gets", async () => {
+    using _coarse = withCoarsePointer();
+    using _listing = withDirectoryListing([]);
+    const renderPanel = () => (
+      <FileBrowserPanel
+        environmentId={EnvironmentId.make("env-files")}
+        cwd="/repo-touch-rows"
+        projectName="repo"
+        selectedPath="src/file-0450.ts"
+        selectedPathRevealId={1}
+        onOpenFile={() => {}}
+        workspaceMutationId={null}
+      />
+    );
+    // The tree measures itself before the listing arrives, as it does for real.
+    directory.ready = false;
+    await using screen = await render(renderPanel(), { container: tallContainer() });
+    directory.entries = [
+      { path: "src", kind: "directory" },
+      ...Array.from({ length: 600 }, (_, index): ProjectEntry => ({
+        path: `src/file-${String(index).padStart(4, "0")}.ts`,
+        kind: "file",
+      })),
+    ];
+    directory.ready = true;
+    await screen.rerender(renderPanel());
+    await vi.waitFor(() => expect(isTreeRowInView("src/file-0450.ts")).toBe(true));
+    const row = findTreeRow("src/file-0450.ts")!;
+    expect(Math.round(row.getBoundingClientRect().height)).toBe(44);
+  });
+
   it("copies with the pointer and returns to the row after keyboard dismissal", async () => {
     await using _screen = await render(
       <FileBrowserPanel

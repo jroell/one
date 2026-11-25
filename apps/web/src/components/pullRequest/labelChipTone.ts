@@ -94,3 +94,11 @@ export function labelChipStyle(tone: LabelChipTone): CSSProperties {
   }
   return style as CSSProperties;
 }
+
+/**
+ * Only a label that says something is stuck keeps its color in the text; every other label is
+ * a neutral chip with a small dot in the label's color, so a list of five hues reads as one.
+ */
+export function labelChipEmphasis(name: string): "alert" | "quiet" {
+  return /\bblocked\b/i.test(name) ? "alert" : "quiet";
+}

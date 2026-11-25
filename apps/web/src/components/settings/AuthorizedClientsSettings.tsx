@@ -586,21 +586,67 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
   );
 });
 
+/**
+ * Revoking every other client sits inside the expanded list, as a text action that asks first.
+ * Beside the header's filled button it was one click from the wrong choice.
+ */
+export function RevokeOtherClientsAction({
+  clientSessions,
+  isRevoking,
+  onRevoke,
+}: {
+  readonly clientSessions: ReadonlyArray<ServerClientSessionRecord> | null;
+  readonly isRevoking: boolean;
+  readonly onRevoke: () => void;
+}) {
+  const gt = useGT();
+  const [confirming, setConfirming] = useState(false);
+  const canRevoke = !isRevoking && canRevokeOtherClients(clientSessions);
+  return (
+    <div className="flex min-h-11 items-center justify-end gap-2 border-t border-(--settings-hairline) px-3 sm:px-4">
+      {confirming ? (
+        <>
+          <span className="me-auto text-xs text-(--settings-description)">
+            {gt("Sign out every other client?")}
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+            <T>Cancel</T>
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive-outline"
+            disabled={!canRevoke}
+            onClick={() => {
+              setConfirming(false);
+              onRevoke();
+            }}
+          >
+            {gt("Revoke others")}
+          </Button>
+        </>
+      ) : (
+        <Button
+          size="sm"
+          variant="ghost-destructive"
+          disabled={!canRevoke}
+          onClick={() => setConfirming(true)}
+        >
+          {isRevoking ? gt("Revoking…") : gt("Revoke others")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 type AuthorizedClientsHeaderActionProps = {
   environmentId: EnvironmentId;
   onPairingLinkCreated: (result: AuthPairingCredentialResult) => void;
-  clientSessions: ReadonlyArray<ServerClientSessionRecord> | null;
-  isRevokingOtherClients: boolean;
-  onRevokeOtherClients: () => void;
   delegatableScopes: ReadonlyArray<AuthEnvironmentScope>;
 };
 
 export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHeaderAction({
   environmentId,
   onPairingLinkCreated,
-  clientSessions,
-  isRevokingOtherClients,
-  onRevokeOtherClients,
   delegatableScopes,
 }: AuthorizedClientsHeaderActionProps) {
   const gt = useGT();
@@ -677,23 +723,14 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button
-        size="xs"
-        variant="destructive-outline"
-        disabled={isRevokingOtherClients || !canRevokeOtherClients(clientSessions)}
-        onClick={() => void onRevokeOtherClients()}
-      >
-        {isRevokingOtherClients ? gt("Revoking…") : gt("Revoke others")}
-      </Button>
-      <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
-      <Button size="xs" variant="outline" onClick={() => openUseInAnotherApp(environmentId)}>
-        <PlugIcon className="size-3" />
+      <Button size="sm" variant="outline" onClick={() => openUseInAnotherApp(environmentId)}>
+        <PlugIcon className="size-3.5" />
         <T>Use in another app (MCP)</T>
       </Button>
       {pairingDenial !== undefined ? (
         <ManagedControl reason={pairingDenial}>
-          <Button size="xs" variant="default" disabled>
-            <PlusIcon className="size-3" />
+          <Button size="sm" variant="default" disabled>
+            <PlusIcon className="size-3.5" />
             <T>Create link</T>
           </Button>
         </ManagedControl>
@@ -705,8 +742,8 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
         {pairingDenial === undefined ? (
           <DialogTrigger
             render={
-              <Button size="xs" variant="default">
-                <PlusIcon className="size-3" />
+              <Button size="sm" variant="default">
+                <PlusIcon className="size-3.5" />
                 <T>Create link</T>
               </Button>
             }

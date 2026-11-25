@@ -23,7 +23,9 @@ export const PROVIDER_PRESENTATION = {
   },
   grok: {
     label: "Grok Build",
-    color: "color-mix(in oklab, var(--contrast-foreground) 72%, var(--background))",
+    // A hue of its own: in light a 72% foreground grey sat next to Codex's near-black.
+    color:
+      "var(--usage-provider-grok, color-mix(in oklab, var(--contrast-foreground) 72%, var(--background)))",
     driverKind: ProviderDriverKind.make("grok"),
   },
   cursor: { label: "Cursor", color: "#8b8b8b", driverKind: ProviderDriverKind.make("cursor") },

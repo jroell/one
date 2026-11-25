@@ -77,9 +77,16 @@ import { UsageProviderChart } from "./UsageProviderChart";
 import { SpeedPremium, UsageModelDialog } from "./UsageModelDialog";
 import { UsageShareBar } from "./UsageShareBar";
 import { UsageOverviewHeadline } from "./UsageOverviewHeadline";
-import { recalledProviderCount, rememberProviderCount, selectionKey } from "./usageSkeletonMemory";
+import {
+  recalledProviderCount,
+  recalledSnapshot,
+  rememberProviderCount,
+  rememberSnapshot,
+  selectionKey,
+  snapshotKey,
+} from "./usageSkeletonMemory";
 import { UsageSwitch } from "./UsageSwitch";
-import { useLatestRequestBusy } from "./useLatestRequestBusy";
+import { anyRefreshPending, usePendingRefreshes } from "./usePendingRefreshes";
 import {
   costTypeSegments,
   leadingProvider,
@@ -203,7 +210,7 @@ export function UsagePage() {
   const showingLimits = metric === "limits";
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Shown on the page and the refresh icon only; the automatic refresh never disables the button.
-  const [autoRefreshing, trackAutoRefresh] = useLatestRequestBusy();
+  const [pendingRefreshes, trackRefresh] = usePendingRefreshes();
   const [limitsNow, setLimitsNow] = useState(() => Date.now());
   const refreshingRef = useRef(false);
   const modalActionsRef = useRef<DialogPrimitive.Root.Actions | null>(null);
@@ -221,11 +228,18 @@ export function UsagePage() {
     isPartial,
     refresh,
   } = useUsage(window, selectedEnvironmentIds, hiddenProviders);
-  const merged = shown?.merged ?? answeredUsage;
-  const shownWindow = shown?.window ?? window;
+  // With nothing answered yet, the last settled figures for this view stand in, and the page
+  // updates them in place.
+  const carried =
+    shown ??
+    recalledSnapshot<NonNullable<typeof shown>>(
+      snapshotKey(selectionKey(selectedEnvironmentIds, hiddenProviders), windowDays),
+    );
+  const merged = carried?.merged ?? answeredUsage;
+  const shownWindow = carried?.window ?? window;
   const shownHourly = shownWindow.resolution === "hour";
   const refreshingUsage = isRefreshing && !showingLimits;
-  const showingKept = shown !== null && shown.window !== window;
+  const showingKept = carried !== null && carried.window !== window;
   const presentations = useAtomValue(environmentPresentations.presentationsAtom);
   const presentationsWithProviders = useAtomValue(
     environmentPresentations.presentationsWithProvidersAtom,
@@ -262,10 +276,13 @@ export function UsagePage() {
         Array.from(presentations, ([environmentId, presentation]) => {
           if (selectedEnvironmentIds !== null && !selectedEnvironmentIds.has(environmentId)) return;
           if (presentation.connection.phase === "connected" && presentation.serverConfig !== null) {
-            return refreshUsageLimits(
+            return trackRefresh(
               environmentId,
-              () => refreshProviders({ environmentId, input: {} }),
-              automatic,
+              refreshUsageLimits(
+                environmentId,
+                () => refreshProviders({ environmentId, input: {} }),
+                automatic,
+              ),
             );
           }
         }),
@@ -335,7 +352,7 @@ export function UsagePage() {
       setIsRefreshing(false);
     });
   };
-  const connectedLimitsEnvironments = [...presentations]
+  const connectedLimitIds = [...presentations]
     .filter(
       ([environmentId, presentation]) =>
         presentation.connection.phase === "connected" &&
@@ -343,10 +360,13 @@ export function UsagePage() {
         (selectedEnvironmentIds === null || selectedEnvironmentIds.has(environmentId)),
     )
     .map(([environmentId]) => environmentId)
-    .sort()
-    .join(",");
+    .sort();
+  const connectedLimitsEnvironments = connectedLimitIds.join(",");
+  // Progress follows the environments selected now: a refresh still pending for one of them shows
+  // it, and one left behind by a deselected or disconnected environment does not.
+  const autoRefreshing = anyRefreshPending(pendingRefreshes, connectedLimitIds);
   const autoRefreshLimits = useEffectEvent(() => {
-    void trackAutoRefresh(refreshLimits(true));
+    void refreshLimits(true);
   });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- refreshes provider limits from the server when the connected environment set changes
   useEffect(() => {
@@ -536,63 +556,67 @@ export function UsagePage() {
           <AppRouteModalClose />
         </header>
 
-        <ScrollArea className="min-h-0 flex-1" observeContent>
-          <WorkspacePageContainer width="wide" className="usage-page">
-            {selectedEnvironments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {environments.length === 0
-                  ? showingLimits
-                    ? gt("Connect an environment to see limits.")
-                    : gt("Connect an environment to see usage.")
-                  : showingLimits
-                    ? gt("Select an environment to see limits.")
-                    : gt("Select an environment to see usage.")}
-              </p>
-            ) : showingLimits ? (
-              <UsageLimitsSection
-                selectedEnvironmentIds={selectedEnvironmentIds}
-                hiddenProviders={hiddenProviders}
-                now={limitsNow}
-                refreshing={isRefreshing || autoRefreshing}
-              />
-            ) : shown === null ? (
-              <UsageSkeleton
-                metric={metric === "tokens" ? "tokens" : "cost"}
-                providerCount={recalledProviderCount(selectionKey(selectedEnvironmentIds), 4)}
-              />
-            ) : !canReadDiagnostics ? (
-              <div className="space-y-2 py-12 text-center text-sm text-muted-foreground">
-                {selectedEnvironments.map((environment) => (
-                  <p key={environment.environmentId}>
-                    {selectedEnvironments.length > 1
-                      ? gt("{environment}: {error}", {
-                          environment: environment.label,
-                          error: environment.error,
-                        })
-                      : environment.error}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <UsageOverview
-                merged={merged}
-                shownWindow={shownWindow}
-                hour12={hour12}
-                days={days}
-                hours={hours}
-                showingKept={showingKept}
-                metric={metric === "tokens" ? "tokens" : "cost"}
-                selectedEnvironments={selectedEnvironments}
-                hiddenProviders={hiddenProviders}
-                refreshingUsage={refreshingUsage}
-                showChatGptSharing={showChatGptSharing}
-                selectionKey={selectionKey(selectedEnvironmentIds)}
-                onSelectModel={selectUsageModel}
-              />
-            )}
-            <div aria-hidden className="usage-fade" />
-          </WorkspacePageContainer>
-        </ScrollArea>
+        <div className="usage-scroll flex min-h-0 flex-1 flex-col">
+          <ScrollArea className="min-h-0 flex-1" observeContent>
+            <WorkspacePageContainer width="wide" className="usage-page">
+              {selectedEnvironments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {environments.length === 0
+                    ? showingLimits
+                      ? gt("Connect an environment to see limits.")
+                      : gt("Connect an environment to see usage.")
+                    : showingLimits
+                      ? gt("Select an environment to see limits.")
+                      : gt("Select an environment to see usage.")}
+                </p>
+              ) : showingLimits ? (
+                <UsageLimitsSection
+                  selectedEnvironmentIds={selectedEnvironmentIds}
+                  hiddenProviders={hiddenProviders}
+                  now={limitsNow}
+                  refreshing={isRefreshing || autoRefreshing}
+                />
+              ) : carried === null ? (
+                <UsageSkeleton
+                  providerCount={recalledProviderCount(
+                    selectionKey(selectedEnvironmentIds, hiddenProviders),
+                    4,
+                  )}
+                />
+              ) : !canReadDiagnostics ? (
+                <div className="space-y-2 py-12 text-center text-sm text-muted-foreground">
+                  {selectedEnvironments.map((environment) => (
+                    <p key={environment.environmentId}>
+                      {selectedEnvironments.length > 1
+                        ? gt("{environment}: {error}", {
+                            environment: environment.label,
+                            error: environment.error,
+                          })
+                        : environment.error}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <UsageOverview
+                  merged={merged}
+                  shownWindow={shownWindow}
+                  hour12={hour12}
+                  days={days}
+                  hours={hours}
+                  showingKept={showingKept}
+                  metric={metric === "tokens" ? "tokens" : "cost"}
+                  selectedEnvironments={selectedEnvironments}
+                  hiddenProviders={hiddenProviders}
+                  refreshingUsage={refreshingUsage}
+                  showChatGptSharing={showChatGptSharing}
+                  selectionKey={selectionKey(selectedEnvironmentIds, hiddenProviders)}
+                  windowDays={windowDays}
+                  onSelectModel={selectUsageModel}
+                />
+              )}
+            </WorkspacePageContainer>
+          </ScrollArea>
+        </div>
       </div>
       {showingLimits ? null : (
         <UsageModelDialogHost
@@ -637,6 +661,7 @@ function UsageOverview({
   refreshingUsage,
   showChatGptSharing,
   selectionKey: selection,
+  windowDays,
   onSelectModel,
 }: {
   readonly merged: MergedUsage;
@@ -651,6 +676,7 @@ function UsageOverview({
   readonly refreshingUsage: boolean;
   readonly showChatGptSharing: boolean;
   readonly selectionKey: string;
+  readonly windowDays: number;
   readonly onSelectModel: (key: string) => void;
 }) {
   const gt = useGT();
@@ -696,11 +722,14 @@ function UsageOverview({
   );
   const rankedProviders = rankProvidersByMetric(activeProviders, merged.providers, metric);
   const leader = leadingProvider(merged.providers, metric);
-  const settledProviderCount = loadingPartial ? 0 : providersWithData.size;
+  const providerCount = providersWithData.size;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- remembers the settled provider count in a module cache for the next skeleton
   useEffect(() => {
-    rememberProviderCount(selection, settledProviderCount);
-  }, [selection, settledProviderCount]);
+    // Only a settled answer counts, and a settled zero is one.
+    if (loadingPartial) return;
+    rememberProviderCount(selection, providerCount);
+    rememberSnapshot(snapshotKey(selection, windowDays), { window: shownWindow, merged });
+  }, [selection, providerCount, loadingPartial, windowDays, shownWindow, merged]);
 
   return (
     <div aria-busy={loadingPartial} className="usage-stack">
@@ -718,19 +747,20 @@ function UsageOverview({
             metric === "cost" ? formatUsd(merged.costUsd, locale) : formatTokens(merged.totalTokens)
           }
           days={shownHourly ? 1 : days.length}
+          loading={loadingPartial}
         />
       )}
       <section className="usage-panel usage-summary">
         <div className="usage-summary-side">
           <div className="flex flex-col gap-1">
-            <p className={cn("usage-hero", figureClass(loadingPartial))}>
+            <p className="usage-hero">
               {metric === "cost"
                 ? formatUsd(merged.costUsd, locale)
                 : formatTokens(merged.totalTokens)}
             </p>
             <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <span>
-                <span className={figureClass(loadingPartial)}>
+                <span>
                   {gt("{count, plural, one {{formatted} sessions} other {{formatted} sessions}}", {
                     count: merged.sessions,
                     formatted: formatCount(merged.sessions, locale),
@@ -789,27 +819,11 @@ function UsageOverview({
                       }}
                     />
                     <ProviderMark provider={provider} className="size-4" />
-                    <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                      <span className="whitespace-nowrap">
-                        {PROVIDER_PRESENTATION[provider].label}
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 whitespace-nowrap text-2xs text-muted-foreground tabular-nums",
-                          figureClass(providerLoading),
-                          awaitingData && "invisible",
-                        )}
-                      >
-                        {sessionLabel}
-                      </span>
+                    <span className="whitespace-nowrap">
+                      {PROVIDER_PRESENTATION[provider].label}
                     </span>
                   </dt>
-                  <dd
-                    className={cn(
-                      "shrink-0 text-sm font-medium text-foreground tabular-nums",
-                      figureClass(providerLoading),
-                    )}
-                  >
+                  <dd className={cn("shrink-0 text-sm font-medium text-foreground tabular-nums")}>
                     {awaitingData
                       ? "-"
                       : metric === "cost"
@@ -819,11 +833,7 @@ function UsageOverview({
                 </dl>
                 <span
                   aria-hidden
-                  className={cn(
-                    "usage-share-mini",
-                    figureClass(providerLoading),
-                    awaitingData && "invisible",
-                  )}
+                  className={cn("usage-share-mini", awaitingData && "invisible")}
                   style={
                     {
                       "--usage-accent": PROVIDER_PRESENTATION[provider].color,
@@ -831,22 +841,20 @@ function UsageOverview({
                     } as CSSProperties
                   }
                 />
-                <p
-                  className={cn(
-                    "text-xs text-muted-foreground",
-                    figureClass(providerLoading),
-                    awaitingData && "invisible",
-                  )}
-                >
-                  {metric === "cost"
-                    ? gt("{share} of cost · {tokens} tokens", {
-                        share: formatPercent(share),
-                        tokens: formatTokens(totals?.totalTokens ?? 0),
-                      })
-                    : gt("{share} of tokens · {cost}", {
-                        share: formatPercent(share),
-                        cost: formatUsd(totals?.costUsd ?? 0, locale),
-                      })}
+                <p className={cn("usage-provider-facts", awaitingData && "invisible")}>
+                  <span>{sessionLabel}</span>
+                  <span aria-hidden>·</span>
+                  <span>
+                    {metric === "cost"
+                      ? gt("{share} of cost · {tokens} tokens", {
+                          share: formatPercent(share),
+                          tokens: formatTokens(totals?.totalTokens ?? 0),
+                        })
+                      : gt("{share} of tokens · {cost}", {
+                          share: formatPercent(share),
+                          cost: formatUsd(totals?.costUsd ?? 0, locale),
+                        })}
+                  </span>
                 </p>
               </div>
             );
@@ -883,35 +891,21 @@ function UsageOverview({
         <h2 className="usage-heading">
           <T>Totals</T>
         </h2>
-        <dl
-          className="usage-panel usage-metrics"
-          style={{ "--usage-metrics": metric === "cost" ? 5 : 4 } as CSSProperties}
-        >
-          {/* On Tokens the hero already says this number. */}
-          {metric === "cost" ? (
-            <Metric
-              loading={loadingPartial}
-              label={gt("Processed tokens")}
-              value={formatTokens(merged.totalTokens)}
-            />
-          ) : null}
+        {/* The same five tiles on every tab; the tab's own metric stands forward. */}
+        <dl className="usage-panel usage-metrics">
           <Metric
-            loading={loadingPartial}
-            label={gt("Cached input")}
-            value={formatTokens(merged.cachedInputTokens)}
+            emphasis={metric === "tokens"}
+            label={gt("Processed tokens")}
+            value={formatTokens(merged.totalTokens)}
           />
+          <Metric label={gt("Cached input")} value={formatTokens(merged.cachedInputTokens)} />
+          <Metric label={gt("Uncached input")} value={formatTokens(merged.uncachedInputTokens)} />
           <Metric
-            loading={loadingPartial}
-            label={gt("Uncached input")}
-            value={formatTokens(merged.uncachedInputTokens)}
-          />
-          <Metric
-            loading={loadingPartial}
             label={gt("Output", { $context: "output tokens" })}
             value={formatTokens(merged.outputTokens)}
           />
           <Metric
-            loading={loadingPartial}
+            emphasis={metric === "cost"}
             label={gt("Cache savings")}
             value={formatUsd(merged.costQuality.cacheSavingsUsd, locale)}
           />
@@ -919,7 +913,7 @@ function UsageOverview({
       </section>
 
       {merged.totalTokens > 0 ? (
-        <section className={cn("usage-share-grid", figureClass(loadingPartial))}>
+        <section className="usage-share-grid">
           {metric === "tokens" ? (
             <UsageShareBar
               label={gt("Tokens by type")}
@@ -995,7 +989,6 @@ function UsageOverview({
                     const value = metric === "tokens" ? model.totalTokens : model.costUsd;
                     const hasBar = value > 0 && breakdownPeak > 0;
                     const share = modelShare(model, metric === "tokens" ? "tokens" : "cost");
-                    const rowFigures = figureClass(loadingProviders.has(model.provider));
                     return (
                       <tr
                         key={key}
@@ -1015,7 +1008,7 @@ function UsageOverview({
                             {model.model}
                           </button>
                           {hasBar ? (
-                            <div aria-hidden className={cn("usage-row-bar", rowFigures)}>
+                            <div aria-hidden className="usage-row-bar">
                               <div
                                 className="usage-row-bar-fill"
                                 style={{
@@ -1026,7 +1019,7 @@ function UsageOverview({
                             </div>
                           ) : null}
                         </td>
-                        <td className={cn("py-2.5 pl-6 text-foreground", rowFigures)}>
+                        <td className="py-2.5 pl-6 text-foreground">
                           {isModelCostUnknown(model) ? (
                             <span className="text-muted-foreground">
                               <T>Unpriced</T>
@@ -1035,12 +1028,10 @@ function UsageOverview({
                             formatUsd(model.costUsd, locale)
                           )}
                         </td>
-                        <td className={cn("hidden py-2.5 pl-6 sm:table-cell", rowFigures)}>
+                        <td className="hidden py-2.5 pl-6 sm:table-cell">
                           {share === null ? "" : formatPercent(share)}
                         </td>
-                        <td className={cn("py-2.5 pr-2 pl-6", rowFigures)}>
-                          {formatTokens(model.totalTokens)}
-                        </td>
+                        <td className="py-2.5 pr-2 pl-6">{formatTokens(model.totalTokens)}</td>
                       </tr>
                     );
                   })
@@ -1099,28 +1090,15 @@ function UsageOverview({
                       {activeProviders.map((provider) => (
                         <td
                           key={provider}
-                          className={cn(
-                            "py-2 pl-4 text-right text-muted-foreground tabular-nums",
-                            figureClass(loadingProviders.has(provider)),
-                          )}
+                          className="py-2 pl-4 text-right text-muted-foreground tabular-nums"
                         >
                           {formatUsd(period.byProvider.get(provider)?.costUsd ?? 0, locale)}
                         </td>
                       ))}
-                      <td
-                        className={cn(
-                          "py-2 pl-4 text-right text-foreground tabular-nums",
-                          figureClass(loadingPartial),
-                        )}
-                      >
+                      <td className="py-2 pl-4 text-right text-foreground tabular-nums">
                         {formatUsd(period.costUsd, locale)}
                       </td>
-                      <td
-                        className={cn(
-                          "py-2 pr-2 pl-4 text-right text-muted-foreground tabular-nums",
-                          figureClass(loadingPartial),
-                        )}
-                      >
+                      <td className="py-2 pr-2 pl-4 text-right text-muted-foreground tabular-nums">
                         {formatTokens(period.totalTokens)}
                       </td>
                     </tr>
@@ -1152,23 +1130,20 @@ function ProviderMark({
   );
 }
 
-function figureClass(loading: boolean) {
-  return cn("transition-opacity", loading && "opacity-40 delay-150");
-}
-
 function Metric({
   label,
   value,
-  loading,
+  emphasis = false,
 }: {
   readonly label: string;
   readonly value: string;
-  readonly loading: boolean;
+  /** The tile for the tab's own metric: same tiles on every tab, one stands forward. */
+  readonly emphasis?: boolean;
 }) {
   return (
-    <div className="usage-metric">
+    <div className="usage-metric" data-emphasis={emphasis ? "" : undefined}>
       <dt>{label}</dt>
-      <dd className={figureClass(loading)}>{value}</dd>
+      <dd>{value}</dd>
     </div>
   );
 }
@@ -1424,13 +1399,7 @@ function UsageProviderFilter({
  * Built from the same panels, rows and heights as the loaded page, so data arriving fills the
  * layout in place. The provider count is the last one shown for this selection.
  */
-function UsageSkeleton({
-  metric,
-  providerCount,
-}: {
-  readonly metric: "tokens" | "cost";
-  readonly providerCount: number;
-}) {
+function UsageSkeleton({ providerCount }: { readonly providerCount: number }) {
   const gt = useGT();
   return (
     <div className="usage-stack">
@@ -1484,7 +1453,6 @@ function UsageSkeleton({
           <T>Totals</T>
         </h2>
         <MetricSkeletons
-          metric={metric}
           labels={[
             gt("Processed tokens"),
             gt("Cached input"),
@@ -1526,20 +1494,10 @@ function UsageSkeleton({
   );
 }
 
-function MetricSkeletons({
-  labels,
-  metric,
-}: {
-  readonly labels: readonly string[];
-  readonly metric: "tokens" | "cost";
-}) {
-  const shown = metric === "cost" ? labels : labels.slice(1);
+function MetricSkeletons({ labels }: { readonly labels: readonly string[] }) {
   return (
-    <div
-      className="usage-panel usage-metrics"
-      style={{ "--usage-metrics": shown.length } as CSSProperties}
-    >
-      {shown.map((label) => (
+    <div className="usage-panel usage-metrics">
+      {labels.map((label) => (
         <div key={label} className="usage-metric">
           <dt>{label}</dt>
           <Skeleton className="h-7 w-16" />

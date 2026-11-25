@@ -15,7 +15,6 @@ import {
 } from "./voiceBridge";
 import { getVoiceChatStyle, setVoiceChatStyle, useVoiceChatStyle } from "./voiceChatPreferences";
 import {
-  claimVoiceMessage,
   dispatchVoiceSession,
   getVoiceSession,
   speechDeadlineMs,
@@ -79,6 +78,8 @@ function setup() {
     error: null as string | null,
     /** A start that was requested and has not begun recording (the permission prompt is open). */
     pendingStart: false,
+    /** Told the message id when the composer sends the transcript; the real composer's own send is tested with the app. */
+    onSent: null as ((messageId: string) => void) | null,
     holdStarts: false,
     /** The start waits on a speech status check that has not answered yet; the recorder reports idle. */
     pendingStatus: null as AbortSignal | null,
@@ -128,8 +129,9 @@ function setup() {
         publish();
         return Promise.resolve("started");
       },
-      submit: () => {
+      submit: (onSent) => {
         microphone.submits += 1;
+        microphone.onSent = onSent;
         microphone.phase = "transcribing";
         publish();
       },
@@ -150,7 +152,8 @@ function setup() {
     /** The transcript arrived and the composer sent it under `messageId`, as it does after dictation. */
     finishTranscribing: (messageId: string = QUESTION.id) =>
       act(() => {
-        claimVoiceMessage(microphone.threadKey, messageId);
+        microphone.onSent?.(messageId);
+        microphone.onSent = null;
         microphone.phase = "idle";
         publish();
       }),
@@ -989,6 +992,34 @@ it("voice chat keeps reading a reply the engine began between the 4 and 6 second
   await act(() => vi.advanceTimersByTime(speechDeadlineMs("Light bends inside each drop.")));
   expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
   expect(voice.spoken).toHaveLength(1);
+});
+
+it("voice chat moves on from a reply the engine dropped between the 4 and 6 second checks, without queueing it again", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  // The engine holds the utterance queued at the first check, then drops it without any event.
+  const engine = { pending: true };
+  using _pending = vi
+    .spyOn(window.speechSynthesis, "pending", "get")
+    .mockImplementation(() => engine.pending);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
+  expect(voice.spoken).toHaveLength(1);
+
+  await act(() => vi.advanceTimersByTime(5_000));
+  engine.pending = false;
+  // The checks read the page directly: waiting for it would also move the fake clock on.
+  await act(() => vi.advanceTimersByTime(1_000));
+  expect(voice.spoken).toHaveLength(1);
+  expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
+  expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 });
 });
 
 it("voice chat steps aside when a secret request appears in the thread while the agent answers", async () => {

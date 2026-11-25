@@ -35,6 +35,11 @@ export function clipAtWord(
   return { head: text.slice(0, end), rest: text.slice(end) };
 }
 
+function sameClip(a: ClippedTitle | null, b: ClippedTitle | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.head === b.head && a.rest === b.rest;
+}
+
 let canvas: CanvasRenderingContext2D | null | undefined;
 
 function measurerFor(element: HTMLElement): ((text: string) => number) | null {
@@ -71,7 +76,7 @@ export function useWordEllipsis(
       const used = siblings.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
       const room = line.clientWidth - used - gap * siblings.length;
       const next = clipAtWord(text, room, measure);
-      setClipped((held) => (held?.head === next?.head && held?.rest === next?.rest ? held : next));
+      setClipped((held) => (sameClip(held, next) ? held : next));
     };
     update();
     const stopObserving = observeResize(
@@ -79,7 +84,8 @@ export function useWordEllipsis(
       update,
     );
     // A web font that arrives late changes every width at once.
-    void document.fonts?.ready.then(update);
+    const fonts = document.fonts;
+    if (fonts) void fonts.ready.then(update);
     return stopObserving;
   }, [text, enabled]);
   return { ref, clipped };

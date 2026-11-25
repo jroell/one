@@ -214,25 +214,35 @@ function SidebarUtilityItem({
   icon,
   label,
   shortcutLabel,
+  active = false,
   onClick,
 }: {
   icon: ReactNode;
   label: string;
   shortcutLabel?: string | null;
+  /** The page this icon opens is the one on screen. */
+  active?: boolean;
   onClick: () => void;
 }) {
+  const gt = useGT();
   return (
     <SidebarMenuItem className="shrink-0">
       <Tooltip>
         <TooltipTrigger
           render={
-            <SidebarMenuButton aria-label={label} onClick={onClick} size="icon">
+            <SidebarMenuButton
+              aria-label={label}
+              aria-current={active ? "page" : undefined}
+              isActive={active}
+              onClick={onClick}
+              size="icon"
+            >
               {icon}
             </SidebarMenuButton>
           }
         />
         <TooltipPopup side="top">
-          {label}
+          {active ? gt("{page}: click to go back", { page: label }) : label}
           {shortcutLabel ? ` (${shortcutLabel})` : ""}
         </TooltipPopup>
       </Tooltip>
@@ -245,9 +255,12 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigateToMainApp = useNavigateToMainApp();
   const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
-  const isOnUtilityPage = useLocation({
-    select: (location) => isSidebarUtilityPage(location.pathname),
-  });
+  const pathname = useLocation({ select: (location) => location.pathname });
+  // The footer keeps its four icons on every page, with the open page's icon lit; clicking it
+  // goes back. Pages with no icon of their own (a project, workflows) keep the Back button.
+  const activePage =
+    pathname === "/pull-requests" ? "pull-requests" : pathname === "/issues" ? "issues" : null;
+  const isOnUtilityPage = isSidebarUtilityPage(pathname) && activePage === null;
   const pullRequestsSupported = usePullRequestsSupported();
   const issuesSupported = useIssuesSupported();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -308,14 +321,16 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             <SidebarUtilityItem
               icon={<PullRequestGlyph.pullRequest />}
               label={gt("Pull requests")}
-              onClick={handlePullRequestsClick}
+              active={activePage === "pull-requests"}
+              onClick={activePage === "pull-requests" ? handleBackClick : handlePullRequestsClick}
             />
           ) : null}
           {issuesSupported ? (
             <SidebarUtilityItem
               icon={<IssueGlyph.issue />}
               label={gt("Issues", { $context: "sidebar link to the list of issues" })}
-              onClick={handleIssuesClick}
+              active={activePage === "issues"}
+              onClick={activePage === "issues" ? handleBackClick : handleIssuesClick}
             />
           ) : null}
           <SidebarUtilityItem

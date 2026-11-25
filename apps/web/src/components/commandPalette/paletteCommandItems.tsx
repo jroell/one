@@ -193,7 +193,7 @@ export function buildKeyboardShortcutsItem(resolve: MessageResolver): CommandPal
     kind: "action",
     value: "action:keyboard-shortcuts",
     section: "help",
-    title: resolve(msg("Keyboard shortcuts")),
+    title: resolve(msg("Show keyboard shortcuts")),
     searchTerms: ["keyboard shortcuts", "cheat sheet", "hotkeys", "keys", "bindings", "help"],
     icon: <KeyboardIcon className={ITEM_ICON_CLASS} />,
     shortcutCommand: "shortcuts.show",

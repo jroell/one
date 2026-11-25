@@ -62,9 +62,9 @@ const KANA_MIN_LETTERS = 2;
 const KANA_MIN_SHARE = 0.04;
 
 /** Scripts whose text identifies its language, and the languages written in them. */
-const SCRIPT_LANGUAGES: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>, number]> = [
-  // Japanese text is mostly kanji with some kana, so a little kana is enough.
-  [KANA, ["ja"], 0.1],
+const SCRIPT_LANGUAGES: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>, number, number?]> = [
+  // Japanese text is mostly kanji with some kana, so a little kana is enough, but not one letter.
+  [KANA, ["ja"], 0.1, KANA_MIN_LETTERS],
   [/[\uac00-\ud7af]/g, ["ko"], SCRIPT_SHARE],
   [/[\u0400-\u04ff]/g, ["ru", "uk", "bg", "sr", "be", "mk"], SCRIPT_SHARE],
   [/[\u0600-\u06ff]/g, ["ar", "fa", "ur"], SCRIPT_SHARE],
@@ -83,9 +83,9 @@ export function replyLanguage(text: string, pageLanguage: string): string {
   const page = pageLanguage.slice(0, 2).toLowerCase();
   const letters = text.match(/\p{L}/gu)?.length ?? 0;
   if (letters === 0) return pageLanguage;
-  for (const [script, languages, minShare] of SCRIPT_LANGUAGES) {
+  for (const [script, languages, minShare, minLetters = 1] of SCRIPT_LANGUAGES) {
     const inScript = text.match(script)?.length ?? 0;
-    if (inScript / letters < minShare) continue;
+    if (inScript < minLetters || inScript / letters < minShare) continue;
     return languages.includes(page) ? pageLanguage : (languages[0] ?? pageLanguage);
   }
   // Han characters are written in Chinese, Japanese and Korean. Enough kana, or any hangul, names

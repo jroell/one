@@ -128,6 +128,7 @@ import {
   accessLevel,
   FleetDetails,
   type FleetDetailsProps,
+  FleetSummaryText,
   HealthGlyph,
   healthLabel,
   healthTone,
@@ -185,9 +186,9 @@ const ROUTE_STYLES: Record<
   { readonly wire: string; readonly width: number; readonly dash?: string; readonly pill: string }
 > = {
   "in-use": {
-    wire: "text-success",
+    wire: "text-primary",
     width: 1.75,
-    pill: "border-success/70 font-medium text-foreground",
+    pill: "border-primary/70 font-medium text-foreground",
   },
   standby: { wire: "text-muted-foreground/60", width: 1, pill: "border-border" },
   trying: { wire: "text-warning", width: 1, dash: "1 4", pill: "border-warning/60" },
@@ -906,15 +907,17 @@ function FleetCanvas({
             />
           </InputGroup>
         </div>
-        <p role="status" className="min-w-0 text-2xs text-muted-foreground">
-          {matches === null
-            ? null
-            : matchIds.length === 0
-              ? gt("No machine by that name")
-              : gt("{count, plural, one {# match} other {# matches}}", {
-                  count: matchIds.length,
-                  $context: "how many machines a search by name found",
-                })}
+        <p role="status" className="min-w-0 text-xs text-(--settings-description)">
+          {matches === null ? (
+            <FleetSummaryText graph={graph} links={graph.edges.filter(isLinkEdge)} />
+          ) : matchIds.length === 0 ? (
+            gt("No machine by that name")
+          ) : (
+            gt("{count, plural, one {# match} other {# matches}}", {
+              count: matchIds.length,
+              $context: "how many machines a search by name found",
+            })
+          )}
         </p>
         <div className="ml-auto flex items-center gap-2">
           {selected.size > 0 ? (
@@ -1004,12 +1007,12 @@ function FleetCanvas({
         ref={setCanvas}
         data-dragging={dragging || undefined}
         data-glide={glide || undefined}
-        className="relative min-h-45 cursor-grab touch-none overflow-clip bg-background/50 select-none data-dragging:cursor-grabbing data-glide:transition-[height,background-size,background-position] data-glide:duration-200 data-glide:ease-out motion-reduce:transition-none"
+        className="relative min-h-70 cursor-grab touch-none overflow-clip bg-background/50 select-none data-dragging:cursor-grabbing data-glide:transition-[height,background-size,background-position] data-glide:duration-200 data-glide:ease-out motion-reduce:transition-none"
         style={
           view === null || size === null
             ? undefined
             : {
-                height: size.height,
+                height: Math.max(size.height, 280),
                 backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1.5px)",
                 backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`,
                 backgroundPosition: `${view.x}px ${view.y}px`,
@@ -1046,33 +1049,36 @@ function FleetCanvas({
       {/* Below the canvas, not over it: nothing on the map can end up under the controls. */}
       <div className="flex items-center justify-between gap-3 bg-background/50 px-3 py-1">
         <FleetLegend twoWay={fleetTwoWayLinks(graph).size > 0} />
-        <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border/60 bg-popover/90 p-0.5 shadow-xs/5">
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label={gt("Zoom out")}
-            onClick={() => zoom(0.8)}
-          >
-            <MinusIcon />
-          </Button>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label={gt("Zoom in")}
-            onClick={() => zoom(1.25)}
-          >
-            <PlusIcon />
-          </Button>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label={gt("Fit the map to view")}
-            disabled={held === null}
-            onClick={fit}
-          >
-            <MaximizeIcon />
-          </Button>
-        </div>
+        {/* Two or three machines fit on the map as they are, so zooming is offered from six. */}
+        {graph.nodes.length < 6 ? null : (
+          <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border/60 bg-popover/90 p-0.5 shadow-xs/5">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label={gt("Zoom out")}
+              onClick={() => zoom(0.8)}
+            >
+              <MinusIcon />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label={gt("Zoom in")}
+              onClick={() => zoom(1.25)}
+            >
+              <PlusIcon />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              aria-label={gt("Fit the map to view")}
+              disabled={held === null}
+              onClick={fit}
+            >
+              <MaximizeIcon />
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );

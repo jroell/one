@@ -1,3 +1,4 @@
+import { binaryPatchPaths } from "./binaryPatchPaths";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import type {
@@ -151,8 +152,17 @@ export function useReviewFilePatches({
       ] as const;
     }),
   );
+  // Servers that predate the numstat binary flag leave it to the patch each file loads.
+  const loadedBinaryPaths = new Set(
+    files.flatMap((_, index) => {
+      const result = patches.get(index);
+      const value = result && Option.getOrUndefined(AsyncResult.value(result));
+      return value ? binaryPatchPaths(value.source.diff) : [];
+    }),
+  );
   return {
     fileStates,
+    loadedBinaryPaths,
     isPending: [...patches.values()].some((patch) => patch._tag === "Initial" || patch.waiting),
     retry,
     requestFile,

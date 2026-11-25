@@ -1058,7 +1058,6 @@ function ResourceTelemetryDiagnosticsBody({
     <>
       <SettingsSection
         title={gt("Resource monitor")}
-        icon={<ActivityIcon className="size-4 text-muted-foreground" />}
         headerAction={
           <div className="flex items-center gap-2">
             {snapshot ? (
@@ -1218,7 +1217,6 @@ function ResourceTelemetryDiagnosticsBody({
 
       <SettingsSection
         title={gt("Host & collection")}
-        icon={<GaugeIcon className="size-4 text-muted-foreground" />}
         headerAction={
           collectorNeedsRetry ? (
             <Button size="xs" variant="outline" disabled={isRetrying} onClick={retryCollector}>
@@ -1364,7 +1362,6 @@ function ResourceTelemetryDiagnosticsBody({
 
       <SettingsSection
         title={gt("Resource timeline")}
-        icon={<HardDriveIcon className="size-4 text-muted-foreground" />}
         headerAction={
           <div className="flex items-center gap-2">
             <HistoryWindowSelector selectedWindowMs={windowMs} onSelect={setWindowMs} />
@@ -1394,7 +1391,6 @@ function ResourceTelemetryDiagnosticsBody({
 
       <SettingsSection
         title={gt("Live process tree")}
-        icon={<CpuIcon className="size-4 text-muted-foreground" />}
         headerAction={
           snapshot ? (
             <span className="text-2xs text-(--settings-description)">
@@ -1417,7 +1413,6 @@ function ResourceTelemetryDiagnosticsBody({
 
       <SettingsSection
         title={gt("Instrumented application I/O")}
-        icon={<DatabaseIcon className="size-4 text-muted-foreground" />}
         headerAction={
           <span className="text-2xs text-(--settings-description)">
             <T>Logical bytes by operation</T>

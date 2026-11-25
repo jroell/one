@@ -135,6 +135,7 @@ function useFetchedTurnItem(
             ? gt("Output is no longer available.")
             : detail.error,
       empty: fetches && item !== wireItem,
+      itemType: item.type,
     },
   };
 }
@@ -146,6 +147,7 @@ interface ToolOutputState {
   readonly pending: boolean;
   readonly error: string | null;
   readonly empty: boolean;
+  readonly itemType: string;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }
 
@@ -164,8 +166,9 @@ function ToolOutputImages(props: ToolOutputState) {
 }
 
 function ToolOutput(props: ToolOutputState) {
-  return props.output ? (
-    <StructuredValue value={toolOutputDisplayText(props.output)} highlightJson />
+  const text = props.output === null ? null : toolOutputDisplayText(props.output, props.itemType);
+  return text ? (
+    <StructuredValue value={text} highlightJson />
   ) : props.pending ? (
     <div className="text-muted-foreground italic">
       <T>Loading output…</T>
@@ -176,7 +179,7 @@ function ToolOutput(props: ToolOutputState) {
         Couldn&apos;t load output: <Var>{props.error}</Var>
       </T>
     </div>
-  ) : props.empty && props.images.length === 0 ? (
+  ) : (props.empty || text === "") && props.images.length === 0 ? (
     <div className="text-muted-foreground italic">
       <T>No output.</T>
     </div>

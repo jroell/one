@@ -35,9 +35,10 @@ describe("buildShortcutSections", () => {
     ]);
   });
 
-  it("groups composer, model picker and queue commands under Composer, and pull request commands under Git, not all under Thread", () => {
+  it("groups chat, composer, model picker and queue commands each under their own heading, and pull request commands under Git, not all under Thread", () => {
     const sections = build([
       { command: "thread.previous", key: "mod+[" },
+      { command: "chat.find", key: "mod+f" },
       { command: "modelPicker.toggle", key: "mod+shift+m" },
       { command: "composer.mode", key: "shift+tab" },
       { command: "thread.steerQueuedMessage", key: "mod+shift+enter" },
@@ -49,6 +50,7 @@ describe("buildShortcutSections", () => {
       sections.map((section) => [section.title, section.rows.map((row) => row.command).toSorted()]),
     ).toEqual([
       ["Thread", ["thread.previous"]],
+      ["Chat", ["chat.find"]],
       [
         "Composer",
         ["composer.mode", "modelPicker.toggle", "thread.steerQueuedMessage", "voiceChat.toggle"],
@@ -71,6 +73,20 @@ describe("buildShortcutSections", () => {
     ]);
   });
 
+  it("finds a key the sheet draws as a glyph by its spoken name", () => {
+    const config = [
+      { command: "thread.next" as const, key: "mod+arrowdown" },
+      { command: "thread.previous" as const, key: "mod+arrowup" },
+      { command: "composer.sendAndNewThread" as const, key: "mod+enter" },
+    ];
+    const commands = (query: string) =>
+      build(config, { query }).flatMap((section) => section.rows.map((row) => row.command));
+
+    expect(commands("up arrow")).toEqual(["thread.previous"]);
+    expect(commands("enter")).toContain("composer.sendAndNewThread");
+    expect(commands("down")).toEqual(["thread.next"]);
+  });
+
   it("shows alternate keys on one row and drops unassigned and other-platform keys", () => {
     const sections = build([
       { command: "chat.new", key: "mod+n", when: "!terminalFocus" },
@@ -87,7 +103,7 @@ describe("buildShortcutSections", () => {
       ]),
     ).toEqual([
       [
-        "Thread",
+        "Chat",
         [
           [
             "Chat: new",

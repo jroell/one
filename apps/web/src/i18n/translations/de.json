@@ -1874,6 +1874,7 @@
   "5cfaaa20c460c328": "Projekt anheften",
   "24adf508b4c5d6b5": "Projekteinstellungen",
   "b84aab627c7ea22a": "Führt diesen Befehl aus",
+  "0e4e652b19e678cd": "Tastenkürzel in den Einstellungen bearbeiten",
   "60e47b3da5901619": "Einstellungen · {section}",
   "0c659f9a193255dd": "Projekt konnte nicht hinzugefügt werden",
   "4b3fc098d5a08a66": "Windows-Pfade werden nur unter Windows unterstützt.",
@@ -3076,7 +3077,6 @@
   "37d95099eda1cb07": "Datei erwähnen",
   "9ad3991623c13e3a": "Projekt durchsuchen",
   "e880959d9520231a": "Änderungen prüfen",
-  "4ddc6c71a3c1e1f0": "Befehlspalette öffnen",
   "ed5bcda94f8073c3": "Möglichkeiten zum Einstieg",
   "08f1f52863b218eb": "Etwas lernen",
   "e03b497cd0a72c68": "Erkläre mir etwas über ",
@@ -3176,6 +3176,7 @@
   "cbee198401377241": "Öffne One in der Desktop-App, um die App-Vorschau zu nutzen.",
   "25b9aae7f44e4030": "{mode, select, system {Darstellung: System} light {Darstellung: Hell} other {Darstellung: Dunkel}}",
   "2ee68a0e8a4986c2": "Thread",
+  "fea77d3c094dee44": "Chat",
   "88e9d83bcac42b73": "Eingabefeld",
   "7fce70215a6aea24": "Ansicht",
   "3ef5788ff1a3de48": "Git",
@@ -5375,7 +5376,7 @@
   "300a948f90c4d75c": "Zurück",
   "2a50e229df85d553": "Vorwärts",
   "4f58bcacf894c5bc": "Nicht verfügbar",
-  "1ab50db28dbddd0d": "Tastenkürzel",
+  "a6351e5f8a90ab28": "Tastenkürzel anzeigen",
   "db5d85fdadff2f5b": "Arbeitsbereichspfad kopieren",
   "7b24be8e29a2efc5": "Thread-ID kopieren",
   "d733142d9607d7ff": "Zurückstellen bis",
@@ -6139,11 +6140,11 @@
   "f77af0fd4c6acea1": "Neueste",
   "fe29b2b34080619c": "Alle Issue-Tracker",
   "fc18975e50af8dca": "Die nächste Seite konnte nicht geladen werden.",
+  "a6737de3dffa9050": "{count} {state, select, open {offen} closed {geschlossen} other {insgesamt}} in {scopes, plural, one {# Repository} other {# Repositories}}",
   "59319a2f40023e3e": "Probleme werden geladen…",
   "17113c6308c69f67": "Warte noch darauf, dass der Tracker Issues auflistet…",
   "283ada62d3847554": "{count, plural, one {{count} Projekt} other {{count} Projekte}}",
   "7cae1b414ae74c6b": "Dieser Tracker kann gerade nicht gelesen werden.",
-  "beea95f3311c84c0": "Issue-Pfad",
   "c0926cae8b3e947a": "Wähle zuerst ein Issue aus",
   "86798f07ba2d7f4d": "Issues durchsuchen",
   "6a96bfc102d57501": "Issues sortieren",
@@ -7071,6 +7072,8 @@
   "8609ab062945a0a3": "Projekt",
   "be82c3e203203181": "Beliebig",
   "fcc675dbe55a5611": "Autor",
+  "674dc753b74de6d8": "Alle Pull Requests",
+  "b7b2530c4d0e5fcb": "Alle anderen",
   "06d8c3317102cfcb": "Pull-Request-Video",
   "36690ee5d989e07e": [
     "Anhang auf",
@@ -7348,7 +7351,6 @@
   "4df7e2ef5ba0996e": "Nach Status filtern",
   "aa438f6db9597d39": "Nach Beteiligung filtern",
   "97741cf036d64f60": "Nach Host filtern",
-  "0a5b811066a10ee6": "Pull-Request-Pfad",
   "d650b40b3b6eab7b": "Nach Anbieter filtern",
   "f5926df9debd9736": "Alle Anbieter",
   "54f15ec501a87fa2": "Pull Requests aktualisieren",
@@ -7369,6 +7371,7 @@
   "5273c939581221e9": "Alle Server",
   "1e25e91acb23adbc": "Pull Requests sortieren",
   "df6dce0b31c89f02": "Sortieren",
+  "d04bf8247e87cb89": "{count} {state, select, open {offen} closed {geschlossen} merged {zusammengeführt} other {insgesamt}} in {repositories, plural, one {# Repository} other {# Repositories}}",
   "78ed532fd774df56": "Weitere Pull Requests laden",
   "406cdde8249ecb16": "Grenze deine Suche ein, um weitere Pull Requests zu finden.",
   "1362562f4efdf26d": "Pull Requests konnten nicht geladen werden",
@@ -7763,7 +7766,7 @@
   "3ce9741f164fb944": "Archivierte Threads konnten nicht geladen werden",
   "ad25ae072f65b934": "Keine archivierten Threads",
   "4e690f420bcbdb5d": "Verbundene Umgebungen werden geprüft.",
-  "89d08a5be3347890": "Archivierte Threads erscheinen hier.",
+  "c28ff6128cff0944": "Einen Thread in der Seitenleiste archivieren, um ihn beiseitezulegen, etwa ein abgeschlossenes Experiment, das man vielleicht wieder braucht.",
   "5d3ed45f43611ff4": [
     "Archiviert ",
     {
@@ -7778,6 +7781,7 @@
       "v": "rt"
     }
   ],
+  "74855b1be943c9f4": "Zurück zu den Threads",
   "ae85d885630b0e51": "{count, plural, one {{count} Berechtigung} other {{count} Berechtigungen}}",
   "129431563dc043bc": "{label}: {scopes} anzeigen",
   "02df8efa1f3f4ba1": "Link zur gehosteten App konnte nicht kopiert werden",
@@ -7802,9 +7806,10 @@
   "ec8d754031dc72fd": "Zuletzt verbunden um {time}",
   "b7406be04f4d7735": "Noch nicht verbunden.",
   "595a1c9d5f762fef": "Client-Berechtigungen",
+  "1e2d7d617ac0d4ff": "Alle anderen Clients abmelden?",
+  "b76eda9aa9bec002": "Andere widerrufen",
   "06ec30a199134db1": "Kopplungs-URL konnte nicht erstellt werden.",
   "79b1490795e4c205": "Kopplungs-URL konnte nicht erstellt werden",
-  "b76eda9aa9bec002": "Andere widerrufen",
   "04ab01b535a8e3a8": "z. B. iPad im Wohnzimmer",
   "274fac14d65ab9cc": "Standard",
   "e0dde491debc2517": "Terminalbefehle können Dateien im Rahmen der Berechtigungen des Serverkontos lesen oder ändern.",
@@ -8765,8 +8770,8 @@
   "d51a7a2bb6b8c406": "Mit {target} per Kopplungscode verknüpfen",
   "f4ca5e62fb54a3a7": "Zum Verknüpfen auf einem Rechner ablegen",
   "11e67016507a6daa": "Zwei Verknüpfungen, eine je Richtung.",
-  "352169e91766aeb4": "{count, plural, one {# braucht Aufmerksamkeit} other {# brauchen Aufmerksamkeit}}",
   "d53ada50331e6041": "{machines, plural, one {# Rechner} other {# Rechner}}, {links, plural, =0 {keine Verknüpfungen} one {# Verknüpfung} other {# Verknüpfungen}}",
+  "352169e91766aeb4": "{count, plural, one {# braucht Aufmerksamkeit} other {# brauchen Aufmerksamkeit}}",
   "3e8441af6148878f": "Läuft am {date} ab",
   "4daaa2288b63a801": "{count, plural, one {# eingehende Verknüpfung} other {# eingehende Verknüpfungen}}",
   "baf297d0add1d61b": "{count, plural, one {# Umgebung} other {# Umgebungen}}",
@@ -9050,7 +9055,7 @@
   "28973e22f1e5b45a": "Thread: zu {n} springen",
   "8eba2873dc2d817d": "Modellauswahl: zu Modell {n} springen",
   "4473d0791a405a08": "Skript ausführen: {name}",
-  "03f8789fc359bc15": "Tastenkürzel durchsuchen",
+  "6516055cdbb1b570": "Tastenkürzel suchen",
   "1d55c82866fd5242": "Unbekannte Bedingung: {condition}",
   "41a022fbed1b1d49": "Unbekannte Bedingungen: {conditions}",
   "2396bc6fbb953b89": "Kollidiert mit {command}.",
@@ -9071,6 +9076,7 @@
   "a974eca924f7ed52": "Nicht zugewiesen",
   "337a261bf1551d16": "Tastenkürzel für {command}",
   "bd8e87512fd9bdf2": "Nicht zugewiesen",
+  "ed87878eb94309c3": "immer",
   "4da9b09518a3f47a": "Aktionen für {command}",
   "5cbab536dac9dc5f": "Zuweisung aufheben",
   "cd710f3021f96ea8": "Entfernen",
@@ -9089,7 +9095,6 @@
   "9d0d7048a404b46a": "Das Tastenkürzel wurde nicht gespeichert.",
   "34aeeaeda3a7d566": "Tastenkürzel konnte nicht entfernt werden",
   "ba374aebd2c09ade": "Das Tastenkürzel wurde nicht entfernt.",
-  "1b298f8bdfbdac33": "keybindings.json öffnen",
   "38aae3d3373b7e6e": "Verbinde eine Umgebung, um Tastenkürzel zu ändern.",
   "523dd4a75f84834c": "Diese Verbindung kann Tastenkürzel anzeigen, aber nicht ändern.",
   "baeefb0498641e45": "One erkennt diese Bedingung noch nicht. Sie kann trotzdem gespeichert werden, greift aber möglicherweise nicht, sofern die Laufzeit sie nicht bereitstellt.",
@@ -9097,7 +9102,8 @@
   "bc73d7a0c9ccc021": "Korrigiere den Ausdruck oben, um visuell weiterzubearbeiten.",
   "7189314b73d9fe61": "Nicht zugewiesen",
   "d188aae2ef2f1815": "Kein Tastenkürzel zugewiesen. Klicke auf „Nicht zugewiesen“, um eines festzulegen.",
-  "d3866ead082d14e5": "Tastenkürzel hinzufügen",
+  "88b7d02ffbcc7963": "Tastenkürzel hinzufügen",
+  "57c2a15f70f082e7": "JSON öffnen",
   "d4345c90894a3220": "keybindings.json öffnen",
   "e56a8d51219efaa0": "Keine Tastenkürzel entsprechen deiner Suche.",
   "90a258fff61fd77e": "Aus",
@@ -9106,7 +9112,7 @@
   "f29d1dade4dde8aa": "Agenten senden kein Feedback an das T3-Team.",
   "33a9a12a20e1af9f": "Wenn du darum bittest, zeigen Agenten dir einen kurzen Bericht über One und senden ihn mit deiner Zustimmung an das T3-Team.",
   "efe3e77f15cf325d": "Agenten melden auch selbstständig Probleme mit One, auf die sie stoßen, etwa ein fehlgeschlagenes T3-Tool.",
-  "45fa271ea0e1ac8e": "Beta",
+  "86e5791f7887ad07": "Beta und Alpha",
   "efdf9cb0275b29e8": "Zeigt die Seitenleiste als Projektordner an. Angeheftete Threads bleiben oben, Zurückgestellte und Erledigte bleiben unter den Ordnern.",
   "9b9df5ba41c4a8e2": "Threads nach Projekt gruppieren",
   "f079556d67367fe7": "Ordner-Threads zweizeilig anzeigen: den Titel, darunter Branch, Pull Request und Agent.",
@@ -9137,15 +9143,15 @@
     },
     ". Beim Ausschalten werden alle Gastlinks beendet."
   ],
-  "bff0033ea41eb38e": [
-    "Lass Agenten hier auf deinen anderen Rechnern arbeiten und deren Agenten hier. Schalte es für jeden Rechner ein und verknüpfe sie dann unter",
+  "f20f2bcc7ecb43f7": [
+    "Agenten hier auf anderen Rechnern arbeiten lassen und Agenten von dort hier. Für jeden Rechner einschalten und sie dann in",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "Verbindungen"
+      "c": "Umgebungen"
     },
-    ". Solange es aus ist, startet nichts Neues über eine Verknüpfung; laufende Aufgaben werden beendet."
+    " verknüpfen. Solange das aus ist, startet über eine Verknüpfung nichts Neues; laufende Aufgaben laufen zu Ende."
   ],
   "55a33cae5e983e80": [
     "Lass den Gerätebereich Simulatoren und Emulatoren aus deinem eigenen",
@@ -9297,7 +9303,6 @@
   "8c93ed63299ff531": "Open-Source-Lizenzen durchsuchen",
   "15e4ee1ea3804857": "Lizenzen durchsuchen",
   "c62b241e92231253": "Hinweise zu Drittanbietern",
-  "63e2c8e62b42ac1e": "Lizenzen durchsuchen",
   "c25215fb0fe7b236": "Open-Source-Hinweise sind nicht verfügbar",
   "dfabc4c20ab78d41": "Keine Lizenzen entsprechen dieser Suche.",
   "a6f0345697704afa": "Open-Source-Hinweise werden geladen…",
@@ -9595,6 +9600,7 @@
   "21d0ef064eefa159": "Status",
   "f31ce60f3f118c0d": "Anzeigename",
   "c45028de5c2f6cbb": "Instanzbezeichnung",
+  "3bbe58d50d03670f": "Färbt das Kennzeichen dieses Anbieters in der Modellauswahl ein.",
   "cf69675106e4bf46": "Einrichtung",
   "22078dd501ba3102": "Laufzeit",
   "288c2d92df27a68c": "Modelle",
@@ -9763,8 +9769,8 @@
   "8188ba79577edefb": "Cursor-Konto",
   "bf587581b2a3d24d": "CURSOR_API_KEY wird verwendet. Entferne ihn aus der Umgebung dieses Anbieters, um die Browser-Anmeldung zu nutzen.",
   "b0481e41f335f1d2": "Anbietereinstellungen für {provider} auf Standard zurücksetzen",
-  "1a0c999db1e9896a": "Anbieter hinzufügen",
   "5f4280344b1853ea": "Anbieterstatus aktualisieren",
+  "1a0c999db1e9896a": "Anbieter hinzufügen",
   "b298eb788d3443ee": "Antigravity-Einrichtung",
   "21668b75015a6d1d": "Gerät, das diesen Anbieter ausführt.",
   "b9ddc0d5fbea1b16": "Einrichtung nicht verfügbar",
@@ -9809,6 +9815,8 @@
   "5c0c973276a61fdb": "Berechtigung für Pull-Request-Routing konnte nicht gespeichert werden",
   "1bfcffe8411e2439": "Pull-Request-Routing für {environment}",
   "ae4761ddc038b102": "Rechner, denen du hier vertraust, können PR-Daten über den Versionskontrollzugriff des jeweils anderen lesen. Aktiviere es auf beiden Rechnern. „Lesen und handeln“ kann weitergehende Berechtigungen nutzen als der Rechner, dem sie gehören. Gilt nur für dieses Gerät.",
+  "b7d35abd8f6a3321": "Ausgeblendet",
+  "9e8b7675aab946c3": "Anzeigen",
   "02bca2d9c90e5f1e": "{value} s",
   "af22f973466903c3": "{value} Min.",
   "401ba3f2391d8742": "{value} Std.",
@@ -10539,6 +10547,8 @@
   "6d59e1e516e53d17": "Lizenzen anzeigen",
   "941d08db15f62d17": "Archiviert",
   "e122b2428c0d03a5": "Alle Umgebungen öffnen",
+  "aa472c4648c09ebd": "Noch keine Projekte",
+  "11ea64975143be6e": "Ein Projekt ist ein Ordner mit Code. Ein Projekt hinzufügen, um darin einen Thread zu starten, zum Beispiel das Repository, an dem man gerade arbeitet.",
   "484e14e77577d042": "Umgebungsbereich",
   "3c2a43018b7c4901": "Keine Umgebungen",
   "8a6691c39f4cb27a": "Alle Umgebungen",
@@ -10549,6 +10559,40 @@
   "470ad8c54049d1e1": "Checkouts durchsuchen",
   "7e2dfdd9f97fc027": "Projektbereich",
   "1cf216566c1ee064": "Projekt nicht verfügbar",
+  "63df6f43274e75eb": [
+    {
+      "t": "span",
+      "i": 1,
+      "c": [
+        {
+          "t": "span",
+          "i": 2,
+          "c": "Zeigt"
+        },
+        {
+          "i": 3,
+          "k": "_gt_value_3",
+          "v": "v"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "i": 4,
+      "c": [
+        {
+          "t": "span",
+          "i": 5,
+          "c": "auf"
+        },
+        {
+          "i": 6,
+          "k": "_gt_value_6",
+          "v": "v"
+        }
+      ]
+    }
+  ],
   "db943e13e0f37b06": {
     "t": "span",
     "i": 1,
@@ -10857,6 +10901,8 @@
   "05224ee5939749b2": "Aufnahmezugriff konnte nicht verifiziert werden",
   "23bef225aef43439": "Einrichtung der Aufnahme konnte nicht geschlossen werden",
   "99f329fec9abbc60": "Snapshots",
+  "0fe1647d9d4e8788": "Snapshots brauchen die Desktop-App",
+  "0c0c0621b7920c11": "Ein Snapshot erfasst ein Fenster auf dem Computer und hängt es an einen Thread an, etwa den Fehlerdialog, bei dem man Hilfe braucht.",
   "971338fc9021c3db": "Aufnahmeeinstellungen werden aktualisiert…",
   "33ccb41fd69b950f": "Snapshots aktivieren",
   "c23b8320eed9fea3": "Text und Bedienelemente einbeziehen, wenn die App sie bereitstellt.",
@@ -10871,6 +10917,7 @@
   "a4a21025e979a813": "Aufgenommenes Fenster aufblitzen lassen",
   "cf4131f390292403": "Aufgenommene Fenster animiert in deinen Entwurf übernehmen.",
   "87157007bde61ece": "Snapshots animieren",
+  "1ea1faa49f823960": "Desktop-App holen",
   "a766c46982759c44": "Tastenkürzel ändern",
   "b5f3ce16ca9e62f8": "Berechtigungen für Tastenkürzel",
   "b8366d1d16d38d54": [
@@ -11142,6 +11189,8 @@
   "6985d8cfe8f3f2f2": "Noch nichts erkannt",
   "5b17411e32ec9ee8": "Installiere Git auf dem Server, füge optionale Hosting-Integrationen oder Anmeldedaten hinzu, die dein Arbeitsbereich braucht, und scanne dann erneut.",
   "52f500fa58827159": "Server-Umgebung erneut scannen",
+  "dc9196f13649cb21": "Git",
+  "5de615d0a0519b8a": "Jujutsu",
   "845de59dc5599bbd": "Versionsverwaltung",
   "3bd42b40bd62ca11": "Versionskontrollanbieter",
   "d6738114d4de6d92": [
@@ -11752,6 +11801,7 @@
   "ca8b75a7d7d7ce7e": "Design duplizieren",
   "f2043e87a10cb831": "Design bearbeiten",
   "595bdeefcdc9bf31": "Design-Datei exportieren",
+  "4cbeefb1f6d8a5ac": "Design importieren",
   "b480281b3791b685": "Wähle, was die Karte mit Thread-Details anzeigt. Du kannst auch mit der rechten Maustaste auf die Karte klicken.",
   "662288b90e19635f": "Thread-Details auf Standard zurücksetzen",
   "871d059d88548434": "Thread-Details: {enabled} von {total} an",
@@ -11817,6 +11867,7 @@
     " wechseln"
   ],
   "39f64d971ba424b5": "Keine Nutzungsquellen konfiguriert.",
+  "31723a5ee9fd5a09": "Einen Hub oder eine HTTP-Quelle hinzufügen, um das Kontingent eines anderen Dienstes zu sehen, etwa eines gemeinsamen Proxys.",
   "dbd877abdc2c7c81": "HTTP-Kontingentquelle",
   "4cf6a373a7535324": "{name} · Deaktiviert",
   "c792e744936dbe1b": "HTTP-Quelle hinzufügen",
@@ -12088,6 +12139,7 @@
   "81d0d1e78b196630": "Allgemein",
   "afda415d2d75a5d3": "Chat",
   "4beeab8d1814b251": "Diffs & Pull Requests",
+  "1ab50db28dbddd0d": "Tastenkürzel",
   "2ab325baee3ec9a3": "Geplante Aufgaben",
   "0a59e086514a62a9": "Versionskontrolle & Issues",
   "1de0df2b8a4fb96e": "Freigabe & Zugriff",
@@ -12226,7 +12278,8 @@
   "82136480255a5106": "OTel OTLP telemetrie export endpunkte logs traces metriken Grafana",
   "659d081051faf7ff": "logs traces prozesse ressourcenverlauf fehler spans cpu speicher",
   "5eaeacfa9f82051a": "bericht fehler problem t3 team senden feedback agenten tools automatisch wenn ich darum bitte",
-  "f537f91e1ee41d47": "tastenkürzel hotkeys befehle tastenzuweisungen json",
+  "7563e5672f951d26": "Tastenkürzel bearbeiten",
+  "2c2fa1369876364f": "Tastenkürzel keybindings hotkeys Befehle bindings json",
   "1ba01e7ceed64b95": "fenster aufnahme bildschirmfoto",
   "279b1cceb779ff38": "App-Text einbeziehen",
   "7fa82a838459b368": "aufnahme barrierefreiheit daten text ui struktur elemente datenschutz weglassen agent kontext",
@@ -12336,6 +12389,7 @@
   "f2749efd2aac8fac": "bis",
   "f01bf5f570d7a574": "oder",
   "d29982ab91fc2e20": "Startseite von One",
+  "f4df476c37cf9f24": "{page}: klicken, um zurückzugehen",
   "8e9626aa27cb188a": "Issues",
   "9d2fc1003e82feb1": "Nutzung",
   "20283eb1dd6119f9": "{count, plural, one {{count} Anhang} other {{count} Anhänge}}",
@@ -12366,6 +12420,7 @@
   "bcda2ccaa871dc46": "Neuer Thread im aktuellen Projekt: Shift+Klick ({shortcut})",
   "aa5c379423baace1": "Neuer Thread im aktuellen Projekt: Shift+Klick",
   "9d9d32b401d2931a": "{count, plural, one {{count} Terminal-Prozess läuft} other {{count} Terminal-Prozesse laufen}}",
+  "3ff15a75485b6c42": "Läuft auf {provider}",
   "ade06f6723949b39": "Fehler aufgetreten",
   "021fe65858278fe9": "Thread zurückstellen",
   "e7c18f33bc1326f7": "Wird eingerichtet",
@@ -12576,6 +12631,9 @@
   "8790ba57600f2fda": "{count, plural, one {{count} Credit} other {{count} Credits}}",
   "7aaaff1c6484f25c": "Segment",
   "8bcab2ef61de6518": "0-$-Limit",
+  "ad8ce9055f5e9d22": "Verbleibendes Kontingent",
+  "27a0a424f318ed9f": "Fehlbetrag",
+  "cc88c25a314f4b6b": "Läuft früher aus",
   "b2442d038d36f243": "Verglichen mit dem bereits vergangenen Teil des Zeitfensters",
   "578ad261df360720": "Alle Limits sind unbedenklich.",
   "de5b6f2aa9941c18": "{provider}, {window}: Auf dieses Limit achten. Noch {remaining} % übrig.",
@@ -12772,6 +12830,7 @@
       "v": "v"
     }
   ],
+  "f4333a1dfa10ab01": "Mit den Pfeiltasten links und rechts zwischen Tagen wechseln",
   "435dd01dc4455e95": "Verarbeitete Tokens pro Stunde nach Anbieter",
   "37069a5ef57ee9fa": "Kosten pro Stunde nach Anbieter",
   "aa73a1b4208bc912": "Verarbeitete Tokens pro Tag nach Anbieter",
@@ -12782,11 +12841,15 @@
   "684e516076de81fe": "Standard",
   "3bbcc1b826fef537": "Schnell",
   "66796576034c18ea": "Ultraschnell",
-  "ac9c16c34de713a6": "Sitzung",
-  "1d05cd1f382fffdf": "wöchentlich",
-  "98417ff4ee2fea2c": "monatlich",
-  "aa32257e1ef37622": "monatliche Ausgaben",
-  "f132a02d81f70dea": "gesamt",
+  "1292d11de3e340a4": "Sitzung",
+  "a16cacc637bf03c5": "wöchentlich",
+  "038d394feb0d3b10": "monatlich",
+  "4d7aa34c6515c420": "monatliche Ausgaben",
+  "15a4d4d94f083d34": "monatliches Credit-Limit",
+  "a53b7a5cf007ae8c": "gesamt",
+  "7dd380d90851d3b3": "Cursor-Modelle",
+  "8652207aaedebc55": "andere Modelle",
+  "443c9c2642c0f4f4": "Abo",
   "218d7bca77da345b": "{target} ordnet dieses Modell zu. Entferne es aus „Anwenden auf“ oder lösche zuerst seine Zuordnung.",
   "60ccdf9bdb7c3149": "Einem anderen Modell zuordnen.",
   "3155a2bd93dd97d9": "{field} ist auf {target} erforderlich.",

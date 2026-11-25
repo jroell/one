@@ -22,6 +22,7 @@ import { cn } from "~/lib/utils";
 import { formatChatTimestampTooltip, formatDayAwareTimestamp } from "../../timestampFormat";
 import { readThreadTurnItems } from "../../state/entities";
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
+import { OneMark } from "~/one/OneMark";
 import { TimelineRowCtx, TimelineRowActivityCtx, type TimelineRow } from "./timelineRowContext";
 import { MESSAGE_HEADING_LEVEL, MessageAuthorHeading } from "./TimelineRowParts";
 
@@ -39,7 +40,16 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
 
   return (
     <>
-      <div className="relative min-w-0 px-1 py-0.5">
+      <div
+        className="relative min-w-0 px-1 py-0.5"
+        data-one-assistant=""
+        data-one-answer={row.showAssistantMeta ? "" : undefined}
+      >
+        {row.showAssistantMeta ? (
+          <span aria-hidden data-one-answer-mark="">
+            <OneMark className="size-5" />
+          </span>
+        ) : null}
         <MessageAuthorHeading>One</MessageAuthorHeading>
         <div data-thread-find-text="true">
           <AssistantCitationSource

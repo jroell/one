@@ -429,29 +429,90 @@
         color: var(--boot-foreground);
       }
 
+      /* The boot screen: the One ring and its name on the theme's own background. The ring takes
+         the selected theme's accent through --boot-accent (set above), else One gold. */
       #boot-shell-card {
+        --boot-ring-mid: var(--boot-accent, #b98f1f);
+        --boot-ring-hi: color-mix(in oklch, var(--boot-ring-mid) 36%, white);
+        --boot-ring-lo: color-mix(in oklch, var(--boot-ring-mid) 60%, black);
+        --boot-ring-deep: color-mix(in oklch, var(--boot-ring-mid) 28%, black);
         position: relative;
         z-index: 1;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 96px;
-        height: 96px;
+        width: 160px;
+        height: 176px;
+        animation: boot-in 280ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+      }
+
+      html.dark #boot-shell-card {
+        --boot-ring-mid: var(--boot-accent, #d9b450);
+      }
+
+      /* A still glow behind the ring, so it sits on something. */
+      #boot-shell-card::before {
+        content: "";
+        position: absolute;
+        inset: -120px;
+        z-index: -1;
+        pointer-events: none;
+        background: radial-gradient(
+          closest-side,
+          color-mix(in oklch, var(--boot-ring-mid) 13%, transparent),
+          transparent
+        );
       }
 
       #boot-shell-logo {
-        width: 64px;
-        height: 64px;
-        object-fit: contain;
+        width: 112px;
+        height: 112px;
+        overflow: visible;
+      }
+
+      #boot-shell-name {
+        margin: 6px 0 0;
+        font-family:
+          "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+        font-size: 30px;
+        font-weight: 400;
+        line-height: 1.1;
+        letter-spacing: 0.01em;
       }
 
       #boot-shell-progress {
         position: absolute;
         top: 100%;
         width: min(360px, 80vw);
+        margin: 8px 0 0;
         text-align: center;
         font: 13px system-ui;
         opacity: 0.7;
+      }
+
+      /* A slow highlight crosses the ring, once every few seconds. Off under reduced motion. */
+      @media (prefers-reduced-motion: no-preference) {
+        #boot-shell-sheen {
+          animation: boot-sheen 2800ms cubic-bezier(0.22, 1, 0.36, 1) 600ms infinite;
+        }
+      }
+
+      @keyframes boot-sheen {
+        0% {
+          translate: 0 0;
+        }
+        32%,
+        100% {
+          translate: 40px 0;
+        }
+      }
+
+      /* Nothing paints for the first moments, so a boot that finishes at once never flashes. */
+      @keyframes boot-in {
+        from {
+          opacity: 0;
+        }
       }
 
       /* App CSS locks body and #root scrolling once main loads, so the error screen scrolls itself. */
@@ -717,8 +778,13 @@
       html[data-one-opening] #boot-shell:not(:has(> #boot-error)) {
         background: #000;
       }
-      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-logo {
+      html[data-one-opening]
+        #boot-shell:not(:has(> #boot-error))
+        :is(#boot-shell-logo, #boot-shell-name) {
         visibility: hidden;
+      }
+      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-card::before {
+        display: none;
       }
     </style>
     <script>
@@ -734,7 +800,106 @@
     <div id="root">
       <div id="boot-shell">
         <div id="boot-shell-card" aria-label="One splash screen">
-          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="One" />
+          <!-- The One mark, drawn from the same paths as src/one/OneMark.tsx. -->
+          <svg
+            id="boot-shell-logo"
+            viewBox="0 0 24 24"
+            fill="none"
+            role="img"
+            aria-label="One"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient
+                id="boot-band"
+                x1="3"
+                y1="8"
+                x2="21"
+                y2="17"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0" style="stop-color: var(--boot-ring-hi)" />
+                <stop offset="0.2" style="stop-color: var(--boot-ring-mid)" />
+                <stop offset="0.44" style="stop-color: var(--boot-ring-lo)" />
+                <stop offset="0.58" style="stop-color: var(--boot-ring-mid)" />
+                <stop offset="0.7" style="stop-color: var(--boot-ring-hi)" />
+                <stop offset="0.84" style="stop-color: var(--boot-ring-mid)" />
+                <stop offset="1" style="stop-color: var(--boot-ring-lo)" />
+              </linearGradient>
+              <linearGradient
+                id="boot-wall"
+                x1="5"
+                y1="9"
+                x2="19"
+                y2="9"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0" style="stop-color: var(--boot-ring-deep)" />
+                <stop offset="0.6" style="stop-color: var(--boot-ring-lo)" />
+                <stop offset="1" style="stop-color: var(--boot-ring-mid)" />
+              </linearGradient>
+              <linearGradient
+                id="boot-spec"
+                x1="3.5"
+                y1="10"
+                x2="11"
+                y2="6"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                <stop offset="0.35" stop-color="#fff" stop-opacity="0.95" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0" />
+              </linearGradient>
+              <linearGradient id="boot-sheen" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                <stop offset="0.5" stop-color="#fff" stop-opacity="0.9" />
+                <stop offset="1" stop-color="#fff" stop-opacity="0" />
+              </linearGradient>
+              <clipPath id="boot-clip">
+                <path
+                  clip-rule="evenodd"
+                  d="M12 5.3c5.3 0 9.6 3 9.6 6.7s-4.3 6.7-9.6 6.7-9.6-3-9.6-6.7 4.3-6.7 9.6-6.7Zm0 2.2c-4.1 0-7.4 1.9-7.4 4.2s3.3 4.2 7.4 4.2 7.4-1.9 7.4-4.2-3.3-4.2-7.4-4.2Z"
+                />
+              </clipPath>
+            </defs>
+            <g transform="rotate(-24 12 12)">
+              <path
+                fill="url(#boot-wall)"
+                d="M4.6 11.7c0-2.3 3.3-4.2 7.4-4.2s7.4 1.9 7.4 4.2c0-1.5-3.3-2.7-7.4-2.7s-7.4 1.2-7.4 2.7Z"
+              />
+              <path
+                fill="url(#boot-band)"
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M12 5.3c5.3 0 9.6 3 9.6 6.7s-4.3 6.7-9.6 6.7-9.6-3-9.6-6.7 4.3-6.7 9.6-6.7Zm0 2.2c-4.1 0-7.4 1.9-7.4 4.2s3.3 4.2 7.4 4.2 7.4-1.9 7.4-4.2-3.3-4.2-7.4-4.2Z"
+              />
+              <path
+                d="M19.9 14.7c-1.6 2.1-4.5 3.4-7.9 3.4-2.3 0-4.4-.6-6-1.7"
+                stroke="var(--boot-ring-deep)"
+                stroke-opacity="0.38"
+                stroke-width="1.1"
+                stroke-linecap="round"
+              />
+              <path
+                d="M3.5 10.7c.8-2.3 3.8-4.1 7.6-4.4"
+                stroke="url(#boot-spec)"
+                stroke-width="1"
+                stroke-linecap="round"
+              />
+              <g clip-path="url(#boot-clip)">
+                <rect
+                  id="boot-shell-sheen"
+                  x="-9"
+                  y="2"
+                  width="7"
+                  height="20"
+                  fill="url(#boot-sheen)"
+                  transform="skewX(-18)"
+                />
+              </g>
+            </g>
+          </svg>
+          <p id="boot-shell-name">One</p>
           <p id="boot-shell-progress" role="status" aria-live="polite"></p>
         </div>
       </div>

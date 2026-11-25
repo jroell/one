@@ -1,9 +1,10 @@
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { ChevronsUpDownIcon, SearchIcon, XIcon } from "lucide-react";
+import { ChevronsUpDownIcon, XIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
+import { SearchFieldFrame } from "~/components/ui/search-field";
 import { ScrollArea } from "~/components/ui/scroll-area";
 
 const ComboboxContext = React.createContext<{
@@ -106,24 +107,15 @@ function ComboboxInput({
 
 function ComboboxSearchInput(props: React.ComponentProps<typeof ComboboxInput>) {
   return (
-    <label className="block min-w-0 shrink-0 cursor-text px-3 pt-2.5">
-      <div
-        className="relative -translate-y-px border-b border-border/70 pb-1.5 transition-colors focus-within:border-ring"
-        data-slot="search-field"
-      >
-        <SearchIcon
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1.5 left-0 size-4 shrink-0 text-muted-foreground/55"
-        />
-        <ComboboxInput
-          {...props}
-          className="flex w-full [&_input]:h-6.5 [&_input]:ps-5 [&_input]:font-sans [&_input]:leading-6.5"
-          showTrigger={false}
-          size="sm"
-          unstyled
-        />
-      </div>
-    </label>
+    <SearchFieldFrame inset="combobox">
+      <ComboboxInput
+        {...props}
+        className="flex w-full [&_input]:h-6.5 [&_input]:ps-5 [&_input]:font-sans [&_input]:leading-6.5"
+        showTrigger={false}
+        size="sm"
+        unstyled
+      />
+    </SearchFieldFrame>
   );
 }
 

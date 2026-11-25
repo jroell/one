@@ -1875,6 +1875,7 @@
   "5cfaaa20c460c328": "Fäst projekt",
   "24adf508b4c5d6b5": "Projektinställningar",
   "b84aab627c7ea22a": "Kör det här kommandot",
+  "0e4e652b19e678cd": "Redigera kortkommandon i inställningarna",
   "60e47b3da5901619": "Inställningar · {section}",
   "0c659f9a193255dd": "Det gick inte att lägga till projektet",
   "4b3fc098d5a08a66": "Sökvägar i Windows-stil stöds bara i Windows.",
@@ -3075,7 +3076,6 @@
   "37d95099eda1cb07": "Nämn en fil",
   "9ad3991623c13e3a": "Sök i projektet",
   "e880959d9520231a": "Granska ändringar",
-  "4ddc6c71a3c1e1f0": "Öppna kommandopaletten",
   "ed5bcda94f8073c3": "Sätt att börja",
   "08f1f52863b218eb": "Lär dig något",
   "e03b497cd0a72c68": "Lär mig om ",
@@ -3175,6 +3175,7 @@
   "cbee198401377241": "Öppna One i skrivbordsappen för att använda förhandsvisningen i appen.",
   "25b9aae7f44e4030": "{mode, select, system {Utseende: system} light {Utseende: ljust} other {Utseende: mörkt}}",
   "2ee68a0e8a4986c2": "Tråd",
+  "fea77d3c094dee44": "Chatt",
   "88e9d83bcac42b73": "Inmatningsfält",
   "7fce70215a6aea24": "Visa",
   "3ef5788ff1a3de48": "Git",
@@ -5374,7 +5375,7 @@
   "300a948f90c4d75c": "Gå tillbaka",
   "2a50e229df85d553": "Gå framåt",
   "4f58bcacf894c5bc": "Inte tillgänglig",
-  "1ab50db28dbddd0d": "Kortkommandon",
+  "a6351e5f8a90ab28": "Visa kortkommandon",
   "db5d85fdadff2f5b": "Kopiera arbetsytans sökväg",
   "7b24be8e29a2efc5": "Kopiera tråd-ID",
   "d733142d9607d7ff": "Snooza till",
@@ -6139,11 +6140,11 @@
   "f77af0fd4c6acea1": "Nyaste",
   "fe29b2b34080619c": "Alla ärendehanterare",
   "fc18975e50af8dca": "Nästa sida misslyckades.",
+  "a6737de3dffa9050": "{count} {state, select, open {öppna} closed {stängda} other {totalt}} i {scopes, plural, one {# förråd} other {# förråd}}",
   "59319a2f40023e3e": "Läser in problem…",
   "17113c6308c69f67": "Väntar fortfarande på att ärendehanteraren ska lista ärendena…",
   "283ada62d3847554": "{count, plural, one {{count} projekt} other {{count} projekt}}",
   "7cae1b414ae74c6b": "Den här ärendehanteraren kan inte läsas just nu.",
-  "beea95f3311c84c0": "Brödsmulor för ärenden",
   "c0926cae8b3e947a": "Välj ett ärende först",
   "86798f07ba2d7f4d": "Sök ärenden",
   "6a96bfc102d57501": "Sortera ärenden",
@@ -7077,6 +7078,8 @@
   "8609ab062945a0a3": "Projekt",
   "be82c3e203203181": "Vem som helst",
   "fcc675dbe55a5611": "Författare",
+  "674dc753b74de6d8": "Alla pull requests",
+  "b7b2530c4d0e5fcb": "Alla andra",
   "06d8c3317102cfcb": "Video i pull request",
   "36690ee5d989e07e": [
     "Öppna bilagan på",
@@ -7355,7 +7358,6 @@
   "4df7e2ef5ba0996e": "Filtrera efter status",
   "aa438f6db9597d39": "Filtrera efter inblandning",
   "97741cf036d64f60": "Filtrera efter värd",
-  "0a5b811066a10ee6": "Sökväg för pull requests",
   "d650b40b3b6eab7b": "Filtrera efter leverantör",
   "f5926df9debd9736": "Alla leverantörer",
   "54f15ec501a87fa2": "Uppdatera pull requests",
@@ -7376,6 +7378,7 @@
   "5273c939581221e9": "Alla servrar",
   "1e25e91acb23adbc": "Sortera pull requests",
   "df6dce0b31c89f02": "Sortera",
+  "d04bf8247e87cb89": "{count} {state, select, open {öppna} closed {stängda} merged {sammanslagna} other {totalt}} i {repositories, plural, one {# förråd} other {# förråd}}",
   "78ed532fd774df56": "Läs in fler pull requests",
   "406cdde8249ecb16": "Begränsa sökningen för att hitta fler pull requests.",
   "1362562f4efdf26d": "Kunde inte läsa in pull requests",
@@ -7770,7 +7773,7 @@
   "3ce9741f164fb944": "Kunde inte läsa in arkiverade trådar",
   "ad25ae072f65b934": "Inga arkiverade trådar",
   "4e690f420bcbdb5d": "Kontrollerar anslutna miljöer.",
-  "89d08a5be3347890": "Arkiverade trådar visas här.",
+  "c28ff6128cff0944": "Arkivera en tråd från sidopanelen för att lägga undan den, till exempel ett färdigt experiment som man kanske vill ha tillbaka.",
   "5d3ed45f43611ff4": [
     "Arkiverad ",
     {
@@ -7785,6 +7788,7 @@
       "v": "rt"
     }
   ],
+  "74855b1be943c9f4": "Tillbaka till trådarna",
   "ae85d885630b0e51": "{count, plural, one {{count} omfång} other {{count} omfång}}",
   "129431563dc043bc": "{label}: visa {scopes}",
   "02df8efa1f3f4ba1": "Kunde inte kopiera länken till webbappen",
@@ -7809,9 +7813,10 @@
   "ec8d754031dc72fd": "Senast ansluten {time}",
   "b7406be04f4d7735": "Inte ansluten än.",
   "595a1c9d5f762fef": "Klientomfång",
+  "1e2d7d617ac0d4ff": "Logga ut från alla andra klienter?",
+  "b76eda9aa9bec002": "Återkalla andra",
   "06ec30a199134db1": "Det gick inte att skapa parkopplings-URL.",
   "79b1490795e4c205": "Kunde inte skapa parkopplings-URL",
-  "b76eda9aa9bec002": "Återkalla andra",
   "04ab01b535a8e3a8": "t.ex. iPad i vardagsrummet",
   "274fac14d65ab9cc": "Standard",
   "e0dde491debc2517": "Terminalkommandon kan läsa eller ändra filer inom serverkontots behörigheter.",
@@ -8771,8 +8776,8 @@
   "d51a7a2bb6b8c406": "Länka till {target} med en parkopplingskod",
   "f4ca5e62fb54a3a7": "Släpp på en maskin för att länka",
   "11e67016507a6daa": "Två länkar, en åt varje håll.",
-  "352169e91766aeb4": "{count, plural, one {# behöver åtgärdas} other {# behöver åtgärdas}}",
   "d53ada50331e6041": "{machines, plural, one {# dator} other {# datorer}}, {links, plural, =0 {inga länkar} one {# länk} other {# länkar}}",
+  "352169e91766aeb4": "{count, plural, one {# behöver åtgärdas} other {# behöver åtgärdas}}",
   "3e8441af6148878f": "Går ut {date}",
   "4daaa2288b63a801": "{count, plural, one {# länk in} other {# länkar in}}",
   "baf297d0add1d61b": "{count, plural, one {# miljö} other {# miljöer}}",
@@ -9056,7 +9061,7 @@
   "28973e22f1e5b45a": "Tråd: gå till {n}",
   "8eba2873dc2d817d": "Modellväljare: gå till modell {n}",
   "4473d0791a405a08": "Kör skript: {name}",
-  "03f8789fc359bc15": "Sök kortkommandon",
+  "6516055cdbb1b570": "Sök kortkommandon",
   "1d55c82866fd5242": "Okänt villkor: {condition}",
   "41a022fbed1b1d49": "Okända villkor: {conditions}",
   "2396bc6fbb953b89": "Krockar med {command}.",
@@ -9077,6 +9082,7 @@
   "a974eca924f7ed52": "Ej tilldelat",
   "337a261bf1551d16": "Kortkommando för {command}",
   "bd8e87512fd9bdf2": "Inte tilldelat",
+  "ed87878eb94309c3": "alltid",
   "4da9b09518a3f47a": "Åtgärder för {command}",
   "5cbab536dac9dc5f": "Ta bort tilldelning",
   "cd710f3021f96ea8": "Ta bort",
@@ -9095,7 +9101,6 @@
   "9d0d7048a404b46a": "Kortkommandot sparades inte.",
   "34aeeaeda3a7d566": "Det gick inte att ta bort kortkommandot",
   "ba374aebd2c09ade": "Kortkommandot togs inte bort.",
-  "1b298f8bdfbdac33": "Öppna keybindings.json",
   "38aae3d3373b7e6e": "Anslut en miljö för att ändra kortkommandon.",
   "523dd4a75f84834c": "Den här anslutningen kan visa kortkommandon men inte ändra dem.",
   "baeefb0498641e45": "One känner inte igen det här villkoret än. Det kan ändå sparas, men det kanske inte matchar om inte körmiljön tillhandahåller det.",
@@ -9103,7 +9108,8 @@
   "bc73d7a0c9ccc021": "Rätta uttrycket ovan för att fortsätta redigera visuellt.",
   "7189314b73d9fe61": "Ej tilldelat",
   "d188aae2ef2f1815": "Inget kortkommando tilldelat. Klicka på Ej tilldelat för att ange ett.",
-  "d3866ead082d14e5": "Lägg till kortkommando",
+  "88b7d02ffbcc7963": "Lägg till kortkommando",
+  "57c2a15f70f082e7": "Öppna JSON",
   "d4345c90894a3220": "Öppna keybindings.json",
   "e56a8d51219efaa0": "Inga kortkommandon matchar sökningen.",
   "90a258fff61fd77e": "Av",
@@ -9112,7 +9118,7 @@
   "f29d1dade4dde8aa": "Agenter skickar ingen återkoppling till T3-teamet.",
   "33a9a12a20e1af9f": "När du ber om det visar agenter en kort rapport om One och skickar den till T3-teamet om du godkänner den.",
   "efe3e77f15cf325d": "Agenter rapporterar även problem med One som de själva stöter på, till exempel ett T3-verktyg som misslyckats.",
-  "45fa271ea0e1ac8e": "Beta",
+  "86e5791f7887ad07": "Beta och alfa",
   "efdf9cb0275b29e8": "Visar sidofältet som projektmappar. Fästa trådar ligger överst, och Snoozade och Klara ligger under mapparna.",
   "9b9df5ba41c4a8e2": "Gruppera trådar efter projekt",
   "f079556d67367fe7": "Visa trådar i mappar på två rader: titeln, sedan gren, pull request och agent.",
@@ -9143,15 +9149,15 @@
     },
     ". Om du stänger av det stoppas alla gästlänkar."
   ],
-  "bff0033ea41eb38e": [
-    "Låt agenter här arbeta på dina andra datorer, och deras här. Aktivera det på varje dator och länka dem sedan under",
+  "f20f2bcc7ecb43f7": [
+    "Låt agenter här köra på andra maskiner, och deras agenter här. Slå på för varje maskin och länka sedan dem i",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "Anslutningar"
+      "c": "Miljöer"
     },
-    ". När det är av startar inget nytt via en länk; pågående uppgifter slutförs."
+    ". När den är av startar inget nytt över en länk; pågående uppgifter slutförs."
   ],
   "55a33cae5e983e80": [
     "Låt enhetspanelen hyra simulatorer och emulatorer från din egen",
@@ -9303,7 +9309,6 @@
   "8c93ed63299ff531": "Sök licenser för öppen källkod",
   "15e4ee1ea3804857": "Sök licenser",
   "c62b241e92231253": "Meddelanden från tredje part",
-  "63e2c8e62b42ac1e": "Sök licenser",
   "c25215fb0fe7b236": "Meddelanden om öppen källkod är inte tillgängliga",
   "dfabc4c20ab78d41": "Inga licenser matchar sökningen.",
   "a6f0345697704afa": "Läser in meddelanden om öppen källkod…",
@@ -9601,6 +9606,7 @@
   "21d0ef064eefa159": "Status",
   "f31ce60f3f118c0d": "Visningsnamn",
   "c45028de5c2f6cbb": "Instansetikett",
+  "3bbe58d50d03670f": "Färgar den här leverantörens märke i modellväljaren.",
   "cf69675106e4bf46": "Konfiguration",
   "22078dd501ba3102": "Körmiljö",
   "288c2d92df27a68c": "Modeller",
@@ -9769,8 +9775,8 @@
   "8188ba79577edefb": "Cursor-konto",
   "bf587581b2a3d24d": "Använder CURSOR_API_KEY. Ta bort den från leverantörens miljö för att logga in via webbläsaren.",
   "b0481e41f335f1d2": "Återställ leverantörsinställningar för {provider} till standard",
-  "1a0c999db1e9896a": "Lägg till leverantör",
   "5f4280344b1853ea": "Uppdatera leverantörsstatus",
+  "1a0c999db1e9896a": "Lägg till leverantör",
   "b298eb788d3443ee": "Konfiguration av Antigravity",
   "21668b75015a6d1d": "Enheten som kör den här leverantören.",
   "b9ddc0d5fbea1b16": "Konfigurationen är inte tillgänglig",
@@ -9815,6 +9821,8 @@
   "5c0c973276a61fdb": "Kunde inte spara behörigheten för routning av pull requests",
   "1bfcffe8411e2439": "Routning av pull requests för {environment}",
   "ae4761ddc038b102": "Datorer du litar på här kan läsa PR-data via varandras åtkomst till versionshantering. Aktivera på båda datorerna. Läs och agera kan använda bredare behörigheter än den dator som äger dem. Gäller bara den här enheten.",
+  "b7d35abd8f6a3321": "Dold",
+  "9e8b7675aab946c3": "Visa",
   "02bca2d9c90e5f1e": "{value} s",
   "af22f973466903c3": "{value} min",
   "401ba3f2391d8742": "{value} h",
@@ -10546,6 +10554,8 @@
   "6d59e1e516e53d17": "Visa licenser",
   "941d08db15f62d17": "Arkiverat",
   "e122b2428c0d03a5": "Öppna alla miljöer",
+  "aa472c4648c09ebd": "Inga projekt än",
+  "11ea64975143be6e": "Ett projekt är en mapp med kod. Lägg till ett för att starta en tråd i det, till exempel förrådet som man arbetar i.",
   "484e14e77577d042": "Miljöomfång",
   "3c2a43018b7c4901": "Inga miljöer",
   "8a6691c39f4cb27a": "Alla miljöer",
@@ -10556,6 +10566,40 @@
   "470ad8c54049d1e1": "Sök utcheckningar",
   "7e2dfdd9f97fc027": "Projektomfång",
   "1cf216566c1ee064": "Projektet är inte tillgängligt",
+  "63df6f43274e75eb": [
+    {
+      "t": "span",
+      "i": 1,
+      "c": [
+        {
+          "t": "span",
+          "i": 2,
+          "c": "Visar"
+        },
+        {
+          "i": 3,
+          "k": "_gt_value_3",
+          "v": "v"
+        }
+      ]
+    },
+    {
+      "t": "span",
+      "i": 4,
+      "c": [
+        {
+          "t": "span",
+          "i": 5,
+          "c": "på"
+        },
+        {
+          "i": 6,
+          "k": "_gt_value_6",
+          "v": "v"
+        }
+      ]
+    }
+  ],
   "db943e13e0f37b06": {
     "t": "span",
     "i": 1,
@@ -10864,6 +10908,8 @@
   "05224ee5939749b2": "Kunde inte verifiera åtkomst för skärmfångst",
   "23bef225aef43439": "Kunde inte stänga konfigurationen av skärmfångst",
   "99f329fec9abbc60": "Snapshots",
+  "0fe1647d9d4e8788": "Snapshots kräver skrivbordsappen",
+  "0c0c0621b7920c11": "Ett snapshot fångar ett fönster på datorn och bifogar det till en tråd, till exempel felrutan som man vill ha hjälp med.",
   "971338fc9021c3db": "Uppdaterar inställningarna för skärmfångst…",
   "33ccb41fd69b950f": "Aktivera ögonblicksbilder",
   "c23b8320eed9fea3": "Ta med text och kontroller när appen gör dem tillgängliga.",
@@ -10878,6 +10924,7 @@
   "a4a21025e979a813": "Blinka med det fångade fönstret",
   "cf4131f390292403": "Animera fångade fönster in i ditt utkast.",
   "87157007bde61ece": "Animera ögonblicksbilder",
+  "1ea1faa49f823960": "Hämta skrivbordsappen",
   "a766c46982759c44": "Ändra kortkommando",
   "b5f3ce16ca9e62f8": "Behörigheter för kortkommandon",
   "b8366d1d16d38d54": [
@@ -11148,6 +11195,8 @@
   "6985d8cfe8f3f2f2": "Inget har identifierats än",
   "5b17411e32ec9ee8": "Installera Git på servern, lägg till valfria värdintegrationer eller autentiseringsuppgifter som din arbetsyta behöver och sök sedan igen.",
   "52f500fa58827159": "Genomsök servermiljön igen",
+  "dc9196f13649cb21": "Git",
+  "5de615d0a0519b8a": "Jujutsu",
   "845de59dc5599bbd": "Versionshantering",
   "3bd42b40bd62ca11": "Leverantörer av versionshantering",
   "d6738114d4de6d92": [
@@ -11760,6 +11809,7 @@
   "ca8b75a7d7d7ce7e": "Duplicera tema",
   "f2043e87a10cb831": "Redigera tema",
   "595bdeefcdc9bf31": "Exportera temafil",
+  "4cbeefb1f6d8a5ac": "Importera tema",
   "b480281b3791b685": "Välj vad kortet med tråddetaljer visar. Du kan också högerklicka på kortet.",
   "662288b90e19635f": "Återställ tråddetaljer till standard",
   "871d059d88548434": "Tråddetaljer: {enabled} av {total} på",
@@ -11824,6 +11874,7 @@
     }
   ],
   "39f64d971ba424b5": "Inga användningskällor har konfigurerats.",
+  "31723a5ee9fd5a09": "Lägg till en hub eller en HTTP-källa för att se kvoten från en annan tjänst, till exempel en delad proxy.",
   "dbd877abdc2c7c81": "HTTP-källa för kvoter",
   "4cf6a373a7535324": "{name} · Inaktiverad",
   "c792e744936dbe1b": "Lägg till HTTP-källa",
@@ -12094,6 +12145,7 @@
   "81d0d1e78b196630": "Allmänt",
   "afda415d2d75a5d3": "Chatt",
   "4beeab8d1814b251": "Diffar och pull requests",
+  "1ab50db28dbddd0d": "Kortkommandon",
   "2ab325baee3ec9a3": "Schemalagda uppgifter",
   "0a59e086514a62a9": "Versionshantering och ärenden",
   "1de0df2b8a4fb96e": "Delning och åtkomst",
@@ -12232,7 +12284,8 @@
   "82136480255a5106": "OTel OTLP telemetri export slutpunkter loggar spår mätvärden Grafana",
   "659d081051faf7ff": "loggar spår processer resurshistorik fel spans cpu minne",
   "5eaeacfa9f82051a": "rapport bugg problem t3 team skicka återkoppling agenter verktyg automatiskt när jag ber om det",
-  "f537f91e1ee41d47": "kortkommandon snabbtangenter kommandon tangentbindningar json",
+  "7563e5672f951d26": "Redigera kortkommandon",
+  "2c2fa1369876364f": "kortkommandon keybindings snabbtangenter kommandon bindings json",
   "1ba01e7ceed64b95": "fönster fånga skärmbild",
   "279b1cceb779ff38": "Ta med apptext",
   "7fa82a838459b368": "fånga tillgänglighetsdata text UI-struktur element integritet utelämna agentkontext",
@@ -12342,6 +12395,7 @@
   "f2749efd2aac8fac": "till",
   "f01bf5f570d7a574": "eller",
   "d29982ab91fc2e20": "One hem",
+  "f4df476c37cf9f24": "{page}: klicka för att gå tillbaka",
   "8e9626aa27cb188a": "Ärenden",
   "9d2fc1003e82feb1": "Användning",
   "20283eb1dd6119f9": "{count, plural, one {{count} bilaga} other {{count} bilagor}}",
@@ -12372,6 +12426,7 @@
   "bcda2ccaa871dc46": "Ny tråd i aktuellt projekt: Shift+klick ({shortcut})",
   "aa5c379423baace1": "Ny tråd i aktuellt projekt: Shift+klick",
   "9d9d32b401d2931a": "{count, plural, one {{count} terminalprocess körs} other {{count} terminalprocesser körs}}",
+  "3ff15a75485b6c42": "Körs på {provider}",
   "ade06f6723949b39": "Ett fel uppstod",
   "021fe65858278fe9": "Snooza tråd",
   "e7c18f33bc1326f7": "Konfigurerar",
@@ -12582,6 +12637,9 @@
   "8790ba57600f2fda": "{count, plural, one {{count} kredit} other {{count} krediter}}",
   "7aaaff1c6484f25c": "Segment",
   "8bcab2ef61de6518": "Tak på 0 $",
+  "ad8ce9055f5e9d22": "Kvar av kvoten",
+  "27a0a424f318ed9f": "Underskott",
+  "cc88c25a314f4b6b": "Tar slut tidigt",
   "b2442d038d36f243": "Jämfört med hur stor del av fönstret som har gått",
   "578ad261df360720": "Alla gränser ser bra ut.",
   "de5b6f2aa9941c18": "{provider}, {window}: den som bör bevakas. {remaining} % kvar.",
@@ -12778,6 +12836,7 @@
       "v": "v"
     }
   ],
+  "f4333a1dfa10ab01": "Använd piltangenterna vänster och höger för att flytta mellan dagar",
   "435dd01dc4455e95": "Bearbetade token per timme per leverantör",
   "37069a5ef57ee9fa": "Kostnad per timme per leverantör",
   "aa73a1b4208bc912": "Bearbetade token per dag per leverantör",
@@ -12788,11 +12847,15 @@
   "684e516076de81fe": "Standard",
   "3bbcc1b826fef537": "Snabb",
   "66796576034c18ea": "Ultrasnabb",
-  "ac9c16c34de713a6": "session",
-  "1d05cd1f382fffdf": "veckovis",
-  "98417ff4ee2fea2c": "månadsvis",
-  "aa32257e1ef37622": "månadskostnad",
-  "f132a02d81f70dea": "totalt",
+  "1292d11de3e340a4": "session",
+  "a16cacc637bf03c5": "veckovis",
+  "038d394feb0d3b10": "månadsvis",
+  "4d7aa34c6515c420": "månadskostnad",
+  "15a4d4d94f083d34": "månatlig kreditgräns",
+  "a53b7a5cf007ae8c": "totalt",
+  "7dd380d90851d3b3": "Cursor-modeller",
+  "8652207aaedebc55": "andra modeller",
+  "443c9c2642c0f4f4": "prenumeration",
   "218d7bca77da345b": "{target} mappar den här modellen. Ta bort den från ”Tillämpa på” eller rensa dess mappning först.",
   "60ccdf9bdb7c3149": "Mappa till en annan modell.",
   "3155a2bd93dd97d9": "{field} krävs på {target}.",
