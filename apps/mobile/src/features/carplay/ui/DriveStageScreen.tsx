@@ -19,6 +19,7 @@ import {
 import {
   providerLabelMessage,
   type ApiKeyProviderId,
+  type BridgeThreadRefView,
   type CarPlaySettingsView,
   type DriveSnapshotView,
   type DrivingPersonaView,
@@ -48,7 +49,7 @@ export interface DriveStageViewProps {
   readonly onInterrupt: () => void | Promise<unknown>;
   readonly onSelectVoice: (voiceId: string) => void | Promise<unknown>;
   readonly onSelectPersona: (personaId: PersonaId) => void | Promise<unknown>;
-  readonly onSelectThread: (threadId: string | null) => void | Promise<unknown>;
+  readonly onSelectThread: (ref: BridgeThreadRefView | null) => void | Promise<unknown>;
   readonly onToggleFavoriteVoice: (voiceId: string) => void | Promise<unknown>;
   readonly onPreviewVoice: (voiceId: string) => void | Promise<unknown>;
   readonly onStopPreview: () => void | Promise<unknown>;
@@ -56,8 +57,8 @@ export interface DriveStageViewProps {
   readonly onSaveApiKey: (provider: ApiKeyProviderId, value: string) => void | Promise<unknown>;
   readonly onClearApiKey: (provider: ApiKeyProviderId) => void | Promise<unknown>;
   readonly onSendTextPrompt: (text: string) => void | Promise<unknown>;
-  readonly onConfirmPendingAction: () => void | Promise<unknown>;
-  readonly onDismissPendingAction: () => void | Promise<unknown>;
+  readonly onConfirmPendingAction: (proposalId: string) => void | Promise<unknown>;
+  readonly onDismissPendingAction: (proposalId: string) => void | Promise<unknown>;
 }
 
 function hapticTap() {
@@ -330,33 +331,33 @@ export function DriveStageView({
           </Text>
         </View>
 
-        {/* Agent Bridge Verbal Confirmation Guard */}
+        {/* Proposed follow-up message: sends only when this exact card is tapped. */}
         {snapshot.pendingConfirmation ? (
           <View testID="pending-confirmation-card" style={styles.confirmCard}>
             <Text style={styles.confirmTitle}>
-              <T>Confirm Agent Action</T>
+              <T>Send this message?</T>
             </Text>
             <Text style={styles.confirmSummary}>{snapshot.pendingConfirmation.summary}</Text>
             <View style={styles.confirmButtons}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={gt("Approve pending agent action")}
+                accessibilityLabel={gt("Send pending message")}
                 onPress={() => {
                   hapticHeavy();
-                  void onConfirmPendingAction();
+                  void onConfirmPendingAction(snapshot.pendingConfirmation!.id);
                 }}
                 style={({ pressed }) => [styles.confirmApproveBtn, pressed && styles.pressed]}
               >
                 <Text style={styles.confirmApproveText}>
-                  <T>Approve</T>
+                  <T>Send</T>
                 </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={gt("Cancel pending agent action")}
+                accessibilityLabel={gt("Cancel pending message")}
                 onPress={() => {
                   hapticTap();
-                  void onDismissPendingAction();
+                  void onDismissPendingAction(snapshot.pendingConfirmation!.id);
                 }}
                 style={({ pressed }) => [styles.confirmDismissBtn, pressed && styles.pressed]}
               >

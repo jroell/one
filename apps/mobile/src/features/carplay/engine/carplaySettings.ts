@@ -27,7 +27,7 @@ export const DEFAULT_CARPLAY_SETTINGS: CarPlaySettings = {
   bargeInEnabled: true,
   bargeInSensitivity: "balanced",
   vadMode: "semantic_vad",
-  autoStartOnCarPlay: true,
+  autoStartOnCarPlay: false,
   agentBridgeEnabled: true,
   spokenSpeed: 1.0,
   openaiModel: DEFAULT_OPENAI_REALTIME_MODEL,
@@ -51,12 +51,9 @@ function createExpoSecureStorage(): SecureKeyValueStorage {
     keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   };
   return {
-    async getItem(key) {
-      try {
-        return await SecureStore.getItemAsync(key, options);
-      } catch {
-        return null;
-      }
+    // A failed read (for example while the phone is locked) must not look like "no value saved".
+    getItem(key) {
+      return SecureStore.getItemAsync(key, options);
     },
     async setItem(key, value) {
       await SecureStore.setItemAsync(key, value, options);

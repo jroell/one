@@ -75,23 +75,34 @@ function mapToolsForOpenAi(tools: ReadonlyArray<VoiceToolDefinition>) {
   }));
 }
 
+/**
+ * The GA Realtime session shape (no `OpenAI-Beta` header): a typed session, `output_modalities`
+ * and audio settings nested under `audio.input` and `audio.output`. Checked against
+ * https://developers.openai.com/api/docs/guides/realtime-conversations and the
+ * `session.update` reference.
+ */
 function buildOpenAiSessionUpdatePayload(config: TransportSessionConfig) {
   return {
     type: "session.update",
     session: {
-      modalities: ["audio", "text"],
+      type: "realtime",
+      output_modalities: ["audio"],
       instructions: config.instructions,
-      voice: config.voice.providerVoiceId,
-      input_audio_format: "pcm16",
-      output_audio_format: "pcm16",
-      input_audio_transcription: {
-        model: "gpt-4o-mini-transcribe",
+      audio: {
+        input: {
+          format: { type: "audio/pcm", rate: 24_000 },
+          transcription: { model: "gpt-4o-mini-transcribe" },
+          turn_detection: buildTurnDetection(
+            config.vadMode,
+            config.bargeInEnabled,
+            config.bargeInSensitivity,
+          ),
+        },
+        output: {
+          format: { type: "audio/pcm", rate: 24_000 },
+          voice: config.voice.providerVoiceId,
+        },
       },
-      turn_detection: buildTurnDetection(
-        config.vadMode,
-        config.bargeInEnabled,
-        config.bargeInSensitivity,
-      ),
       tools: mapToolsForOpenAi(config.tools),
       tool_choice: config.tools.length > 0 ? "auto" : "none",
     },
@@ -112,6 +123,12 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
   #assistantTranscriptBuffer = "";
   #assistantSpeaking = false;
   #closingIntentionally = false;
+  /** True once the server acknowledged the session configuration with `session.updated`. */
+  #configured = false;
+  /** The OpenAI session voice cannot change after the model has answered with audio once. */
+  #voiceLocked = false;
+  #rejectConnect: ((error: Error) => void) | null = null;
+  #resolveConnect: (() => void) | null = null;
 
   constructor(options: OpenAiRealtimeTransportOptions) {
     this.#apiKey = options.apiKey;
@@ -119,6 +136,7 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
     this.#webSocketFactory = options.webSocketFactory ?? defaultWebSocketFactory;
   }
 
+  /** Resolves only after the server accepted the configuration; a rejected configuration fails the start. */
   async connect(config: TransportSessionConfig, callbacks: TransportCallbacks): Promise<void> {
     this.#config = config;
     this.#callbacks = callbacks;
@@ -126,60 +144,77 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
     this.#assistantTranscriptBuffer = "";
     this.#assistantSpeaking = false;
     this.#closingIntentionally = false;
+    this.#configured = false;
+    this.#voiceLocked = false;
 
     const url = `${OPENAI_REALTIME_WS_BASE}?model=${encodeURIComponent(this.#model)}`;
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
+      const settle = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        this.#rejectConnect = null;
+        this.#resolveConnect = null;
+        if (error) reject(error);
+        else resolve();
+      };
+      this.#rejectConnect = (error) => {
+        settle(error);
+        this.#closeSocket();
+      };
+      this.#resolveConnect = () => settle();
+
       const ws = this.#webSocketFactory(url, {
-        headers: {
-          Authorization: `Bearer ${this.#apiKey}`,
-          "OpenAI-Beta": "realtime=v1",
-        },
+        headers: { Authorization: `Bearer ${this.#apiKey}` },
       });
       this.#ws = ws;
 
       ws.onopen = () => {
-        if (!settled) {
-          settled = true;
-          resolve();
-        }
+        if (this.#ws !== ws) return;
         this.#sendJson(buildOpenAiSessionUpdatePayload(config));
-        callbacks.onConnected();
-        callbacks.onStateChange("listening");
       };
 
       ws.onmessage = (event) => {
+        if (this.#ws !== ws) return;
         this.#handleServerMessage(event.data);
       };
 
       ws.onerror = () => {
+        if (this.#ws !== ws) return;
         const message = "OpenAI Realtime connection error.";
         if (!settled) {
-          settled = true;
-          reject(new Error(message));
+          settle(new Error(message));
           return;
         }
         callbacks.onError(message, true);
       };
 
       ws.onclose = (event) => {
+        if (this.#ws !== ws) return;
         const reason = event.reason || `Closed (${event.code ?? 1000})`;
         const unexpected = !this.#closingIntentionally;
-        if (!settled) {
-          settled = true;
-          reject(new Error(`OpenAI Realtime closed before connecting: ${reason}`));
-          return;
-        }
         this.#ws = null;
         this.#assistantSpeaking = false;
+        if (!settled) {
+          settle(new Error(`OpenAI Realtime closed before it was ready: ${reason}`));
+          return;
+        }
         callbacks.onClose(reason, unexpected);
       };
     });
   }
 
+  requiresNewSessionFor(patch: Partial<TransportSessionConfig>): boolean {
+    return (
+      this.#voiceLocked &&
+      patch.voice !== undefined &&
+      patch.voice.providerVoiceId !== this.#config?.voice.providerVoiceId
+    );
+  }
+
   sendAudioChunk(pcmBase64: string, sampleRate: number): void {
-    if (!pcmBase64 || !this.#isOpen()) return;
+    if (!pcmBase64 || !this.#configured || !this.#isOpen()) return;
     const pcm24k =
       sampleRate === 24_000
         ? pcmBase64
@@ -192,7 +227,7 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
 
   sendTextTurn(text: string): void {
     const trimmed = text.trim();
-    if (!trimmed || !this.#isOpen()) return;
+    if (!trimmed || !this.#configured || !this.#isOpen()) return;
     this.#callbacks?.onUserTranscript(trimmed, true);
     this.#callbacks?.onStateChange("thinking");
     this.#sendJson({
@@ -231,9 +266,15 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
 
   async disconnect(): Promise<void> {
     this.#closingIntentionally = true;
+    this.#configured = false;
     this.#assistantSpeaking = false;
     this.#userTranscriptBuffer = "";
     this.#assistantTranscriptBuffer = "";
+    this.#rejectConnect?.(new Error("OpenAI Realtime connection was closed before it was ready."));
+    this.#closeSocket();
+  }
+
+  #closeSocket(): void {
     const ws = this.#ws;
     this.#ws = null;
     if (ws) {
@@ -270,6 +311,16 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
     if (!callbacks) return;
 
     switch (type) {
+      case "session.updated": {
+        if (!this.#configured) {
+          this.#configured = true;
+          this.#resolveConnect?.();
+          callbacks.onConnected();
+          callbacks.onStateChange("listening");
+        }
+        break;
+      }
+
       case "input_audio_buffer.speech_started": {
         this.#userTranscriptBuffer = "";
         if (this.#config?.bargeInEnabled) {
@@ -313,6 +364,7 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
       case "response.audio.delta":
       case "response.output_audio.delta": {
         if (typeof event.delta === "string" && event.delta.length > 0) {
+          this.#voiceLocked = true;
           if (!this.#assistantSpeaking) {
             this.#assistantSpeaking = true;
             callbacks.onStateChange("speaking");
@@ -367,6 +419,11 @@ export class OpenAiRealtimeTransport implements RealtimeTransport {
         const code = typeof errObj?.code === "string" ? errObj.code : "";
         // Canceling an already-finished response is benign during rapid barge-in.
         if (code === "response_cancel_not_active") return;
+        if (!this.#configured) {
+          // The server refused the session configuration, so the session never became usable.
+          this.#rejectConnect?.(new Error(message));
+          break;
+        }
         callbacks.onError(message, code !== "invalid_api_key");
         break;
       }

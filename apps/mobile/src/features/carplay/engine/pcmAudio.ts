@@ -136,3 +136,31 @@ export function computePcm16Base64Rms(base64Pcm: string): number {
   if (!base64Pcm) return 0;
   return computePcm16Rms(pcm16BytesToInt16(base64ToBytes(base64Pcm)));
 }
+
+export function buildWavFromPcm16(pcmBytes: Uint8Array, sampleRate: number): Uint8Array {
+  const header = new ArrayBuffer(44);
+  const view = new DataView(header);
+  const writeAscii = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) {
+      view.setUint8(offset + i, value.charCodeAt(i));
+    }
+  };
+  writeAscii(0, "RIFF");
+  view.setUint32(4, 36 + pcmBytes.byteLength, true);
+  writeAscii(8, "WAVE");
+  writeAscii(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, "data");
+  view.setUint32(40, pcmBytes.byteLength, true);
+
+  const out = new Uint8Array(44 + pcmBytes.byteLength);
+  out.set(new Uint8Array(header), 0);
+  out.set(pcmBytes, 44);
+  return out;
+}

@@ -472,7 +472,9 @@ describe("CarPlayDriveController", () => {
     expect(controller.getSnapshot().isActive).toBe(false);
     expect(transports).toHaveLength(0);
     expect(native.device.capturing).toBe(false);
-    expect(controller.getSnapshot().errorMessage).toContain("Could not read your saved Drive settings");
+    expect(controller.getSnapshot().errorMessage).toContain(
+      "Could not read your saved Drive settings",
+    );
 
     controller.dispose();
   });

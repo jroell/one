@@ -1,9 +1,9 @@
-import type { ProviderApprovalDecision } from "@t3tools/contracts";
 import { msg } from "gt-react-native";
 
 import { m } from "../../../i18n/messages";
 import { sanitizeForSpeech } from "./personas";
 import type {
+  BridgeThreadRef,
   BridgeThreadSummary,
   PendingConfirmation,
   VoiceToolDefinition,
@@ -16,7 +16,6 @@ export interface BridgeApprovalItem {
   readonly threadTitle: string;
   readonly requestId: string;
   readonly summary: string;
-  readonly canRespondLive: boolean;
 }
 
 export interface BridgeThreadDetail {
@@ -28,24 +27,66 @@ export interface BridgeThreadDetail {
   readonly pendingApprovals: ReadonlyArray<BridgeApprovalItem>;
 }
 
+/**
+ * Drive reads workspace state and can propose one kind of change, a follow-up message. Answering an
+ * approval request is deliberately not part of this interface: approvals are decided in the One app.
+ */
 export interface AgentBridgeBackend {
   isConnected(): boolean;
+  /** Threads for the dashboard and spoken lists; may be capped. */
   listThreads(): ReadonlyArray<BridgeThreadSummary>;
-  getThreadDetail(threadId: string): BridgeThreadDetail | null;
-  listPendingApprovals(threadId?: string): ReadonlyArray<BridgeApprovalItem>;
+  /** Every active thread, so a spoken title can be checked for duplicates. */
+  listThreadsForLookup(): ReadonlyArray<BridgeThreadSummary>;
+  getThreadDetail(ref: BridgeThreadRef): BridgeThreadDetail | null;
+  listPendingApprovals(ref?: BridgeThreadRef): ReadonlyArray<BridgeApprovalItem>;
   sendMessageToThread(
-    environmentId: string,
-    threadId: string,
+    ref: BridgeThreadRef,
     message: string,
   ): Promise<{ readonly ok: boolean; readonly error?: string }>;
-  respondToApproval(
-    environmentId: string,
-    threadId: string,
-    requestId: string,
-    decision: ProviderApprovalDecision,
-    feedback?: string,
-  ): Promise<{ readonly ok: boolean; readonly error?: string }>;
 }
+
+type ThreadResolution =
+  | { readonly kind: "found"; readonly thread: BridgeThreadSummary }
+  | { readonly kind: "ambiguous"; readonly matches: ReadonlyArray<BridgeThreadSummary> }
+  | { readonly kind: "missing" };
+
+/**
+ * Matches a spoken or model-supplied reference to one thread. An exact id wins, then an exact title,
+ * then a partial title. Several matches at the same level are never resolved by picking the first.
+ */
+export function resolveThread(
+  threads: ReadonlyArray<BridgeThreadSummary>,
+  query: string,
+  environmentId?: string,
+): ThreadResolution {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return { kind: "missing" };
+  const scoped = environmentId
+    ? threads.filter((thread) => thread.environmentId === environmentId)
+    : threads;
+  const tiers: ReadonlyArray<(thread: BridgeThreadSummary) => boolean> = [
+    (thread) => thread.threadId.toLowerCase() === needle,
+    (thread) => thread.title.trim().toLowerCase() === needle,
+    (thread) => thread.title.toLowerCase().includes(needle),
+  ];
+  for (const matches of tiers) {
+    const hits = scoped.filter(matches);
+    if (hits.length === 1) return { kind: "found", thread: hits[0]! };
+    if (hits.length > 1) return { kind: "ambiguous", matches: hits };
+  }
+  return { kind: "missing" };
+}
+
+/** One key for a thread across computers; CarPlay echoes it back when the driver picks a thread. */
+export function bridgeThreadKey(ref: BridgeThreadRef): string {
+  return `${ref.environmentId}::${ref.threadId}`;
+}
+
+const APPROVALS_NOT_IN_DRIVE_MESSAGE =
+  "Approvals are not handled by voice. Answer them in the One app when you are parked.";
+
+/** Longest follow-up message Drive will propose, so the whole text can be read back and shown. */
+export const MAX_PROPOSAL_MESSAGE_CHARS = 400;
 
 export const AGENT_BRIDGE_TOOLS: ReadonlyArray<VoiceToolDefinition> = [
   {
@@ -62,14 +103,19 @@ export const AGENT_BRIDGE_TOOLS: ReadonlyArray<VoiceToolDefinition> = [
     name: "get_thread_summary",
     description:
       // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-      "Returns a concise, speech-friendly summary of a specific One coding thread without raw code or diffs.",
+      "Returns a concise, speech-friendly summary of a specific One coding thread without raw code or diffs. If several threads match the title, the result says so: ask the driver which one.",
     parameters: {
       type: "object",
       properties: {
         threadId: {
           type: "string",
           // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "The ID or partial title of the thread to summarize.",
+          description: "The ID or title of the thread to summarize.",
+        },
+        environmentId: {
+          type: "string",
+          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
+          description: "Optional computer ID from list_active_threads, to tell apart equal titles.",
         },
       },
       required: ["threadId"],
@@ -79,14 +125,19 @@ export const AGENT_BRIDGE_TOOLS: ReadonlyArray<VoiceToolDefinition> = [
     name: "list_pending_approvals",
     description:
       // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-      "Lists pending permission or command approvals waiting for the user on linked One coding threads.",
+      "Lists pending permission or command approvals waiting for the user on linked One coding threads. Read-only: approvals cannot be answered by voice.",
     parameters: {
       type: "object",
       properties: {
         threadId: {
           type: "string",
           // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "Optional thread ID to filter approvals.",
+          description: "Optional thread ID or title to filter approvals.",
+        },
+        environmentId: {
+          type: "string",
+          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
+          description: "Optional computer ID from list_active_threads.",
         },
       },
     },
@@ -95,88 +146,64 @@ export const AGENT_BRIDGE_TOOLS: ReadonlyArray<VoiceToolDefinition> = [
     name: "send_message_to_thread",
     description:
       // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-      "Sends a follow-up instruction to a linked One coding thread. Must be verbally confirmed by the driver before setting confirmed to true.",
+      `Proposes a follow-up instruction for a linked One coding thread. Nothing is sent by this call: the driver must tap Send on the phone screen. Read the whole message back aloud and tell the driver to tap Send. Messages over ${MAX_PROPOSAL_MESSAGE_CHARS} characters are refused. A new proposal replaces the previous one.`,
     parameters: {
       type: "object",
       properties: {
         threadId: {
           type: "string",
           // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "Target thread ID or exact title.",
+          description: "Target thread ID or title.",
+        },
+        environmentId: {
+          type: "string",
+          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
+          description: "Optional computer ID from list_active_threads, to tell apart equal titles.",
         },
         message: {
           type: "string",
           // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "Instruction to send to the coding agent.",
-        },
-        confirmed: {
-          type: "boolean",
-          description:
-            // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-            "Set true ONLY after asking the driver aloud and receiving explicit verbal confirmation.",
-        },
-        confirmationId: {
-          type: "string",
-          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "The confirmationId returned from the prior confirmation check.",
+          description: "Instruction to send to the coding agent, exactly as it should be sent.",
         },
       },
       required: ["threadId", "message"],
     },
   },
-  {
-    name: "respond_to_approval",
-    description:
-      // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-      "Approves or declines a pending request on a linked One thread. Must be verbally confirmed by the driver before setting confirmed to true.",
-    parameters: {
-      type: "object",
-      properties: {
-        threadId: {
-          type: "string",
-          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "Target thread ID.",
-        },
-        requestId: {
-          type: "string",
-          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "The pending approval request ID.",
-        },
-        decision: {
-          type: "string",
-          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "Approval decision.",
-          enum: ["accept", "acceptForSession", "decline", "cancel"],
-        },
-        feedback: {
-          type: "string",
-          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "Optional short spoken reason when declining.",
-        },
-        confirmed: {
-          type: "boolean",
-          description:
-            // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-            "Set true ONLY after asking the driver aloud and receiving explicit verbal confirmation.",
-        },
-        confirmationId: {
-          type: "string",
-          // oxlint-disable-next-line t3code/no-untranslated-copy -- tool schema description sent to the voice model
-          description: "The confirmationId returned from the prior confirmation check.",
-        },
-      },
-      required: ["threadId", "requestId", "decision"],
-    },
-  },
 ];
 
 const CONFIRMATION_TTL_MS = 90_000;
-const ALLOWED_APPROVAL_DECISIONS = new Set<ProviderApprovalDecision>([
-  "accept",
-  "acceptForSession",
-  "decline",
-  "cancel",
-]);
+
+function readString(args: Readonly<Record<string, unknown>>, key: string): string {
+  const value = args[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function ambiguousResult(query: string, matches: ReadonlyArray<BridgeThreadSummary>) {
+  const names = matches
+    .slice(0, 4)
+    .map((item) => item.title)
+    .join("; ");
+  return {
+    ok: false,
+    status: "ambiguous" as const,
+    spokenSummary: `More than one thread matches ${sanitizeForSpeech(query)}: ${sanitizeForSpeech(names)}. Ask the driver which one they mean.`,
+    data: {
+      matches: matches.map((item) => ({
+        environmentId: item.environmentId,
+        threadId: item.threadId,
+        title: item.title,
+      })),
+    },
+  };
+}
+
+function missingResult(query: string) {
+  return {
+    ok: false,
+    status: "error" as const,
+    spokenSummary: `I could not find a thread matching ${sanitizeForSpeech(query)}.`,
+  };
+}
 
 export class AgentBridgeService {
   readonly #backend: AgentBridgeBackend;
@@ -189,6 +216,7 @@ export class AgentBridgeService {
     this.#now = now;
   }
 
+  /** The current proposal, or null once it has expired. An expired proposal is dropped here. */
   getPendingConfirmation(): PendingConfirmation | null {
     if (this.#pendingConfirmation && this.#pendingConfirmation.expiresAt <= this.#now()) {
       this.#pendingConfirmation = null;
@@ -205,26 +233,56 @@ export class AgentBridgeService {
     return this.#backend.listThreads();
   }
 
-  async confirmPendingAction(): Promise<VoiceToolExecutionResult> {
+  /**
+   * Runs the proposal the driver tapped. `proposalId` must be the id the screen showed: a replaced,
+   * expired or already used proposal sends nothing. This is the only path that sends a message and
+   * `executeTool` cannot reach it.
+   */
+  async confirmProposal(proposalId: string): Promise<VoiceToolExecutionResult> {
     const pending = this.getPendingConfirmation();
-    if (!pending) {
+    if (!pending || pending.id !== proposalId) {
       return {
         ok: false,
         status: "error",
-        spokenSummary: "There is no pending action waiting for confirmation.",
+        spokenSummary: m(msg("That message is no longer waiting, so nothing was sent.")),
       };
     }
-    return this.executeTool(pending.toolName, {
-      ...pending.payload,
-      confirmed: true,
-      confirmationId: pending.id,
-    });
+    // Clear before sending so a second tap during the send cannot send it twice.
+    this.#pendingConfirmation = null;
+    const result = await this.#backend.sendMessageToThread(
+      { environmentId: pending.environmentId, threadId: pending.threadId },
+      pending.message,
+    );
+    if (!result.ok) {
+      return {
+        ok: false,
+        status: "error",
+        spokenSummary: result.error ?? m(msg("Could not send the message to that thread.")),
+      };
+    }
+    return {
+      ok: true,
+      status: "completed",
+      spokenSummary: m(msg("Sent your message to {thread}."), { thread: pending.threadTitle }),
+      data: { environmentId: pending.environmentId, threadId: pending.threadId, sent: true },
+    };
+  }
+
+  /** Drops the proposal the driver cancelled; a different proposal that replaced it stays. */
+  dismissProposal(proposalId: string): boolean {
+    const pending = this.getPendingConfirmation();
+    if (!pending || pending.id !== proposalId) return false;
+    this.#pendingConfirmation = null;
+    return true;
   }
 
   async executeTool(
     name: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<VoiceToolExecutionResult> {
+    if (name === "respond_to_approval") {
+      return { ok: false, status: "error", spokenSummary: APPROVALS_NOT_IN_DRIVE_MESSAGE };
+    }
     if (!this.#backend.isConnected()) {
       return {
         ok: true,
@@ -262,28 +320,29 @@ export class AgentBridgeService {
       }
 
       case "get_thread_summary": {
-        const threadId = typeof args.threadId === "string" ? args.threadId : "";
-        if (!threadId.trim()) {
+        const query = readString(args, "threadId");
+        if (!query) {
           return {
             ok: false,
             status: "error",
             spokenSummary: "Tell me which thread you want me to summarize.",
           };
         }
-        const detail = this.#backend.getThreadDetail(threadId);
-        if (!detail) {
-          return {
-            ok: false,
-            status: "error",
-            spokenSummary: `I could not find a thread matching ${sanitizeForSpeech(threadId)}.`,
-          };
-        }
+        const resolved = resolveThread(
+          this.#backend.listThreadsForLookup(),
+          query,
+          readString(args, "environmentId") || undefined,
+        );
+        if (resolved.kind === "ambiguous") return ambiguousResult(query, resolved.matches);
+        if (resolved.kind === "missing") return missingResult(query);
+        const detail = this.#backend.getThreadDetail(resolved.thread);
+        if (!detail) return missingResult(query);
         const lastAssistant = [...detail.recentMessages]
           .reverse()
           .find((entry) => entry.role === "assistant");
         const approvalNote =
           detail.pendingApprovals.length > 0
-            ? ` It has ${detail.pendingApprovals.length} pending approval waiting: ${detail.pendingApprovals[0]!.summary}.`
+            ? ` It has ${detail.pendingApprovals.length} pending approval waiting: ${detail.pendingApprovals[0]!.summary}. Approvals are answered in the One app when parked.`
             : "";
         const updateNote = lastAssistant
           ? ` Latest update: ${lastAssistant.text}`
@@ -297,8 +356,19 @@ export class AgentBridgeService {
       }
 
       case "list_pending_approvals": {
-        const threadId = typeof args.threadId === "string" ? args.threadId : undefined;
-        const approvals = this.#backend.listPendingApprovals(threadId);
+        const query = readString(args, "threadId");
+        let ref: BridgeThreadRef | undefined;
+        if (query) {
+          const resolved = resolveThread(
+            this.#backend.listThreadsForLookup(),
+            query,
+            readString(args, "environmentId") || undefined,
+          );
+          if (resolved.kind === "ambiguous") return ambiguousResult(query, resolved.matches);
+          if (resolved.kind === "missing") return missingResult(query);
+          ref = resolved.thread;
+        }
+        const approvals = this.#backend.listPendingApprovals(ref);
         if (approvals.length === 0) {
           return {
             ok: true,
@@ -308,25 +378,27 @@ export class AgentBridgeService {
           };
         }
         const first = approvals[0]!;
-        const spokenSummary =
+        const lead =
           approvals.length === 1
             ? `One approval is waiting on ${first.threadTitle}: ${first.summary}.`
             : `${approvals.length} approvals are waiting. The first is on ${first.threadTitle}: ${first.summary}.`;
         return {
           ok: true,
           status: "completed",
-          spokenSummary,
-          data: { approvals },
+          spokenSummary: `${lead} Approvals are answered in the One app when you are parked.`,
+          data: {
+            approvals: approvals.map((item) => ({
+              environmentId: item.environmentId,
+              threadId: item.threadId,
+              threadTitle: item.threadTitle,
+              summary: item.summary,
+            })),
+          },
         };
       }
 
-      case "send_message_to_thread": {
-        return this.#handleSendMessage(args);
-      }
-
-      case "respond_to_approval": {
-        return this.#handleRespondToApproval(args);
-      }
+      case "send_message_to_thread":
+        return this.#proposeMessage(args);
 
       default:
         return {
@@ -337,191 +409,62 @@ export class AgentBridgeService {
     }
   }
 
-  async #handleSendMessage(
-    args: Readonly<Record<string, unknown>>,
-  ): Promise<VoiceToolExecutionResult> {
-    const threadId = typeof args.threadId === "string" ? args.threadId.trim() : "";
-    const message = typeof args.message === "string" ? args.message.trim() : "";
-    if (!threadId || !message) {
+  /** Records a proposal. Whatever arguments the model sends, this never sends the message. */
+  #proposeMessage(args: Readonly<Record<string, unknown>>): VoiceToolExecutionResult {
+    const query = readString(args, "threadId");
+    const message = readString(args, "message");
+    if (!query || !message) {
       return {
         ok: false,
         status: "error",
         spokenSummary: "I need both the thread and the message you want to send.",
       };
     }
-
-    const detail = this.#backend.getThreadDetail(threadId);
-    if (!detail) {
+    if (message.length > MAX_PROPOSAL_MESSAGE_CHARS) {
       return {
         ok: false,
         status: "error",
-        spokenSummary: `I could not find a thread matching ${sanitizeForSpeech(threadId)}.`,
+        spokenSummary: `That message is ${message.length} characters, over the ${MAX_PROPOSAL_MESSAGE_CHARS} character limit for sending from the car, because it has to be read back and shown whole. Shorten it, or send it from the One app when you are parked.`,
+        data: { maxCharacters: MAX_PROPOSAL_MESSAGE_CHARS, length: message.length },
       };
     }
 
-    const confirmed = args.confirmed === true;
-    const confirmationId = typeof args.confirmationId === "string" ? args.confirmationId : "";
-    const activeConfirmation = this.getPendingConfirmation();
-    const matchesPending =
-      confirmed &&
-      activeConfirmation !== null &&
-      activeConfirmation.toolName === "send_message_to_thread" &&
-      activeConfirmation.payload.threadId === detail.thread.threadId &&
-      activeConfirmation.payload.message === message &&
-      (confirmationId === "" || confirmationId === activeConfirmation.id);
+    const resolved = resolveThread(
+      this.#backend.listThreadsForLookup(),
+      query,
+      readString(args, "environmentId") || undefined,
+    );
+    if (resolved.kind === "ambiguous") return ambiguousResult(query, resolved.matches);
+    if (resolved.kind === "missing") return missingResult(query);
+    const thread = resolved.thread;
 
-    if (!matchesPending) {
-      const cleanSnippet = sanitizeForSpeech(message).slice(0, 120);
-      const confirmation: PendingConfirmation = {
-        id: `confirm-${++this.#confirmationSeq}`,
-        toolName: "send_message_to_thread",
-        summary: m(msg('Send "{message}" to {thread}'), {
-          message: cleanSnippet,
-          thread: detail.thread.title,
-        }),
-        expiresAt: this.#now() + CONFIRMATION_TTL_MS,
-        payload: {
-          threadId: detail.thread.threadId,
-          message,
-        },
-      };
-      this.#pendingConfirmation = confirmation;
-      return {
-        ok: true,
-        status: "needs_confirmation",
-        spokenSummary: `Please confirm: should I send this message to ${detail.thread.title}? "${cleanSnippet}"`,
-        confirmation,
-        data: { confirmationId: confirmation.id, requiresVerbalConfirmation: true },
-      };
-    }
-
-    this.#pendingConfirmation = null;
-    const result = await this.#backend.sendMessageToThread(
-      detail.thread.environmentId,
-      detail.thread.threadId,
+    const replaced = this.getPendingConfirmation();
+    const confirmation: PendingConfirmation = Object.freeze({
+      id: `confirm-${++this.#confirmationSeq}`,
+      toolName: "send_message_to_thread",
+      summary: m(msg('Send "{message}" to {thread}'), { message, thread: thread.title }),
+      environmentId: thread.environmentId,
+      threadId: thread.threadId,
+      threadTitle: thread.title,
       message,
-    );
-    if (!result.ok) {
-      return {
-        ok: false,
-        status: "error",
-        spokenSummary: result.error ?? "Failed to send message to the thread.",
-      };
-    }
+      expiresAt: this.#now() + CONFIRMATION_TTL_MS,
+    });
+    this.#pendingConfirmation = confirmation;
+    const replacedNote = replaced
+      ? " This replaces the message that was waiting before; that one will not be sent."
+      : "";
     return {
       ok: true,
-      status: "completed",
-      spokenSummary: `Sent your instructions to ${detail.thread.title}.`,
-      data: { threadId: detail.thread.threadId, sent: true },
-    };
-  }
-
-  async #handleRespondToApproval(
-    args: Readonly<Record<string, unknown>>,
-  ): Promise<VoiceToolExecutionResult> {
-    const threadId = typeof args.threadId === "string" ? args.threadId.trim() : "";
-    const requestId = typeof args.requestId === "string" ? args.requestId.trim() : "";
-    const decisionRaw = typeof args.decision === "string" ? args.decision.trim() : "";
-    const feedback = typeof args.feedback === "string" ? args.feedback.trim() : undefined;
-
-    if (
-      !threadId ||
-      !requestId ||
-      !ALLOWED_APPROVAL_DECISIONS.has(decisionRaw as ProviderApprovalDecision)
-    ) {
-      return {
-        ok: false,
-        status: "error",
-        spokenSummary: "I need the thread, approval request, and whether to approve or decline.",
-      };
-    }
-
-    const decision = decisionRaw as ProviderApprovalDecision;
-    const approvals = this.#backend.listPendingApprovals(threadId);
-    const approval = approvals.find((item) => item.requestId === requestId);
-    if (!approval) {
-      return {
-        ok: false,
-        status: "error",
-        spokenSummary: "That approval request is no longer pending.",
-      };
-    }
-    if (!approval.canRespondLive) {
-      return {
-        ok: false,
-        status: "error",
-        spokenSummary: "That approval cannot be answered live from mobile right now.",
-      };
-    }
-
-    const confirmed = args.confirmed === true;
-    const confirmationId = typeof args.confirmationId === "string" ? args.confirmationId : "";
-    const activeConfirmation = this.getPendingConfirmation();
-    const matchesPending =
-      confirmed &&
-      activeConfirmation !== null &&
-      activeConfirmation.toolName === "respond_to_approval" &&
-      activeConfirmation.payload.threadId === approval.threadId &&
-      activeConfirmation.payload.requestId === approval.requestId &&
-      activeConfirmation.payload.decision === decision &&
-      (activeConfirmation.payload.feedback ?? undefined) === feedback &&
-      (confirmationId === "" || confirmationId === activeConfirmation.id);
-
-    const isApprove = decision === "accept" || decision === "acceptForSession";
-
-    if (!matchesPending) {
-      const confirmation: PendingConfirmation = {
-        id: `confirm-${++this.#confirmationSeq}`,
-        toolName: "respond_to_approval",
-        summary: isApprove
-          ? m(msg('Approve "{summary}" on {thread}'), {
-              summary: approval.summary,
-              thread: approval.threadTitle,
-            })
-          : m(msg('Decline "{summary}" on {thread}'), {
-              summary: approval.summary,
-              thread: approval.threadTitle,
-            }),
-        expiresAt: this.#now() + CONFIRMATION_TTL_MS,
-        payload: {
-          threadId: approval.threadId,
-          requestId: approval.requestId,
-          decision,
-          ...(feedback ? { feedback } : {}),
-        },
-      };
-      this.#pendingConfirmation = confirmation;
-      return {
-        ok: true,
-        status: "needs_confirmation",
-        spokenSummary: `Please confirm: should I ${isApprove ? "approve" : "decline"} ${approval.summary} on ${approval.threadTitle}?`,
-        confirmation,
-        data: { confirmationId: confirmation.id, requiresVerbalConfirmation: true },
-      };
-    }
-
-    this.#pendingConfirmation = null;
-    const result = await this.#backend.respondToApproval(
-      approval.environmentId,
-      approval.threadId,
-      approval.requestId,
-      decision,
-      feedback,
-    );
-    if (!result.ok) {
-      return {
-        ok: false,
-        status: "error",
-        spokenSummary: result.error ?? "Failed to submit that approval decision.",
-      };
-    }
-    return {
-      ok: true,
-      status: "completed",
-      spokenSummary: isApprove
-        ? `Approved the request on ${approval.threadTitle}.`
-        : `Declined the request on ${approval.threadTitle}.`,
-      data: { threadId: approval.threadId, requestId: approval.requestId, decision },
+      status: "needs_confirmation",
+      spokenSummary: `Nothing is sent yet. The message for ${sanitizeForSpeech(thread.title)} is: "${message}". Read it back to the driver and ask them to tap Send on the phone screen.${replacedNote}`,
+      confirmation,
+      data: {
+        proposalId: confirmation.id,
+        sent: false,
+        confirmOnPhoneScreen: true,
+        expiresInSeconds: CONFIRMATION_TTL_MS / 1000,
+        replacedProposalId: replaced?.id ?? null,
+      },
     };
   }
 }

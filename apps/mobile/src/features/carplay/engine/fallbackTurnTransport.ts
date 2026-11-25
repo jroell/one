@@ -3,6 +3,7 @@ import { msg } from "gt-react-native";
 import { m } from "../../../i18n/messages";
 import { base64ToBytes, bytesToBase64, computePcm16Base64Rms } from "./pcmAudio";
 import { sanitizeForSpeech } from "./personas";
+import { createOpenAiPcmTranscriber, type PcmTranscriber } from "./speechInput";
 import type {
   ApiKeyProvider,
   CarPlayNativeAdapter,
@@ -12,12 +13,20 @@ import type {
   VoiceProvider,
 } from "./types";
 
+/** One spoken turn is cut off at this length: a stuck loud room must not grow the buffer forever. */
+const MAX_UTTERANCE_SECONDS = 20;
+/** 24 kHz mono PCM16, so the duration cap and the byte cap are the same limit. */
+const MAX_UTTERANCE_BYTES = MAX_UTTERANCE_SECONDS * 24_000 * 2;
+
 export interface FallbackTurnTransportOptions {
   readonly provider: Extract<VoiceProvider, "elevenlabs" | "on-device">;
   readonly native: CarPlayNativeAdapter;
   readonly getApiKey: (provider: ApiKeyProvider) => Promise<string | null>;
   readonly elevenLabsCustomVoiceId?: string;
-  readonly transcribePcm?: (pcm24kBytes: Uint8Array) => Promise<string | null>;
+  /** Speech-to-text for one utterance. When set it is the only recognizer used. */
+  readonly transcribePcm?: PcmTranscriber;
+  /** The phone's own recognizer, resolved once when the session connects. */
+  readonly getLocalTranscriber?: (signal: AbortSignal) => Promise<PcmTranscriber | null>;
   readonly fetchImpl?: typeof fetch;
 }
 
@@ -26,33 +35,7 @@ interface ConversationMessage {
   readonly text: string;
 }
 
-function buildWavFromPcm16(pcmBytes: Uint8Array, sampleRate: number): Uint8Array {
-  const header = new ArrayBuffer(44);
-  const view = new DataView(header);
-  const writeAscii = (offset: number, value: string) => {
-    for (let i = 0; i < value.length; i++) {
-      view.setUint8(offset + i, value.charCodeAt(i));
-    }
-  };
-  writeAscii(0, "RIFF");
-  view.setUint32(4, 36 + pcmBytes.byteLength, true);
-  writeAscii(8, "WAVE");
-  writeAscii(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeAscii(36, "data");
-  view.setUint32(40, pcmBytes.byteLength, true);
-
-  const out = new Uint8Array(44 + pcmBytes.byteLength);
-  out.set(new Uint8Array(header), 0);
-  out.set(pcmBytes, 44);
-  return out;
-}
+const APPROVE_OR_DECLINE_INTENT = /\b(approve|accept|decline|deny|reject)\b/;
 
 function concatUint8Arrays(chunks: ReadonlyArray<Uint8Array>): Uint8Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
@@ -71,7 +54,8 @@ export class FallbackTurnTransport implements RealtimeTransport {
   readonly #native: CarPlayNativeAdapter;
   readonly #getApiKey: (provider: ApiKeyProvider) => Promise<string | null>;
   readonly #elevenLabsCustomVoiceId: string;
-  readonly #transcribePcm?: (pcm24kBytes: Uint8Array) => Promise<string | null>;
+  readonly #injectedTranscriber?: PcmTranscriber;
+  readonly #getLocalTranscriber?: (signal: AbortSignal) => Promise<PcmTranscriber | null>;
   readonly #fetch: typeof fetch;
 
   #config: TransportSessionConfig | null = null;
@@ -79,9 +63,14 @@ export class FallbackTurnTransport implements RealtimeTransport {
   #connected = false;
   #speaking = false;
   #processing = false;
+  /** Null when this session cannot hear the driver; typed turns still work. */
+  #transcriber: PcmTranscriber | null = null;
   #activeAbort: AbortController | null = null;
+  #setupAbort: AbortController | null = null;
+  #turnSeq = 0;
   #history: Array<ConversationMessage> = [];
   #speechChunks: Array<Uint8Array> = [];
+  #speechBytes = 0;
   #detectedSpeech = false;
   #silentChunkCount = 0;
 
@@ -90,23 +79,81 @@ export class FallbackTurnTransport implements RealtimeTransport {
     this.#native = options.native;
     this.#getApiKey = options.getApiKey;
     this.#elevenLabsCustomVoiceId = options.elevenLabsCustomVoiceId?.trim() ?? "";
-    this.#transcribePcm = options.transcribePcm;
+    this.#injectedTranscriber = options.transcribePcm;
+    this.#getLocalTranscriber = options.getLocalTranscriber;
     this.#fetch = options.fetchImpl ?? fetch;
   }
 
   async connect(config: TransportSessionConfig, callbacks: TransportCallbacks): Promise<void> {
     this.#config = config;
     this.#callbacks = callbacks;
-    this.#connected = true;
     this.#history = [];
     this.#resetCaptureBuffer();
+    const setup = new AbortController();
+    this.#setupAbort = setup;
+
+    const { transcriber, unavailableMessage } = await this.#resolveTranscriber(setup.signal);
+    if (setup.signal.aborted) return;
+    this.#transcriber = transcriber;
+    this.#connected = true;
 
     callbacks.onConnected();
-    callbacks.onStateChange("listening");
+    if (transcriber) {
+      callbacks.onStateChange("listening");
+    } else {
+      callbacks.onStateChange("idle");
+      callbacks.onInputUnavailable?.(unavailableMessage);
+    }
+  }
+
+  /**
+   * On-Device never sends microphone audio off the phone, whatever keys are saved. A cloud voice
+   * (ElevenLabs) falls back to OpenAI transcription only when the driver saved an OpenAI key.
+   */
+  async #resolveTranscriber(
+    signal: AbortSignal,
+  ): Promise<{ transcriber: PcmTranscriber | null; unavailableMessage: string }> {
+    if (this.#injectedTranscriber) {
+      return { transcriber: this.#injectedTranscriber, unavailableMessage: "" };
+    }
+    let localFailure: string | null = null;
+    if (this.#getLocalTranscriber) {
+      try {
+        const local = await this.#getLocalTranscriber(signal);
+        if (local) return { transcriber: local, unavailableMessage: "" };
+      } catch (error) {
+        localFailure = error instanceof Error ? error.message : null;
+      }
+    }
+    if (this.provider === "elevenlabs") {
+      const openAiKey = await this.#getApiKey("openai");
+      if (openAiKey) {
+        return {
+          transcriber: createOpenAiPcmTranscriber({ apiKey: openAiKey, fetchImpl: this.#fetch }),
+          unavailableMessage: "",
+        };
+      }
+      return {
+        transcriber: null,
+        unavailableMessage: m(
+          msg("This voice needs an OpenAI key to hear you. Add one in setup, or type."),
+        ),
+      };
+    }
+    return {
+      transcriber: null,
+      unavailableMessage:
+        localFailure ??
+        m(
+          msg(
+            "On-Device voice cannot hear you on this phone. Add a cloud voice key in setup, or type.",
+          ),
+        ),
+    };
   }
 
   sendAudioChunk(pcm24kBase64: string, _sampleRate: number): void {
-    if (!this.#connected || !pcm24kBase64 || !this.#config) return;
+    if (!this.#connected || !this.#transcriber || !pcm24kBase64 || !this.#config) return;
     const rms = computePcm16Base64Rms(pcm24kBase64);
     const threshold =
       this.#config.bargeInSensitivity === "high"
@@ -127,29 +174,42 @@ export class FallbackTurnTransport implements RealtimeTransport {
     if (rms >= threshold) {
       this.#detectedSpeech = true;
       this.#silentChunkCount = 0;
-      this.#speechChunks.push(base64ToBytes(pcm24kBase64));
+      this.#pushSpeechChunk(base64ToBytes(pcm24kBase64));
       return;
     }
 
     if (this.#detectedSpeech) {
-      this.#speechChunks.push(base64ToBytes(pcm24kBase64));
+      this.#pushSpeechChunk(base64ToBytes(pcm24kBase64));
       this.#silentChunkCount += 1;
       // Roughly 700ms of trailing silence (7 x 100ms chunks) commits the spoken turn.
       if (this.#silentChunkCount >= 7) {
-        const audio = concatUint8Arrays(this.#speechChunks);
-        this.#resetCaptureBuffer();
-        void this.#handleSpokenAudioTurn(audio);
+        this.#commitSpeech();
       }
     }
+  }
+
+  #pushSpeechChunk(bytes: Uint8Array): void {
+    this.#speechChunks.push(bytes);
+    this.#speechBytes += bytes.byteLength;
+    if (this.#speechBytes >= MAX_UTTERANCE_BYTES) {
+      this.#commitSpeech();
+    }
+  }
+
+  #commitSpeech(): void {
+    const audio = concatUint8Arrays(this.#speechChunks);
+    this.#resetCaptureBuffer();
+    void this.#handleSpokenAudioTurn(audio);
   }
 
   sendTextTurn(text: string): void {
     const trimmed = text.trim();
     if (!trimmed || !this.#connected) return;
-    void this.#processUserText(trimmed);
+    void this.#runTurn(async () => trimmed);
   }
 
   interrupt(): void {
+    this.#turnSeq += 1;
     this.#activeAbort?.abort();
     this.#activeAbort = null;
     this.#speaking = false;
@@ -159,7 +219,7 @@ export class FallbackTurnTransport implements RealtimeTransport {
     void this.#native.clearPlaybackQueue();
     this.#callbacks?.onBargeIn();
     this.#callbacks?.onStateChange("interrupted");
-    this.#callbacks?.onStateChange("listening");
+    this.#callbacks?.onStateChange(this.#restingState());
   }
 
   async updateSession(patch: Partial<TransportSessionConfig>): Promise<void> {
@@ -172,6 +232,9 @@ export class FallbackTurnTransport implements RealtimeTransport {
 
   async disconnect(): Promise<void> {
     this.#connected = false;
+    this.#turnSeq += 1;
+    this.#setupAbort?.abort();
+    this.#setupAbort = null;
     this.#activeAbort?.abort();
     this.#activeAbort = null;
     this.#speaking = false;
@@ -181,94 +244,74 @@ export class FallbackTurnTransport implements RealtimeTransport {
     await this.#native.clearPlaybackQueue();
   }
 
+  #restingState(): "listening" | "idle" {
+    return this.#transcriber ? "listening" : "idle";
+  }
+
   #resetCaptureBuffer(): void {
     this.#speechChunks = [];
+    this.#speechBytes = 0;
     this.#detectedSpeech = false;
     this.#silentChunkCount = 0;
   }
 
   async #handleSpokenAudioTurn(pcm24kBytes: Uint8Array): Promise<void> {
-    if (!this.#connected || pcm24kBytes.byteLength < 2_400) return;
-    this.#processing = true;
-    this.#callbacks?.onStateChange("thinking");
-
-    try {
-      const transcript = await this.#transcribeAudio(pcm24kBytes);
-      if (!transcript || !this.#connected) {
-        this.#processing = false;
-        this.#callbacks?.onStateChange("listening");
-        return;
-      }
-      await this.#processUserText(transcript);
-    } catch {
-      this.#processing = false;
-      this.#callbacks?.onStateChange("listening");
-    }
+    const transcribe = this.#transcriber;
+    if (!this.#connected || !transcribe || pcm24kBytes.byteLength < 2_400) return;
+    await this.#runTurn((signal) => transcribe(pcm24kBytes, signal));
   }
 
-  async #transcribeAudio(pcm24kBytes: Uint8Array): Promise<string | null> {
-    if (this.#transcribePcm) {
-      return this.#transcribePcm(pcm24kBytes);
-    }
-    const openAiKey = await this.#getApiKey("openai");
-    if (!openAiKey) return null;
-
-    const wavBytes = buildWavFromPcm16(pcm24kBytes, 24_000);
-    const wavBuffer = new ArrayBuffer(wavBytes.byteLength);
-    new Uint8Array(wavBuffer).set(wavBytes);
-    const form = new FormData();
-    const blob = new Blob([wavBuffer], { type: "audio/wav" });
-    form.append("file", blob, "turn.wav");
-    form.append("model", "gpt-4o-mini-transcribe");
-
-    const response = await this.#fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openAiKey}`,
-      },
-      body: form,
-    });
-    if (!response.ok) return null;
-    const json = (await response.json()) as { readonly text?: unknown };
-    return typeof json.text === "string" && json.text.trim().length > 0 ? json.text.trim() : null;
-  }
-
-  async #processUserText(userText: string): Promise<void> {
-    if (!this.#connected || !this.#config || !this.#callbacks) return;
+  /**
+   * One user turn from input to the end of the spoken reply. A newer turn, an interrupt or a
+   * disconnect supersedes it, and a superseded turn leaves the shared flags alone.
+   */
+  async #runTurn(getUserText: (signal: AbortSignal) => Promise<string | null>): Promise<void> {
+    const callbacks = this.#callbacks;
+    if (!this.#connected || !this.#config || !callbacks) return;
 
     this.#activeAbort?.abort();
     const controller = new AbortController();
     this.#activeAbort = controller;
+    const turnId = ++this.#turnSeq;
+    const superseded = () =>
+      turnId !== this.#turnSeq || controller.signal.aborted || !this.#connected;
     this.#processing = true;
-
-    this.#callbacks.onUserTranscript(userText, true);
-    this.#callbacks.onStateChange("thinking");
-    this.#history.push({ role: "user", text: userText });
-    if (this.#history.length > 12) {
-      this.#history = this.#history.slice(-12);
-    }
+    callbacks.onStateChange("thinking");
 
     try {
+      const userText = await getUserText(controller.signal);
+      if (superseded() || !userText) return;
+
+      callbacks.onUserTranscript(userText, true);
+      this.#history.push({ role: "user", text: userText });
+      if (this.#history.length > 12) {
+        this.#history = this.#history.slice(-12);
+      }
+
       const reply = await this.#generateReply(userText, controller.signal);
-      if (controller.signal.aborted || !this.#connected) return;
+      if (superseded()) return;
 
       const spokenReply = sanitizeForSpeech(reply);
       this.#history.push({ role: "assistant", text: spokenReply });
-      this.#callbacks.onAssistantTranscript(spokenReply, true);
+      callbacks.onAssistantTranscript(spokenReply, true);
       this.#processing = false;
 
       await this.#speakReply(spokenReply, controller.signal);
     } catch (error) {
-      if (!controller.signal.aborted) {
+      if (!superseded()) {
         const message =
-          error instanceof Error ? error.message : "Could not complete the voice turn.";
-        this.#callbacks.onError(message, true);
+          error instanceof Error && error.message
+            ? error.message
+            : m(msg("Could not complete the voice turn."));
+        callbacks.onError(message, true);
       }
     } finally {
-      this.#processing = false;
-      this.#speaking = false;
-      if (this.#connected) {
-        this.#callbacks.onStateChange("listening");
+      if (turnId === this.#turnSeq) {
+        this.#processing = false;
+        this.#speaking = false;
+        if (this.#connected) {
+          callbacks.onStateChange(this.#restingState());
+        }
       }
     }
   }
@@ -282,7 +325,9 @@ export class FallbackTurnTransport implements RealtimeTransport {
       return bridgeReply;
     }
 
-    const openAiKey = await this.#getApiKey("openai");
+    // On-Device keeps everything on the phone: no transcript goes to a cloud model.
+    const useCloudModels = this.provider !== "on-device";
+    const openAiKey = useCloudModels ? await this.#getApiKey("openai") : null;
     if (openAiKey) {
       const response = await this.#fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -309,7 +354,7 @@ export class FallbackTurnTransport implements RealtimeTransport {
       }
     }
 
-    const geminiKey = await this.#getApiKey("gemini");
+    const geminiKey = useCloudModels ? await this.#getApiKey("gemini") : null;
     if (geminiKey) {
       const response = await this.#fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`,
@@ -337,12 +382,19 @@ export class FallbackTurnTransport implements RealtimeTransport {
       }
     }
 
-    return m(
-      msg(
-        'On-Device Drive Mode heard you say: "{userText}". Add an OpenAI or Gemini API key in Voice Setup for full conversational AI, or ask me about your linked One threads anytime.',
-      ),
-      { userText },
-    );
+    return this.provider === "on-device"
+      ? m(
+          msg(
+            'On-Device Drive Mode heard you say: "{userText}". It can answer questions about your linked One threads. Pick a cloud voice with an API key in Voice Setup for open conversation.',
+          ),
+          { userText },
+        )
+      : m(
+          msg(
+            'On-Device Drive Mode heard you say: "{userText}". Add an OpenAI or Gemini API key in Voice Setup for full conversational AI, or ask me about your linked One threads anytime.',
+          ),
+          { userText },
+        );
   }
 
   async #tryLocalAgentBridgeIntent(userText: string): Promise<string | null> {
@@ -350,7 +402,12 @@ export class FallbackTurnTransport implements RealtimeTransport {
       return null;
     }
     const lower = userText.toLowerCase();
-    if (lower.includes("approval") || lower.includes("approve")) {
+    if (APPROVE_OR_DECLINE_INTENT.test(lower)) {
+      // Approvals are never answered by voice; the bridge replies with where to do it.
+      const res = await this.#callbacks.onToolCall("respond_to_approval", {});
+      return res.spokenSummary;
+    }
+    if (lower.includes("approval")) {
       const res = await this.#callbacks.onToolCall("list_pending_approvals", {});
       return res.spokenSummary;
     }

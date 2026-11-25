@@ -485,7 +485,10 @@ export function CarPlayPreviewPanel({
                               void onSelectThread(
                                 active
                                   ? null
-                                  : { environmentId: thread.environmentId, threadId: thread.threadId },
+                                  : {
+                                      environmentId: thread.environmentId,
+                                      threadId: thread.threadId,
+                                    },
                               );
                             }}
                             style={[styles.carPlayListRow, active && styles.carPlayListRowActive]}

@@ -73,6 +73,7 @@ export interface CarPlaySettings {
   readonly bargeInEnabled: boolean;
   readonly bargeInSensitivity: BargeInSensitivity;
   readonly vadMode: VadMode;
+  /** Off by default: a drive starts only when the driver asks for it. */
   readonly autoStartOnCarPlay: boolean;
   readonly agentBridgeEnabled: boolean;
   readonly spokenSpeed: number;
@@ -82,6 +83,12 @@ export interface CarPlaySettings {
 }
 
 export type BridgeThreadStatus = "needs_approval" | "running" | "ready" | "error";
+
+/** A thread is only identified by both ids: the same thread id can exist on two linked computers. */
+export interface BridgeThreadRef {
+  readonly environmentId: string;
+  readonly threadId: string;
+}
 
 export interface BridgeThreadSummary {
   readonly environmentId: string;
@@ -93,12 +100,20 @@ export interface BridgeThreadSummary {
   readonly branch?: string | null;
 }
 
+/**
+ * A follow-up message the voice model proposed. It never changes after creation and runs only when
+ * the driver taps the confirmation on the phone with this exact `id`.
+ */
 export interface PendingConfirmation {
   readonly id: string;
-  readonly toolName: "send_message_to_thread" | "respond_to_approval";
+  readonly toolName: "send_message_to_thread";
   readonly summary: string;
+  readonly environmentId: string;
+  readonly threadId: string;
+  readonly threadTitle: string;
+  /** The full text that will be sent, character for character. */
+  readonly message: string;
   readonly expiresAt: number;
-  readonly payload: Readonly<Record<string, unknown>>;
 }
 
 export interface DriveControllerSnapshot {
@@ -118,7 +133,10 @@ export interface DriveControllerSnapshot {
   readonly errorMessage: string | null;
   readonly reconnectAttempt: number;
   readonly activeThreadId: string | null;
+  readonly activeThreadEnvironmentId: string | null;
   readonly activeThreadTitle: string | null;
+  /** Set while the session cannot hear the driver (typed turns still work). */
+  readonly voiceInputUnavailableMessage: string | null;
   readonly threads: ReadonlyArray<BridgeThreadSummary>;
   readonly pendingConfirmation: PendingConfirmation | null;
   readonly settings: CarPlaySettings;
@@ -148,7 +166,7 @@ export interface VoiceToolDefinition {
 
 export interface VoiceToolExecutionResult {
   readonly ok: boolean;
-  readonly status: "completed" | "needs_confirmation" | "disconnected" | "error";
+  readonly status: "completed" | "needs_confirmation" | "disconnected" | "ambiguous" | "error";
   readonly spokenSummary: string;
   readonly data?: unknown;
   readonly confirmation?: PendingConfirmation;
@@ -172,6 +190,8 @@ export interface TransportCallbacks {
   ) => Promise<VoiceToolExecutionResult>;
   readonly onError: (message: string, recoverable: boolean) => void;
   readonly onClose: (reason: string, unexpected: boolean) => void;
+  /** The transport is connected but cannot hear the driver, so the session must not claim to listen. */
+  readonly onInputUnavailable?: (message: string) => void;
 }
 
 export interface TransportSessionConfig {
@@ -192,6 +212,8 @@ export interface RealtimeTransport {
   sendTextTurn(text: string): void;
   interrupt(): void;
   updateSession(config: Partial<TransportSessionConfig>): Promise<void>;
+  /** True when this change cannot be applied to the open session and needs a fresh connection. */
+  requiresNewSessionFor?(config: Partial<TransportSessionConfig>): boolean;
   disconnect(): Promise<void>;
 }
 

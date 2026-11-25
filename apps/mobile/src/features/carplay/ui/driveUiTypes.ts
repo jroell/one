@@ -3,6 +3,7 @@ import { msg } from "gt-react-native";
 import type {
   ApiKeyProvider,
   ApiKeyStatusMap,
+  BridgeThreadRef,
   BridgeThreadSummary,
   CarPlaySettings,
   DriveControllerSnapshot,
@@ -19,6 +20,7 @@ import type {
 export type {
   ApiKeyProvider as ApiKeyProviderId,
   ApiKeyStatusMap as ApiKeysConfiguredView,
+  BridgeThreadRef as BridgeThreadRefView,
   BridgeThreadSummary as BridgeThreadView,
   CarPlaySettings as CarPlaySettingsView,
   DriveControllerSnapshot as DriveSnapshotView,

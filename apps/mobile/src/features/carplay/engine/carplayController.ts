@@ -3,7 +3,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { m } from "../../../i18n/messages";
 
-import { AGENT_BRIDGE_TOOLS, AgentBridgeService } from "./agentBridgeTools";
+import { AGENT_BRIDGE_TOOLS, AgentBridgeService, bridgeThreadKey } from "./agentBridgeTools";
 import {
   CarPlaySettingsStore,
   DEFAULT_CARPLAY_SETTINGS,
@@ -15,9 +15,11 @@ import { createLiveAgentBridgeBackend } from "./liveAgentBridgeBackend";
 import { createNativeCarPlayAdapter } from "./nativeBridge";
 import { OpenAiRealtimeTransport } from "./openaiRealtimeTransport";
 import { buildPersonaInstructions, DRIVING_PERSONAS, getPersonaById } from "./personas";
+import { createLocalPcmTranscriber, type PcmTranscriber } from "./speechInput";
 import type {
   ApiKeyProvider,
   ApiKeyStatusMap,
+  BridgeThreadRef,
   BridgeThreadSummary,
   CarPlayActionEvent,
   CarPlayNativeAdapter,
@@ -30,9 +32,11 @@ import type {
   PersonaId,
   RealtimeTransport,
   TranscriptEntry,
+  TransportCallbacks,
   TransportSessionConfig,
   VoiceProfile,
   VoiceProvider,
+  VoiceToolExecutionResult,
   WebSocketFactory,
 } from "./types";
 import { getOrderedVoicesForCarPlay, getVoiceById, previewVoiceSample } from "./voiceCatalog";
@@ -40,6 +44,28 @@ import { getOrderedVoicesForCarPlay, getVoiceById, previewVoiceSample } from "./
 const MAX_TRANSCRIPT_ITEMS = 80;
 const MAX_RECONNECT_ATTEMPTS = 3;
 const BASE_RECONNECT_DELAY_MS = 1_200;
+/** A socket that opens but never becomes a usable session counts as a failed attempt. */
+const CONNECT_DEADLINE_MS = 15_000;
+/** The retry budget refills only after a connection has stayed usable this long. */
+const STABLE_SESSION_MS = 30_000;
+const MIN_PROPOSAL_TIMER_MS = 250;
+
+/** Who asked for the session. A session CarPlay started ends when CarPlay disconnects. */
+type SessionOwner = "phone" | "carplay";
+
+const KEY_PROVIDERS_BY_TRANSPORT: Readonly<Record<VoiceProvider, ReadonlyArray<ApiKeyProvider>>> = {
+  "openai-realtime": ["openai"],
+  "gemini-live": ["gemini"],
+  elevenlabs: ["elevenlabs", "openai", "gemini"],
+  // On-Device sends nothing to a cloud provider, so no saved key is in use.
+  "on-device": [],
+};
+
+const KEY_PROVIDER_NAMES: Readonly<Record<ApiKeyProvider, string>> = {
+  openai: "OpenAI",
+  gemini: "Gemini",
+  elevenlabs: "ElevenLabs",
+};
 
 export interface CarPlayControllerDependencies {
   readonly native?: CarPlayNativeAdapter;
@@ -53,10 +79,16 @@ export interface CarPlayControllerDependencies {
     readonly apiKey: string | null;
     readonly settings: CarPlaySettings;
   }) => RealtimeTransport;
+  /** The phone's own speech recognizer for the On-Device and ElevenLabs voices. */
+  readonly getLocalTranscriber?: (signal: AbortSignal) => Promise<PcmTranscriber | null>;
   readonly now?: () => number;
 }
 
 type SnapshotListener = () => void;
+
+function refusal(spokenSummary: string): VoiceToolExecutionResult {
+  return { ok: false, status: "error", spokenSummary };
+}
 
 export class CarPlayDriveController {
   readonly #native: CarPlayNativeAdapter;
@@ -65,6 +97,7 @@ export class CarPlayDriveController {
   readonly #webSocketFactory?: WebSocketFactory;
   readonly #fetchImpl?: typeof fetch;
   readonly #createTransportOverride?: CarPlayControllerDependencies["createTransport"];
+  readonly #getLocalTranscriber: (signal: AbortSignal) => Promise<PcmTranscriber | null>;
   readonly #now: () => number;
 
   readonly #listeners = new Set<SnapshotListener>();
@@ -72,11 +105,22 @@ export class CarPlayDriveController {
   #transport: RealtimeTransport | null = null;
   #previewAbort: AbortController | null = null;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  #stableTimer: ReturnType<typeof setTimeout> | null = null;
+  #proposalTimer: ReturnType<typeof setTimeout> | null = null;
   #hydrated = false;
   #hydratePromise: Promise<void> | null = null;
+  #settingsReadFailed = false;
   #hasLiveCarPlayConnectionEvent = false;
   #transcriptSeq = 0;
   #interruptedBeforeCall = false;
+  /**
+   * Bumped by every start and by every end. Each async step and transport callback compares the
+   * number it captured with this one and does nothing when they differ.
+   */
+  #generation = 0;
+  /** Null while no session is wanted, so a start that finishes late knows to release the audio. */
+  #sessionOwner: SessionOwner | null = null;
+  #retryCount = 0;
   #snapshot: DriveControllerSnapshot;
 
   constructor(deps: CarPlayControllerDependencies = {}) {
@@ -86,6 +130,7 @@ export class CarPlayDriveController {
     this.#webSocketFactory = deps.webSocketFactory;
     this.#fetchImpl = deps.fetchImpl;
     this.#createTransportOverride = deps.createTransport;
+    this.#getLocalTranscriber = deps.getLocalTranscriber ?? createLocalPcmTranscriber;
     this.#now = deps.now ?? (() => Date.now());
 
     const initialVoice = getVoiceById(DEFAULT_CARPLAY_SETTINGS.selectedVoiceId);
@@ -108,7 +153,9 @@ export class CarPlayDriveController {
       errorMessage: null,
       reconnectAttempt: 0,
       activeThreadId: null,
+      activeThreadEnvironmentId: null,
       activeThreadTitle: null,
+      voiceInputUnavailableMessage: null,
       threads: [],
       pendingConfirmation: null,
       settings: DEFAULT_CARPLAY_SETTINGS,
@@ -132,13 +179,23 @@ export class CarPlayDriveController {
     if (this.#hydratePromise) return this.#hydratePromise;
 
     this.#hydratePromise = (async () => {
-      const [settings, apiKeysConfigured, carPlayStatus] = await Promise.all([
-        this.#settingsStore.loadSettings(),
-        this.#settingsStore.getApiKeyStatus(),
+      const [settingsRead, apiKeysConfigured, carPlayStatus] = await Promise.all([
+        this.#settingsStore.loadSettings().then(
+          (settings) => ({ readable: true as const, settings }),
+          () => ({ readable: false as const, settings: DEFAULT_CARPLAY_SETTINGS }),
+        ),
+        this.#settingsStore
+          .getApiKeyStatus()
+          .catch(() => ({ openai: false, gemini: false, elevenlabs: false })),
         this.#native.getCarPlayStatus().catch(() => ({ connected: false })),
       ]);
       const threads = this.#agentBridge.listThreads();
-      this.#hydrated = true;
+      // An unreadable store (for example a locked phone) must not look like "no opt-out saved".
+      this.#settingsReadFailed = !settingsRead.readable;
+      const settings = settingsRead.readable
+        ? settingsRead.settings
+        : { ...DEFAULT_CARPLAY_SETTINGS, autoStartOnCarPlay: false };
+      this.#hydrated = settingsRead.readable;
 
       this.#updateSnapshot({
         settings,
@@ -148,6 +205,15 @@ export class CarPlayDriveController {
         ...(this.#hasLiveCarPlayConnectionEvent
           ? {}
           : { carPlayConnected: carPlayStatus.connected }),
+        ...(settingsRead.readable || this.#snapshot.isActive
+          ? {}
+          : {
+              errorMessage: m(
+                msg(
+                  "Could not read your saved Drive settings. Defaults are in use and auto-start is off.",
+                ),
+              ),
+            }),
         threads,
       });
       await this.#syncCarPlay();
@@ -164,93 +230,103 @@ export class CarPlayDriveController {
     const threads = this.#agentBridge.listThreads();
     const activeStillExists =
       this.#snapshot.activeThreadId !== null &&
-      threads.some((item) => item.threadId === this.#snapshot.activeThreadId);
+      threads.some(
+        (item) =>
+          item.threadId === this.#snapshot.activeThreadId &&
+          item.environmentId === this.#snapshot.activeThreadEnvironmentId,
+      );
     this.#updateSnapshot({
       threads,
-      ...(activeStillExists ? {} : { activeThreadId: null, activeThreadTitle: null }),
+      ...(activeStillExists
+        ? {}
+        : { activeThreadId: null, activeThreadEnvironmentId: null, activeThreadTitle: null }),
     });
     void this.#syncCarPlay();
     return threads;
   }
 
-  async startSession(): Promise<void> {
-    await this.hydrate();
-    await this.stopPreview();
+  async startSession(owner: SessionOwner = "phone"): Promise<void> {
+    const generation = ++this.#generation;
+    this.#sessionOwner = owner;
+    this.#retryCount = 0;
     this.#clearReconnectTimer();
-
-    if (this.#transport) {
-      await this.#teardownTransport();
-    }
-
-    const voice = this.#snapshot.activeVoice;
-    const persona = this.#snapshot.activePersona;
-    const threads = this.#agentBridge.listThreads();
-
-    this.#updateSnapshot({
-      sessionState: "connecting",
-      isActive: true,
-      isMuted: false,
-      errorMessage: null,
-      reconnectAttempt: 0,
-      threads,
-      activeCaption: `Connecting ${voice.displayName}...`,
-      activeCaptionRole: "system",
-    });
-    await this.#syncCarPlay();
+    this.#clearStableTimer();
 
     try {
-      await this.#native.startAudioSession({ sampleRate: 24_000 });
-      await this.#native.setMuted(false);
-      await this.#connectTransportForVoice(voice, persona);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not start hands-free voice session.";
-      await this.#native.stopAudioSession().catch(() => undefined);
+      await this.hydrate();
+      if (generation !== this.#generation) return;
+
+      const voice = this.#snapshot.activeVoice;
+      const persona = this.#snapshot.activePersona;
       this.#updateSnapshot({
+        sessionState: "connecting",
+        isActive: true,
+        isMuted: false,
+        errorMessage: null,
+        voiceInputUnavailableMessage: null,
+        reconnectAttempt: 0,
+        threads: this.#agentBridge.listThreads(),
+        activeCaption: `Connecting ${voice.displayName}...`,
+        activeCaptionRole: "system",
+      });
+
+      await this.stopPreview();
+      if (generation !== this.#generation) return;
+      if (this.#transport) {
+        await this.#teardownTransport();
+        if (generation !== this.#generation) return;
+      }
+      await this.#syncCarPlay();
+      if (generation !== this.#generation) return;
+
+      await this.#native.startAudioSession({ sampleRate: 24_000 });
+      if (generation !== this.#generation) {
+        await this.#releaseAudioIfNoSessionWanted();
+        return;
+      }
+      await this.#native.setMuted(false);
+      if (generation !== this.#generation) {
+        await this.#releaseAudioIfNoSessionWanted();
+        return;
+      }
+      await this.#connectTransportForVoice(generation, voice, persona);
+    } catch (error) {
+      if (generation !== this.#generation) {
+        await this.#releaseAudioIfNoSessionWanted();
+        return;
+      }
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : m(msg("Could not start hands-free voice session."));
+      await this.#closeSession({
         sessionState: "error",
-        isActive: false,
-        activeTransport: null,
         errorMessage: message,
         activeCaption: message,
         activeCaptionRole: "system",
       });
-      await this.#syncCarPlay();
     }
   }
 
   async endSession(): Promise<void> {
-    this.#clearReconnectTimer();
-    await this.stopPreview();
-    await this.#teardownTransport();
-    await this.#native.clearPlaybackQueue().catch(() => undefined);
-    await this.#native.stopFallbackSpeech().catch(() => undefined);
-    await this.#native.stopAudioSession().catch(() => undefined);
-    this.#agentBridge.clearPendingConfirmation();
-
-    this.#updateSnapshot({
+    await this.#closeSession({
       sessionState: "idle",
-      isActive: false,
-      isMuted: false,
-      activeTransport: null,
-      inputLevel: 0,
-      outputLevel: 0,
-      reconnectAttempt: 0,
       errorMessage: null,
-      pendingConfirmation: null,
       activeCaption: "Hands-free session ended.",
       activeCaptionRole: "system",
     });
-    await this.#syncCarPlay();
   }
 
   async toggleMute(forcedMuted?: boolean): Promise<void> {
     const nextMuted = forcedMuted ?? !this.#snapshot.isMuted;
-    await this.#native.setMuted(nextMuted).catch(() => undefined);
+    // A session that cannot hear keeps the native microphone off whatever the toggle says.
+    const nativeMuted = nextMuted || this.#snapshot.voiceInputUnavailableMessage !== null;
+    await this.#native.setMuted(nativeMuted).catch(() => undefined);
     const nextState: DriveSessionState = !this.#snapshot.isActive
       ? this.#snapshot.sessionState
       : nextMuted
         ? "muted"
-        : "listening";
+        : this.#restingSessionState();
     this.#updateSnapshot({
       isMuted: nextMuted,
       sessionState: nextState,
@@ -268,7 +344,7 @@ export class CarPlayDriveController {
     }
     if (this.#snapshot.isActive) {
       this.#updateSnapshot({
-        sessionState: this.#snapshot.isMuted ? "muted" : "listening",
+        sessionState: this.#snapshot.isMuted ? "muted" : this.#restingSessionState(),
         outputLevel: 0,
         activeCaption: "Interrupted. Go ahead.",
         activeCaptionRole: "system",
@@ -290,17 +366,30 @@ export class CarPlayDriveController {
       activeVoice: voice,
     });
 
-    if (this.#snapshot.isActive && this.#transport) {
-      const targetProvider = await this.#resolveEffectiveProvider(voice);
-      if (targetProvider === this.#transport.provider) {
-        await this.#transport.updateSession(
-          this.#buildSessionConfig(voice, this.#snapshot.activePersona),
-        );
-      } else {
-        await this.#teardownTransport();
-        await this.#connectTransportForVoice(voice, this.#snapshot.activePersona);
+    const transport = this.#transport;
+    if (this.#snapshot.isActive && transport) {
+      const generation = this.#generation;
+      try {
+        const targetProvider = await this.#resolveEffectiveProvider(voice);
+        if (generation !== this.#generation || this.#transport !== transport) return;
+        const persona = this.#snapshot.activePersona;
+        if (
+          targetProvider === transport.provider &&
+          !transport.requiresNewSessionFor?.({ voice })
+        ) {
+          await transport.updateSession(this.#buildSessionConfig(voice, persona));
+        } else {
+          await this.#teardownTransport();
+          await this.#connectTransportForVoice(generation, voice, persona);
+        }
+        if (generation !== this.#generation) return;
+        this.#appendTranscript("system", `Switched voice to ${voice.displayName}.`, true);
+      } catch {
+        if (generation === this.#generation) {
+          this.#scheduleReconnect(generation, m(msg("Voice switch failed")));
+        }
+        return;
       }
-      this.#appendTranscript("system", `Switched voice to ${voice.displayName}.`, true);
     } else if (options?.audition) {
       await this.previewVoice(voice.id);
     }
@@ -320,6 +409,7 @@ export class CarPlayDriveController {
       settings: nextSettings,
       activePersona: persona,
     });
+    this.#dropProposalIfToolsOff();
 
     if (this.#snapshot.isActive && this.#transport) {
       await this.#transport.updateSession(
@@ -331,14 +421,19 @@ export class CarPlayDriveController {
     await this.#syncCarPlay();
   }
 
-  async selectThread(threadId: string | null): Promise<void> {
+  async selectThread(ref: BridgeThreadRef | null): Promise<void> {
     await this.hydrate();
     const threads = this.#agentBridge.listThreads();
-    const matched = threadId ? (threads.find((item) => item.threadId === threadId) ?? null) : null;
+    const matched = ref
+      ? (threads.find(
+          (item) => item.threadId === ref.threadId && item.environmentId === ref.environmentId,
+        ) ?? null)
+      : null;
 
     this.#updateSnapshot({
       threads,
       activeThreadId: matched?.threadId ?? null,
+      activeThreadEnvironmentId: matched?.environmentId ?? null,
       activeThreadTitle: matched?.title ?? null,
     });
 
@@ -348,7 +443,7 @@ export class CarPlayDriveController {
       );
       if (matched) {
         this.#transport.sendTextTurn(
-          `Brief me on thread "${matched.title}" in two short spoken sentences and mention any pending approvals.`,
+          `Brief me on thread "${matched.title}" (environmentId ${matched.environmentId}, threadId ${matched.threadId}) in two short spoken sentences and mention any pending approvals.`,
         );
       }
     }
@@ -427,6 +522,7 @@ export class CarPlayDriveController {
       activeVoice,
       activePersona,
     });
+    this.#dropProposalIfToolsOff();
 
     if (this.#snapshot.isActive && this.#transport) {
       await this.#transport.updateSession(this.#buildSessionConfig(activeVoice, activePersona));
@@ -441,6 +537,7 @@ export class CarPlayDriveController {
     await this.#settingsStore.setApiKey(provider, rawKey);
     const apiKeysConfigured = await this.#settingsStore.getApiKeyStatus();
     this.#updateSnapshot({ apiKeysConfigured });
+    await this.#endSessionUsingKey(provider);
     return apiKeysConfigured;
   }
 
@@ -449,6 +546,7 @@ export class CarPlayDriveController {
     await this.#settingsStore.clearApiKey(provider);
     const apiKeysConfigured = await this.#settingsStore.getApiKeyStatus();
     this.#updateSnapshot({ apiKeysConfigured });
+    await this.#endSessionUsingKey(provider);
     return apiKeysConfigured;
   }
 
@@ -461,37 +559,39 @@ export class CarPlayDriveController {
     this.#transport?.sendTextTurn(trimmed);
   }
 
-  async confirmPendingAction(): Promise<void> {
-    const result = await this.#agentBridge.confirmPendingAction();
-    this.#updateSnapshot({
-      pendingConfirmation: this.#agentBridge.getPendingConfirmation(),
-    });
+  /**
+   * The driver tapped Send on the phone. `proposalId` is the id on the card they saw, so a card
+   * that was replaced, expired or already used sends nothing.
+   */
+  async confirmPendingAction(proposalId: string): Promise<void> {
+    const result = await this.#agentBridge.confirmProposal(proposalId);
+    this.#syncPendingConfirmation();
     this.#appendTranscript("tool", result.spokenSummary, true);
-    if (this.#snapshot.isActive && this.#transport) {
+    if (result.ok && this.#snapshot.isActive && this.#transport) {
       this.#transport.sendTextTurn(
-        `The driver confirmed the pending action. Result: ${result.spokenSummary}. Briefly acknowledge in one short sentence.`,
+        `The driver tapped Send. Result: ${result.spokenSummary} Briefly acknowledge in one short sentence.`,
       );
     }
     await this.#syncCarPlay();
   }
 
-  dismissPendingAction(): void {
-    this.#agentBridge.clearPendingConfirmation();
-    this.#updateSnapshot({ pendingConfirmation: null });
-    this.#appendTranscript("system", "Cancelled pending action.", true);
+  dismissPendingAction(proposalId: string): void {
+    if (!this.#agentBridge.dismissProposal(proposalId)) return;
+    this.#syncPendingConfirmation();
+    this.#appendTranscript("system", m(msg("Cancelled the pending message.")), true);
   }
 
   async dispatchCarPlayAction(event: CarPlayActionEvent): Promise<void> {
     switch (event.action) {
       case "start_session":
-        await this.startSession();
+        await this.startSession("carplay");
         return;
       case "end_session":
         await this.endSession();
         return;
       case "toggle_mute":
         if (!this.#snapshot.isActive) {
-          await this.startSession();
+          await this.startSession("carplay");
         } else {
           await this.toggleMute();
         }
@@ -511,7 +611,9 @@ export class CarPlayDriveController {
         return;
       case "select_thread":
         if (event.id) {
-          await this.selectThread(event.id);
+          // CarPlay echoes the key it was given, which carries both ids.
+          const thread = this.#snapshot.threads.find((item) => bridgeThreadKey(item) === event.id);
+          await this.selectThread(thread ?? null);
         }
         return;
       case "next_voice": {
@@ -545,13 +647,102 @@ export class CarPlayDriveController {
     }
   }
 
+  /** Applies a CarPlay connect or disconnect; the native listener calls this for every event. */
+  async handleCarPlayConnection(connected: boolean): Promise<void> {
+    this.#hasLiveCarPlayConnectionEvent = true;
+    const wasConnected = this.#snapshot.carPlayConnected;
+    this.#updateSnapshot({ carPlayConnected: connected });
+    void this.#syncCarPlay();
+    if (!connected) {
+      if (this.#sessionOwner === "carplay") {
+        await this.endSession();
+      }
+      return;
+    }
+    if (wasConnected) return;
+    await this.hydrate();
+    // Fails closed: an unreadable setting never counts as "auto-start on".
+    if (
+      this.#snapshot.carPlayConnected &&
+      this.#snapshot.settings.autoStartOnCarPlay &&
+      !this.#settingsReadFailed &&
+      !this.#snapshot.isActive
+    ) {
+      await this.startSession("carplay");
+    }
+  }
+
   dispose(): void {
+    const wasActive = this.#sessionOwner !== null;
+    this.#generation += 1;
+    this.#sessionOwner = null;
     this.#clearReconnectTimer();
+    this.#clearStableTimer();
+    this.#clearProposalTimer();
     for (const sub of this.#nativeSubscriptions) {
       sub.remove();
     }
     this.#nativeSubscriptions = [];
     void this.#teardownTransport();
+    if (wasActive) {
+      void this.#native.stopAudioSession().catch(() => undefined);
+    }
+  }
+
+  /**
+   * The one teardown for End, a terminal failure, a key change and a CarPlay disconnect. It
+   * invalidates the generation before any await, so nothing from the old session acts afterwards.
+   */
+  async #closeSession(final: Partial<DriveControllerSnapshot>): Promise<void> {
+    const generation = ++this.#generation;
+    this.#sessionOwner = null;
+    this.#retryCount = 0;
+    this.#clearReconnectTimer();
+    this.#clearStableTimer();
+    this.#agentBridge.clearPendingConfirmation();
+    this.#clearProposalTimer();
+    this.#updateSnapshot({
+      isActive: false,
+      isMuted: false,
+      activeTransport: null,
+      inputLevel: 0,
+      outputLevel: 0,
+      reconnectAttempt: 0,
+      pendingConfirmation: null,
+      voiceInputUnavailableMessage: null,
+      ...final,
+    });
+
+    await this.stopPreview();
+    await this.#teardownTransport();
+    // A new start may have begun while the transport closed; it owns the audio from here.
+    if (generation === this.#generation) {
+      await this.#native.clearPlaybackQueue().catch(() => undefined);
+      await this.#native.stopFallbackSpeech().catch(() => undefined);
+      await this.#native.stopAudioSession().catch(() => undefined);
+    }
+    await this.#syncCarPlay();
+  }
+
+  async #releaseAudioIfNoSessionWanted(): Promise<void> {
+    if (this.#sessionOwner !== null) return;
+    await this.#native.clearPlaybackQueue().catch(() => undefined);
+    await this.#native.stopAudioSession().catch(() => undefined);
+  }
+
+  async #endSessionUsingKey(provider: ApiKeyProvider): Promise<void> {
+    const transport = this.#transport;
+    if (!this.#snapshot.isActive || !transport) return;
+    if (!KEY_PROVIDERS_BY_TRANSPORT[transport.provider].includes(provider)) return;
+    const message = m(msg("Voice session ended because the {provider} key changed."), {
+      provider: KEY_PROVIDER_NAMES[provider],
+    });
+    await this.#closeSession({
+      sessionState: "idle",
+      errorMessage: null,
+      activeCaption: message,
+      activeCaptionRole: "system",
+    });
   }
 
   #attachNativeListeners(): void {
@@ -576,22 +767,7 @@ export class CarPlayDriveController {
         void this.dispatchCarPlayAction(action);
       }),
       this.#native.addCarPlayConnectionListener((event) => {
-        this.#hasLiveCarPlayConnectionEvent = true;
-        const wasConnected = this.#snapshot.carPlayConnected;
-        this.#updateSnapshot({ carPlayConnected: event.connected });
-        void this.#syncCarPlay();
-        if (event.connected && !wasConnected) {
-          void (async () => {
-            await this.hydrate();
-            if (
-              this.#snapshot.carPlayConnected &&
-              this.#snapshot.settings.autoStartOnCarPlay &&
-              !this.#snapshot.isActive
-            ) {
-              await this.startSession();
-            }
-          })();
-        }
+        void this.handleCarPlayConnection(event.connected);
       }),
       this.#native.addInterruptionListener((event) => {
         if (event.type === "began") {
@@ -626,10 +802,30 @@ export class CarPlayDriveController {
     return "on-device";
   }
 
+  /** Agent tools run only while the setting and the active persona both allow them. */
+  #toolsEnabled(): boolean {
+    return (
+      this.#snapshot.settings.agentBridgeEnabled && this.#snapshot.activePersona.defaultToolsEnabled
+    );
+  }
+
+  #dropProposalIfToolsOff(): void {
+    if (this.#toolsEnabled()) return;
+    this.#agentBridge.clearPendingConfirmation();
+    this.#syncPendingConfirmation();
+  }
+
+  #restingSessionState(): DriveSessionState {
+    return this.#snapshot.voiceInputUnavailableMessage !== null ? "idle" : "listening";
+  }
+
   #buildSessionConfig(voice: VoiceProfile, persona: DrivingPersona): TransportSessionConfig {
     const activeThread =
-      this.#snapshot.threads.find((item) => item.threadId === this.#snapshot.activeThreadId) ??
-      null;
+      this.#snapshot.threads.find(
+        (item) =>
+          item.threadId === this.#snapshot.activeThreadId &&
+          item.environmentId === this.#snapshot.activeThreadEnvironmentId,
+      ) ?? null;
     const toolsEnabled = this.#snapshot.settings.agentBridgeEnabled && persona.defaultToolsEnabled;
     return {
       voice,
@@ -647,7 +843,11 @@ export class CarPlayDriveController {
     };
   }
 
-  async #connectTransportForVoice(voice: VoiceProfile, persona: DrivingPersona): Promise<void> {
+  async #connectTransportForVoice(
+    generation: number,
+    voice: VoiceProfile,
+    persona: DrivingPersona,
+  ): Promise<void> {
     const effectiveProvider = await this.#resolveEffectiveProvider(voice);
     let apiKey: string | null = null;
     if (effectiveProvider === "openai-realtime") {
@@ -657,13 +857,16 @@ export class CarPlayDriveController {
     } else if (effectiveProvider === "elevenlabs") {
       apiKey = await this.#settingsStore.getApiKey("elevenlabs");
     }
+    if (generation !== this.#generation) return;
 
     const transport = this.#createTransport(voice, effectiveProvider, apiKey);
     this.#transport = transport;
     const config = this.#buildSessionConfig(voice, persona);
+    const isCurrent = () => generation === this.#generation && this.#transport === transport;
 
-    await transport.connect(config, {
+    const callbacks: TransportCallbacks = {
       onConnected: () => {
+        if (!isCurrent()) return;
         const fellBack = effectiveProvider !== voice.provider;
         const caption = fellBack
           ? `${voice.displayName} running in On-Device mode (add API key in Voice Setup for realtime audio).`
@@ -675,52 +878,143 @@ export class CarPlayDriveController {
           activeCaption: caption,
           activeCaptionRole: "system",
         });
+        this.#armStableTimer(generation, transport);
         void this.#syncCarPlay();
       },
       onStateChange: (state) => {
-        if (!this.#snapshot.isActive) return;
+        if (!isCurrent() || !this.#snapshot.isActive) return;
         const resolved: DriveSessionState =
-          this.#snapshot.isMuted && state === "listening" ? "muted" : state;
+          state === "listening"
+            ? this.#snapshot.isMuted
+              ? "muted"
+              : this.#restingSessionState()
+            : state;
         this.#updateSnapshot({ sessionState: resolved });
         void this.#syncCarPlay();
       },
       onAudioDelta: (pcm24kBase64, sampleRate) => {
+        if (!isCurrent()) return;
         void this.#native.enqueuePcmAudio(pcm24kBase64, sampleRate).catch(() => undefined);
       },
       onBargeIn: () => {
+        if (!isCurrent()) return;
         void this.#native.clearPlaybackQueue().catch(() => undefined);
         void this.#native.stopFallbackSpeech().catch(() => undefined);
       },
       onUserTranscript: (text, isFinal) => {
+        if (!isCurrent()) return;
         this.#upsertTranscript("user", text, isFinal);
       },
       onAssistantTranscript: (text, isFinal) => {
+        if (!isCurrent()) return;
         this.#upsertTranscript("assistant", text, isFinal, voice.id);
       },
-      onToolCall: async (name, args) => {
-        const result = await this.#agentBridge.executeTool(name, args);
-        this.#updateSnapshot({
-          pendingConfirmation: this.#agentBridge.getPendingConfirmation(),
-          threads: this.#agentBridge.listThreads(),
-        });
-        this.#appendTranscript("tool", result.spokenSummary, true, undefined, name);
-        void this.#syncCarPlay();
-        return result;
-      },
+      onToolCall: (name, args) => this.#executeToolCall(isCurrent, name, args),
       onError: (message, recoverable) => {
-        this.#updateSnapshot({
+        if (!isCurrent()) return;
+        if (recoverable) {
+          this.#updateSnapshot({
+            errorMessage: message,
+            activeCaption: message,
+            activeCaptionRole: "system",
+          });
+          void this.#syncCarPlay();
+          return;
+        }
+        void this.#closeSession({
+          sessionState: "error",
           errorMessage: message,
           activeCaption: message,
           activeCaptionRole: "system",
-          ...(!recoverable ? { sessionState: "error" as const, isActive: false } : {}),
+        });
+      },
+      onClose: (reason, unexpected) => {
+        if (!isCurrent() || !unexpected) return;
+        this.#scheduleReconnect(generation, reason);
+      },
+      onInputUnavailable: (message) => {
+        if (!isCurrent()) return;
+        void this.#native.setMuted(true).catch(() => undefined);
+        this.#updateSnapshot({
+          voiceInputUnavailableMessage: message,
+          sessionState: "idle",
+          errorMessage: message,
+          activeCaption: message,
+          activeCaptionRole: "system",
         });
         void this.#syncCarPlay();
       },
-      onClose: (reason, unexpected) => {
-        if (!unexpected || !this.#snapshot.isActive) return;
-        this.#scheduleReconnect(reason);
-      },
+    };
+
+    try {
+      await this.#connectWithDeadline(transport, config, callbacks);
+    } catch (error) {
+      await transport.disconnect().catch(() => undefined);
+      if (this.#transport === transport) this.#transport = null;
+      throw error;
+    }
+    if (!isCurrent()) {
+      await transport.disconnect().catch(() => undefined);
+    }
+  }
+
+  async #connectWithDeadline(
+    transport: RealtimeTransport,
+    config: TransportSessionConfig,
+    callbacks: TransportCallbacks,
+  ): Promise<void> {
+    const connecting = transport.connect(config, callbacks);
+    // If the deadline wins, a later rejection from the abandoned attempt must not go unhandled.
+    connecting.catch(() => undefined);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(m(msg("The voice service did not become ready in time.")))),
+        CONNECT_DEADLINE_MS,
+      );
     });
+    try {
+      await Promise.race([connecting, deadline]);
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Runs a tool the voice model asked for. The current settings, the active persona and the session
+   * generation are checked here, so turning the bridge off or ending the session stops tools that
+   * the provider was already told about.
+   */
+  async #executeToolCall(
+    isCurrent: () => boolean,
+    name: string,
+    args: Readonly<Record<string, unknown>>,
+  ): Promise<VoiceToolExecutionResult> {
+    if (!isCurrent() || !this.#snapshot.isActive) {
+      return refusal(m(msg("This voice session has ended, so that request was ignored.")));
+    }
+    const advertised = AGENT_BRIDGE_TOOLS.some((tool) => tool.name === name);
+    // Approvals are not a Drive tool; the service answers that name with where to approve instead.
+    if (name !== "respond_to_approval") {
+      if (!this.#toolsEnabled()) {
+        return refusal(m(msg("Agent tools are turned off, so I cannot do that.")));
+      }
+      if (!advertised) {
+        return refusal(m(msg("That tool is not available in Drive.")));
+      }
+    }
+
+    const result = await this.#agentBridge.executeTool(name, args);
+    if (!isCurrent() || !this.#snapshot.isActive || !this.#toolsEnabled()) {
+      this.#agentBridge.clearPendingConfirmation();
+      this.#syncPendingConfirmation();
+      return refusal(m(msg("This voice session has ended, so that request was ignored.")));
+    }
+    this.#syncPendingConfirmation();
+    this.#updateSnapshot({ threads: this.#agentBridge.listThreads() });
+    this.#appendTranscript("tool", result.spokenSummary, true, undefined, name);
+    void this.#syncCarPlay();
+    return result;
   }
 
   #createTransport(
@@ -755,25 +1049,27 @@ export class CarPlayDriveController {
       native: this.#native,
       getApiKey: (keyProvider) => this.#settingsStore.getApiKey(keyProvider),
       elevenLabsCustomVoiceId: this.#snapshot.settings.elevenLabsCustomVoiceId,
+      getLocalTranscriber: this.#getLocalTranscriber,
       fetchImpl: this.#fetchImpl,
     });
   }
 
-  #scheduleReconnect(reason: string): void {
-    const nextAttempt = this.#snapshot.reconnectAttempt + 1;
+  #scheduleReconnect(generation: number, reason: string): void {
+    if (generation !== this.#generation) return;
+    this.#clearStableTimer();
+    const nextAttempt = this.#retryCount + 1;
     if (nextAttempt > MAX_RECONNECT_ATTEMPTS) {
-      this.#updateSnapshot({
+      void this.#closeSession({
         sessionState: "error",
-        isActive: false,
-        activeTransport: null,
         errorMessage: m(msg("Connection lost ({reason}). Tap Start to reconnect."), { reason }),
         activeCaption: m(msg("Connection lost. Tap Start to reconnect.")),
         activeCaptionRole: "system",
       });
-      void this.#syncCarPlay();
       return;
     }
 
+    this.#retryCount = nextAttempt;
+    void this.#teardownTransport();
     this.#updateSnapshot({
       sessionState: "connecting",
       reconnectAttempt: nextAttempt,
@@ -786,20 +1082,61 @@ export class CarPlayDriveController {
     this.#clearReconnectTimer();
     this.#reconnectTimer = setTimeout(() => {
       this.#reconnectTimer = null;
-      if (!this.#snapshot.isActive) return;
+      if (generation !== this.#generation) return;
       void this.#connectTransportForVoice(
+        generation,
         this.#snapshot.activeVoice,
         this.#snapshot.activePersona,
       ).catch(() => {
-        this.#scheduleReconnect("Reconnect failed");
+        this.#scheduleReconnect(generation, m(msg("Reconnect failed")));
       });
     }, delayMs);
+  }
+
+  #armStableTimer(generation: number, transport: RealtimeTransport): void {
+    this.#clearStableTimer();
+    this.#stableTimer = setTimeout(() => {
+      this.#stableTimer = null;
+      if (generation === this.#generation && this.#transport === transport) {
+        this.#retryCount = 0;
+      }
+    }, STABLE_SESSION_MS);
+  }
+
+  #clearStableTimer(): void {
+    if (this.#stableTimer !== null) {
+      clearTimeout(this.#stableTimer);
+      this.#stableTimer = null;
+    }
   }
 
   #clearReconnectTimer(): void {
     if (this.#reconnectTimer !== null) {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
+    }
+  }
+
+  /** Mirrors the service's proposal into the snapshot and removes it from the screen when it expires. */
+  #syncPendingConfirmation(): void {
+    this.#clearProposalTimer();
+    const pending = this.#agentBridge.getPendingConfirmation();
+    if (pending !== this.#snapshot.pendingConfirmation) {
+      this.#updateSnapshot({ pendingConfirmation: pending });
+    }
+    if (pending) {
+      const remaining = Math.max(pending.expiresAt - this.#now(), MIN_PROPOSAL_TIMER_MS);
+      this.#proposalTimer = setTimeout(() => {
+        this.#proposalTimer = null;
+        this.#syncPendingConfirmation();
+      }, remaining);
+    }
+  }
+
+  #clearProposalTimer(): void {
+    if (this.#proposalTimer !== null) {
+      clearTimeout(this.#proposalTimer);
+      this.#proposalTimer = null;
     }
   }
 
@@ -917,11 +1254,13 @@ export class CarPlayDriveController {
         isSelected: persona.id === snap.activePersona.id,
       })),
       threads: snap.threads.map((thread) => ({
-        id: thread.threadId,
+        id: bridgeThreadKey(thread),
         title: thread.title,
         status: thread.status,
         badge: thread.lastActivityLabel,
-        isSelected: thread.threadId === snap.activeThreadId,
+        isSelected:
+          thread.threadId === snap.activeThreadId &&
+          thread.environmentId === snap.activeThreadEnvironmentId,
       })),
     };
 
@@ -967,7 +1306,7 @@ export function useDriveController() {
     [],
   );
   const selectThread = useCallback(
-    (threadId: string | null) => carplayDriveController.selectThread(threadId),
+    (ref: BridgeThreadRef | null) => carplayDriveController.selectThread(ref),
     [],
   );
   const toggleFavoriteVoice = useCallback(
@@ -995,8 +1334,14 @@ export function useDriveController() {
     (text: string) => carplayDriveController.sendTextPrompt(text),
     [],
   );
-  const confirmPendingAction = useCallback(() => carplayDriveController.confirmPendingAction(), []);
-  const dismissPendingAction = useCallback(() => carplayDriveController.dismissPendingAction(), []);
+  const confirmPendingAction = useCallback(
+    (proposalId: string) => carplayDriveController.confirmPendingAction(proposalId),
+    [],
+  );
+  const dismissPendingAction = useCallback(
+    (proposalId: string) => carplayDriveController.dismissPendingAction(proposalId),
+    [],
+  );
   const dispatchCarPlayAction = useCallback(
     (event: CarPlayActionEvent) => carplayDriveController.dispatchCarPlayAction(event),
     [],

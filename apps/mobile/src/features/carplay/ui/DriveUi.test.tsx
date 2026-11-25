@@ -316,7 +316,9 @@ function makeSnapshot(overrides: Partial<DriveSnapshotView> = {}): DriveSnapshot
     errorMessage: null,
     reconnectAttempt: 0,
     activeThreadId: null,
+    activeThreadEnvironmentId: null,
     activeThreadTitle: null,
+    voiceInputUnavailableMessage: null,
     threads: [
       {
         environmentId: "env-1",
@@ -336,7 +338,7 @@ function makeSnapshot(overrides: Partial<DriveSnapshotView> = {}): DriveSnapshot
       bargeInEnabled: true,
       bargeInSensitivity: "balanced",
       vadMode: "semantic_vad",
-      autoStartOnCarPlay: true,
+      autoStartOnCarPlay: false,
       agentBridgeEnabled: true,
       spokenSpeed: 1.0,
       openaiModel: "gpt-realtime",
@@ -532,7 +534,10 @@ describe("CarPlayPreviewPanel", () => {
     act(() => {
       buttonByLabel("CarPlay focus thread Fix CarPlay audio buffer").click();
     });
-    expect(onSelectThread).toHaveBeenCalledWith("thread-1");
+    expect(onSelectThread).toHaveBeenCalledWith({
+      environmentId: "env-1",
+      threadId: "thread-1",
+    });
 
     // Toggle Barge-in & Spoken Speed
     act(() => {
@@ -616,10 +621,13 @@ describe("DriveStageView", () => {
             activeCaptionRole: "assistant",
             pendingConfirmation: {
               id: "confirm-1",
-              toolName: "respond_to_approval",
-              summary: "Approve running deploy check on thread Fix CarPlay audio buffer?",
+              toolName: "send_message_to_thread",
+              summary: 'Send "Run the deploy check" to Fix CarPlay audio buffer',
+              environmentId: "env-1",
+              threadId: "thread-1",
+              threadTitle: "Fix CarPlay audio buffer",
+              message: "Run the deploy check",
               expiresAt: 1_700_000_030_000,
-              payload: {},
             },
           })}
           voices={TEST_VOICES}
@@ -649,12 +657,13 @@ describe("DriveStageView", () => {
     act(() => {
       muteBtn.click();
       interruptBtn.click();
-      buttonByLabel("Approve pending agent action").click();
+      buttonByLabel("Send pending message").click();
       endBtn.click();
     });
     expect(callbacks.onToggleMute).toHaveBeenCalledTimes(1);
     expect(callbacks.onInterrupt).toHaveBeenCalledTimes(1);
-    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledTimes(1);
+    // The tap carries the id of the card the driver saw, so a replaced card cannot be confirmed.
+    expect(callbacks.onConfirmPendingAction).toHaveBeenCalledWith("confirm-1");
     expect(callbacks.onEndSession).toHaveBeenCalledTimes(1);
   });
 });

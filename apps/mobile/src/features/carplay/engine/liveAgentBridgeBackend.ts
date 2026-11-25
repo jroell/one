@@ -7,7 +7,6 @@ import {
   MessageId,
   type EnvironmentId,
   type ThreadId,
-  type RuntimeRequestId,
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
@@ -25,7 +24,7 @@ import {
 } from "../../../state/threads";
 import type { AgentBridgeBackend, BridgeApprovalItem } from "./agentBridgeTools";
 import { sanitizeForSpeech } from "./personas";
-import type { BridgeThreadStatus, BridgeThreadSummary } from "./types";
+import type { BridgeThreadRef, BridgeThreadStatus, BridgeThreadSummary } from "./types";
 
 function mapThreadStatus(input: {
   readonly hasPendingApprovals: boolean;
@@ -108,6 +107,11 @@ export function createLiveAgentBridgeBackend(): AgentBridgeBackend {
     };
   };
 
+  const findShell = (ref: BridgeThreadRef) =>
+    readShells().find(
+      (entry) => entry.id === ref.threadId && entry.environmentId === ref.environmentId,
+    );
+
   return {
     isConnected() {
       try {
@@ -122,19 +126,20 @@ export function createLiveAgentBridgeBackend(): AgentBridgeBackend {
     },
 
     listThreads() {
-      const shells = readShells();
-      return shells
+      return readShells()
         .filter((shell) => shell.archivedAt === null)
         .slice(0, 16)
         .map(toSummary);
     },
 
-    getThreadDetail(threadId) {
-      const shells = readShells();
-      const lower = threadId.trim().toLowerCase();
-      const shell =
-        shells.find((entry) => entry.id === threadId) ??
-        shells.find((entry) => entry.title.toLowerCase().includes(lower));
+    listThreadsForLookup() {
+      return readShells()
+        .filter((shell) => shell.archivedAt === null)
+        .map(toSummary);
+    },
+
+    getThreadDetail(ref) {
+      const shell = findShell(ref);
       if (!shell) return null;
 
       const threadSummary = toSummary(shell);
@@ -163,7 +168,7 @@ export function createLiveAgentBridgeBackend(): AgentBridgeBackend {
         }
       }
 
-      const pendingApprovals = this.listPendingApprovals(shell.id);
+      const pendingApprovals = this.listPendingApprovals(ref);
       return {
         thread: threadSummary,
         recentMessages: recentMessages.slice(-4),
@@ -171,11 +176,13 @@ export function createLiveAgentBridgeBackend(): AgentBridgeBackend {
       };
     },
 
-    listPendingApprovals(threadId) {
+    listPendingApprovals(ref) {
       const shells = readShells();
       const items: Array<BridgeApprovalItem> = [];
       for (const shell of shells) {
-        if (threadId && shell.id !== threadId) continue;
+        if (ref && (shell.id !== ref.threadId || shell.environmentId !== ref.environmentId)) {
+          continue;
+        }
         const pending = appAtomRegistry.get(
           environmentThreadDetails.pendingRequestsAtom({
             environmentId: shell.environmentId,
@@ -190,16 +197,15 @@ export function createLiveAgentBridgeBackend(): AgentBridgeBackend {
             threadTitle: shell.title.trim() || m(msg("Untitled thread")),
             requestId: approval.requestId,
             summary: summarizeApprovalKind(approval),
-            canRespondLive: approval.responseCapability === "live",
           });
         }
       }
       return items;
     },
 
-    async sendMessageToThread(environmentId, threadId, message) {
-      const envId = environmentId as EnvironmentId;
-      const tId = threadId as ThreadId;
+    async sendMessageToThread(ref, message) {
+      const envId = ref.environmentId as EnvironmentId;
+      const tId = ref.threadId as ThreadId;
       if (!readEnvironmentScope(envId, AuthOrchestrationOperateScope)) {
         return {
           ok: false,
@@ -236,40 +242,6 @@ export function createLiveAgentBridgeBackend(): AgentBridgeBackend {
       return {
         ok: false,
         error: m(msg("Could not deliver the message to that thread right now.")),
-      };
-    },
-
-    async respondToApproval(environmentId, threadId, requestId, decision, feedback) {
-      const envId = environmentId as EnvironmentId;
-      const tId = threadId as ThreadId;
-      if (!readEnvironmentScope(envId, AuthOrchestrationOperateScope)) {
-        return {
-          ok: false,
-          error: m(
-            msg("This device does not have permission to respond to approvals on that computer."),
-          ),
-        };
-      }
-      const result = await runAtomCommand(
-        appAtomRegistry,
-        threadEnvironment.respondToApproval,
-        {
-          environmentId: envId,
-          input: {
-            threadId: tId,
-            requestId: requestId as RuntimeRequestId,
-            decision,
-            ...(feedback ? { feedback } : {}),
-          },
-        },
-        { label: "carplay:respond-to-approval", reportFailure: false, reportDefect: false },
-      );
-      if (result._tag === "Success") {
-        return { ok: true };
-      }
-      return {
-        ok: false,
-        error: m(msg("Could not submit that approval decision right now.")),
       };
     },
   };
