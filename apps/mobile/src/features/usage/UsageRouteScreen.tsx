@@ -31,6 +31,7 @@ import { RefreshControl } from "../../components/ui/RefreshControl";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { SettingsNoEnvironments } from "../settings/components/SettingsNoEnvironments";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { useReduceMotionEnabled } from "../../lib/appState";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -249,7 +250,11 @@ function UsageScreen(props: {
       menus={showEnvironmentFilter ? [environmentMenu] : undefined}
       workspaceRoot={props.workspace}
     >
-      {headerOnly ? null : (
+      {headerOnly ? null : environments.length === 0 ? (
+        <SettingsNoEnvironments
+          detail={gt("Usage comes from an environment. Add one to see cost, tokens and limits.")}
+        />
+      ) : (
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           showsVerticalScrollIndicator={false}

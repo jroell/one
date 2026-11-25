@@ -5208,6 +5208,7 @@
   "621d60f9c3bddcf3": "Usage up to date",
   "f84a568a46203b5d": "Filter usage environments",
   "9731ff4d8bd46087": "Usage",
+  "56a728548ba19730": "Usage comes from an environment. Add one to see cost, tokens and limits.",
   "a9b664b4dc630ffa": "Connect an environment to see usage.",
   "c9180daea905a0a6": "Select an environment to see usage.",
   "ef5c1428abcda046": "Hourly cost",
