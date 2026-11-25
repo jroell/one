@@ -4,7 +4,11 @@
  * properties per frame on a single element, so nothing re-renders or lays out.
  */
 export function installOneReflections(): () => void {
-  if (typeof window === "undefined" || !window.matchMedia("(hover: hover)").matches) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function" ||
+    !window.matchMedia("(hover: hover)").matches
+  ) {
     return () => {};
   }
   let frame = 0;
