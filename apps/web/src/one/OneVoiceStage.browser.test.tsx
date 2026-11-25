@@ -19,7 +19,7 @@ const NEW_REPLY: VoiceStageMessage = {
   streaming: false,
 };
 
-type MicrophonePhase = "idle" | "recording" | "transcribing";
+type MicrophonePhase = "idle" | "recording" | "transcribing" | "error";
 
 /** Stands in for the main composer's dictation: the microphone is the boundary being faked. */
 function setup() {
@@ -85,6 +85,11 @@ function setup() {
     holdStartPending: () => {
       microphone.holdStarts = true;
     },
+    failRecording: () =>
+      act(() => {
+        microphone.phase = "error";
+        publish();
+      }),
     startOrdinaryDictation: () =>
       act(() => {
         microphone.phase = "recording";
@@ -222,6 +227,20 @@ it("ending voice chat while the microphone is still starting stops that start", 
 
   await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
   expect(voice.microphone).toMatchObject({ pendingStart: false, phase: "idle" });
+});
+
+it("ending voice chat after its own microphone start failed leaves a dictation started afterwards running", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+
+  await voice.start();
+  // Voice chat's recording fails, then someone starts ordinary dictation.
+  await voice.failRecording();
+  await voice.startOrdinaryDictation();
+
+  await screen.getByRole("button", { name: "End voice chat" }).click();
+  await expect.element(screen.getByRole("dialog", { name: "Voice chat" })).not.toBeInTheDocument();
+  expect(voice.microphone.phase).toBe("recording");
 });
 
 it("ending voice chat leaves a dictation started later with the ordinary shortcut running", async () => {

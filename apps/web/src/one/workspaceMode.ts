@@ -75,21 +75,12 @@ export function toggleWorkspaceMode(): void {
   setWorkspaceMode(currentMode === "chat" ? "code" : "chat");
 }
 
+// Each window keeps its own mode while it is open. The stored value only decides how
+// the next window starts, so switching modes in one window never changes another
+// (which would, for example, end a voice chat running there).
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key !== WORKSPACE_MODE_STORAGE_KEY) return;
-    const next = parseWorkspaceMode(event.newValue);
-    if (next === currentMode) return;
-    currentMode = next;
-    applyToDocument(next);
-    for (const each of listeners) each();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
+  return () => listeners.delete(listener);
 }
 
 export function useWorkspaceMode(): WorkspaceMode {

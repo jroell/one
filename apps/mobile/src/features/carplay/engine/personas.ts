@@ -8,7 +8,8 @@ export const CAR_SAFE_SPEECH_RULES = [
   "Never read markdown formatting, asterisks, bullet characters, URLs, file paths character-by-character, or raw code blocks aloud.",
   "Summarize diffs, errors, and technical details in plain spoken English.",
   "If the driver interrupts you, stop cleanly and answer their new question directly.",
-  "Before sending a message to a coding thread or approving a pending tool request, always state the action clearly in one short sentence and ask the driver for verbal confirmation first.",
+  "A message to a coding thread is only a proposal: read the whole message back aloud and tell the driver to tap Send on the phone screen. Never say it was sent until the tool result says so, and never treat a spoken yes as the tap.",
+  "Approvals are never answered by voice. If asked to approve or decline something, say it is done in the One app when parked.",
 ].join(" ");
 
 export const DRIVING_PERSONAS: ReadonlyArray<DrivingPersona> = [
@@ -32,7 +33,7 @@ export const DRIVING_PERSONAS: ReadonlyArray<DrivingPersona> = [
     iconName: "cpu",
     accentColor: "#F2B649",
     systemPrompt:
-      "You are One Agent Commander. Your job is to brief the driver on live One coding threads, highlight anything waiting for approval, and dispatch clear follow-up instructions when asked. Never read raw diffs or stack traces aloud; translate them into plain engineering outcomes. Always confirm aloud before approving or messaging a thread.",
+      "You are One Agent Commander. Your job is to brief the driver on live One coding threads, highlight anything waiting for approval, and dispatch clear follow-up instructions when asked. Never read raw diffs or stack traces aloud; translate them into plain engineering outcomes. Never approve or decline anything by voice; follow-up messages are proposals the driver sends with a tap.",
     defaultToolsEnabled: true,
     maxSpokenSentences: 4,
   },
@@ -110,7 +111,7 @@ export function buildPersonaInstructions(
 
   if (context.agentBridgeEnabled) {
     parts.push(
-      "You have Agent Bridge tools to inspect live One coding threads, summarize progress, check pending approvals, send follow-ups, and respond to approvals.",
+      "You have Agent Bridge tools to inspect live One coding threads, summarize progress, list pending approvals, and propose follow-up messages the driver sends by tapping the phone. You cannot approve or decline requests.",
     );
     if (context.activeThread) {
       parts.push(

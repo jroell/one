@@ -46,6 +46,14 @@ export function setOpeningPreferences(next: Partial<OpeningPreferences>): void {
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
+  // Another window may have changed a choice while nothing here was listening.
+  const fresh = { animation: !readOff(ANIMATION_KEY), sound: !readOff(SOUND_KEY) };
+  if (fresh.animation !== snapshot.animation || fresh.sound !== snapshot.sound) {
+    snapshot = fresh;
+    queueMicrotask(() => {
+      for (const each of listeners) each();
+    });
+  }
   // Another window changed a choice: read both again.
   const onStorage = (event: StorageEvent) => {
     if (event.key !== ANIMATION_KEY && event.key !== SOUND_KEY) return;

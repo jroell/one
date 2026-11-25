@@ -12,6 +12,7 @@ import {
   providerLabelMessage,
   type ApiKeyProviderId,
   type BridgeThreadView,
+  type BridgeThreadRefView,
   type CarPlaySettingsView,
   type DriveSnapshotView,
   type DrivingPersonaView,
@@ -31,7 +32,7 @@ export interface CarPlayPreviewPanelProps {
   readonly onInterrupt: () => void | Promise<unknown>;
   readonly onSelectVoice: (voiceId: string) => void | Promise<unknown>;
   readonly onSelectPersona: (personaId: PersonaId) => void | Promise<unknown>;
-  readonly onSelectThread: (threadId: string | null) => void | Promise<unknown>;
+  readonly onSelectThread: (ref: BridgeThreadRefView | null) => void | Promise<unknown>;
   readonly onUpdateSettings: (partial: Partial<CarPlaySettingsView>) => void | Promise<unknown>;
   readonly onSaveApiKey: (provider: ApiKeyProviderId, value: string) => void | Promise<unknown>;
   readonly onClearApiKey: (provider: ApiKeyProviderId) => void | Promise<unknown>;
@@ -469,17 +470,23 @@ export function CarPlayPreviewPanel({
                       </View>
                     ) : (
                       snapshot.threads.map((thread) => {
-                        const active = thread.threadId === snapshot.activeThreadId;
+                        const active =
+                          thread.threadId === snapshot.activeThreadId &&
+                          thread.environmentId === snapshot.activeThreadEnvironmentId;
                         return (
                           <Pressable
-                            key={thread.threadId}
+                            key={`${thread.environmentId}:${thread.threadId}`}
                             accessibilityRole="button"
                             accessibilityLabel={gt("CarPlay focus thread {title}", {
                               title: thread.title,
                             })}
                             onPress={() => {
                               triggerHaptic();
-                              void onSelectThread(active ? null : thread.threadId);
+                              void onSelectThread(
+                                active
+                                  ? null
+                                  : { environmentId: thread.environmentId, threadId: thread.threadId },
+                              );
                             }}
                             style={[styles.carPlayListRow, active && styles.carPlayListRowActive]}
                           >
@@ -672,7 +679,8 @@ export function CarPlayPreviewPanel({
             <Text style={styles.keySecurityNote}>
               <T>
                 Keys are stored encrypted in Secure Store on this device and never logged. On-Device
-                voices work with zero API keys.
+                voices need no key and never send your voice to a cloud provider; they hear you only
+                where this phone has speech recognition.
               </T>
             </Text>
 

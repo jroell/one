@@ -142,6 +142,9 @@ function ActiveVoiceStage({
   const startRequestedRef = useRef(false);
   /** True from this session's own start request until that recording has settled back to idle. */
   const ownRecordingRef = useRef(false);
+  /** Whether that recording has been seen running, so a return to idle means it finished. */
+  const ownRecordingSeenRef = useRef(false);
+  const draftToastShownRef = useRef(false);
 
   const latestAssistant = messages.findLast((message) => message.role === "assistant") ?? null;
   const reply =
@@ -178,7 +181,9 @@ function ActiveVoiceStage({
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the shared voice session when the thread, composer or mode it belongs to is gone
   useEffect(() => {
     if (!(orphaned || blockedOnUser || draftInTheWay)) return;
-    if (draftInTheWay) {
+    if (draftInTheWay && !draftToastShownRef.current) {
+      // Development runs effects twice; the person should still see one notice.
+      draftToastShownRef.current = true;
       toastManager.add({
         type: "info",
         title: gt("Voice chat ended"),
@@ -209,6 +214,7 @@ function ActiveVoiceStage({
     if (!current) return;
     startRequestedRef.current = true;
     ownRecordingRef.current = true;
+    ownRecordingSeenRef.current = false;
     // Held from the request itself, so ending voice chat also stops a start that is still pending.
     holdMicrophone(current.cancel);
     current.start();
@@ -222,15 +228,22 @@ function ActiveVoiceStage({
     draftInTheWay,
   ]);
 
-  // When this session's recording has settled, it holds nothing: a dictation someone
-  // starts later with the ordinary shortcut is theirs, and ending voice chat leaves it alone.
-  const recordingSettled = recordingPhase === "idle" && stage !== "listening";
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- releases the voice session's hold on the recorder once its own recording has finished
+  // This session owns exactly one recorder operation at a time: the one its own start
+  // request began. Ownership ends when that operation settles (back to idle after it
+  // was seen running) or fails. A dictation someone starts afterwards with the ordinary
+  // shortcut is theirs: voice chat neither sends it nor cancels it.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tracks the recorder operation this voice session started and releases its hold when that operation ends
   useEffect(() => {
-    if (!recordingSettled || !ownRecordingRef.current) return;
+    if (!ownRecordingRef.current) return;
+    if (recordingPhase === "idle" && !ownRecordingSeenRef.current) return;
+    if (recordingPhase !== "idle" && recordingPhase !== "error") {
+      ownRecordingSeenRef.current = true;
+      return;
+    }
     ownRecordingRef.current = false;
+    ownRecordingSeenRef.current = false;
     holdMicrophone(null);
-  }, [recordingSettled]);
+  }, [recordingPhase]);
 
   // The microphone never started (voice input needs setup, or the request was refused):
   // close voice chat and leave any setup screen it opened alone.
@@ -239,7 +252,13 @@ function ActiveVoiceStage({
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- times out a microphone request that never began; cleared as soon as recording starts
   useEffect(() => {
     if (!startRefused) return;
-    const timer = window.setTimeout(() => dispatchVoiceSession({ type: "stop" }), START_REFUSED_MS);
+    const timer = window.setTimeout(() => {
+      // Nothing was ever recording, so there is nothing to cancel. Dropping the hold first
+      // leaves a slow status check free to open voice setup after voice chat has closed.
+      ownRecordingRef.current = false;
+      holdMicrophone(null);
+      dispatchVoiceSession({ type: "stop" });
+    }, START_REFUSED_MS);
     return () => window.clearTimeout(timer);
   }, [startRefused]);
 

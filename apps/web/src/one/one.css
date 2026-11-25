@@ -860,12 +860,12 @@ html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
 
 /* A thread row answers the press itself, within one frame, before the thread
    has loaded: the row takes its selected color and settles in slightly. */
-[data-testid="sidebar-row-card"]:active {
+[data-sidebar-row]:active {
   background-color: var(--sidebar-row-selected, var(--sidebar-row-active));
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [data-testid="sidebar-row-card"]:active {
+  [data-sidebar-row]:active {
     scale: 0.985;
   }
 }
