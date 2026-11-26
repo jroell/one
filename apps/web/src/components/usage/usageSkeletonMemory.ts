@@ -13,13 +13,30 @@ export function selectionKey(
   return `${environments}|hidden:${[...hiddenProviders].toSorted().join(",")}`;
 }
 
-/** A settled answer of zero is remembered like any other count. */
+const COUNT_STORAGE_PREFIX = "one:usage:providers:";
+
+/** A settled answer of zero is remembered like any other count, and kept for the next session. */
 export function rememberProviderCount(key: string, count: number): void {
   providerCounts.set(key, count);
+  try {
+    localStorage.setItem(COUNT_STORAGE_PREFIX + key, String(count));
+  } catch {
+    // Private windows and blocked storage keep the count for this session only.
+  }
 }
 
 export function recalledProviderCount(key: string, fallback: number): number {
-  return providerCounts.get(key) ?? fallback;
+  const kept = providerCounts.get(key);
+  if (kept !== undefined) return kept;
+  try {
+    const stored = Number(localStorage.getItem(COUNT_STORAGE_PREFIX + key));
+    if (localStorage.getItem(COUNT_STORAGE_PREFIX + key) !== null && Number.isInteger(stored)) {
+      return stored;
+    }
+  } catch {
+    // Fall through to the default.
+  }
+  return fallback;
 }
 
 /**

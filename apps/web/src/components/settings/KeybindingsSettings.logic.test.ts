@@ -2,6 +2,7 @@ import { assert, describe, expect, it } from "vite-plus/test";
 import type { ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import {
   compileResolvedKeybindingsConfig,
+  DEFAULT_RESOLVED_KEYBINDINGS,
   mergeWithDefaultKeybindings,
   parseKeybindingShortcut,
 } from "@t3tools/shared/keybindings";
@@ -537,10 +538,10 @@ describe("describeWhen", () => {
     const words = (expression: string) =>
       describeWhen(parseKeybindingWhenExpression(expression) ?? undefined);
 
-    expect(words("!terminalFocus")).toBe("not in the terminal");
-    expect(words("terminalFocus && !isMac")).toBe("in the terminal and not on macOS");
+    expect(words("!terminalFocus")).toBe("outside the terminal");
+    expect(words("terminalFocus && !isMac")).toBe("in the terminal and not on a Mac");
     expect(words("composerFocus && (turnRunning || customFlag)")).toBe(
-      "in the composer and (while the agent works or customFlag)",
+      "in the composer and (while the agent is working or customFlag)",
     );
   });
 });
@@ -580,6 +581,20 @@ describe("spokenShortcutLabel", () => {
       "Ctrl+Left arrow",
     );
     expect(spokenShortcutLabel(shortcut("escape"), "Linux x86_64")).toBe("Esc");
+  });
+
+  it("lists the default approval shortcuts under an Approval heading as Approve and Decline", () => {
+    const rows = buildKeybindingRows(DEFAULT_RESOLVED_KEYBINDINGS, "Linux x86_64");
+    const group = groupKeybindingRows(rows).find((candidate) => candidate.title === "Approval");
+    assert(group, "an Approval group");
+    expect(
+      group.rows.map((row) => [commandActionLabel(row.command, undefined, "approval"), row.key]),
+    ).toEqual([
+      ["Approve", "mod+alt+y"],
+      ["Decline", "mod+alt+d"],
+    ]);
+    // Outside the group the full name stays; a user rule for the command shows as its own row.
+    expect(commandLabel("approval.approve" as never)).toBe("Approval: approve");
   });
 
   it("names a command without the heading's area, and keeps context the heading lacks", () => {

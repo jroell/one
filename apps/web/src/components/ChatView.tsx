@@ -65,7 +65,8 @@ import { armFreshSession, disarmFreshSession, useFreshSessionArmed } from "./cha
 import { cancelHeldComposerSend, useComposerSendHeld } from "./chat/preparingComposerImages";
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
-import { useChatShortcuts } from "./chat/useChatShortcuts";
+import { BackgroundGatedShortcuts } from "./chat/BackgroundGatedShortcuts";
+import type { ChatShortcutsInput } from "./chat/useChatShortcuts";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
 import * as Schema from "effect/Schema";
 import {
@@ -137,13 +138,12 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type SetStateAction,
-  use,
+  memo,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
-import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
@@ -331,7 +331,6 @@ import { sideThreadComposer, sideThreadKindOf } from "@t3tools/client-runtime/si
 import { useOpenSurfaceInMainView } from "../hooks/useOpenSurfaceInMainView";
 import { useRemoteOpenState } from "~/remoteOpen";
 import { shouldShowOpenInPicker } from "./chat/OpenInPicker.logic";
-import { useOpenFavoriteEditorShortcut } from "./chat/OpenInPickerShortcut";
 import {
   PanelLayoutControls,
   type PanelLayoutControlsProps,
@@ -421,6 +420,7 @@ import {
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
+import { noteApprovalDecision } from "~/one/approvalDecision";
 import {
   isCompactCommandMessage,
   type LocalThreadErrorEntry,
@@ -475,7 +475,7 @@ const DismissedFallbackWindowSchema = Schema.NullOr(Schema.String);
 
 const ignoreComposerFocus = () => {};
 
-export default function ChatView(props: ChatViewProps) {
+function ChatView(props: ChatViewProps) {
   const gt = useGT();
   const messages = useMessages();
   const {
@@ -634,11 +634,17 @@ export default function ChatView(props: ChatViewProps) {
   const clientSettingsHydrated = useClientSettingsHydrated();
   const timestampFormat = settings.timestampFormat;
   const navigate = useNavigate();
-  // Selects primitives: an object here is new on every router store update, which
-  // re-renders ChatView on unrelated navigation state changes.
-  const citationHref = useLocation({ select: (location) => location.href });
+  // Selects primitives, and only while the location is a citation: an object here is new on every
+  // router store update, and the href and navigation key change on every route, which re-rendered
+  // ChatView when Settings opened or a page inside it changed.
+  const citationHref = useLocation({
+    select: (location) => (assistantCitationFromLocation(location.href) ? location.href : ""),
+  });
   const citationKey = useLocation({
-    select: (location) => location.state.assistantCitationActivation ?? location.state.__TSR_key,
+    select: (location) =>
+      assistantCitationFromLocation(location.href)
+        ? (location.state.assistantCitationActivation ?? location.state.__TSR_key)
+        : undefined,
   });
   const citationLocation = { href: citationHref, key: citationKey };
   const locationCitation = assistantCitationFromLocation(citationLocation.href);
@@ -1814,7 +1820,6 @@ export default function ChatView(props: ChatViewProps) {
     refresh: useEnvironmentQueryRefresh(gitStatusAtom).refresh,
   };
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const backgroundThread = use(BackgroundThreadContext);
   const scriptKeybindings =
     useAtomValue(serverEnvironment.configValueAtom(environmentId))?.keybindings ??
     DEFAULT_RESOLVED_KEYBINDINGS;
@@ -1830,13 +1835,13 @@ export default function ChatView(props: ChatViewProps) {
     hostEnvironmentId,
     remoteOpenMode: remoteOpenState.mode,
   });
-  useOpenFavoriteEditorShortcut({
-    enabled: showOpenInPicker && !backgroundThread,
+  const openFavoriteEditorShortcut = {
+    enabled: showOpenInPicker,
     environmentId: openInEnvironmentId,
     keybindings,
     availableEditors,
     openInCwd: gitCwd,
-  });
+  };
   const manualCompactionProviderAvailable = hasAvailableCompactionProvider({
     providers: providerInstanceEntries,
     driverKind: selectedProvider,
@@ -2933,6 +2938,12 @@ export default function ChatView(props: ChatViewProps) {
     isDesktop: isElectron,
   });
   const getShortcutContextStable = useStableCallback(getShortcutContext);
+  // Approve and Decline chords act only on a request that can still be answered.
+  const canRespondToActiveApproval =
+    canOperateThread &&
+    activePendingApproval !== null &&
+    activePendingApproval.responseCapability === "live" &&
+    !respondingRequestIds.includes(activePendingApproval.requestId);
   const timelineSkills = activeProviderStatus
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
@@ -2944,8 +2955,8 @@ export default function ChatView(props: ChatViewProps) {
     }
   });
 
-  useChatShortcuts({
-    enabled: activeThreadId !== null && !backgroundThread,
+  const chatShortcuts: ChatShortcutsInput = {
+    enabled: activeThreadId !== null,
     embedded,
     composerElement: composerOverlayElement,
     keybindings,
@@ -2991,6 +3002,24 @@ export default function ChatView(props: ChatViewProps) {
         routeKind !== "draft" &&
         composerRef.current?.isCaretAtStart() === true &&
         queuedRunsControlRef.current?.editLatest(event.repeat) === true,
+      "approval.approve": {
+        run: ({ event }) => {
+          if (!canRespondToActiveApproval) return false;
+          if (event.repeat) return;
+          noteApprovalDecision(activePendingApproval!.requestId, "accept");
+          void onRespondToApprovalStable(activePendingApproval!.requestId, "accept");
+        },
+        canRun: () => canRespondToActiveApproval,
+      },
+      "approval.decline": {
+        run: ({ event }) => {
+          if (!canRespondToActiveApproval) return false;
+          if (event.repeat) return;
+          noteApprovalDecision(activePendingApproval!.requestId, "decline");
+          void onRespondToApprovalStable(activePendingApproval!.requestId, "decline");
+        },
+        canRun: () => canRespondToActiveApproval,
+      },
       "thread.stop": {
         run: ({ event }) => {
           if (!canInterruptRunningThread) return false;
@@ -3005,28 +3034,16 @@ export default function ChatView(props: ChatViewProps) {
       const script = activeProjectScripts.find((entry) => entry.id === scriptId);
       return script ? () => void runProjectScriptStable(script) : undefined;
     },
-  });
+  };
 
   const closeActiveRightPanelSurfaceStable = useStableCallback(() => {
     if (activeRightPanelSurface) closeRightPanelSurface(activeRightPanelSurface);
   });
-
-  // A focused desktop browser page forwards these chords as menu actions.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to desktop bridge menu actions that toggle or close the right panel
-  useEffect(() => {
-    if (embedded || backgroundThread) return;
-    return window.desktopBridge?.onMenuAction((action) => {
-      if (action === "rightPanel.toggle") toggleRightPanelStable();
-      else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
-      else if (action === "rightPanel.close") closeActiveRightPanelSurfaceStable();
-    });
-  }, [
-    embedded,
-    backgroundThread,
-    toggleRightPanelStable,
-    toggleRightPanelMaximizedStable,
-    closeActiveRightPanelSurfaceStable,
-  ]);
+  const onDesktopMenuAction = useStableCallback((action: string) => {
+    if (action === "rightPanel.toggle") toggleRightPanelStable();
+    else if (action === "rightPanel.toggleMaximized") toggleRightPanelMaximizedStable();
+    else if (action === "rightPanel.close") closeActiveRightPanelSurfaceStable();
+  });
 
   usePasteToFocusComposer(embedded ? null : activeThreadId, composerRef);
   // A delegated task is a remote thread's subagent.
@@ -4379,6 +4396,13 @@ export default function ChatView(props: ChatViewProps) {
       {embedded ? null : <LinkPullRequestDialogHost />}
       <ThreadVisitWatermark threadRef={routeThreadRef} />
       <ExpandedImageDialogHost threadKey={routeThreadKey} />
+      {/* Last, so its listeners register after every other child's, as the hooks it replaced did. */}
+      <BackgroundGatedShortcuts
+        chatShortcuts={chatShortcuts}
+        openFavoriteEditor={openFavoriteEditorShortcut}
+        embedded={embedded}
+        onMenuAction={onDesktopMenuAction}
+      />
     </div>
   );
   return (
@@ -4392,6 +4416,9 @@ export default function ChatView(props: ChatViewProps) {
     </FileMetadataThreadProvider>
   );
 }
+
+// The route layout re-renders when a modal page opens over the thread, with the same props.
+export default memo(ChatView);
 
 // Chromium on Linux pastes PRIMARY into the focused editable unless the middle mouseup is cancelled.
 function preventMiddleClickPasteOutsideEditable(event: ReactMouseEvent) {

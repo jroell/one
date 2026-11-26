@@ -3,12 +3,15 @@ import {
   fullAccessOverrideExplanation,
 } from "@t3tools/client-runtime/state/thread-requests";
 import { msg, T, useGT, useMessages } from "gt-react";
-import { ShieldIcon } from "lucide-react";
+import { CheckIcon, ShieldIcon, XIcon } from "lucide-react";
+import { shortcutLabelForCommand } from "../../keybindings";
 import { useTurnItemDetail } from "../../state/queries";
+import { primaryServerKeybindingsAtom } from "../../state/server";
 import { APPROVAL_FILES_SHOWN, approvalHeaderVerb, approvalVerb } from "./approvalChanges";
 import { type ApprovalHunkLine } from "./approvalHunk";
 import { useApprovalPreview } from "./useApprovalPreview";
-import { memo, use, useState } from "react";
+import { useAtomValue } from "@effect/atom-react";
+import { memo, use, useEffect, useRef, useState } from "react";
 import { type PendingApproval } from "../../session-logic";
 import { Badge } from "../ui/badge";
 import { InlineButton } from "../ui/button";
@@ -213,6 +216,10 @@ function ApprovalFileList({
   );
 }
 
+function approvalOutcomeApproved(decision: string | null | undefined): boolean {
+  return decision === "accept" || decision === "acceptForSession" || decision === "acceptAlways";
+}
+
 /** A single file whose type or mime type only the list shows. */
 function hasExtraDetail(change: ApprovalSubjectChange): boolean {
   return Boolean(change.fileType || change.mimeType);
@@ -359,111 +366,172 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
     onRespondToApproval,
     workspaceRoot,
     onOpenToolDiff,
+    pendingApprovals,
+    leavingApprovals,
+    onApprovalLeft,
   } = use(TimelineRowCtx);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const leavingDecision = leavingApprovals?.get(approval.requestId);
+  const leaving = leavingApprovals?.has(approval.requestId) === true;
   const subject = use(ApprovalSubjectContext).get(approval.requestId);
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  // The Approve and Decline chords act on the oldest waiting request, so only its card shows them.
+  const actedOn = pendingApprovals?.keys().next().value === approval.requestId;
+  const shortcuts = actedOn
+    ? {
+        accept: shortcutLabelForCommand(keybindings, "approval.approve"),
+        decline: shortcutLabelForCommand(keybindings, "approval.decline"),
+      }
+    : undefined;
   const m = useMessages();
+  const gt = useGT();
+  // The card leaves over its own animations: when they end, or at once when there are none (reduced
+  // motion), the timeline drops it and the resolved row stands in.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the timeline the card's exit animation has finished
+  useEffect(() => {
+    if (!leaving) return;
+    const animations = cardRef.current?.parentElement?.getAnimations({ subtree: true }) ?? [];
+    if (animations.length === 0) {
+      onApprovalLeft?.(approval.requestId);
+      return;
+    }
+    let live = true;
+    void Promise.all(animations.map((animation) => animation.finished.catch(() => undefined))).then(
+      () => {
+        if (live) onApprovalLeft?.(approval.requestId);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [leaving, approval.requestId, onApprovalLeft]);
   const presentation = APPROVAL_PRESENTATION[approval.requestKind];
   const canRespond = approval.responseCapability === "live";
   return (
-    <div
-      role="group"
-      aria-label={m(presentation.label)}
-      data-v2-item-type="approval_request"
-      data-approval-card=""
-      className="m-raised"
-    >
-      <header data-approval-header="">
-        <ToolActivityIconView
-          icon={undefined}
-          fallbackName={presentation.icon}
-          className="block size-4 shrink-0 stroke-2 text-icon-muted"
-          muted
-        />
-        <div data-approval-title="">
-          {subject ? (
-            <ApprovalSubjectTitle
-              subject={subject}
-              workspaceRoot={workspaceRoot}
-              label={m(presentation.detailLabel)}
-            />
-          ) : (
-            m(presentation.title)
-          )}
-        </div>
-      </header>
-      {subject && (subject.changes.length > 1 || subject.changes.some(hasExtraDetail)) ? (
-        <ApprovalFileList changes={subject.changes} workspaceRoot={workspaceRoot} />
-      ) : null}
-      {approval.appName ||
-      (subject && !isGenericFileChangePrompt(approval.detail)) ||
-      approval.reason ? (
-        <div data-approval-notes="">
-          {approval.appName ? <span>{approval.appName}</span> : null}
-          {subject && !isGenericFileChangePrompt(approval.detail) ? (
-            <span>{approval.detail}</span>
-          ) : null}
-          {approval.reason ? <span>{approval.reason}</span> : null}
-        </div>
-      ) : null}
-      {subject ? (
-        <ApprovalHunk
-          subject={subject}
-          onShowFullDiff={
-            onOpenToolDiff && subject.diffTarget ? () => onOpenToolDiff(subject.diffTarget!) : null
-          }
-        />
-      ) : (
-        <code
-          aria-label={m(presentation.detailLabel)}
-          data-approval-content="command"
-          data-approval-detail="complete"
-          tabIndex={0}
-        >
-          {approval.detail || m(presentation.label)}
-        </code>
-      )}
-      <footer data-approval-footer="">
-        <div data-approval-status="">
-          {canRespond ? (
-            <Badge variant="warning">
-              <ShieldIcon aria-hidden />
-              <T>Needs approval</T>
-            </Badge>
-          ) : (
-            <span data-approval-stale="">
-              <T>Provider process is gone. Interrupt or restart the run to respond.</T>
-            </span>
-          )}
-          {approval.fullAccessOverride ? (
-            <Popover>
-              <PopoverTrigger openOnHover render={<InlineButton tone="muted" />}>
-                {m(FULL_ACCESS_OVERRIDE_QUESTION)}
-              </PopoverTrigger>
-              <PopoverPopup
-                aria-label={m(FULL_ACCESS_OVERRIDE_QUESTION)}
-                tooltipStyle
-                side="top"
-                className="max-w-[min(22rem,calc(100vw-2rem))] whitespace-normal"
-              >
-                {fullAccessOverrideExplanation(approval.fullAccessOverride, m)}
-              </PopoverPopup>
-            </Popover>
-          ) : null}
-        </div>
-        {canRespond && onRespondToApproval ? (
-          <div data-approval-actions="">
-            <ComposerPendingApprovalActions
-              presentation="card"
-              requestId={approval.requestId}
-              disabled={!canOperateThread}
-              isResponding={respondingRequestIds.includes(approval.requestId)}
-              canRespond={canRespond}
-              options={approval.options}
-              onRespondToApproval={onRespondToApproval}
-            />
+    <div data-approval-host="" data-leaving={leaving ? "" : undefined}>
+      <div
+        ref={cardRef}
+        role="group"
+        aria-label={m(presentation.label)}
+        data-approval-card=""
+        data-leaving={leaving ? "" : undefined}
+        data-outcome={
+          leaving ? (approvalOutcomeApproved(leavingDecision) ? "approved" : "declined") : undefined
+        }
+        data-responding={
+          leaving || respondingRequestIds.includes(approval.requestId) ? "" : undefined
+        }
+        className="m-thick"
+      >
+        <header data-approval-header="">
+          <ToolActivityIconView
+            icon={undefined}
+            fallbackName={presentation.icon}
+            className="block size-4 shrink-0 stroke-2 text-icon-muted"
+            muted
+          />
+          <div data-approval-title="">
+            {subject ? (
+              <ApprovalSubjectTitle
+                subject={subject}
+                workspaceRoot={workspaceRoot}
+                label={m(presentation.detailLabel)}
+              />
+            ) : (
+              m(presentation.title)
+            )}
           </div>
-        ) : null}
-      </footer>
+        </header>
+        <div data-approval-body="">
+          <div data-approval-body-inner="">
+            {subject && (subject.changes.length > 1 || subject.changes.some(hasExtraDetail)) ? (
+              <ApprovalFileList changes={subject.changes} workspaceRoot={workspaceRoot} />
+            ) : null}
+            {approval.appName ||
+            (subject && !isGenericFileChangePrompt(approval.detail)) ||
+            approval.reason ? (
+              <div data-approval-notes="">
+                {approval.appName ? <span>{approval.appName}</span> : null}
+                {subject && !isGenericFileChangePrompt(approval.detail) ? (
+                  <span>{approval.detail}</span>
+                ) : null}
+                {approval.reason ? <span>{approval.reason}</span> : null}
+              </div>
+            ) : null}
+            {subject ? (
+              <ApprovalHunk
+                subject={subject}
+                onShowFullDiff={
+                  onOpenToolDiff && subject.diffTarget
+                    ? () => onOpenToolDiff(subject.diffTarget!)
+                    : null
+                }
+              />
+            ) : (
+              <code
+                aria-label={m(presentation.detailLabel)}
+                data-approval-content="command"
+                data-approval-detail="complete"
+                tabIndex={0}
+              >
+                {approval.detail || m(presentation.label)}
+              </code>
+            )}
+          </div>
+        </div>
+        <footer data-approval-footer="">
+          <div data-approval-status="">
+            {leaving ? (
+              <span data-approval-outcome="">
+                {approvalOutcomeApproved(leavingDecision) ? (
+                  <CheckIcon aria-hidden />
+                ) : (
+                  <XIcon aria-hidden />
+                )}
+                {approvalOutcomeApproved(leavingDecision) ? gt("Approved") : gt("Declined")}
+              </span>
+            ) : canRespond ? (
+              <Badge variant="warning">
+                <ShieldIcon aria-hidden />
+                <T>Needs approval</T>
+              </Badge>
+            ) : (
+              <span data-approval-stale="">
+                <T>Provider process is gone. Interrupt or restart the run to respond.</T>
+              </span>
+            )}
+            {approval.fullAccessOverride ? (
+              <Popover>
+                <PopoverTrigger openOnHover render={<InlineButton tone="muted" />}>
+                  {m(FULL_ACCESS_OVERRIDE_QUESTION)}
+                </PopoverTrigger>
+                <PopoverPopup
+                  aria-label={m(FULL_ACCESS_OVERRIDE_QUESTION)}
+                  tooltipStyle
+                  side="top"
+                  className="max-w-[min(22rem,calc(100vw-2rem))] whitespace-normal"
+                >
+                  {fullAccessOverrideExplanation(approval.fullAccessOverride, m)}
+                </PopoverPopup>
+              </Popover>
+            ) : null}
+          </div>
+          {canRespond && onRespondToApproval ? (
+            <div data-approval-actions="">
+              <ComposerPendingApprovalActions
+                presentation="card"
+                requestId={approval.requestId}
+                shortcuts={shortcuts}
+                disabled={!canOperateThread}
+                isResponding={leaving || respondingRequestIds.includes(approval.requestId)}
+                canRespond={canRespond}
+                options={approval.options}
+                onRespondToApproval={onRespondToApproval}
+              />
+            </div>
+          ) : null}
+        </footer>
+      </div>
     </div>
   );
 });

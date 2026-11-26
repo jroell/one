@@ -2,6 +2,7 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import { useRender } from "@base-ui/react/use-render";
 
 import { cn } from "~/lib/utils";
+import { pageSetBackRef } from "./pageSetBack";
 import {
   DIALOG_BACKDROP_CLASS,
   DIALOG_MOBILE_SHEET_CLASS,
@@ -28,6 +29,7 @@ function AlertDialogBackdrop({ className, ...props }: AlertDialogPrimitive.Backd
   return (
     <AlertDialogPrimitive.Backdrop
       forceRender
+      ref={pageSetBackRef}
       className={cn(DIALOG_BACKDROP_CLASS, className)}
       data-slot="alert-dialog-backdrop"
       {...props}
@@ -57,7 +59,7 @@ function AlertDialogPopup({
   bottomStickOnMobile?: boolean;
   portalContainer?: AlertDialogPrimitive.Portal.Props["container"];
 }) {
-  const { popupRef, initialFocus } = useDialogActionInitialFocus();
+  const { popupRef, initialFocus, finalFocus } = useDialogActionInitialFocus();
   const popup = useRender({
     ref: popupRef,
     render: (
@@ -70,6 +72,7 @@ function AlertDialogPopup({
         )}
         data-slot="alert-dialog-popup"
         initialFocus={initialFocus}
+        finalFocus={finalFocus}
         render={renderRetainedPopup}
         {...props}
       />

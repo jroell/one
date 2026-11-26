@@ -1,8 +1,8 @@
 import { ArrowLeftIcon, ArrowRightIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { T, useGT } from "gt-react";
-import { memo } from "react";
-import { Link, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
+import { memo, useEffect } from "react";
+import { Link, useLocation, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 
 import { useAtomValue } from "@effect/atom-react";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
@@ -187,7 +187,7 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
 function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
-      <OneGlyph size={16} data-on-backdrop={onBackdrop || undefined} />
+      <OneGlyph size={16} data-one-brand-glyph="" data-on-backdrop={onBackdrop || undefined} />
       <span
         data-one-wordmark=""
         className={cn(
@@ -217,6 +217,7 @@ function SidebarUtilityItem({
   shortcutLabel,
   active = false,
   onClick,
+  onPreload,
 }: {
   icon: ReactNode;
   label: string;
@@ -224,6 +225,8 @@ function SidebarUtilityItem({
   /** The page this icon opens is the one on screen. */
   active?: boolean;
   onClick: () => void;
+  /** Loads what the click opens, so the first press does not wait for its code. */
+  onPreload?: () => void;
 }) {
   const gt = useGT();
   // The lit icon is the way out of its page, and it says so.
@@ -238,6 +241,8 @@ function SidebarUtilityItem({
               aria-current={active ? "page" : undefined}
               isActive={active}
               onClick={onClick}
+              onFocus={onPreload}
+              onPointerEnter={onPreload}
               size="icon"
             >
               {icon}
@@ -255,6 +260,20 @@ function SidebarUtilityItem({
 
 const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
+  const router = useRouter();
+  const preloadSettings = () => void router.preloadRoute({ to: "/settings/general" });
+  const preloadUsage = () => void router.preloadRoute({ to: "/usage" });
+  // The two sheets' code loads once the app is idle after boot, and sooner on hover or focus.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the idle preload of the Settings and Usage route chunks once
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 2000));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const handle = idle(() => {
+      void router.preloadRoute({ to: "/settings/general" });
+      void router.preloadRoute({ to: "/usage" });
+    });
+    return () => cancel(handle);
+  }, [router]);
   const navigateToMainApp = useNavigateToMainApp();
   const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -326,6 +345,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             label={gt("Settings")}
             shortcutLabel={isDesktopApp ? formatShortcutLabel(DESKTOP_SETTINGS_SHORTCUT) : null}
             onClick={handleSettingsClick}
+            onPreload={preloadSettings}
           />
           {/* The open page keeps its icon, and so its exit, even if its capability goes away. */}
           {pullRequestsSupported || activePage === "pull-requests" ? (
@@ -349,6 +369,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             label={gt("Usage")}
             shortcutLabel={usageShortcutLabel}
             onClick={handleUsageClick}
+            onPreload={preloadUsage}
           />
         </>
       )}

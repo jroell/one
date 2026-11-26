@@ -8,7 +8,11 @@ import { useStableCallback } from "~/hooks/useStableCallback";
 import { useTheme } from "~/hooks/useTheme";
 import { cn } from "~/lib/utils";
 import { FILE_TREE_UNSAFE_CSS, fileTreeItemHeightOption } from "../files/fileTreeChrome";
-import { pierreTreeStyle, titleClippedPierreTreeRow } from "~/pierre-tree-theme";
+import {
+  namePierreTreeRowWithPath,
+  pierreTreeStyle,
+  titleClippedPierreTreeRow,
+} from "~/pierre-tree-theme";
 
 import {
   areAllDirectoriesExpanded,
@@ -256,6 +260,7 @@ export function DiffFileTree({
         className="min-h-0 flex-1 overflow-hidden"
         style={pierreTreeStyle(resolvedTheme)}
         onPointerOver={titleClippedPierreTreeRow}
+        onFocusCapture={namePierreTreeRowWithPath}
       />
       {footer}
     </div>

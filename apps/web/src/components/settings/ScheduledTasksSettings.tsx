@@ -116,7 +116,7 @@ import {
 import { Label } from "../ui/label";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "../ui/menu";
 import { ToggleGroup, Toggle } from "../ui/toggle-group";
-import { SettingsEmptyState } from "./SettingsEmptyState";
+import { EmptyGhostRows, SettingsEmptyState } from "./SettingsEmptyState";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -713,12 +713,29 @@ function NoScheduledTasks({
   readonly onCreate: () => void;
   readonly canCreate: boolean;
 }) {
+  const gt = useGT();
   return (
     <SettingsEmptyState
       icon={<Clock3Icon />}
-      title={<T>No scheduled tasks yet</T>}
-      description={
-        <T>Scheduled tasks run a prompt on a timer, such as a morning summary of open work.</T>
+      title={gt("No scheduled tasks yet")}
+      description={gt(
+        "A scheduled task runs a prompt on a timer, such as a summary of open work every morning.",
+      )}
+      preview={
+        <EmptyGhostRows
+          rows={[
+            {
+              icon: <Clock3Icon />,
+              title: gt("Morning summary"),
+              meta: gt("Every weekday at 8:00 AM"),
+            },
+            {
+              icon: <Clock3Icon />,
+              title: gt("Weekly dependency check"),
+              meta: gt("Every Monday at 9:00 AM"),
+            },
+          ]}
+        />
       }
       action={
         <Button disabled={!canCreate} onClick={onCreate}>

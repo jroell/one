@@ -14,6 +14,7 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../../test/render";
+import { clearApprovalDecision, noteApprovalDecision } from "~/one/approvalDecision";
 import {
   ApprovalSubjectContext,
   deriveApprovalSubjects,
@@ -497,4 +498,174 @@ it("shows the file type a single file carries, which only the list can show", as
   expect(screen.container.querySelector("[data-approval-files]")!.textContent).toContain(
     "file, image/png",
   );
+});
+
+function cardWith(options: {
+  responding?: boolean;
+  pending?: ReadonlyMap<string, unknown>;
+  onRespond?: () => Promise<unknown>;
+}) {
+  const shared = {
+    respondingRequestIds: options.responding ? [requestId] : [],
+    canOperateThread: true,
+    onRespondToApproval: options.onRespond ?? (async () => {}),
+    workspaceRoot: "/repo",
+    onOpenToolDiff: vi.fn(),
+    activeThreadEnvironmentId: EnvironmentId.make("environment"),
+    turnItemSource: { detail: () => Atom.make(AsyncResult.success({ item: null })) },
+    pendingApprovals: options.pending ?? new Map([[requestId, approval({})]]),
+  } as never;
+  return (
+    <TimelineRowCtx value={shared}>
+      <ApprovalSubjectContext
+        value={
+          new Map([
+            [
+              requestId,
+              {
+                path: "/repo/src/math.ts",
+                moreFiles: 0,
+                changes: [],
+                additions: null,
+                deletions: null,
+                diffStr: patch,
+                diffTarget,
+              },
+            ],
+          ])
+        }
+      >
+        <TimelinePendingApprovalRow approval={approval({})} />
+      </ApprovalSubjectContext>
+    </TimelineRowCtx>
+  );
+}
+
+it("shows the Approve and Decline chords on the card the chords act on, and no other", async () => {
+  await using first = await render(cardWith({}), { router: false });
+  const hints = [...first.container.querySelectorAll("[data-approval-hint]")].map(
+    (hint) => hint.textContent,
+  );
+  expect(hints).toHaveLength(2);
+  expect(hints.every((hint) => (hint ?? "").length > 0)).toBe(true);
+  const other = RuntimeRequestId.make("older");
+  await using later = await render(
+    cardWith({ pending: new Map([[other, approval({ requestId: other })]]) }),
+    { router: false },
+  );
+  expect(later.container.querySelectorAll("[data-approval-hint]")).toHaveLength(0);
+});
+
+it("answers a press with Approving… at full strength while the other actions dim", async () => {
+  await using screen = await render(cardWith({ onRespond: () => new Promise(() => {}) }), {
+    router: false,
+  });
+  await screen.getByRole("button", { name: "Approve" }).click();
+  await screen.rerender(cardWith({ responding: true, onRespond: () => new Promise(() => {}) }));
+  const approve = screen.getByRole("button", { name: "Approving…" });
+  await expect.element(approve).toBeVisible();
+  expect(approve.element().hasAttribute("data-pending")).toBe(true);
+  await vi.waitFor(() => {
+    expect(getComputedStyle(approve.element()).opacity).toBe("1");
+    const decline = screen.getByRole("button", { name: "Decline" }).element();
+    expect(Number(getComputedStyle(decline).opacity)).toBeLessThan(1);
+  });
+  // The change stays in view until the answer arrives: nothing folds on the press.
+  const body = screen.container.querySelector("[data-approval-body-inner]") as HTMLElement;
+  expect(body.getBoundingClientRect().height).toBeGreaterThan(0);
+});
+
+it("enters over the surface duration with no rail on its edge", async () => {
+  await using screen = await render(cardWith({}), { router: false });
+  const card = screen.container.querySelector("[data-approval-card]") as HTMLElement;
+  expect(getComputedStyle(card).animationName).toBe("one-approval-in");
+  expect(getComputedStyle(card, "::after").content).toBe("none");
+  const footerButton = card.querySelector("[data-approval-footer] > *") as HTMLElement;
+  expect(getComputedStyle(footerButton).animationDelay).toBe("0.08s");
+});
+
+function leavingCard(decision: "accept" | "decline" | null, onApprovalLeft: (id: unknown) => void) {
+  const shared = {
+    respondingRequestIds: [],
+    canOperateThread: true,
+    onRespondToApproval: async () => {},
+    workspaceRoot: "/repo",
+    onOpenToolDiff: vi.fn(),
+    activeThreadEnvironmentId: EnvironmentId.make("environment"),
+    turnItemSource: { detail: () => Atom.make(AsyncResult.success({ item: null })) },
+    pendingApprovals: new Map([[requestId, approval({})]]),
+    leavingApprovals: new Map([[requestId, decision]]),
+    onApprovalLeft,
+  } as never;
+  return (
+    <TimelineRowCtx value={shared}>
+      <ApprovalSubjectContext
+        value={
+          new Map([
+            [
+              requestId,
+              {
+                path: "/repo/src/math.ts",
+                moreFiles: 0,
+                changes: [],
+                additions: null,
+                deletions: null,
+                diffStr: patch,
+                diffTarget,
+              },
+            ],
+          ])
+        }
+      >
+        <TimelinePendingApprovalRow approval={approval({})} />
+      </ApprovalSubjectContext>
+    </TimelineRowCtx>
+  );
+}
+
+it("names Approve with a gold check and Decline without one while the card leaves, then tells the timeline it is done", async () => {
+  const left = vi.fn();
+  await using approved = await render(leavingCard("accept", left), { router: false });
+  const card = approved.container.querySelector("[data-approval-card]") as HTMLElement;
+  expect(card.getAttribute("data-leaving")).toBe("");
+  expect(card.querySelector("[data-approval-outcome]")!.textContent).toBe("Approved");
+  expect(card.getAttribute("data-outcome")).toBe("approved");
+  const gold = (element: Element) => getComputedStyle(element).color;
+  const approvedCheck = card.querySelector("[data-approval-outcome] svg")!;
+  await vi.waitFor(() => expect(left).toHaveBeenCalledWith(requestId));
+  expect(left).toHaveBeenCalledTimes(1);
+  await using declined = await render(leavingCard("decline", vi.fn()), { router: false });
+  const declinedCard = declined.container.querySelector("[data-approval-card]") as HTMLElement;
+  expect(declinedCard.querySelector("[data-approval-outcome]")!.textContent).toBe("Declined");
+  expect(declinedCard.getAttribute("data-outcome")).toBe("declined");
+  expect(gold(declinedCard.querySelector("[data-approval-outcome] svg")!)).not.toBe(
+    gold(approvedCheck),
+  );
+});
+
+it("shows Approving… when the answer came from a key chord, not the button", async () => {
+  noteApprovalDecision(requestId, "accept");
+  try {
+    await using screen = await render(cardWith({ responding: true }), { router: false });
+    const approve = screen.getByRole("button", { name: "Approving…" });
+    await expect.element(approve).toBeVisible();
+    expect(approve.element().hasAttribute("data-pending")).toBe(true);
+  } finally {
+    clearApprovalDecision(requestId);
+  }
+});
+
+it("keeps the pressed button reading Approving… at full strength while the card leaves", async () => {
+  noteApprovalDecision(requestId, "accept");
+  try {
+    await using screen = await render(leavingCard("accept", vi.fn()), { router: false });
+    const approve = screen.getByRole("button", { name: "Approving…" });
+    await expect.element(approve).toBeVisible();
+    expect(approve.element().hasAttribute("data-pending")).toBe(true);
+    expect(screen.getByRole("button", { name: "Decline" }).element().hasAttribute("disabled")).toBe(
+      true,
+    );
+  } finally {
+    clearApprovalDecision(requestId);
+  }
 });

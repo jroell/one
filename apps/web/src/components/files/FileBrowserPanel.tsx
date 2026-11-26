@@ -27,9 +27,13 @@ import { useTheme } from "~/hooks/useTheme";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { useFileContextMenu, type FileContextMenuAction } from "~/fileContextMenu";
 import { readLocalApi } from "~/localApi";
-import { T3_PIERRE_ICONS } from "~/pierre-icons";
+import { FLAT_PIERRE_ICONS } from "~/pierre-icons";
 import { FILE_TREE_UNSAFE_CSS, fileTreeItemHeightOption } from "./fileTreeChrome";
-import { pierreTreeStyle, titleClippedPierreTreeRow } from "~/pierre-tree-theme";
+import {
+  namePierreTreeRowWithPath,
+  pierreTreeStyle,
+  titleClippedPierreTreeRow,
+} from "~/pierre-tree-theme";
 
 import { joinHostPath } from "./filePath";
 import { createFileTreeDragMentionController } from "./fileTreeDragMention";
@@ -315,7 +319,7 @@ export default function FileBrowserPanel({
     fileTreeSearchMode: "hide-non-matches",
     flattenEmptyDirectories: true,
     initialExpansion: "closed",
-    icons: T3_PIERRE_ICONS,
+    icons: FLAT_PIERRE_ICONS,
     onSelectionChange: (selectedPaths) => {
       // Update drag selection even for reveals so subsequent drags cannot use stale paths.
       dragMention.handleSelectionChange(selectedPaths);
@@ -701,6 +705,7 @@ export default function FileBrowserPanel({
           }}
           style={pierreTreeStyle(resolvedTheme)}
           onPointerOver={titleClippedPierreTreeRow}
+          onFocusCapture={namePierreTreeRowWithPath}
         />
       )}
     </div>

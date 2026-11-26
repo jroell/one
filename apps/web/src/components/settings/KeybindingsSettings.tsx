@@ -1163,9 +1163,14 @@ function KeybindingSettingsRow(props: KeybindingRowProps) {
       description={
         row.isUnassigned && !editor.isDirty ? (
           <T>No keyboard shortcut assigned. Click Unassigned to set one.</T>
-        ) : showWhen ? (
-          <KeybindingRowWhen row={row} editor={editor} variables={variables} />
-        ) : undefined
+        ) : (
+          // Always in the row, closed to zero height, so it opens instead of appearing.
+          <span data-settings-reveal="" {...(showWhen ? { "data-open": "" } : {})}>
+            <span inert={!showWhen}>
+              <KeybindingRowWhen row={row} editor={editor} variables={variables} />
+            </span>
+          </span>
+        )
       }
       control={
         <div className="flex flex-wrap items-center justify-end gap-1.5">

@@ -39,7 +39,7 @@ function noticeLevel(entry: WorkLogEntry): "info" | "warning" | "error" {
 }
 
 /** A notice the person must act on: a sign-in the notice offers, or an error. */
-function isActionableNotice(entry: WorkLogEntry): boolean {
+export function isActionableNotice(entry: WorkLogEntry): boolean {
   const payload = entry.structuredPayload;
   if (payload?.type !== "system_notice") return false;
   return (
@@ -88,58 +88,15 @@ function ChatActionableNotice({ entry }: { readonly entry: WorkLogEntry }) {
 }
 
 /**
- * A turn's notices. Those the person must act on (a sign-in, an error) stay in view, one plain
- * sentence each with the action beside it. The rest are one quiet line, "1 notice", that opens to
- * the full text, wrapped and never cut off, with a copy button.
+ * A turn's notices that the person must act on (a sign-in, an error), each in view as one plain
+ * sentence with its action beside it. The rest are quiet and live behind the header's status dot.
  */
 export function ChatNoticeLine({ notices }: { readonly notices: ReadonlyArray<WorkLogEntry> }) {
-  const gt = useGT();
-  const [open, setOpen] = useState(false);
-  const bodyId = useId();
-  const actionable = notices.filter(isActionableNotice);
-  const calm = notices.filter((entry) => !isActionableNotice(entry));
-  const levels = calm.map(noticeLevel);
-  const worst = levels.includes("error")
-    ? "error"
-    : levels.includes("warning")
-      ? "warning"
-      : "info";
   return (
     <>
-      {actionable.map((entry) => (
+      {notices.filter(isActionableNotice).map((entry) => (
         <ChatActionableNotice key={entry.id} entry={entry} />
       ))}
-      {calm.length > 0 ? (
-        <div className="one-chat-notice" data-chat-notice="" data-level={worst}>
-          <button
-            type="button"
-            className="one-chat-notice-toggle"
-            aria-expanded={open}
-            aria-controls={bodyId}
-            data-scroll-anchor-ignore
-            onClick={() => setOpen((current) => !current)}
-          >
-            <span className="one-chat-notice-dot" aria-hidden />
-            <span>
-              {gt("{count, plural, one {# notice} other {# notices}}", { count: calm.length })}
-            </span>
-            <ChevronRightIcon className="one-chat-notice-chevron size-3.5" aria-hidden />
-          </button>
-          {open ? (
-            <div id={bodyId} className="one-chat-notice-body">
-              {calm.map((entry) => (
-                <p key={entry.id} className="one-chat-notice-text">
-                  {noticeText(entry)}
-                </p>
-              ))}
-              <CopyDetailButton
-                text={calm.map(noticeText).join("\n\n")}
-                label={gt("Copy notice text")}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </>
   );
 }

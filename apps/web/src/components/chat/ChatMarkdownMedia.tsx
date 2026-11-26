@@ -19,6 +19,8 @@ import { cn } from "../../lib/utils";
 import { useRightPanelStore } from "../../rightPanelStore";
 import { MediaActions, type MediaActionSource } from "../media/MediaActions";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
+import { ChatImageFailure } from "~/one/ChatImageFailure";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { markdownImageGallery, markdownImageItems } from "./markdownImageGallery";
 
@@ -200,9 +202,12 @@ export function ChatMarkdownImage(props: {
   readonly actionsSource: MediaActionSource;
   readonly originalUrl?: string | undefined;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
+  /** Asks for a fresh URL; Retry in Chat mode calls it before trying the picture again. */
+  readonly onRetry?: (() => Promise<unknown>) | undefined;
 }) {
   const gt = useGT();
   const m = useMessages();
+  const chatMode = useWorkspaceMode() === "chat";
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const src = props.src ?? loadedSrc;
@@ -252,6 +257,20 @@ export function ChatMarkdownImage(props: {
           {...imageEvents(src)}
         />
       </MediaActions>
+    );
+  }
+  if (chatMode && failed) {
+    return (
+      <ChatImageFailure
+        alt={props.alt}
+        detail={props.unavailableDetail}
+        copyMarkdown={props.copyMarkdown}
+        onRetry={() => {
+          void props.onRetry?.();
+          setFailedSrc(null);
+          setLoadedSrc(null);
+        }}
+      />
     );
   }
   if (!props.standalone) {
@@ -505,6 +524,8 @@ export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props
       actionsSource={actionsSource}
       originalUrl={props.originalUrl}
       onImageExpand={props.onImageExpand}
+      // Re-signing cannot grant the file access this connection lacks.
+      onRetry={missingFileAccess ? undefined : refreshAssetUrl}
     />
   );
 });

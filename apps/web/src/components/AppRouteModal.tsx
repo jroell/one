@@ -3,6 +3,7 @@ import { T, useGT } from "gt-react";
 import { XIcon } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import {
+  startTransition,
   useEffect,
   useRef,
   useState,
@@ -18,6 +19,7 @@ import { useCloseAppModal } from "./sidebar/mainAppLocation";
 import { GlobalVoiceInputIndicator } from "./chat/GlobalVoiceInputIndicator";
 import { Button } from "./ui/button";
 import { DialogBackdrop } from "./ui/dialog";
+import { Skeleton } from "./ui/skeleton";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 /**
@@ -38,7 +40,17 @@ export function AppRouteModal({
   children: ReactNode;
 }) {
   const closeAppModal = useCloseAppModal();
+  // The modal mounts open and its entrance is a CSS `@starting-style` transition, so the frame
+  // paints with the route. The page inside mounts a frame later (startTransition), with a skeleton
+  // meanwhile, so its render cost lands during the entrance on the compositor, not before the
+  // first frame.
   const [open, setOpen] = useState(true);
+  const [pageReady, setPageReady] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a frame timer that mounts the page after the modal's first paint
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => startTransition(() => setPageReady(true)));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   // Text selection that ends on the backdrop is not a dismissal.
   const backdropPressRef = useRef(false);
   // Focus the surface, not its first control: no stray focus ring, no phone keyboard.
@@ -115,7 +127,7 @@ export function AppRouteModal({
           }
           // Electron hit-tests drag regions under the backdrop regardless of z-index; without
           // this, presses above the modal move the window instead of dismissing it.
-          className="fixed inset-0 z-50 flex items-center justify-center [-webkit-app-region:no-drag] sm:p-6 sm:pt-(--app-modal-sm-top) lg:p-10"
+          className="fixed inset-0 z-50 flex items-center justify-center [-webkit-app-region:no-drag] sm:p-6 sm:pt-(--app-modal-sm-top)"
           onPointerDown={(event) => {
             backdropPressRef.current = event.target === event.currentTarget;
           }}
@@ -141,21 +153,43 @@ export function AppRouteModal({
             data-slot="dialog-popup"
             data-app-modal=""
             data-one-reflect=""
-            className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-background max-sm:pt-(--app-modal-top-inset) max-sm:pb-safe text-foreground outline-none transition-[opacity,scale] duration-150 ease-out [-webkit-app-region:no-drag] data-ending-style:scale-[0.985] data-ending-style:opacity-0 data-starting-style:scale-[0.985] data-starting-style:opacity-0 sm:max-h-[60rem] sm:max-w-[80rem] sm:rounded-2xl sm:border sm:shadow-2xl/40"
+            className="relative flex size-full min-h-0 min-w-0 flex-col overflow-hidden bg-background max-sm:pt-(--app-modal-top-inset) max-sm:pb-safe text-foreground outline-none [-webkit-app-region:no-drag] sm:max-h-[60rem] sm:max-w-[100rem] sm:rounded-(--m-radius-sheet)"
           >
             <span aria-hidden="true" className="one-reflection" />
-            <span aria-hidden="true" className="one-glint" />
             {/* The emptied strip still moves the window, as the titlebar it replaces does. */}
             <div
               aria-hidden
               className="absolute inset-x-0 top-0 hidden h-(--app-modal-titlebar-height) [-webkit-app-region:drag] max-sm:block"
             />
-            {children}
+            {pageReady ? children : <AppRouteModalSkeleton />}
             <GlobalVoiceInputIndicator />
           </DialogPrimitive.Popup>
         </DialogPrimitive.Viewport>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  );
+}
+
+const SKELETON_NAV_ROWS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
+const SKELETON_CARDS = ["a", "b", "c"] as const;
+
+/** The page's outline while it mounts: a nav column, a title and three cards. */
+function AppRouteModalSkeleton() {
+  return (
+    <div aria-hidden className="flex min-h-0 flex-1">
+      <div className="hidden w-64 shrink-0 flex-col gap-2 p-3 sm:flex">
+        {SKELETON_NAV_ROWS.map((row) => (
+          <Skeleton key={row} className="h-7 w-full" />
+        ))}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-4 p-6 sm:px-16 sm:pt-20">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-80 max-w-full" />
+        {SKELETON_CARDS.map((card) => (
+          <Skeleton key={card} shape="card" className="h-32 w-full" />
+        ))}
+      </div>
+    </div>
   );
 }
 

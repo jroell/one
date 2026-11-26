@@ -53,6 +53,7 @@ import type * as Scope from "effect/Scope";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { RpcSchema } from "effect/rpc";
+import { vi } from "vite-plus/test";
 
 export const ENVIRONMENT_ID = EnvironmentId.make("environment-render");
 export const PROJECT_ID = ProjectId.make("project-render");
@@ -247,6 +248,12 @@ export interface FakeThread {
   readonly runs: ReadonlyArray<OrchestrationV2Run>;
   readonly items: ReadonlyArray<OrchestrationV2TurnItem>;
   readonly runtimeRequests?: OrchestrationV2ThreadProjection["runtimeRequests"];
+  /** Makes the shell say this thread waits on the person, as an open approval does. */
+  readonly pendingRuntimeRequest?: OrchestrationV2ThreadShell["pendingRuntimeRequest"];
+  /** The thread's run status in the shell, such as "failed". Defaults to completed. */
+  readonly status?: OrchestrationV2ThreadShell["status"];
+  /** Before the latest run ended, so a failure or completion is still unseen. */
+  readonly lastVisitedAt?: OrchestrationV2ThreadShell["lastVisitedAt"];
 }
 
 /** A thread of `turns` user prompts, each answered in markdown with a list and inline code. */
@@ -347,8 +354,8 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     latestRunId: latest?.id ?? null,
     activeRunId: null,
     // Idle reads as waiting on the user, which shows a per-second duration in the sidebar.
-    status: latest ? "completed" : "idle",
-    pendingRuntimeRequest: null,
+    status: thread.status ?? (latest ? "completed" : "idle"),
+    pendingRuntimeRequest: thread.pendingRuntimeRequest ?? null,
     latestVisibleMessage: null,
     latestUserMessageAt: AT,
     hasActionableProposedPlan: false,
@@ -359,7 +366,7 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     archivedAt: null,
     settledOverride: thread.olderSettled ? "settled" : null,
     settledAt: thread.olderSettled ? AT : null,
-    lastVisitedAt: AT,
+    lastVisitedAt: thread.lastVisitedAt ?? AT,
     deletedAt: null,
   };
 }
@@ -437,7 +444,8 @@ let pendingDispatches: Array<{
 }> = [];
 let pendingAssetUrls: Array<Deferred.Deferred<AssetCreateUrlResult>> = [];
 let sequence = 1;
-let vcsStatusSubscriber: Queue.Queue<VcsStatusStreamEvent> | null = null;
+// Every open status subscription, as on a server: two views of one folder each get the event.
+const vcsStatusSubscribers = new Set<Queue.Queue<VcsStatusStreamEvent>>();
 
 const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>) => () => void) =>
   Stream.unwrap(
@@ -547,9 +555,9 @@ const handlers: Record<string, (input: never) => unknown> = {
   },
   [WS_METHODS.subscribeVcsStatus]: () =>
     subscribe<VcsStatusStreamEvent>([], (queue) => {
-      vcsStatusSubscriber = queue;
+      vcsStatusSubscribers.add(queue);
       return () => {
-        if (vcsStatusSubscriber === queue) vcsStatusSubscriber = null;
+        vcsStatusSubscribers.delete(queue);
       };
     }),
   [WS_METHODS.subscribeServerConfig]: () =>
@@ -744,6 +752,35 @@ export async function emitThreadEvent(
   );
 }
 
+/**
+ * Delivers a shell update for a listed thread, as the server does on every change to it: the
+ * thread's shell with `patch` laid over it.
+ */
+export async function emitShellUpdate(
+  threadId: ThreadId,
+  patch: Partial<OrchestrationV2ThreadShell>,
+): Promise<void> {
+  const thread = threads.find((candidate) => candidate.id === threadId);
+  if (thread === undefined) throw new Error(`No thread ${threadId}`);
+  // The subscription opens a moment after the list first renders.
+  const subscriber = await vi.waitFor(
+    () => {
+      if (shellSubscriber === null) throw new Error("No shell subscription");
+      return shellSubscriber;
+    },
+    { timeout: 5000 },
+  );
+  sequence += 1;
+  await Effect.runPromise(
+    Queue.offer(subscriber, {
+      kind: "thread.updated",
+      sequence,
+      location: "active",
+      thread: { ...shellOf(thread), ...patch },
+    }),
+  );
+}
+
 export function runningRun(threadId: ThreadId, id: string, ordinal: number, userMessageId: string) {
   return {
     ...run(threadId, RunId.make(id), ordinal, userMessageId),
@@ -755,6 +792,8 @@ export function runningRun(threadId: ThreadId, id: string, ordinal: number, user
 export { userItem };
 
 export async function emitVcsStatus(event: VcsStatusStreamEvent): Promise<void> {
-  if (vcsStatusSubscriber === null) throw new Error("No VCS status subscription");
-  await Effect.runPromise(Queue.offer(vcsStatusSubscriber, event));
+  if (vcsStatusSubscribers.size === 0) throw new Error("No VCS status subscription");
+  await Promise.all(
+    [...vcsStatusSubscribers].map((queue) => Effect.runPromise(Queue.offer(queue, event))),
+  );
 }

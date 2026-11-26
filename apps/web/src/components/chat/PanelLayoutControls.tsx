@@ -15,6 +15,7 @@ import { PopoverCreateHandle, PopoverTrigger } from "../ui/popover";
 import { useMobileSidebarSheetMounted } from "../ui/sidebar";
 import { Toggle } from "../ui/toggle";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { ChatStatusDot } from "~/one/ChatStatusDot";
 import { VoiceChatButton } from "~/one/VoiceChatButton";
 import { WorkspaceModeSwitch } from "~/one/WorkspaceModeSwitch";
 import { useWorkspaceMode } from "~/one/workspaceMode";
@@ -105,6 +106,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
     >
       {showWorkspaceModeControls ? (
         <>
+          {chatMode ? <ChatStatusDot /> : null}
           <VoiceChatButton />
           <WorkspaceModeSwitch className="mr-1" />
         </>

@@ -40,14 +40,12 @@
             background: "oklch(0.982446 0.010114 325.653)",
             foreground: "oklch(0.325698 0.116116 325.037)",
             accent: "oklch(0.591646 0.217985 0.584)",
-            ring: "oklch(0.591646 0.217985 0.584)",
             chrome: "oklch(0.982446 0.010114 325.653)",
           },
           dark: {
             background: "oklch(0.22813 0.020366 307.469)",
             foreground: "oklch(0.980735 0.004092 301.426)",
             accent: "oklch(0.460685 0.185347 4.099)",
-            ring: "oklch(0.460685 0.185347 4.099)",
             chrome: "oklch(0.22813 0.020366 307.469)",
           },
         };
@@ -60,14 +58,12 @@
               foreground: "oklch(0.325698 0.116116 325.037)",
               accent: "oklch(0.591646 0.217985 0.584)",
               chrome: "oklch(0.982446 0.010114 325.653)",
-              ring: "oklch(0.591646 0.217985 0.584)",
             },
             dark: {
               background: "oklch(0.22813 0.020366 307.469)",
               foreground: "oklch(0.980735 0.004092 301.426)",
               accent: "oklch(0.460685 0.185347 4.099)",
               chrome: "oklch(0.22813 0.020366 307.469)",
-              ring: "oklch(0.460685 0.185347 4.099)",
             },
           },
           grove: {
@@ -76,14 +72,12 @@
               foreground: "oklch(0.222003 0.03479 328.979)",
               accent: "oklch(0.523295 0.112292 158.089)",
               chrome: "oklch(0.972369 0.005497 157.15)",
-              ring: "oklch(0.535028 0.106403 77.549)",
             },
             dark: {
               background: "oklch(0.260865 0.02152 162.75)",
               foreground: "oklch(0.990339 0.008411 325.64)",
               accent: "oklch(0.796228 0.133058 157.319)",
               chrome: "oklch(0.260865 0.02152 162.75)",
-              ring: "oklch(0.791603 0.129713 83.299)",
             },
           },
           ocean: {
@@ -92,14 +86,12 @@
               foreground: "oklch(0.222003 0.03479 328.979)",
               accent: "oklch(0.536684 0.120219 247.01)",
               chrome: "oklch(0.974199 0.002856 241.597)",
-              ring: "oklch(0.493961 0.08175 201.584)",
             },
             dark: {
               background: "oklch(0.242641 0.024125 250.573)",
               foreground: "oklch(0.990339 0.008411 325.64)",
               accent: "oklch(0.758933 0.105833 241.548)",
               chrome: "oklch(0.242641 0.024125 250.573)",
-              ring: "oklch(0.793363 0.105022 199.893)",
             },
           },
           ember: {
@@ -108,14 +100,12 @@
               foreground: "oklch(0.222003 0.03479 328.979)",
               accent: "oklch(0.552831 0.129438 44.656)",
               chrome: "oklch(0.976527 0.002685 60.725)",
-              ring: "oklch(0.516323 0.161628 24.82)",
             },
             dark: {
               background: "oklch(0.245899 0.019144 42.044)",
               foreground: "oklch(0.990339 0.008411 325.64)",
               accent: "oklch(0.762174 0.124117 52.082)",
               chrome: "oklch(0.245899 0.019144 42.044)",
-              ring: "oklch(0.747955 0.135578 29.432)",
             },
           },
           iris: {
@@ -124,14 +114,12 @@
               foreground: "oklch(0.222003 0.03479 328.979)",
               accent: "oklch(0.525348 0.15373 294.176)",
               chrome: "oklch(0.976531 0.003855 303.226)",
-              ring: "oklch(0.516084 0.185229 340.776)",
             },
             dark: {
               background: "oklch(0.225975 0.031062 293.741)",
               foreground: "oklch(0.990339 0.008411 325.64)",
               accent: "oklch(0.671712 0.169136 293.929)",
               chrome: "oklch(0.225975 0.031062 293.741)",
-              ring: "oklch(0.789904 0.130063 337.621)",
             },
           },
         };
@@ -355,10 +343,6 @@
                 accent: isThemeColor(customColors.accent)
                   ? customColors.accent
                   : (customDefaults?.accent ?? fallbackSplash.accent),
-                // The ring takes the action color, as the app's ring does (--one-brand).
-                ring: isThemeColor(customColors.messageAction)
-                  ? customColors.messageAction
-                  : (customDefaults?.ring ?? fallbackSplash.accent),
               }
             : null;
           if (effectiveIsThemed) {
@@ -445,46 +429,47 @@
         color: var(--boot-foreground);
       }
 
-      /* The boot screen: the One ring and its name on the theme's own background. The ring takes
-         the selected theme's accent through --boot-accent (set above), else One gold. */
+      /* The boot screen is a title moment played over the real load, in CSS alone: the ring settles
+         into its tilt as a specular sweep crosses it and a warm bloom rises and fades, the name
+         arrives 200ms later, and an arc turns around the ring once it is clear the wait is long.
+         The app replaces all of it the moment it mounts. The ring is gold in every theme. */
       #boot-shell-card {
+        --boot-gold: #c2973a;
         --boot-ring-hi: #f1d58a;
         --boot-ring-mid: #c2973a;
         --boot-ring-lo: #6e5118;
         --boot-ring-deep: #3c2c0d;
+        --boot-bloom-rest: 0.07;
+        --boot-ease: cubic-bezier(0.2, 0.9, 0.1, 1);
         position: relative;
         z-index: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 160px;
-        height: 176px;
-        animation: boot-in 280ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+        width: 220px;
+        height: 296px;
       }
 
       html:not(.dark) #boot-shell-card {
-        --boot-glow: 0.2;
+        --boot-bloom-rest: 0.1;
       }
 
-      /* A chosen theme lends its accent, and the ring's tones come from that. */
-      html[data-theme-selected="true"] #boot-shell-card {
-        --boot-ring-mid: var(--boot-ring, var(--boot-accent, #c2973a));
-        --boot-ring-hi: color-mix(in oklch, var(--boot-ring-mid) 36%, white);
-        --boot-ring-lo: color-mix(in oklch, var(--boot-ring-mid) 60%, black);
-        --boot-ring-deep: color-mix(in oklch, var(--boot-ring-mid) 28%, black);
-      }
-
-      /* A still glow behind the ring, so it sits on something. Its alpha falls along an eased curve
-         and reaches zero with no slope, so no circular edge shows. */
+      /* The warm bloom behind the ring: its alpha falls along an eased curve to zero with no slope,
+         so no circular edge shows. It rises to 18% and settles. */
       #boot-shell-card::before {
         content: "";
         position: absolute;
-        inset: -140px;
+        top: 0;
+        left: 50%;
+        width: 520px;
+        height: 520px;
+        margin-left: -260px;
+        margin-top: -122px;
         z-index: -1;
         pointer-events: none;
-        opacity: var(--boot-glow, 0.13);
-        background: var(--boot-ring-mid);
+        opacity: var(--boot-bloom-rest);
+        background: var(--boot-gold);
         mask-image: radial-gradient(
           closest-side,
           rgb(0 0 0 / 100%) 0%,
@@ -500,68 +485,29 @@
         );
       }
 
-      /* After a second and a half, a hairline says the app is still on its way. */
-      #boot-shell-bar {
+      #boot-shell-stage {
+        position: relative;
+        width: 176px;
+        height: 176px;
+      }
+
+      /* The ring and its sweep share one box, so they tilt into place together. */
+      #boot-shell-ring {
         position: absolute;
-        bottom: -6px;
-        left: 50%;
-        width: 120px;
-        height: 2px;
-        margin-left: -60px;
-        overflow: hidden;
-        border-radius: 2px;
-        background: color-mix(in srgb, currentColor 10%, transparent);
-        opacity: 0;
-        animation: boot-bar-in 400ms ease-out 1500ms forwards;
-      }
-
-      /* The fill grows from the left and slows as it goes: it says the app is working, and it
-         never claims to be done. With reduced motion it stays at a partial fill. */
-      #boot-shell-bar::before {
-        content: "";
-        display: block;
-        width: 100%;
-        height: 100%;
-        border-radius: inherit;
-        background: var(--boot-ring-mid);
-        transform: scaleX(0.4);
-        transform-origin: left center;
-      }
-
-      @media (prefers-reduced-motion: no-preference) {
-        #boot-shell-bar::before {
-          transform: scaleX(0.06);
-          animation: boot-bar 12s cubic-bezier(0.12, 0.6, 0.3, 1) 1500ms forwards;
-        }
-      }
-
-      @keyframes boot-bar-in {
-        to {
-          opacity: 1;
-        }
-      }
-
-      @keyframes boot-bar {
-        from {
-          transform: scaleX(0.06);
-        }
-        to {
-          transform: scaleX(0.92);
-        }
+        inset: 0;
       }
 
       #boot-shell-logo {
-        width: 112px;
-        height: 112px;
+        width: 176px;
+        height: 176px;
         overflow: visible;
       }
 
-      /* Picture first. The vector drawing takes over for a chosen theme, which recolors the ring,
-         or when the picture did not load. */
+      /* Picture first. The vector drawing only stands in for a picture that did not load. */
       #boot-shell-card .boot-ring-image {
         display: block;
-        width: 112px;
-        height: 112px;
+        width: 176px;
+        height: 176px;
       }
 
       #boot-shell-card #boot-shell-logo,
@@ -570,20 +516,70 @@
         display: none;
       }
 
-      /* A chosen theme shows the vector ring in its colors at once, and swaps to the gold picture
-         recolored by the script after the markup once that is done. */
-      html[data-theme-selected="true"] #boot-shell-card:not([data-ring-tinted]) #boot-shell-logo,
       #boot-shell-card[data-ring-image="missing"] #boot-shell-logo {
         display: block;
       }
 
-      html[data-theme-selected="true"] #boot-shell-card .boot-ring-image:not([data-tinted]),
       #boot-shell-card[data-ring-image="missing"] .boot-ring-image {
         display: none;
       }
 
+      /* The sweep is clipped to the ring by its own picture, and only its inner band moves. */
+      #boot-shell-sweep {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+        opacity: 0;
+        -webkit-mask: var(--boot-ring-mask) center / contain no-repeat;
+        mask: var(--boot-ring-mask) center / contain no-repeat;
+      }
+
+      #boot-shell-sweep::before {
+        content: "";
+        position: absolute;
+        top: -20%;
+        bottom: -20%;
+        left: -45%;
+        width: 40%;
+        transform: translateX(0) skewX(-18deg);
+        background: linear-gradient(90deg, transparent, rgb(255 243 210 / 85%) 50%, transparent);
+      }
+
+      html.dark #boot-shell-card {
+        --boot-ring-mask: image-set(
+          url("/mark/ring-dark-176@1x.webp") 1x,
+          url("/mark/ring-dark-176@2x.webp") 2x,
+          url("/mark/ring-dark-176@3x.webp") 3x
+        );
+      }
+
+      html:not(.dark) #boot-shell-card {
+        --boot-ring-mask: image-set(
+          url("/mark/ring-light-176@1x.webp") 1x,
+          url("/mark/ring-light-176@2x.webp") 2x,
+          url("/mark/ring-light-176@3x.webp") 3x
+        );
+      }
+
+      /* Progress is an arc around the ring: 270 degrees, 2px, one turn every 1.2s, and it appears
+         only once the title moment is over, so a quick boot never shows it. */
+      #boot-shell-arc {
+        position: absolute;
+        inset: -16px;
+        width: 208px;
+        height: 208px;
+        opacity: 0;
+        color: var(--boot-gold);
+        animation: boot-arc-in 300ms ease-out 1500ms forwards;
+      }
+
+      #boot-shell-arc circle {
+        transform-origin: center;
+      }
+
       #boot-shell-name {
-        margin: 6px 0 0;
+        margin: 34px 0 0;
         font-family:
           "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
         font-size: 30px;
@@ -602,27 +598,117 @@
         opacity: 0.7;
       }
 
-      /* A slow highlight crosses the ring, once every few seconds. Off under reduced motion. */
-      @media (prefers-reduced-motion: no-preference) {
-        #boot-shell-sheen {
-          animation: boot-sheen 2800ms cubic-bezier(0.22, 1, 0.36, 1) 600ms infinite;
-        }
+      /* The copy src/one/bootHandoff.ts flies to the app's ring: still, with no bloom, and clear of
+         input. It restarts none of the title moment. */
+      #boot-shell-card.boot-ghost::before {
+        display: none;
       }
 
-      @keyframes boot-sheen {
-        0% {
-          translate: 0 0;
-        }
-        32%,
-        100% {
-          translate: 40px 0;
+      #boot-shell-card.boot-ghost #boot-shell-ring,
+      #boot-shell-card.boot-ghost #boot-shell-name,
+      #boot-shell-card.boot-ghost #boot-shell-sweep {
+        animation: none;
+      }
+
+      #boot-shell-card.boot-ghost #boot-shell-arc {
+        display: none;
+      }
+
+      @keyframes boot-arc-in {
+        to {
+          opacity: 1;
         }
       }
 
       /* Nothing paints for the first moments, so a boot that finishes at once never flashes. */
-      @keyframes boot-in {
+      @keyframes boot-fade-in {
         from {
           opacity: 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        #boot-shell-ring {
+          animation: boot-ring-in 700ms var(--boot-ease) 120ms both;
+        }
+
+        #boot-shell-sweep {
+          animation: boot-sweep-fade 700ms linear 420ms both;
+        }
+
+        #boot-shell-sweep::before {
+          animation: boot-sweep 700ms cubic-bezier(0.4, 0, 0.2, 1) 420ms both;
+        }
+
+        #boot-shell-card::before {
+          animation: boot-bloom 1200ms ease-out 120ms both;
+        }
+
+        #boot-shell-name {
+          animation: boot-name-in 400ms var(--boot-ease) 320ms both;
+        }
+
+        #boot-shell-arc circle {
+          animation: boot-arc-turn 1.2s linear infinite;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #boot-shell-ring,
+        #boot-shell-name {
+          animation: boot-fade-in 240ms ease-out 120ms both;
+        }
+      }
+
+      @keyframes boot-ring-in {
+        from {
+          opacity: 0;
+          transform: rotate(-6deg) scale(0.96);
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes boot-sweep-fade {
+        0%,
+        100% {
+          opacity: 0;
+        }
+        20%,
+        75% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes boot-sweep {
+        to {
+          transform: translateX(380%) skewX(-18deg);
+        }
+      }
+
+      @keyframes boot-bloom {
+        from {
+          opacity: 0;
+        }
+        42% {
+          opacity: 0.18;
+        }
+        to {
+          opacity: var(--boot-bloom-rest);
+        }
+      }
+
+      @keyframes boot-name-in {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+      }
+
+      @keyframes boot-arc-turn {
+        to {
+          transform: rotate(360deg);
         }
       }
 
@@ -891,12 +977,12 @@
       }
       html[data-one-opening]
         #boot-shell:not(:has(> #boot-error))
-        :is(#boot-shell-logo, .boot-ring-image, #boot-shell-name) {
+        :is(#boot-shell-ring, #boot-shell-name) {
         visibility: hidden;
       }
-      /* The hairline shows during the wait, even while an opening is planned: it is the only sign
-         then. It goes when the opening is armed and takes over the screen. */
-      html[data-one-opening-armed] #boot-shell:not(:has(> #boot-error)) #boot-shell-bar {
+      /* The arc shows during the wait, even while an opening is planned: it is the only sign then.
+         It goes when the opening is armed and takes over the screen. */
+      html[data-one-opening-armed] #boot-shell:not(:has(> #boot-error)) #boot-shell-arc {
         display: none;
       }
       html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-card::before {
@@ -916,235 +1002,167 @@
     <div id="root">
       <div id="boot-shell">
         <div id="boot-shell-card" aria-label="One splash screen">
-          <!-- The ring's rest pose as a picture, drawn by scripts/render-mark.mjs from the live ring's
-               shader. The vector drawing below stands in when a theme recolors the ring or the
-               picture is missing. It repeats src/one/oneMarkPaths.ts. -->
-          <img
-            class="boot-ring-image"
-            data-mark-theme="dark"
-            alt="One"
-            width="112"
-            height="112"
-            src="/mark/ring-dark-112@1x.webp"
-            srcset="
-              /mark/ring-dark-112@1x.webp 1x,
-              /mark/ring-dark-112@2x.webp 2x,
-              /mark/ring-dark-112@3x.webp 3x
-            "
-            loading="lazy"
-            decoding="async"
-            draggable="false"
-            onerror="document.getElementById('boot-shell-card').dataset.ringImage = 'missing'"
-          />
-          <img
-            class="boot-ring-image"
-            data-mark-theme="light"
-            alt="One"
-            width="112"
-            height="112"
-            src="/mark/ring-light-112@1x.webp"
-            srcset="
-              /mark/ring-light-112@1x.webp 1x,
-              /mark/ring-light-112@2x.webp 2x,
-              /mark/ring-light-112@3x.webp 3x
-            "
-            loading="lazy"
-            decoding="async"
-            draggable="false"
-            onerror="document.getElementById('boot-shell-card').dataset.ringImage = 'missing'"
-          />
-          <svg
-            id="boot-shell-logo"
-            viewBox="0 0 24 24"
-            fill="none"
-            role="img"
-            aria-label="One"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <linearGradient
-                id="boot-band"
-                x1="6.5"
-                y1="3.5"
-                x2="17.5"
-                y2="20.5"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop offset="0" style="stop-color: var(--boot-ring-hi)" />
-                <stop offset="0.14" style="stop-color: var(--boot-ring-mid)" />
-                <stop offset="0.4" style="stop-color: var(--boot-ring-lo)" />
-                <stop offset="0.6" style="stop-color: var(--boot-ring-mid)" />
-                <stop offset="0.76" style="stop-color: var(--boot-ring-hi)" />
-                <stop offset="0.88" style="stop-color: var(--boot-ring-mid)" />
-                <stop offset="1" style="stop-color: var(--boot-ring-lo)" />
-              </linearGradient>
-              <linearGradient
-                id="boot-wall"
-                x1="5"
-                y1="9"
-                x2="19"
-                y2="9"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop offset="0" style="stop-color: var(--boot-ring-deep)" />
-                <stop offset="0.6" style="stop-color: var(--boot-ring-lo)" />
-                <stop offset="1" style="stop-color: var(--boot-ring-mid)" />
-              </linearGradient>
-              <linearGradient
-                id="boot-spec"
-                x1="3.5"
-                y1="10"
-                x2="11"
-                y2="6"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop offset="0" stop-color="#fff" stop-opacity="0" />
-                <stop offset="0.35" stop-color="#fff" stop-opacity="0.95" />
-                <stop offset="1" stop-color="#fff" stop-opacity="0" />
-              </linearGradient>
-              <linearGradient id="boot-sheen" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="#fff" stop-opacity="0" />
-                <stop offset="0.5" stop-color="#fff" stop-opacity="0.9" />
-                <stop offset="1" stop-color="#fff" stop-opacity="0" />
-              </linearGradient>
-              <clipPath id="boot-clip">
-                <path
-                  clip-rule="evenodd"
-                  d="M12 5.3c5.3 0 9.6 3 9.6 6.7s-4.3 6.7-9.6 6.7-9.6-3-9.6-6.7 4.3-6.7 9.6-6.7Zm0 2.2c-4.1 0-7.4 1.9-7.4 4.2s3.3 4.2 7.4 4.2 7.4-1.9 7.4-4.2-3.3-4.2-7.4-4.2Z"
-                />
-              </clipPath>
-            </defs>
-            <g transform="rotate(-24 12 12)">
-              <path
-                fill="url(#boot-wall)"
-                d="M4.6 11.7c0-2.3 3.3-4.2 7.4-4.2s7.4 1.9 7.4 4.2c0-1.5-3.3-2.7-7.4-2.7s-7.4 1.2-7.4 2.7Z"
+          <div id="boot-shell-stage">
+            <div id="boot-shell-ring">
+              <!-- The ring's rest pose as a picture, drawn by scripts/render-mark.mjs from the live ring's
+               shader. The vector drawing below only stands in when the picture is missing. It
+               repeats src/one/oneMarkPaths.ts. -->
+              <img
+                class="boot-ring-image"
+                data-mark-theme="dark"
+                alt="One"
+                width="176"
+                height="176"
+                src="/mark/ring-dark-176@1x.webp"
+                srcset="
+                  /mark/ring-dark-176@1x.webp 1x,
+                  /mark/ring-dark-176@2x.webp 2x,
+                  /mark/ring-dark-176@3x.webp 3x
+                "
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+                onerror="document.getElementById('boot-shell-card').dataset.ringImage = 'missing'"
               />
-              <path
-                fill="url(#boot-band)"
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M12 5.3c5.3 0 9.6 3 9.6 6.7s-4.3 6.7-9.6 6.7-9.6-3-9.6-6.7 4.3-6.7 9.6-6.7Zm0 2.2c-4.1 0-7.4 1.9-7.4 4.2s3.3 4.2 7.4 4.2 7.4-1.9 7.4-4.2-3.3-4.2-7.4-4.2Z"
+              <img
+                class="boot-ring-image"
+                data-mark-theme="light"
+                alt="One"
+                width="176"
+                height="176"
+                src="/mark/ring-light-176@1x.webp"
+                srcset="
+                  /mark/ring-light-176@1x.webp 1x,
+                  /mark/ring-light-176@2x.webp 2x,
+                  /mark/ring-light-176@3x.webp 3x
+                "
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+                onerror="document.getElementById('boot-shell-card').dataset.ringImage = 'missing'"
               />
-              <path
-                d="M19.9 14.7c-1.6 2.1-4.5 3.4-7.9 3.4-2.3 0-4.4-.6-6-1.7"
-                stroke="var(--boot-ring-deep)"
-                stroke-opacity="0.38"
-                stroke-width="1.1"
+              <svg
+                id="boot-shell-logo"
+                viewBox="0 0 24 24"
+                fill="none"
+                role="img"
+                aria-label="One"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <linearGradient
+                    id="boot-band"
+                    x1="6.5"
+                    y1="3.5"
+                    x2="17.5"
+                    y2="20.5"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop offset="0" style="stop-color: var(--boot-ring-hi)" />
+                    <stop offset="0.14" style="stop-color: var(--boot-ring-mid)" />
+                    <stop offset="0.4" style="stop-color: var(--boot-ring-lo)" />
+                    <stop offset="0.6" style="stop-color: var(--boot-ring-mid)" />
+                    <stop offset="0.76" style="stop-color: var(--boot-ring-hi)" />
+                    <stop offset="0.88" style="stop-color: var(--boot-ring-mid)" />
+                    <stop offset="1" style="stop-color: var(--boot-ring-lo)" />
+                  </linearGradient>
+                  <linearGradient
+                    id="boot-wall"
+                    x1="5"
+                    y1="9"
+                    x2="19"
+                    y2="9"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop offset="0" style="stop-color: var(--boot-ring-deep)" />
+                    <stop offset="0.6" style="stop-color: var(--boot-ring-lo)" />
+                    <stop offset="1" style="stop-color: var(--boot-ring-mid)" />
+                  </linearGradient>
+                  <linearGradient
+                    id="boot-spec"
+                    x1="3.5"
+                    y1="10"
+                    x2="11"
+                    y2="6"
+                    gradientUnits="userSpaceOnUse"
+                  >
+                    <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                    <stop offset="0.35" stop-color="#fff" stop-opacity="0.95" />
+                    <stop offset="1" stop-color="#fff" stop-opacity="0" />
+                  </linearGradient>
+                  <linearGradient id="boot-sheen" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#fff" stop-opacity="0" />
+                    <stop offset="0.5" stop-color="#fff" stop-opacity="0.9" />
+                    <stop offset="1" stop-color="#fff" stop-opacity="0" />
+                  </linearGradient>
+                  <clipPath id="boot-clip">
+                    <path
+                      clip-rule="evenodd"
+                      d="M12 5.3c5.3 0 9.6 3 9.6 6.7s-4.3 6.7-9.6 6.7-9.6-3-9.6-6.7 4.3-6.7 9.6-6.7Zm0 2.2c-4.1 0-7.4 1.9-7.4 4.2s3.3 4.2 7.4 4.2 7.4-1.9 7.4-4.2-3.3-4.2-7.4-4.2Z"
+                    />
+                  </clipPath>
+                </defs>
+                <g transform="rotate(-24 12 12)">
+                  <path
+                    fill="url(#boot-wall)"
+                    d="M4.6 11.7c0-2.3 3.3-4.2 7.4-4.2s7.4 1.9 7.4 4.2c0-1.5-3.3-2.7-7.4-2.7s-7.4 1.2-7.4 2.7Z"
+                  />
+                  <path
+                    fill="url(#boot-band)"
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M12 5.3c5.3 0 9.6 3 9.6 6.7s-4.3 6.7-9.6 6.7-9.6-3-9.6-6.7 4.3-6.7 9.6-6.7Zm0 2.2c-4.1 0-7.4 1.9-7.4 4.2s3.3 4.2 7.4 4.2 7.4-1.9 7.4-4.2-3.3-4.2-7.4-4.2Z"
+                  />
+                  <path
+                    d="M19.9 14.7c-1.6 2.1-4.5 3.4-7.9 3.4-2.3 0-4.4-.6-6-1.7"
+                    stroke="var(--boot-ring-deep)"
+                    stroke-opacity="0.38"
+                    stroke-width="1.1"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M3.5 10.7c.8-2.3 3.8-4.1 7.6-4.4"
+                    stroke="url(#boot-spec)"
+                    stroke-width="1"
+                    stroke-linecap="round"
+                  />
+                  <path
+                    d="M20.4 10.05c.25 0 .45.5.45 1.1s-.2 1.1-.45 1.1-.45-.5-.45-1.1.2-1.1.45-1.1Z"
+                    fill="#fff"
+                    fill-opacity="0.92"
+                  />
+                  <g clip-path="url(#boot-clip)">
+                    <rect
+                      id="boot-shell-sheen"
+                      x="-9"
+                      y="2"
+                      width="7"
+                      height="20"
+                      fill="url(#boot-sheen)"
+                      transform="skewX(-18)"
+                    />
+                  </g>
+                </g>
+              </svg>
+              <div id="boot-shell-sweep"></div>
+            </div>
+            <svg id="boot-shell-arc" aria-hidden="true" viewBox="0 0 208 208" fill="none">
+              <circle
+                cx="104"
+                cy="104"
+                r="102"
+                stroke="currentColor"
+                stroke-width="2"
                 stroke-linecap="round"
+                stroke-dasharray="480 160"
               />
-              <path
-                d="M3.5 10.7c.8-2.3 3.8-4.1 7.6-4.4"
-                stroke="url(#boot-spec)"
-                stroke-width="1"
-                stroke-linecap="round"
-              />
-              <path
-                d="M20.4 10.05c.25 0 .45.5.45 1.1s-.2 1.1-.45 1.1-.45-.5-.45-1.1.2-1.1.45-1.1Z"
-                fill="#fff"
-                fill-opacity="0.92"
-              />
-              <g clip-path="url(#boot-clip)">
-                <rect
-                  id="boot-shell-sheen"
-                  x="-9"
-                  y="2"
-                  width="7"
-                  height="20"
-                  fill="url(#boot-sheen)"
-                  transform="skewX(-18)"
-                />
-              </g>
-            </g>
-          </svg>
+            </svg>
+          </div>
           <p id="boot-shell-name">One</p>
-          <div id="boot-shell-bar" aria-hidden="true"></div>
           <p id="boot-shell-progress" role="status" aria-live="polite"></p>
         </div>
       </div>
     </div>
-    <script>
-      // A chosen theme gets the gold picture recolored with its ring colors, before the app's code
-      // has loaded: each pixel keeps its place on the picture's shadow, mid and light ramp.
-      const ringTintTable = (source, target) => {
-        const luma = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        const stops = [[0, [0, 0, 0]]]
-          .concat(source.map((color, index) => [luma(color[0], color[1], color[2]), target[index]]))
-          .concat([[255, [255, 255, 255]]]);
-        const table = new Uint8ClampedArray(768);
-        for (let y = 0; y < 256; y += 1) {
-          let upper = 1;
-          while (upper < stops.length - 1 && stops[upper][0] < y) upper += 1;
-          const y0 = stops[upper - 1][0];
-          const y1 = stops[upper][0];
-          const t = y1 > y0 ? Math.min(1, Math.max(0, (y - y0) / (y1 - y0))) : 1;
-          for (let c = 0; c < 3; c += 1) {
-            const from = stops[upper - 1][1][c];
-            table[y * 3 + c] = from + (stops[upper][1][c] - from) * t;
-          }
-        }
-        return table;
-      };
-      const tintRing = (pixels, table) => {
-        for (let at = 0; at < pixels.length; at += 4) {
-          const y =
-            Math.round(0.2126 * pixels[at] + 0.7152 * pixels[at + 1] + 0.0722 * pixels[at + 2]) * 3;
-          pixels[at] = table[y];
-          pixels[at + 1] = table[y + 1];
-          pixels[at + 2] = table[y + 2];
-        }
-      };
-      (async () => {
-        const html = document.documentElement;
-        const card = document.getElementById("boot-shell-card");
-        if (html.dataset.themeSelected !== "true" || !card) return;
-        try {
-          const mode = html.classList.contains("dark") ? "dark" : "light";
-          const image = card.querySelector('.boot-ring-image[data-mark-theme="' + mode + '"]');
-          const density = Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 1)));
-          const picture = new Image();
-          picture.src = "/mark/ring-" + mode + "-112@" + density + "x.webp";
-          await picture.decode();
-          const canvas = document.createElement("canvas");
-          canvas.width = picture.naturalWidth;
-          canvas.height = picture.naturalHeight;
-          const context = canvas.getContext("2d", { willReadFrequently: true });
-          const probe = document
-            .createElement("canvas")
-            .getContext("2d", { willReadFrequently: true });
-          const rgb = (css) => {
-            probe.clearRect(0, 0, 1, 1);
-            probe.fillStyle = "#000";
-            probe.fillStyle = css;
-            probe.fillRect(0, 0, 1, 1);
-            return Array.from(probe.getImageData(0, 0, 1, 1).data).slice(0, 3);
-          };
-          const style = getComputedStyle(card);
-          const target = ["lo", "mid", "hi"].map((tone) =>
-            rgb(style.getPropertyValue("--boot-ring-" + tone)),
-          );
-          context.drawImage(picture, 0, 0);
-          const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-          tintRing(
-            pixels.data,
-            ringTintTable(
-              [
-                [110, 81, 24],
-                [194, 151, 58],
-                [241, 213, 138],
-              ],
-              target,
-            ),
-          );
-          context.putImageData(pixels, 0, 0);
-          image.removeAttribute("srcset");
-          image.src = canvas.toDataURL("image/png");
-          image.dataset.tinted = "";
-          card.dataset.ringTinted = "";
-        } catch {
-          card.dataset.ringImage = "missing";
-        }
-      })();
-    </script>
     <script>
       const migrationLabel = document.getElementById("boot-shell-progress");
       const readMigrationProgress = window.desktopBridge?.getDatabaseMigrationProgress;

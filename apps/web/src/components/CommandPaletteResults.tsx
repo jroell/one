@@ -14,6 +14,7 @@ import {
   type CommandPaletteGroup,
   type CommandPaletteRow,
   type CommandPaletteSubmenuItem,
+  resolveItemContent,
 } from "./CommandPalette.logic";
 import {
   CommandCollection,
@@ -225,35 +226,34 @@ function ThreadRowContext({
 function DisabledCommandPaletteResultRow(props: {
   item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
 }) {
+  const content = resolveItemContent(props.item);
   return (
     <div className="flex min-h-8 select-none items-center gap-2 rounded-sm px-2 py-1.5 text-base opacity-64 sm:min-h-7 sm:text-sm">
       <CommandPaletteTitleIcon>{props.item.icon}</CommandPaletteTitleIcon>
-      {props.item.description || props.item.threadContentMatch ? (
+      {content.description || props.item.threadContentMatch ? (
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
-            {props.item.titleLeadingContent}
+            {content.titleLeadingContent}
             <CommandPaletteTitle item={props.item} />
-            {props.item.titleSuffixContent}
+            {content.titleSuffixContent}
             <ThreadRowContext item={props.item} />
           </span>
           {props.item.threadContentMatch ? (
             <ThreadSearchMatchExcerpt match={props.item.threadContentMatch} />
           ) : props.item.matchHint ? (
             <SearchMatchHintLine hint={props.item.matchHint} />
-          ) : props.item.description ? (
-            <span className="min-w-0 text-muted-foreground/70 text-xs">
-              {props.item.description}
-            </span>
+          ) : content.description ? (
+            <span className="min-w-0 text-muted-foreground/70 text-xs">{content.description}</span>
           ) : null}
         </span>
       ) : (
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
-          {props.item.titleLeadingContent}
+          {content.titleLeadingContent}
           <CommandPaletteTitle item={props.item} />
-          {props.item.titleSuffixContent}
+          {content.titleSuffixContent}
         </span>
       )}
-      {props.item.titleTrailingContent}
+      {content.titleTrailingContent}
     </div>
   );
 }
@@ -265,6 +265,7 @@ function CommandPaletteResultRow(props: {
   keybindings: ResolvedKeybindingsConfig;
   onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
 }) {
+  const content = resolveItemContent(props.item);
   const shortcutLabel = props.item.shortcutCommand
     ? shortcutLabelForCommand(props.keybindings, props.item.shortcutCommand)
     : null;
@@ -295,32 +296,30 @@ function CommandPaletteResultRow(props: {
       }}
     >
       <CommandPaletteTitleIcon>{props.item.icon}</CommandPaletteTitleIcon>
-      {props.item.description || props.item.threadContentMatch ? (
+      {content.description || props.item.threadContentMatch ? (
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
-            {props.item.titleLeadingContent}
+            {content.titleLeadingContent}
             <CommandPaletteTitle item={props.item} />
-            {props.item.titleSuffixContent}
+            {content.titleSuffixContent}
             <ThreadRowContext item={props.item} />
           </span>
           {props.item.threadContentMatch ? (
             <ThreadSearchMatchExcerpt match={props.item.threadContentMatch} />
           ) : props.item.matchHint ? (
             <SearchMatchHintLine hint={props.item.matchHint} />
-          ) : props.item.description ? (
-            <span className="min-w-0 text-muted-foreground/70 text-xs">
-              {props.item.description}
-            </span>
+          ) : content.description ? (
+            <span className="min-w-0 text-muted-foreground/70 text-xs">{content.description}</span>
           ) : null}
         </span>
       ) : (
         <span className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-foreground">
-          {props.item.titleLeadingContent}
+          {content.titleLeadingContent}
           <CommandPaletteTitle item={props.item} />
-          {props.item.titleSuffixContent}
+          {content.titleSuffixContent}
         </span>
       )}
-      {props.item.titleTrailingContent}
+      {content.titleTrailingContent}
       {props.item.kind === "action" && props.item.pin ? (
         <ProjectPinButton
           name={props.item.pin.name}

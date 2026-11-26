@@ -78,7 +78,20 @@ export function TimelineMinimap({
   const nextItem =
     resolvedCurrentIndex === null || atEnd ? null : (items[resolvedCurrentIndex + 1] ?? null);
 
+  // The tick nearest the pointer: ticks sit where their turns do, so they are not evenly spaced.
   const resolveActiveIndexFromPointer = (event: MouseEvent<HTMLElement>) => {
+    let nearest: number | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const [index, item] of items.entries()) {
+      const box = stripMap.get(item.id)?.getBoundingClientRect();
+      if (!box) continue;
+      const distance = Math.abs(box.top + box.height / 2 - event.clientY);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = index;
+      }
+    }
+    if (nearest !== null) return nearest;
     const rect = event.currentTarget.getBoundingClientRect();
     return resolveTimelineMinimapIndexFromPointer({
       itemCount: items.length,
@@ -231,7 +244,9 @@ export function TimelineMinimap({
               // Display-only: it overlaps the message column, and the strip keeps tracking beneath it.
               <span
                 className="pointer-events-none absolute left-8 w-80 -translate-y-1/2"
-                style={{ top: `${activeTopPercent}%` }}
+                style={{
+                  top: stripMap.get(activeItem.id)?.style.top || `${activeTopPercent}%`,
+                }}
               >
                 <span className="dropdown-glass block rounded-xl p-3 text-left text-popover-foreground shadow-xl shadow-black/25">
                   <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium leading-5">

@@ -74,7 +74,8 @@ function CommandDialogPopup({
           ref={popupRef}
           className={cn(
             DIALOG_POPUP_CLASS,
-            "pointer-events-auto max-h-105 max-w-xl text-foreground data-ending-style:pointer-events-none",
+            // 434px: search 49 + group heading 36 + six 50px rows + 8px of the next row (under the fade) + footer 41.
+            "pointer-events-auto max-h-108.5 max-w-xl text-foreground data-ending-style:pointer-events-none",
             className,
           )}
           data-slot="command-dialog-popup"
@@ -83,7 +84,6 @@ function CommandDialogPopup({
         >
           {children}
           <span aria-hidden="true" className="one-reflection" />
-          <span aria-hidden="true" className="one-glint" />
         </CommandDialogPrimitive.Popup>
       </CommandDialogViewport>
     </CommandDialogPortal>

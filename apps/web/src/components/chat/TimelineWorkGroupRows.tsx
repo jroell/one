@@ -1,4 +1,4 @@
-import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
+import { ApprovalRow } from "~/one/ChatApproval";
 import { WorkLogButton, WorkLogList, WorkLogRow } from "./WorkLog";
 import type { WorktreeSetupSnapshot } from "@t3tools/contracts";
 import { type ToolActivityIcon } from "@t3tools/contracts";
@@ -63,7 +63,7 @@ import {
   workEntryIconName,
 } from "./TimelineWorkEntryRow.logic";
 import { formatWorkingTimerNow } from "./TimelineWorkGroupRows.logic";
-import { OneGlyph } from "~/one/OneGlyph";
+import { WorkingArc } from "~/one/WorkingArc";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 
 export const WorkGroupSection = memo(function WorkGroupSection({
@@ -355,9 +355,9 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
   const compacting = row.compacting === true || isCompacting;
-  // Code mode marks a running turn with the shimmering line alone: no ring and no rule under it.
+  // A running turn is marked by the gold working arc: no rule under the line, no shimmer on it.
   const chatMode = useWorkspaceMode() === "chat";
-  const shimmer = isPreparingWorktree || compacting || !chatMode;
+  const shimmer = isPreparingWorktree || compacting;
   const label = isPreparingWorktree ? (
     <T>Setting up worktree…</T>
   ) : compacting ? (
@@ -372,14 +372,10 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   return (
     <div className={cn("pb-2 pt-1", chatMode && "border-b border-border/60")}>
       <div className="flex h-6 min-w-0 items-center gap-2 px-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        {chatMode ? (
-          <span aria-hidden="true" className="one-working-mark">
-            <OneGlyph size={16} />
-          </span>
-        ) : null}
+        <WorkingArc size={14} />
         <span
           ref={shimmer ? observeVisibleAnimation : undefined}
-          className="relative shrink-0 overflow-hidden whitespace-nowrap"
+          className="one-shimmer-host relative shrink-0 overflow-hidden whitespace-nowrap"
         >
           {label}
           {shimmer ? <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay> : null}
@@ -518,7 +514,7 @@ function LiveActivityRow({
   return (
     <div
       ref={showShimmer ? observeVisibleAnimation : undefined}
-      className="relative min-h-6 w-fit max-w-full min-w-0 overflow-hidden rounded-md text-sm leading-relaxed"
+      className="one-shimmer-host relative min-h-6 w-fit max-w-full min-w-0 overflow-hidden rounded-md text-sm leading-relaxed"
     >
       <LiveActivityContent
         label={label}
@@ -620,7 +616,7 @@ export function LiveWorkEntryTimelineRow({
   const item = row.entry.projectedItem?.item;
   const pendingApproval =
     item?.type === "approval_request" ? ctx.pendingApprovals.get(item.requestId) : undefined;
-  if (pendingApproval) return <TimelinePendingApprovalRow approval={pendingApproval} />;
+  if (pendingApproval) return <ApprovalRow approval={pendingApproval} />;
 
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
   const thoughtLine =

@@ -6,9 +6,9 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { behindPaceGap, meterState } from "./usageMeterState";
 
 /**
- * A recessed channel with a glossy capsule for the share still left, and a notch where even
- * spending would be. When spending is ahead of the window, a quiet hatched stretch inside the channel spans
- * the fill's end to the notch. The fill slides in once on mount and eases to a new value on refresh.
+ * A recessed channel with a matte fill for the share still left, and a notch where even spending
+ * would be. When spending is ahead of the window, a hatched stretch spans the fill's end to the
+ * notch. The fill slides in once on mount and eases to a new value on refresh.
  */
 export function LimitMeter({
   remaining,
@@ -53,11 +53,6 @@ export function LimitMeter({
         ) : null}
         {remaining > 0 ? <span aria-hidden className="usage-meter-fill" /> : null}
       </div>
-      {state === "critical" && remaining > 0 ? (
-        <span aria-hidden className="usage-meter-halo">
-          <span className="usage-meter-glow" style={{ width: `${remaining}%` }} />
-        </span>
-      ) : null}
       {timeLeft === null ? null : (
         <Tooltip>
           <TooltipTrigger

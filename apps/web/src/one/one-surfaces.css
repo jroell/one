@@ -189,10 +189,61 @@ html:not([data-one-mode="chat"])
       opacity var(--one-hover-ms) var(--one-ease-hover);
   }
 
-  /* Opening a row eases its content in. Only opacity and a 3px shift, so the row's height is
-     final on the first frame and the list never re-measures mid-animation. */
+  /* A row opens by its height over --mo-quick, and its content fades in after 60ms, so nothing
+     below it jumps. The clip is on only while the height moves. */
+  html:not([data-one-mode="chat"]) [data-one-work-reveal] {
+    animation: one-reveal var(--mo-quick) var(--ease-enter) both;
+  }
+
+  html:not([data-one-mode="chat"]) [data-one-work-reveal] > div {
+    animation: one-reveal-clip var(--mo-quick) linear backwards;
+  }
+
   html:not([data-one-mode="chat"]) [data-one-work-details] {
-    animation: one-details-in 180ms var(--one-ease-out) both;
+    animation: one-details-in var(--mo-quick) var(--ease-enter) var(--mo-content-delay) both;
+  }
+
+  /* Closing runs the same motion back over the exit duration: the content fades first, the height
+     follows. */
+  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-closing] {
+    animation: one-reveal calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit) reverse both;
+  }
+
+  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-closing] > div {
+    animation: one-reveal-clip calc(var(--mo-quick) * var(--mo-exit)) linear both;
+  }
+
+  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-closing] [data-one-work-details] {
+    animation: one-details-out calc(var(--mo-quick) * var(--mo-exit) * 0.6) var(--ease-exit) both;
+  }
+}
+
+@keyframes one-details-out {
+  to {
+    opacity: 0;
+    translate: 0 -3px;
+  }
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-reveal] {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+html:not([data-one-mode="chat"]) [data-one-work-reveal] > div {
+  min-height: 0;
+}
+
+@keyframes one-reveal {
+  from {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes one-reveal-clip {
+  from,
+  to {
+    overflow: hidden;
   }
 }
 
@@ -848,10 +899,15 @@ html:not([data-one-mode="chat"]) [data-one-answer] {
   padding-block-start: 0;
 }
 
-/* Turns read as pairs: 20px from a question to its answer, 56px from one pair to the next. The
-   user's message opens a pair with the room above it. */
+/* Turns read as pairs: 20px from a question to its answer. The room before the next question
+   follows the answer: about 24px after a line, 48px after a longer one. */
 html:not([data-one-mode="chat"]) [data-timeline-row-kind="message"][data-message-role="user"] {
-  padding-block-start: 2rem;
+  padding-block-start: 0;
+}
+
+html:not([data-one-mode="chat"])
+  [data-timeline-row-kind="message"][data-message-role="user"][data-one-after="long"] {
+  padding-block-start: 1.5rem;
 }
 
 /* The hover actions under a bubble keep their row, so the reply starts under it. */
@@ -909,7 +965,7 @@ html:not([data-one-mode="chat"]) [data-testid="timeline-minimap"][data-persisten
 
 html:not([data-one-mode="chat"])
   [data-testid="timeline-minimap"][data-persistent-gutter="true"]:is(:hover, :focus-within),
-html:not([data-one-mode="chat"]):has(.messages-timeline-scroll[data-scrolling])
+html:not([data-one-mode="chat"])[data-timeline-scrolling]
   [data-testid="timeline-minimap"][data-persistent-gutter="true"] {
   opacity: 1;
 }
@@ -960,46 +1016,98 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 /* ================================================================== approval card */
 
 /*
- * The card is the Raised material, one 16px inset, and three parts: a header that names the
- * change, the change itself, and an action bar under a hairline. The warning hue shows once, as a
- * 3px edge on the left; gold stays on Approve alone. It replaces the older card in one.css, so
- * the glow and the padding that rule sets are reset here.
+ * The card is the Raised material on one 1rem inset: a header that names the change, the change
+ * itself, and an action bar under a hairline. Its top rim catches the light in ember, the one
+ * attention color, which also tints the status chip and nothing else; Approve stays brand gold.
  */
-html [role="group"][data-approval-card] {
+:root {
+  --one-diff-add-fill: rgb(120 160 90 / 14%);
+  --one-diff-add-mark: #9cc27a;
+  --one-diff-del-fill: color-mix(in srgb, var(--st-error) 14%, transparent);
+  --one-diff-del-mark: #e0796d;
+}
+
+:root:not(.dark) {
+  --one-diff-add-fill: #e6efdc;
+  --one-diff-add-mark: #4a6b30;
+  --one-diff-del-fill: color-mix(in srgb, var(--st-error) 12%, var(--m-raised));
+  --one-diff-del-mark: #a63a30;
+}
+
+[data-approval-card][role="group"] {
+  --m-rim-hi: color-mix(in srgb, var(--st-attention) 70%, transparent);
   position: relative;
   display: flex;
   flex-direction: column;
-  margin-block: 0.5rem;
+  /* The card belongs to the sentence above it, 12 to 16px away. */
+  margin-block: 0.25rem 0.5rem;
   padding: 0;
   border-radius: var(--m-radius-raised);
-  background-color: color-mix(in srgb, var(--warning) 4%, var(--m-raised));
-  background-image: none;
-  box-shadow: var(--m-shadow-raised), var(--m-lit);
-}
-
-html:not(.dark) [role="group"][data-approval-card] {
-  background-color: color-mix(in srgb, var(--warning) 5%, var(--m-raised));
-  --m-rim-raised-hi: color-mix(in srgb, var(--one-brand) 38%, transparent);
-  --m-rim-raised-mid: color-mix(in srgb, var(--one-brand) 35%, transparent);
-  --m-rim-raised-lo: color-mix(in srgb, var(--one-brand) 35%, transparent);
-}
-
-html [role="group"][data-approval-card]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--warning) 0 3px, transparent 3px);
-  box-shadow: none;
-  opacity: 1;
-  animation: none;
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  html [role="group"][data-approval-card] {
-    animation: one-details-in 320ms var(--one-ease-out) both;
+  [data-approval-card][role="group"] {
+    animation: one-approval-in var(--mo-surface) var(--ease-enter) both;
   }
+
+  [data-approval-card] [data-approval-footer] > * {
+    animation: one-approval-buttons-in var(--mo-quick) var(--ease-enter)
+      calc(var(--mo-content-delay) + 20ms) both;
+  }
+}
+
+/* Surface first, then its buttons 80ms later. Only transform and opacity move. */
+@keyframes one-approval-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes one-approval-buttons-in {
+  from {
+    opacity: 0;
+  }
+}
+
+[data-approval-body] {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+[data-approval-body-inner] {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-approval-body] {
+    transition: grid-template-rows var(--mo-surface) var(--ease-enter);
+  }
+}
+
+[data-approval-card][data-responding] [data-approval-actions] button:not([data-pending]),
+[data-approval-card][data-responding]:not([data-leaving]) [data-approval-status] {
+  opacity: 0.5;
+}
+
+/* The pressed button keeps full strength and a readable label while the answer is sent. */
+[data-approval-actions] button[data-pending] {
+  opacity: 1;
+  cursor: progress;
+}
+
+[data-approval-actions] [data-approval-hint] {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* Attention is ember, on the chip alone. */
+[data-approval-status] [data-slot="badge"] {
+  color: color-mix(in srgb, var(--st-attention) 55%, var(--foreground));
+  background-color: color-mix(in srgb, var(--st-attention) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-attention) 32%, transparent);
 }
 
 [data-approval-header] {
@@ -1121,7 +1229,8 @@ html [role="group"][data-approval-card]::after {
   padding-inline: 1rem 0.5rem;
   text-align: end;
   font-variant-numeric: tabular-nums;
-  color: var(--muted-foreground);
+  /* Clears 4.5:1 on a changed row, over a plain or a busy backdrop, in both themes. */
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
 }
 
 [data-approval-hunk-sign] {
@@ -1130,19 +1239,19 @@ html [role="group"][data-approval-card]::after {
 }
 
 [data-approval-hunk-lines] > [data-kind="add"] {
-  background-color: color-mix(in srgb, var(--diff-addition) 13%, transparent);
+  background-color: var(--one-diff-add-fill);
 }
 
 [data-approval-hunk-lines] > [data-kind="delete"] {
-  background-color: color-mix(in srgb, var(--diff-deletion) 13%, transparent);
+  background-color: var(--one-diff-del-fill);
 }
 
 [data-approval-hunk-lines] > [data-kind="add"] [data-approval-hunk-sign] {
-  color: var(--diff-addition-foreground);
+  color: var(--one-diff-add-mark);
 }
 
 [data-approval-hunk-lines] > [data-kind="delete"] [data-approval-hunk-sign] {
-  color: var(--diff-deletion-foreground);
+  color: var(--one-diff-del-mark);
 }
 
 /* One style for "Show full diff", with the lines it would add. */
@@ -1151,7 +1260,7 @@ html [role="group"][data-approval-card]::after {
   margin: 0.125rem 1rem 0.5rem;
   font-size: 0.75rem;
   line-height: 1.25rem;
-  color: var(--muted-foreground);
+  color: color-mix(in srgb, var(--foreground) 75%, transparent);
 }
 
 [data-approval-footer] {
@@ -1186,89 +1295,79 @@ html [role="group"][data-approval-card]::after {
 /* ======================================================================== the shimmer */
 
 /*
- * One shimmer for every live label (work rows, the working line, the sidebar's title rewrite and
- * the worktree setup stages). A band as wide as 30% of the text sweeps across in 1.6s, eased, and
- * rests 0.6s before the next pass. The text never drops below 70% brightness, and the band's mask
- * is a raised cosine, so no letter is ever split into a bright half and a dim half. These rules
- * replace the stepped utility in index.css. Reduced motion shows the text at rest.
+ * One shimmer for the live labels of tool rows, the sidebar's title rewrite and the worktree setup
+ * stages. A 72px band, 35% brighter than the text at rest, sweeps the whole label in 1.8s; its mask
+ * is a raised cosine, so no letter is split. The working line has no shimmer: the gold arc marks it.
+ * Reduced motion shows the text at rest.
  */
 :root {
-  --one-shimmer-band: 0.3;
-  --one-shimmer-min: 70%;
-  --one-shimmer-sweep: 1.6s;
-  --one-shimmer-pause: 0.6s;
-  --one-shimmer-edge: calc(100% * var(--one-shimmer-band) / (1 + 2 * var(--one-shimmer-band)));
+  --one-shimmer-band: 72px;
+  --one-shimmer-min: 74%;
+  --one-shimmer-period: 1.8s;
 }
 
-:has(> .live-activity-focus) {
+.one-shimmer-host {
   color: color-mix(in srgb, var(--foreground) var(--one-shimmer-min), var(--background));
 }
 
 .live-activity-focus {
   right: auto;
-  left: calc(var(--one-shimmer-band) * -100%);
-  width: calc(100% * (1 + 2 * var(--one-shimmer-band)));
+  left: calc(var(--one-shimmer-band) * -1);
+  width: calc(100% + var(--one-shimmer-band) * 2);
   -webkit-mask-image: linear-gradient(
     90deg,
     rgb(0 0 0 / 0%) 0,
-    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.125),
-    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.25),
-    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.375),
-    rgb(0 0 0 / 100%) calc(var(--one-shimmer-edge) * 0.5),
-    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.625),
-    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.75),
-    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.875),
-    rgb(0 0 0 / 0%) var(--one-shimmer-edge),
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-band) * 0.125),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-band) * 0.25),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-band) * 0.375),
+    rgb(0 0 0 / 100%) calc(var(--one-shimmer-band) * 0.5),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-band) * 0.625),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-band) * 0.75),
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-band) * 0.875),
+    rgb(0 0 0 / 0%) var(--one-shimmer-band),
     rgb(0 0 0 / 0%) 100%
   );
   mask-image: linear-gradient(
     90deg,
     rgb(0 0 0 / 0%) 0,
-    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.125),
-    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.25),
-    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.375),
-    rgb(0 0 0 / 100%) calc(var(--one-shimmer-edge) * 0.5),
-    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.625),
-    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.75),
-    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.875),
-    rgb(0 0 0 / 0%) var(--one-shimmer-edge),
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-band) * 0.125),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-band) * 0.25),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-band) * 0.375),
+    rgb(0 0 0 / 100%) calc(var(--one-shimmer-band) * 0.5),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-band) * 0.625),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-band) * 0.75),
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-band) * 0.875),
+    rgb(0 0 0 / 0%) var(--one-shimmer-band),
     rgb(0 0 0 / 0%) 100%
   );
-  animation: one-shimmer-sweep calc(var(--one-shimmer-sweep) + var(--one-shimmer-pause)) linear
-    infinite;
+  animation: one-shimmer-sweep var(--one-shimmer-period) ease-in-out infinite;
   animation-play-state: var(--visible-animation-state, paused);
 }
 
 .live-activity-focus-counter {
-  animation: one-shimmer-sweep-counter calc(var(--one-shimmer-sweep) + var(--one-shimmer-pause))
-    linear infinite;
+  animation: one-shimmer-sweep-counter var(--one-shimmer-period) ease-in-out infinite;
   animation-play-state: var(--visible-animation-state, paused);
 }
 
 .live-activity-focus-aligned {
-  width: calc(100% / (1 + 2 * var(--one-shimmer-band)));
-  margin-inline-start: var(--one-shimmer-edge);
+  width: calc(100% - var(--one-shimmer-band) * 2);
+  margin-inline-start: var(--one-shimmer-band);
 }
 
-/* The sweep takes 1.6 of the 2.2s cycle (72.73%) and the overlay then waits off the text. */
 @keyframes one-shimmer-sweep {
-  0% {
+  from {
     transform: translateX(0);
-    animation-timing-function: ease-in-out;
   }
-  72.73%,
-  100% {
+  to {
     transform: translateX(100%);
   }
 }
 
 @keyframes one-shimmer-sweep-counter {
-  0% {
+  from {
     transform: translateX(0);
-    animation-timing-function: ease-in-out;
   }
-  72.73%,
-  100% {
+  to {
     transform: translateX(-100%);
   }
 }
@@ -1394,4 +1493,188 @@ html [role="group"][data-approval-card]::after {
   font-family: var(--font-sans);
   font-size: 0.6875rem;
   color: var(--muted-foreground);
+}
+
+/* ============================================================== status colors */
+
+/*
+ * The four status meanings, and nothing else in a status color: working is gold, done is bone,
+ * needs-you is ember, failed is oxblood. Pull request states, checks and review outcomes read
+ * them here; the values come from the shared tokens, with the same values as the fallback.
+ */
+.one-st-working {
+  color: var(--st-working-fg);
+}
+
+.one-st-done {
+  color: var(--st-done-fg);
+}
+
+.one-st-attention {
+  color: var(--st-attention-fg);
+}
+
+.one-st-error {
+  color: var(--st-error-fg);
+}
+
+.one-st-fill-done {
+  fill: var(--st-done);
+}
+
+.one-st-fill-error {
+  fill: var(--st-error);
+}
+
+.one-st-ring-done {
+  --tw-ring-color: var(--st-done);
+}
+
+.one-st-ring-error {
+  --tw-ring-color: var(--st-error);
+}
+
+.one-st-ring-done-stale {
+  --tw-ring-color: color-mix(in srgb, var(--st-done) 35%, var(--background));
+}
+
+.one-st-ring-error-stale {
+  --tw-ring-color: color-mix(in srgb, var(--st-error) 35%, var(--background));
+}
+
+/* Label chips on the pull request and issue lists keep their hue at 40% of its chroma. */
+[data-slot="badge"][data-variant="label"] {
+  filter: saturate(0.4);
+}
+
+/* Added and removed lines in the diff view use the house palette: moss and oxblood, not the stock
+   green and red of other tools. The rows, gutters and word marks all derive from these. */
+.diff-render-surface {
+  --diff-addition: var(--one-diff-add-base);
+  --diff-deletion: var(--one-diff-del-base);
+  --diff-addition-foreground: var(--one-diff-add-mark);
+  --diff-deletion-foreground: var(--one-diff-del-mark);
+  --diffs-addition-base: var(--one-diff-add-base);
+  --diffs-deletion-base: var(--one-diff-del-base);
+}
+
+:root {
+  --one-diff-add-base: #78a05a;
+  --one-diff-del-base: var(--st-error);
+}
+
+:root:not(.dark) {
+  --one-diff-add-base: #7a9a5c;
+}
+
+/* A phone has no chord to press, and the actions keep their room: hints go, the row may wrap. */
+[data-approval-actions] {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (pointer: coarse), (max-width: 40rem) {
+  [data-approval-actions] [data-approval-hint] {
+    display: none;
+  }
+}
+
+/* ===================================================== the card's answer and its exit */
+
+/*
+ * A press holds the pressed button for the press animation's own length. Then the change folds
+ * away, the answer is named in the footer (gold check for Approve, none for Decline), and the
+ * card settles to nothing so the resolved row stands in its place. The timeline drops the card when
+ * all of these have ended, so nothing here is timed in script.
+ */
+[data-approval-host] {
+  --one-leave: calc(var(--mo-surface) * var(--mo-exit));
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+[data-approval-host] > [data-approval-card] {
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-approval-actions] button[data-pending] {
+    animation: one-approval-press var(--mo-press) var(--ease-spring);
+  }
+
+  [data-approval-host][data-leaving] {
+    overflow: hidden;
+    animation: one-approval-settle calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit)
+      calc(var(--mo-press) + var(--one-leave) * 0.6) both;
+  }
+
+  [data-approval-card][data-leaving] [data-approval-body] {
+    transition-duration: var(--one-leave);
+    transition-delay: var(--mo-press);
+    transition-timing-function: var(--ease-exit);
+  }
+
+  [data-approval-card][data-leaving] [data-approval-actions] {
+    animation: one-approval-fade-out calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit)
+      var(--mo-press) both;
+  }
+
+  [data-approval-card][data-leaving] [data-approval-outcome] {
+    animation: one-approval-fade-in var(--mo-quick) var(--ease-enter) var(--mo-press) both;
+  }
+}
+
+[data-approval-card][data-leaving] {
+  pointer-events: none;
+}
+
+[data-approval-card][data-leaving] [data-approval-body] {
+  grid-template-rows: 0fr;
+}
+
+[data-approval-outcome] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+[data-approval-outcome] svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+[data-approval-card][data-outcome="approved"] [data-approval-outcome] svg {
+  color: light-dark(var(--gold-600), var(--gold-400));
+}
+
+[data-approval-card][data-outcome="declined"] [data-approval-outcome] svg {
+  color: var(--st-done-fg);
+}
+
+@keyframes one-approval-press {
+  50% {
+    transform: scale(0.97);
+  }
+}
+
+@keyframes one-approval-settle {
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@keyframes one-approval-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes one-approval-fade-in {
+  from {
+    opacity: 0;
+  }
 }

@@ -192,6 +192,27 @@ export interface CommandPaletteThreadContentMatch {
   readonly query: string;
 }
 
+/** The parts of a row that `lazyContent` builds. */
+export interface PaletteItemContent {
+  readonly description?: ReactNode;
+  readonly titleLeadingContent?: ReactNode;
+  readonly titleSuffixContent?: ReactNode;
+  readonly titleTrailingContent?: ReactNode;
+}
+
+const resolvedContent = new WeakMap<object, PaletteItemContent>();
+
+/** The row content of an item, built once on first use when the item carries `lazyContent`. */
+export function resolveItemContent(item: CommandPaletteItem): PaletteItemContent {
+  if (!item.lazyContent) return item;
+  const known = resolvedContent.get(item);
+  if (known) return known;
+  const built = item.lazyContent();
+  const content = { ...built, description: built.description ?? item.description };
+  resolvedContent.set(item, content);
+  return content;
+}
+
 export interface CommandPaletteItem {
   readonly kind: "action" | "submenu";
   readonly value: string;
@@ -200,6 +221,12 @@ export interface CommandPaletteItem {
   /** The title as plain text, for searching, when `title` is styled. */
   readonly searchTitle?: string;
   readonly description?: ReactNode;
+  /**
+   * Row content that is costly to build (elements for status, provider, project and pull
+   * request). Thread lists hold hundreds of items and draw about six rows, so the row builds it
+   * when it is drawn; read it through `resolveItemContent`.
+   */
+  readonly lazyContent?: () => PaletteItemContent;
   readonly threadContentMatch?: CommandPaletteThreadContentMatch;
   readonly timestamp?: string;
   /** Thread rows rank by this, with use history, instead of by `searchTerms`. */
@@ -478,6 +505,8 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
     environmentLabelOf?: (thread: TThread) => string | null;
     /** Tasks linked environments run for a listed thread; they open from under that thread. */
     delegatedUnderParent?: ReadonlySet<string>;
+    /** The language the labels are in. Callers cache the items, so a change here must change them. */
+    locale?: string;
   },
   resolve: MessageResolver = m,
 ): CommandPaletteActionItem[] {
@@ -513,12 +542,12 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
     }
 
     const context = input.contextOf?.(thread, { projectTitle });
-    const leadingContent = input.renderLeadingContent?.(thread);
-    const trailingContent = input.renderTrailingContent?.(thread);
-    const suffixContent = input.renderTitleSuffix?.(thread);
-    const description = input.renderDescription
-      ? input.renderDescription(thread, { projectTitle })
-      : descriptionParts.join(` · `);
+    const hasLazyContent =
+      input.renderLeadingContent !== undefined ||
+      input.renderTrailingContent !== undefined ||
+      input.renderTitleSuffix !== undefined ||
+      input.renderDescription !== undefined;
+    const description = input.renderDescription ? undefined : descriptionParts.join(` · `);
 
     return Object.assign(
       {
@@ -536,7 +565,7 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
           input.environmentLabelOf?.(thread),
         ),
         title: thread.title,
-        description,
+        ...(description !== undefined ? { description } : {}),
         timestamp: formatRelativeTimeLabel(
           thread.latestUserMessageAt ?? thread.updatedAt ?? thread.createdAt,
           undefined,
@@ -545,9 +574,22 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
         icon: input.icon,
       },
       context ? { context } : {},
-      leadingContent ? { titleLeadingContent: leadingContent } : {},
-      suffixContent ? { titleSuffixContent: suffixContent } : {},
-      trailingContent ? { titleTrailingContent: trailingContent } : {},
+      hasLazyContent
+        ? {
+            lazyContent: (): PaletteItemContent => {
+              const leading = input.renderLeadingContent?.(thread);
+              const trailing = input.renderTrailingContent?.(thread);
+              const suffix = input.renderTitleSuffix?.(thread);
+              const described = input.renderDescription?.(thread, { projectTitle });
+              return {
+                ...(described ? { description: described } : {}),
+                ...(leading ? { titleLeadingContent: leading } : {}),
+                ...(suffix ? { titleSuffixContent: suffix } : {}),
+                ...(trailing ? { titleTrailingContent: trailing } : {}),
+              };
+            },
+          }
+        : {},
       // Last in its group: picking the thread already open does nothing.
       isCurrent ? { secondary: true } : {},
       {
@@ -557,6 +599,63 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
       },
     );
   });
+}
+
+let lastThreadItems: {
+  readonly deps: ReadonlyArray<unknown>;
+  readonly items: CommandPaletteActionItem[];
+} | null = null;
+
+/**
+ * The thread items for these inputs, built once. The palette is opened and typed into many times
+ * with the same threads, so the items outlive one opening; they are rebuilt only when an input
+ * changes. Arrays and maps count as unchanged when their items are.
+ */
+function sameFields(left: object, right: object): boolean {
+  const leftKeys = Object.keys(left);
+  return (
+    leftKeys.length === Object.keys(right).length &&
+    leftKeys.every((key) =>
+      Object.is((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+    )
+  );
+}
+
+/** Same value, an array of the same items, or a map whose entries are the same (or have the same fields). */
+function sameInput(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return (
+      left.length === right.length && left.every((item, index) => Object.is(item, right[index]))
+    );
+  }
+  if (!(left instanceof Map) || !(right instanceof Map) || left.size !== right.size) return false;
+  for (const [key, value] of left) {
+    if (!right.has(key)) return false;
+    const other = right.get(key);
+    if (Object.is(value, other)) continue;
+    if (typeof value !== "object" || value === null || typeof other !== "object" || other === null)
+      return false;
+    if (!sameFields(value, other)) return false;
+  }
+  return true;
+}
+
+export function cachedThreadActionItems(
+  deps: ReadonlyArray<unknown>,
+  build: () => CommandPaletteActionItem[],
+): CommandPaletteActionItem[] {
+  const known = lastThreadItems;
+  if (
+    known &&
+    known.deps.length === deps.length &&
+    known.deps.every((dep, index) => sameInput(dep, deps[index]))
+  ) {
+    return known.items;
+  }
+  const items = build();
+  lastThreadItems = { deps, items };
+  return items;
 }
 
 type PaletteItem = CommandPaletteActionItem | CommandPaletteSubmenuItem;

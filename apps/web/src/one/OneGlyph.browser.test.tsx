@@ -47,8 +47,6 @@ function colorOf(css: string): number[] {
   return Array.from(swatch.getImageData(0, 0, 1, 1).data.slice(0, 3));
 }
 
-const lightness = ([r = 0, g = 0, b = 0]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-
 function glyphIn(container: HTMLElement): SVGSVGElement {
   const svg = container.querySelector<SVGSVGElement>("svg[data-one-glyph]");
   if (!svg) throw new Error("the glyph did not render");
@@ -78,7 +76,7 @@ describe("the flat One glyph", () => {
         // The middle of the opening is clear, so the glyph reads as a ring and not a disc.
         expect(alphaAt(image, c, c + geometry.inner.dy * density)).toBeLessThan(20);
         // The band, measured along its turned long axis, is drawn.
-        const t = (-24 * Math.PI) / 180;
+        const t = (geometry.tilt * Math.PI) / 180;
         const reach = (geometry.outer.rx - (geometry.outer.rx - geometry.inner.rx) / 2) * density;
         expect(alphaAt(image, c + reach * Math.cos(t), c + reach * Math.sin(t))).toBeGreaterThan(
           128,
@@ -108,34 +106,38 @@ describe("the flat One glyph", () => {
     },
   );
 
-  it("draws the standard theme from the shared gold ramp", async () => {
-    await using screen = await render(<OneGlyph size={16} />, { router: false });
-    const svg = glyphIn(screen.container);
-    const ramp = (token: string) =>
-      colorOf(getComputedStyle(document.documentElement).getPropertyValue(token));
-    expect(colorOf(paintOf(svg, "base"))).toEqual(ramp("--gold-500"));
-    expect(colorOf(paintOf(svg, "shade"))).toEqual(ramp("--gold-700"));
-    expect(colorOf(paintOf(svg, "highlight", "stroke"))).toEqual(ramp("--gold-300"));
-  });
-
-  it.each(["#b98f1f", "#d9b450", "#2f6fdd"])(
-    "derives a chosen theme's tones from its action color %s: shade darker, highlight lighter, base the color",
-    async (brand) => {
-      document.documentElement.dataset.themeId = "chosen";
-      document.documentElement.style.setProperty("--one-brand", brand);
+  it.each(["standard", "a chosen theme"] as const)(
+    "is the gold ramp's base, shade and highlight in %s, never a theme color",
+    async (kind) => {
+      const html = document.documentElement;
+      if (kind === "a chosen theme") {
+        html.dataset.themeId = "chosen";
+        html.style.setProperty("--one-brand", "#2f6fdd");
+      }
       try {
         await using screen = await render(<OneGlyph size={16} />, { router: false });
         const svg = glyphIn(screen.container);
-        const base = colorOf(paintOf(svg, "base"));
-        expect(base).toEqual(colorOf(brand));
-        expect(lightness(colorOf(paintOf(svg, "shade")))).toBeLessThan(lightness(base) * 0.7);
-        expect(lightness(colorOf(paintOf(svg, "highlight", "stroke")))).toBeGreaterThan(
-          lightness(base) * 1.2,
-        );
+        const ramp = (token: string) => colorOf(getComputedStyle(html).getPropertyValue(token));
+        expect(colorOf(paintOf(svg, "base"))).toEqual(ramp("--gold-400"));
+        expect(colorOf(paintOf(svg, "shade"))).toEqual(ramp("--gold-600"));
+        expect(colorOf(paintOf(svg, "highlight", "stroke"))).toEqual(ramp("--gold-300"));
       } finally {
-        delete document.documentElement.dataset.themeId;
-        document.documentElement.style.removeProperty("--one-brand");
+        delete html.dataset.themeId;
+        html.style.removeProperty("--one-brand");
       }
     },
   );
+
+  it("draws one color from currentColor when mono, with no shade or highlight", async () => {
+    await using screen = await render(
+      <div style={{ color: "rgb(10, 20, 30)" }}>
+        <OneGlyph size={16} mono />
+      </div>,
+      { router: false },
+    );
+    const svg = glyphIn(screen.container);
+    expect(colorOf(paintOf(svg, "base"))).toEqual([10, 20, 30]);
+    expect(getComputedStyle(svg.querySelector('[data-glyph="shade"]')!).display).toBe("none");
+    expect(getComputedStyle(svg.querySelector('[data-glyph="highlight"]')!).display).toBe("none");
+  });
 });

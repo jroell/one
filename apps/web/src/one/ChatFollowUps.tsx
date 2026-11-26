@@ -2,10 +2,11 @@ import { useGT } from "gt-react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 
+import { quizStem } from "./chatQuiz";
+
 /**
  * Three ways to carry an answer into the next thought, most useful first. A pick puts a short stem
- * in the composer and focuses it. The block keeps its height while hidden, so the answer above
- * never moves.
+ * in the composer and focuses it. The block takes no room until the turn ends.
  */
 export function ChatFollowUps({
   ready,
@@ -29,7 +30,7 @@ export function ChatFollowUps({
     {
       label: gt("Quiz me on this"),
       hint: gt("Check what stuck"),
-      stem: gt("Quiz me on what you just explained."),
+      stem: quizStem(gt),
     },
   ];
   const follow = (stem: string) => {

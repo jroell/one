@@ -13,40 +13,42 @@ type UsageProviderPresentation = {
 export const PROVIDER_PRESENTATION = {
   codex: {
     label: "Codex",
-    color: "var(--usage-provider-neutral, var(--contrast-foreground))",
+    color: "var(--usage-series-codex)",
     driverKind: ProviderDriverKind.make("codex"),
   },
   claude: {
     label: "Claude Code",
-    color: "#d97757",
+    color: "var(--usage-series-claude)",
     driverKind: ProviderDriverKind.make("claudeAgent"),
   },
   grok: {
     label: "Grok Build",
-    // A hue of its own: in light a 72% foreground grey sat next to Codex's near-black.
-    color:
-      "var(--usage-provider-grok, color-mix(in oklab, var(--contrast-foreground) 72%, var(--background)))",
+    color: "var(--usage-series-grok)",
     driverKind: ProviderDriverKind.make("grok"),
   },
-  cursor: { label: "Cursor", color: "#8b8b8b", driverKind: ProviderDriverKind.make("cursor") },
+  cursor: {
+    label: "Cursor",
+    color: "var(--usage-series-cursor)",
+    driverKind: ProviderDriverKind.make("cursor"),
+  },
   opencode: {
     label: "OpenCode",
-    color: "#5b9bbd",
+    color: "var(--usage-series-opencode)",
     driverKind: ProviderDriverKind.make("opencode"),
   },
   antigravity: {
     label: "Antigravity",
-    color: "#8c7bd1",
+    color: "var(--usage-series-antigravity)",
     driverKind: ProviderDriverKind.make("antigravity"),
   },
   pi: {
     label: "Pi",
-    color: "#4d9f8a",
+    color: "var(--usage-series-pi)",
     driverKind: ProviderDriverKind.make("pi"),
   },
   muse: {
     label: "Muse Code",
-    color: "#0866ff",
+    color: "var(--usage-series-muse)",
     driverKind: ProviderDriverKind.make("muse"),
   },
 } satisfies Record<UsageProviderKind, UsageProviderPresentation>;

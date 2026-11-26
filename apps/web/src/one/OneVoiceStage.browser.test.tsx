@@ -23,6 +23,13 @@ import {
 } from "./voiceSession";
 import { setWorkspaceMode } from "./workspaceMode";
 
+// The ring is a WebGL picture the stage only hands a state to. Under a fake clock every fake frame
+// would draw it for real, which made the 60 second waits below take 30 seconds of real time.
+vi.mock(import("./OneOrb"), async (original) => ({
+  ...(await original()),
+  OneOrb: (({ state }: { readonly state?: string }) => <div data-one-orb={state} />) as never,
+}));
+
 const saved = vi.hoisted(() => ({
   /** The thread's sync status; only "live" means the connection delivers what the server does. */
   status: "live" as "live" | "synchronizing" | "cached",
@@ -1432,4 +1439,162 @@ it("dictation started with the ordinary shortcut after a retried microphone star
   await press(screen.getByRole("button", { name: "End voice chat" }));
   expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
   expect(voice.microphone.phase).toBe("recording");
+});
+
+const swellOf = (screen: { getByRole: (role: "dialog", options: { name: string }) => unknown }) =>
+  stageOf(screen).querySelector<HTMLElement>(".one-voice-orb-swell")!;
+
+it("the ring swells with the microphone level by transform only, never above 8 percent, and settles smoothly when the sound stops", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+  using _level = { [Symbol.dispose]: () => void (voiceLevel.current = 0) };
+
+  await voice.start();
+  const swell = swellOf(screen);
+  const scales: number[] = [];
+  voiceLevel.current = 1;
+  for (let frame = 0; frame < 30; frame += 1) {
+    await act(() => vi.advanceTimersByTime(16));
+    scales.push(Number(/scale\(([\d.]+)\)/.exec(swell.style.transform)?.[1] ?? 1));
+  }
+  expect(Math.max(...scales)).toBeGreaterThan(1.06);
+  expect(Math.max(...scales)).toBeLessThanOrEqual(1.08);
+  // Rising: never a step larger than a third of the full swing, so it cannot read as a jitter.
+  expect(
+    Math.max(...scales.slice(1).map((value, index) => Math.abs(value - scales[index]!))),
+  ).toBeLessThan(0.027);
+  // Only a transform moves: no layout property is written to the element.
+  expect(swell.style.cssText).toBe(`transform: ${swell.style.transform};`);
+
+  voiceLevel.current = 0;
+  await act(() => vi.advanceTimersByTime(16 * 8));
+  const falling = Number(/scale\(([\d.]+)\)/.exec(swell.style.transform)?.[1]);
+  expect(falling).toBeGreaterThan(1.0);
+  expect(falling).toBeLessThan(Math.max(...scales));
+  await act(() => vi.advanceTimersByTime(2_000));
+  expect(swell.style.transform).toBe("scale(1)");
+});
+
+it("muting voice chat stops its recording and keeps it from listening or closing until it is unmuted", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 1 });
+
+  await press(screen.getByRole("button", { name: "Mute microphone" }));
+  expect(voice.microphone.phase).toBe("idle");
+  expect(stageOf(screen)).toHaveAttribute("data-look", "muted");
+  expect(screen.getByRole("status").element()).toHaveTextContent("Muted");
+  // A microphone that never starts closes voice chat after a few seconds; a muted one must not.
+  await act(() => vi.advanceTimersByTime(10_000));
+  expect(stageOf(screen)).toHaveAttribute("data-look", "muted");
+  expect(voice.microphone).toMatchObject({ phase: "idle", recordings: 1 });
+
+  await press(screen.getByRole("button", { name: "Mute microphone" }));
+  expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+});
+
+it("the M key mutes and unmutes voice chat, and pressing the ring while muted unmutes", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+  const typeKey = (target: EventTarget, init: KeyboardEventInit) =>
+    act(() => void target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init })));
+
+  await voice.start();
+  await typeKey(window, { key: "m" });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "muted");
+  await press(screen.getByRole("button", { name: "Unmute microphone" }));
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+
+  // Typing the letter in a field, or a shortcut that uses it, is not a mute.
+  const field = document.createElement("input");
+  document.body.append(field);
+  using _field = { [Symbol.dispose]: () => field.remove() };
+  await typeKey(field, { key: "m" });
+  await typeKey(window, { key: "m", metaKey: true });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+
+  await typeKey(window, { key: "M" });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "muted");
+});
+
+it("each stage of a spoken turn shows its own state label and look, so none depends on sound", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+  const seen: Array<readonly [string | null, string | null]> = [];
+  const note = () =>
+    seen.push([
+      stageOf(screen).getAttribute("data-look"),
+      screen.getByRole("status").element().textContent,
+    ]);
+
+  await voice.start();
+  note();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, [OLD_REPLY]));
+  note();
+  await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
+  note();
+  await press(screen.getByRole("button", { name: "Stop reading and listen" }));
+  note();
+  await act(() => vi.advanceTimersByTime(900));
+  note();
+
+  expect(seen).toEqual([
+    ["listening", "Listening"],
+    ["thinking", "Thinking"],
+    ["speaking", "Speaking"],
+    ["interrupted", "Interrupted"],
+    ["listening", "Listening"],
+  ]);
+});
+
+it("Escape ends voice chat even while a closed dialog, such as the phone's sidebar sheet, sits elsewhere in the page", async () => {
+  using voice = setup();
+  await using screen = await render(
+    <>
+      <div>
+        <div role="dialog" />
+      </div>
+      {voice.stage(false, [])}
+    </>,
+    NO_ROUTER,
+  );
+  using _timers = fakeTimers();
+
+  await voice.start();
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+  await act(() => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+  expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
+});
+
+it("the question stays on screen while the agent works, even when the thread's row for it comes and goes", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _timers = fakeTimers();
+  const question = savedQuestion("item-1", "message-q", "Why is the sky blue?", "run-q");
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [savedRun("run-q", "message-q", "running")];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  saved.rows = [question];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(screen.getByText("Why is the sky blue?").element()).toBeVisible();
+
+  // The row leaves the visible window of the thread; the words must not fall back to a partial transcript.
+  saved.rows = [];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(screen.getByText("Why is the sky blue?").element()).toBeVisible();
 });

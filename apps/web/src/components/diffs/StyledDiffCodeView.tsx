@@ -12,6 +12,7 @@ import type { Ref } from "react";
 
 import { DIFF_SURFACE_THEME_UNSAFE_CSS } from "~/lib/diffRendering";
 import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
+import { middleTruncateDiffHeaderTitles } from "./diffHeaderPath";
 
 export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 /* A 1fr track's automatic minimum grows with the currently mounted lines. In split
@@ -188,8 +189,8 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   flex-shrink: 0;
 }
 
-/* Status reads in the product's own colors: modified is gold, added is green, deleted is red.
-   Nothing in the diff is blue. */
+/* Status reads in the product's own colors: modified is gold, added is ember, deleted is
+   oxblood. Nothing in the diff is blue or green. */
 [data-diffs-header] :is(
     [data-change-icon="change"],
     [data-change-icon="rename-pure"],
@@ -198,7 +199,39 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   color: light-dark(var(--gold-600), var(--gold-400)) !important;
 }
 
+[data-diffs-header] [data-change-icon="new"] {
+  color: var(--st-attention) !important;
+}
+
+[data-diffs-header] [data-change-icon="deleted"] {
+  color: var(--st-error) !important;
+}
+
+/* A long path keeps its folder start and its file name end: the head clips with an ellipsis, the
+   tail stays whole (see diffHeaderPath.ts). */
+[data-diffs-header] [data-header-content] [data-title] {
+  direction: ltr;
+}
+
+[data-title] > bdi[data-path-split] {
+  display: flex;
+  min-width: 0;
+}
+
+[data-title] [data-path-head] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+[data-title] [data-path-tail] {
+  flex-shrink: 0;
+  white-space: pre;
+}
+
 [data-title] {
+  color: var(--code-foreground);
   cursor: pointer;
   transition: color 120ms ease;
   font-family: var(--font-sans) !important;
@@ -272,6 +305,14 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
         }
         options={{
           ...options,
+          onPostRender: (container, instance, phase, context) => {
+            if (phase !== "unmount" && container.shadowRoot) {
+              middleTruncateDiffHeaderTitles(container.shadowRoot);
+            }
+            // The callback is overloaded per item kind, so the caller's own is handed its arguments as is.
+            const forward = options?.onPostRender;
+            if (forward) Reflect.apply(forward, undefined, [container, instance, phase, context]);
+          },
           unsafeCSS: unsafeCSSExtra
             ? `${DIFF_VIEW_UNSAFE_CSS}\n${lineKindCss}\n${unsafeCSSExtra}`
             : `${DIFF_VIEW_UNSAFE_CSS}\n${lineKindCss}`,

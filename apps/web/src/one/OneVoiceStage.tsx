@@ -1,9 +1,7 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useGT } from "gt-react";
-import { XIcon } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { Button } from "~/components/ui/button";
 import { toastManager } from "~/components/ui/toast";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import {
@@ -12,7 +10,8 @@ import {
   useThreadVisibleTurnItems,
 } from "~/state/entities";
 import { threadTranscriptMayLag } from "~/threadSync";
-import { OneOrb, type OneOrbState } from "./OneOrb";
+import { OneVoiceGhost } from "./OneVoiceGhost";
+import { VoiceStageView, type VoiceLook } from "./OneVoiceStageView";
 import {
   getCommittedVoiceThreadKey,
   useVoiceBridge,
@@ -37,18 +36,31 @@ import {
   speechDeadlineMs,
   useVoiceSession,
   type VoiceMessage,
-  type VoiceStage,
 } from "./voiceSession";
+import {
+  EASE_ENTER_FALLBACK,
+  HALO_REACH,
+  SWELL_REACH,
+  boxOf,
+  clearVoiceExit,
+  flightTo,
+  flightTransform,
+  motionMs,
+  motionToken,
+  prefersReducedMotion,
+  recordVoiceExit,
+  getVoiceExit,
+  smoothSwell,
+  subscribeVoiceExit,
+  takeVoiceLauncher,
+  swellScale,
+} from "./voiceStageMotion";
 import { useWorkspaceMode } from "./workspaceMode";
 
 export type VoiceStageMessage = VoiceMessage;
 
-const ORB_STATE: Record<Exclude<VoiceStage, "off">, OneOrbState> = {
-  listening: "listening",
-  sending: "thinking",
-  thinking: "thinking",
-  speaking: "speaking",
-};
+/** How long the "Interrupted" state shows before the stage listens again. */
+const INTERRUPTED_MS = 900;
 
 /** How long a finished turn may take to show its reply before voice chat listens again. */
 const REPLY_GRACE_MS = 4_000;
@@ -74,11 +86,6 @@ const VOICES_WAIT_MS = 1_500;
 let mountedStages = 0;
 const NO_RUNS: ReadonlyArray<never> = [];
 
-/** Makes quiet speech visible on the ring without letting loud speech clip. */
-function displayLevel(level: number): number {
-  return Math.min(1, Math.sqrt(Math.max(0, level)) * 1.35);
-}
-
 /**
  * Voice chat: speak, the question is sent when you pause, and the reply is
  * read back. It drives the main composer's own dictation, so the transcript
@@ -96,6 +103,8 @@ export function OneVoiceStage(props: {
   readonly draftMessages: ReadonlyArray<VoiceStageMessage>;
 }) {
   const session = useVoiceSession();
+  // Leaving flies the ring back to where voice chat was opened from, for one exit beat.
+  const exit = useSyncExternalStore(subscribeVoiceExit, getVoiceExit);
   // A conversation cannot outlive the screen that shows it. The check runs a tick
   // later so a development re-mount of this component does not end it.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the shared voice session when the last voice stage leaves the page
@@ -109,7 +118,9 @@ export function OneVoiceStage(props: {
     };
   }, []);
   // Reply text streams token by token, so only an open voice chat subscribes to it.
-  if (session.stage === "off") return null;
+  if (session.stage === "off") {
+    return exit === null ? null : <OneVoiceGhost plan={exit} onDone={clearVoiceExit} />;
+  }
   return <ActiveVoiceStage {...props} />;
 }
 
@@ -185,7 +196,6 @@ function ActiveVoiceStage({
     liveBridge !== null && (liveBridge.threadKey === session.threadKey || promoted)
       ? liveBridge
       : null;
-  const levelRef = useRef(0);
   const speechPulseRef = useRef(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const orbButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -197,6 +207,16 @@ function ActiveVoiceStage({
   const draftToastShownRef = useRef(false);
   /** The microphone has been asked to start in this conversation, so an error on it is this conversation's. */
   const [attempted, setAttempted] = useState(false);
+  /** The person just stopped a reply, so the stage shows that for a moment before it listens. */
+  const [interrupted, setInterrupted] = useState(false);
+  const muted = session.muted;
+  const orbWrapRef = useRef<HTMLDivElement | null>(null);
+  const swellRef = useRef<HTMLDivElement | null>(null);
+  const haloRef = useRef<HTMLDivElement | null>(null);
+  const glowRef = useRef<HTMLDivElement | null>(null);
+  /** The smoothed sound level the ring and halo follow; it carries across states so nothing jumps. */
+  const swellValueRef = useRef(0);
+  const originRef = useRef<Element | null | undefined>(undefined);
 
   // A saved thread's turn is followed through its own question and run. A draft has no other work.
   const runs = useQuietThreadProjection(threadRef)?.projection.runs ?? NO_RUNS;
@@ -246,7 +266,12 @@ function ActiveVoiceStage({
       return;
     }
     const submission = newVoiceSubmission();
-    dispatchVoiceSession({ type: "sent", after: replyAnchor(current.messages), submission });
+    dispatchVoiceSession({
+      type: "sent",
+      after: replyAnchor(current.messages),
+      submission,
+      heard: current.bridge.heard,
+    });
     current.bridge.submit({
       sent: (messageId) => dispatchVoiceSession({ type: "identified", submission, messageId }),
       rejected: (message) =>
@@ -328,7 +353,7 @@ function ActiveVoiceStage({
   const sendFailed = session.error !== null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the microphone when the listening stage begins; the recorder is outside React
   useEffect(() => {
-    if (stage !== "listening") {
+    if (stage !== "listening" || muted) {
       startRequestedRef.current = false;
       return;
     }
@@ -348,11 +373,20 @@ function ActiveVoiceStage({
     waitingForThread,
     recordingPhase,
     sendFailed,
+    muted,
     orphaned,
     blockedOnUser,
     draftInTheWay,
     beginRecording,
   ]);
+
+  // Muting stops a recording this conversation started; unmuting starts the next one above.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- cancels the recorder, which lives outside React, when the person mutes
+  useEffect(() => {
+    if (muted && getVoiceSession().stage === "listening" && ownsMicrophone()) {
+      latest.current.bridge?.cancel();
+    }
+  }, [muted]);
 
   // This session owns exactly one recorder operation at a time: the one its own start
   // request began. Ownership ends when that attempt reports it did not record (see
@@ -379,7 +413,11 @@ function ActiveVoiceStage({
   // The microphone never started (voice input needs setup, was refused, or is no longer
   // available): close voice chat and leave any setup screen it opened alone.
   const micStalled =
-    stage === "listening" && !waitingForThread && recordingPhase === "idle" && !sendFailed;
+    stage === "listening" &&
+    !muted &&
+    !waitingForThread &&
+    recordingPhase === "idle" &&
+    !sendFailed;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- times out a microphone request that never began; cleared as soon as recording starts
   useEffect(() => {
     if (!micStalled) return;
@@ -401,19 +439,41 @@ function ActiveVoiceStage({
     return () => window.clearTimeout(timer);
   }, [micStalled, gt]);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- samples the live microphone level each frame, which React state would re-render on
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- samples the live microphone level each frame and writes the ring's swell as a transform, which React state would re-render on
   useEffect(() => {
     const detector = createSilenceDetector();
+    const still = prefersReducedMotion();
+    let lastNow: number | null = null;
     let frame = requestAnimationFrame(function tick(now) {
+      let swellTarget = 0;
       if (stage === "listening" && recordingPhase === "recording" && ownsMicrophone()) {
-        levelRef.current = displayLevel(voiceLevel.current);
+        swellTarget = Math.min(1, voiceLevel.current * 1.15);
         if (detector.sample(voiceLevel.current, now)) submitRef.current();
       } else if (stage === "speaking") {
         speechPulseRef.current *= 0.9;
         const murmur = 0.16 + 0.1 * Math.sin(now / 90) * Math.sin(now / 370);
-        levelRef.current = Math.max(murmur, speechPulseRef.current);
-      } else {
-        levelRef.current = 0;
+        swellTarget = Math.max(murmur, speechPulseRef.current);
+      }
+      const elapsed = lastNow === null ? 0 : (now - lastNow) / 1000;
+      lastNow = now;
+      const swell = smoothSwell(swellValueRef.current, swellTarget, elapsed);
+      if (swell !== swellValueRef.current) {
+        swellValueRef.current = swell;
+        // The light field behind the ring follows the sound by opacity, which reduced motion keeps:
+        // a fade is not movement, and it is the only sign that the microphone hears the person.
+        if (glowRef.current) glowRef.current.style.opacity = (0.55 + 0.45 * swell).toFixed(3);
+        if (!still) {
+          if (swellRef.current) swellRef.current.style.transform = swellScale(swell, SWELL_REACH);
+          const rings = haloRef.current?.children;
+          if (rings) {
+            for (let index = 0; index < HALO_REACH.length; index += 1) {
+              const ring = rings[index];
+              if (ring instanceof HTMLElement) {
+                ring.style.transform = swellScale(swell, HALO_REACH[index] ?? 0);
+              }
+            }
+          }
+        }
       }
       frame = requestAnimationFrame(tick);
     });
@@ -513,6 +573,7 @@ function ActiveVoiceStage({
           id: `connection-lost:${getVoiceSession().submission ?? ""}`,
           text: latest.current.notices.disconnected,
           runId: null,
+          kind: "notice",
         },
       });
     }, RECONNECT_GRACE_MS);
@@ -600,9 +661,16 @@ function ActiveVoiceStage({
         if (active === utterance) finish();
       };
       utterance.onstart = begin;
-      utterance.onboundary = () => {
+      utterance.onboundary = (event) => {
         if (active !== utterance) return;
         speechPulseRef.current = 0.62;
+        // A long reply scrolls its transcript to keep the spoken line near the middle of the box.
+        const caption = stageRef.current?.querySelector<HTMLElement>(".one-voice-caption");
+        if (caption && caption.scrollHeight > caption.clientHeight) {
+          const spokenAt =
+            (event.charIndex / Math.max(1, spoken.text.length)) * caption.scrollHeight;
+          caption.scrollTop = Math.max(0, spokenAt - caption.clientHeight / 2);
+        }
         begin();
       };
       utterance.onend = end;
@@ -673,18 +741,47 @@ function ActiveVoiceStage({
     const stageElement = stageRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     orbButtonRef.current?.focus();
-    const covered = [...(stageElement?.parentElement?.children ?? [])].filter(
-      (element): element is HTMLElement =>
-        element instanceof HTMLElement && element !== stageElement && !element.inert,
-    );
+    // The stage covers the whole window, header and sidebar included, so everything outside the
+    // path from the stage up to the page is made inert, except the toasts.
+    const covered: HTMLElement[] = [];
+    for (
+      let node: HTMLElement | null = stageElement;
+      node?.parentElement;
+      node = node.parentElement
+    ) {
+      for (const sibling of node.parentElement.children) {
+        const isToast =
+          sibling.matches('[data-slot="toast-viewport"]') ||
+          sibling.querySelector('[data-slot="toast-viewport"]') !== null;
+        if (sibling instanceof HTMLElement && sibling !== node && !sibling.inert && !isToast) {
+          covered.push(sibling);
+        }
+      }
+      if (node.parentElement === document.body) break;
+    }
     for (const element of covered) element.inert = true;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "m" || event.key === "M") {
+        const target = event.target;
+        const typing =
+          target instanceof HTMLElement &&
+          (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName));
+        if (event.metaKey || event.ctrlKey || event.altKey || typing) return;
+        event.preventDefault();
+        dispatchVoiceSession({ type: "muted", muted: !getVoiceSession().muted });
+        return;
+      }
       if (event.key !== "Escape") return;
       // A menu, select or dialog opened over voice chat closes first.
       const layers = document.querySelectorAll(
         "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]",
       );
-      if ([...layers].some((layer) => layer !== stageElement)) return;
+      // A closed sheet elsewhere in the page (the phone's sidebar) keeps its dialog role but is inert.
+      const open = [...layers].some(
+        (layer) =>
+          layer !== stageElement && layer.closest("[inert], [aria-hidden='true']") === null,
+      );
+      if (open) return;
       event.preventDefault();
       event.stopPropagation();
       dispatchVoiceSession({ type: "stop" });
@@ -718,6 +815,75 @@ function ActiveVoiceStage({
     if (stage !== "off") reclaimFocus();
   }, [stage, reclaimFocus]);
 
+  // Until the answer streams in, the question that was asked stays on screen, so waiting has a subject.
+  const askedText =
+    messages.find(
+      (message) =>
+        message.role === "user" &&
+        session.messageId !== null &&
+        (message.messageId ?? message.id) === session.messageId,
+    )?.text ?? "";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the question's own text in the session, so the caption does not swap back to the microphone's partial words when the thread's row comes and goes
+  useEffect(() => {
+    if (askedText.length > 0) dispatchVoiceSession({ type: "asked", text: askedText });
+  }, [askedText]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the brief "Interrupted" state; bounded, and cleared if the stage closes first
+  useEffect(() => {
+    if (!interrupted) return;
+    const timer = window.setTimeout(() => setInterrupted(false), INTERRUPTED_MS);
+    return () => window.clearTimeout(timer);
+  }, [interrupted]);
+
+  // The ring arrives from the control that opened voice chat and, when voice chat ends, flies back:
+  // one motion each way. A layout effect, so the first painted frame is already the start of it.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the arrival animation on the committed ring and records where to fly back to on exit
+  useLayoutEffect(() => {
+    const orbWrap = orbWrapRef.current;
+    const stageElement = stageRef.current;
+    if (!stageRendered || !orbWrap || !stageElement) return;
+    // The control that opened voice chat, or else what had focus (the composer, for the shortcut).
+    // Read once: a development re-run of this effect must find the same one.
+    if (originRef.current === undefined) {
+      const active = document.activeElement;
+      originRef.current =
+        takeVoiceLauncher() ??
+        (active instanceof HTMLElement && active !== document.body && !stageElement.contains(active)
+          ? active
+          : null);
+    }
+    const origin = originRef.current;
+    clearVoiceExit();
+    const stageBox = boxOf(stageElement);
+    const fallback = {
+      left: stageBox.left + stageBox.width / 2 - 24,
+      top: stageBox.top + stageBox.height - 64,
+      width: 48,
+      height: 48,
+    };
+    let arrival: Animation | null = null;
+    if (!prefersReducedMotion()) {
+      const flight = flightTransform(flightTo(boxOf(orbWrap), origin ? boxOf(origin) : fallback));
+      arrival = orbWrap.animate(
+        [
+          { transform: flight, opacity: 0 },
+          { opacity: 1, offset: 0.4 },
+          { transform: "none", opacity: 1 },
+        ],
+        {
+          duration: motionMs(stageElement, "--mo-sheet", 320),
+          easing: motionToken(stageElement, "--ease-enter", EASE_ENTER_FALLBACK),
+        },
+      );
+    }
+    return () => {
+      arrival?.cancel();
+      const resting = orbWrapRef.current;
+      if (getVoiceSession().stage !== "off" || prefersReducedMotion() || !resting) return;
+      const returnTo = origin?.isConnected === true ? boxOf(origin) : null;
+      recordVoiceExit({ orb: boxOf(resting), origin: returnTo });
+    };
+  }, [stageRendered]);
+
   if (bridge === null) return null;
 
   const recorderFailed = stage === "listening" && attempted && bridge.phase === "error";
@@ -731,19 +897,45 @@ function ActiveVoiceStage({
     bridge.phase === "idle";
   const preparing =
     stage === "listening" && (bridge.phase === "idle" || bridge.phase === "preparing");
+  const isNotice = stage === "speaking" && session.reply?.kind === "notice";
+  const look: VoiceLook =
+    stage === "speaking"
+      ? isNotice
+        ? "notice"
+        : "speaking"
+      : stage === "listening"
+        ? micFailed || unavailable
+          ? "failed"
+          : interrupted
+            ? "interrupted"
+            : waitingForThread
+              ? "thinking"
+              : muted
+                ? "muted"
+                : preparing
+                  ? "preparing"
+                  : "listening"
+        : "thinking";
   const status = micFailed
     ? gt("Voice input stopped")
     : waitingForThread
       ? gt("Waiting for the current reply")
       : unavailable
         ? gt("Voice input is not available")
-        : stage === "listening"
-          ? preparing
-            ? gt("Getting the microphone ready")
-            : gt("Listening")
-          : stage === "speaking"
-            ? gt("Speaking")
-            : gt("Thinking");
+        : look === "interrupted"
+          ? gt("Interrupted")
+          : look === "muted"
+            ? gt("Muted")
+            : look === "notice"
+              ? gt("Connection lost")
+              : stage === "listening"
+                ? preparing
+                  ? gt("Getting the microphone ready")
+                  : gt("Listening")
+                : stage === "speaking"
+                  ? gt("Speaking")
+                  : gt("Thinking");
+  const waitingCaption = session.heard || bridge.heard;
   const caption =
     stage === "listening"
       ? (micError ?? bridge.heard)
@@ -751,19 +943,38 @@ function ActiveVoiceStage({
         ? (session.reply?.text ?? "")
         : answerText.length > 0
           ? answerText
-          : stage === "sending"
-            ? bridge.heard
-            : "";
+          : waitingCaption;
+  const captionIsQuestion =
+    stage === "listening"
+      ? micError === null
+      : (stage === "sending" || stage === "thinking") && answerText.length === 0;
   const orbLabel =
     stage === "listening"
-      ? gt("Send what I said")
+      ? muted
+        ? gt("Unmute microphone")
+        : gt("Send what I said")
       : stage === "speaking"
-        ? gt("Stop reading and listen")
+        ? isNotice
+          ? gt("Dismiss and listen")
+          : gt("Stop reading and listen")
         : gt("Waiting for the reply");
+  const orbAction =
+    stage === "listening"
+      ? muted
+        ? "unmute"
+        : bridge.phase === "recording" && ownsMicrophone()
+          ? "send"
+          : null
+      : stage === "speaking" && !isNotice
+        ? "interrupt"
+        : null;
 
+  const toggleMute = () => dispatchVoiceSession({ type: "muted", muted: !muted });
   const onOrbPress = () => {
-    if (stage === "listening" && bridge.phase === "recording" && ownsMicrophone()) submit();
+    if (stage === "listening" && muted) toggleMute();
+    else if (stage === "listening" && bridge.phase === "recording" && ownsMicrophone()) submit();
     else if (stage === "speaking") {
+      if (!isNotice) setInterrupted(true);
       dispatchVoiceSession(
         session.reply ? { type: "spoken", replyId: session.reply.id } : { type: "spoken" },
       );
@@ -775,56 +986,27 @@ function ActiveVoiceStage({
   };
 
   return (
-    <div
-      ref={stageRef}
-      role="dialog"
-      aria-label={gt("Voice chat")}
-      data-one-voice-stage={stage}
-      className="one-voice-stage"
-    >
-      <div className="one-voice-stage-body">
-        <button
-          ref={orbButtonRef}
-          type="button"
-          className="one-voice-orb-button"
-          aria-label={orbLabel}
-          aria-disabled={stage === "sending" || stage === "thinking"}
-          onClick={onOrbPress}
-        >
-          <OneOrb
-            state={stage === "off" ? "idle" : ORB_STATE[stage]}
-            levelRef={levelRef}
-            className="w-full"
-          />
-        </button>
-        <p className="one-voice-status" role="status" aria-live="polite">
-          {status}
-        </p>
-        <p
-          className="one-voice-caption"
-          data-kind={stage === "listening" ? "heard" : "reply"}
-          role="region"
-          aria-label={gt("Voice chat transcript")}
-          tabIndex={caption.length > 0 ? 0 : undefined}
-        >
-          {caption}
-        </p>
-      </div>
-      <div className="one-voice-stage-actions">
-        {micFailed ? (
-          <Button variant="outline" size="sm-pill" onClick={retry}>
-            {gt("Try the microphone again")}
-          </Button>
-        ) : null}
-        <Button
-          variant="glass"
-          size="sm-pill"
-          onClick={() => dispatchVoiceSession({ type: "stop" })}
-        >
-          <XIcon aria-hidden="true" />
-          {gt("End voice chat")}
-        </Button>
-      </div>
-    </div>
+    <VoiceStageView
+      look={look}
+      stage={stage}
+      status={status}
+      orbLabel={orbLabel}
+      orbDisabled={stage === "sending" || stage === "thinking"}
+      caption={caption}
+      captionKind={captionIsQuestion ? "heard" : "reply"}
+      muted={muted}
+      showRetry={micFailed}
+      orbAction={orbAction}
+      glowRef={glowRef}
+      stageRef={stageRef}
+      orbButtonRef={orbButtonRef}
+      orbWrapRef={orbWrapRef}
+      swellRef={swellRef}
+      haloRef={haloRef}
+      onOrb={onOrbPress}
+      onRetry={retry}
+      onToggleMute={toggleMute}
+      onEnd={() => dispatchVoiceSession({ type: "stop" })}
+    />
   );
 }

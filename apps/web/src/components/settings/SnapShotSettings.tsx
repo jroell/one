@@ -11,6 +11,7 @@ import {
 import { PlayIcon, ScanIcon } from "lucide-react";
 import { DESKTOP_DOWNLOAD_URL } from "../../branding";
 import { SettingsEmptyState } from "./SettingsEmptyState";
+import { SnapshotGhost } from "./SnapshotGhost";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useContext, useRef, useState } from "react";
@@ -373,8 +374,9 @@ export function SnapShotSettings() {
             icon={<ScanIcon />}
             title={gt("Snapshots need the desktop app")}
             description={gt(
-              "A snapshot captures a window on your computer and attaches it to a thread, such as the error dialog you want help with.",
+              "A web page cannot see other windows. The desktop app captures one, such as an error dialog, and attaches it to a thread.",
             )}
+            preview={<SnapshotGhost label={gt("Attached to the thread")} />}
             action={
               <Button
                 render={<a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noreferrer noopener" />}

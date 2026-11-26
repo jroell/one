@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent } from "react";
+import type { CSSProperties, FocusEvent, PointerEvent } from "react";
 
 export const PIERRE_TREE_UNSAFE_CSS = `
   :host {
@@ -29,18 +29,36 @@ export function pierreTreeStyle(colorScheme: "light" | "dark"): CSSProperties {
 }
 
 // Clipped labels are unreadable and the tree cannot scroll sideways, so a clipped row gets its full name as a native tooltip.
-export function titleClippedPierreTreeRow(event: PointerEvent<HTMLElement>) {
-  const row = event.nativeEvent
+/** The path a tree row stands for, without the invisible suffix that separates a file from a folder. */
+function pierreTreeRowPath(row: HTMLElement): string | null {
+  const path = row.getAttribute("data-item-path")?.replaceAll("\u200b", "");
+  return path ? path.replace(/\/$/, "") : null;
+}
+
+function pierreTreeRowOf(event: { nativeEvent: Event }): HTMLElement | undefined {
+  return event.nativeEvent
     .composedPath()
     .find(
       (node): node is HTMLElement =>
         node instanceof HTMLElement && node.matches("button[data-type='item']"),
     );
+}
+
+/** A clipped row shows its whole path in a tooltip, since the folder tells siblings apart. */
+export function titleClippedPierreTreeRow(event: PointerEvent<HTMLElement>) {
+  const row = pierreTreeRowOf(event);
   if (!row) return;
-  const label = row.getAttribute("aria-label");
   const clipped = Array.from(
     row.querySelectorAll<HTMLElement>("[data-truncate-content='visible']"),
   ).some((element) => element.scrollWidth > element.clientWidth);
-  if (label && clipped) row.title = label;
+  const path = pierreTreeRowPath(row);
+  if (path && clipped) row.title = path;
   else row.removeAttribute("title");
+}
+
+/** A focused row is named by its whole path, so a screen reader hears the folder as well. */
+export function namePierreTreeRowWithPath(event: FocusEvent<HTMLElement>) {
+  const row = pierreTreeRowOf(event);
+  const path = row ? pierreTreeRowPath(row) : null;
+  if (row && path && row.getAttribute("aria-label") !== path) row.setAttribute("aria-label", path);
 }

@@ -1,5 +1,7 @@
 import { useGT } from "gt-react";
 
+import { WorkingArc } from "~/one/WorkingArc";
+
 /**
  * The tab's headline sentence in the serif, built from the leading provider's real share. A day
  * count of 1 is the past 24 hours; anything else is "the last N days". While coverage is partial
@@ -38,7 +40,12 @@ export function UsageOverviewHeadline({
     <header className="usage-headline-block" data-loading={loading ? "" : undefined}>
       <h2 className="usage-headline">{sentence}</h2>
       <p role="status" className="usage-updating">
-        {loading ? gt("Updating…") : null}
+        {loading ? (
+          <>
+            <WorkingArc size={12} />
+            {gt("Updating…")}
+          </>
+        ) : null}
       </p>
     </header>
   );

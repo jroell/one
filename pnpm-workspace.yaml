@@ -118,6 +118,7 @@ overrides:
   "@ff-labs/fff-node": 0.11.0
   "@legendapp/list": 3.9.0
   "@pierre/diffs": 1.7.0-beta.4
+  "@pierre/trees": 1.0.0
   "@react-native-menu/menu": 2.0.0
   "@react-navigation/native-stack": 7.21.0
   dbus-next: 0.10.2
@@ -252,6 +253,10 @@ patchedDependencies:
   # editor carets when the code font changes, stops the find bar reclaiming focus from the file,
   # and keeps drag selections intact across virtualized scroll renders.
   "@pierre/diffs@1.7.0-beta.4": patches/@pierre__diffs@1.7.0-beta.4.patch
+  # Tree rows split a long name before its last separator, so the tail keeps "latest.svg" and
+  # "nightly.svg" apart; the library split at the extension, leaving "dmg-back… svg" for both.
+  # Only splitExtension in dist/components/OverflowText.js changes.
+  "@pierre/trees@1.0.0": patches/@pierre__trees@1.0.0.patch
   "@react-native-menu/menu@2.0.0": patches/@react-native-menu__menu@2.0.0.patch
   "@react-navigation/native-stack@7.21.0": patches/@react-navigation%2Fnative-stack@7.21.0.patch
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
@@ -334,6 +339,7 @@ minimumReleaseAgeExclude:
   - "@anthropic-ai/claude-agent-sdk@0.3.321"
   - "@pierre/diffs@1.7.0-beta.4"
   - "@pierre/highlights@0.5.0"
+  - "@pierre/trees@1.0.0"
   - "@cursor/sdk-darwin-arm64@1.5.0"
   - "@cursor/sdk-darwin-x64@1.5.0"
   - "@cursor/sdk-linux-arm64@1.5.0"

@@ -89,40 +89,56 @@ describe("environments map cards", () => {
     }
   });
 
-  it("states each machine's connection as a chip beside its name, with no dot on its icon", async () => {
+  it("states each machine's state as one of the shared chips beside its name, with no dot on its icon", async () => {
     const { screen, card } = await renderScene(1200);
     await using _screen = screen;
     const chip = (name: string) =>
-      card(name).querySelector<HTMLElement>("[data-fleet-connection]")!.textContent;
-    expect(chip("builder")).toBe("Connected");
-    expect(chip("old-box")).toBe("Client not supported");
-    expect(chip("sleeper")).toBe("Reconnecting…");
+      card(name).querySelector<HTMLElement>("[data-settings-status]")!.dataset.settingsStatus;
+    expect(chip("builder")).toBe("ready");
+    expect(chip("old-box")).toBe("attention");
+    expect(chip("sleeper")).toBe("connecting");
+    expect(card("old-box").querySelector("[data-fleet-state]")!.textContent).toBe(
+      "Client not supported",
+    );
     for (const name of ["builder", "old-box", "sleeper"]) {
       // The card's only round absolute marker used to be the status dot over the icon.
       expect(card(name).querySelector("span.rounded-full.absolute"), name).toBeNull();
     }
   });
 
+  it("never wraps a machine's name, and shows it whole at the regular width", async () => {
+    const regular = await renderScene(1200);
+    await using _regular = regular.screen;
+    const name = (scene: typeof regular, machine: string) =>
+      scene.card(machine).querySelector<HTMLElement>("[data-fleet-name]")!;
+    const mac = name(regular, "Jason's MacBook Pro");
+    expect(mac.getBoundingClientRect().height).toBeLessThanOrEqual(17);
+    expect(mac.scrollWidth).toBeLessThanOrEqual(mac.clientWidth);
+  });
+
   it.each([1200, 480])(
-    "shows every card's state text in full and inside the card at a %i px canvas",
+    "keeps every card's name and state on one line inside the card at a %i px canvas",
     async (canvasWidth) => {
       const { screen, card } = await renderScene(canvasWidth);
       await using _screen = screen;
-      for (const name of ["Jason's MacBook Pro", "builder", "nucbox", "old-box", "sleeper"]) {
-        const button = card(name);
-        const state = button.querySelector<HTMLElement>("[data-fleet-state]")!;
-        expect(state.textContent, name).not.toBe("");
-        expect(
-          state.scrollHeight,
-          `${name}: "${state.textContent}" is clipped`,
-        ).toBeLessThanOrEqual(state.clientHeight);
+      for (const machine of ["Jason's MacBook Pro", "builder", "nucbox", "old-box", "sleeper"]) {
+        const button = card(machine);
         const box = button.getBoundingClientRect();
-        const text = state.getBoundingClientRect();
-        expect(text.bottom, name).toBeLessThanOrEqual(box.bottom);
-        const top = button.querySelector<HTMLElement>(
-          "[data-fleet-this-device], span.line-clamp-2",
-        )!;
-        expect(top.getBoundingClientRect().top, name).toBeGreaterThanOrEqual(box.top);
+        for (const part of ["[data-fleet-name]", "[data-fleet-state]"]) {
+          const element = button.querySelector<HTMLElement>(part)!;
+          expect(element.getBoundingClientRect().height, `${machine} ${part}`).toBeLessThanOrEqual(
+            17,
+          );
+          expect(element.getBoundingClientRect().bottom, `${machine} ${part}`).toBeLessThanOrEqual(
+            box.bottom,
+          );
+        }
+        // The state line is read whole; only a name may end in an ellipsis.
+        const state = button.querySelector<HTMLElement>("[data-fleet-state]")!;
+        expect(
+          state.scrollWidth,
+          `${machine}: "${state.textContent}" is clipped`,
+        ).toBeLessThanOrEqual(state.clientWidth);
       }
     },
   );

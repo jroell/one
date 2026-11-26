@@ -5,7 +5,13 @@ import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
 import { describe, expect, it } from "vite-plus/test";
 
-import { ORB_GOLD, ORB_MARK_DENSITIES, ORB_MARK_SIZES, orbMarkUrl } from "./oneOrbRest";
+import {
+  ORB_GOLD,
+  ORB_MARK_DENSITIES,
+  ORB_MARK_MONO_URL,
+  ORB_MARK_SIZES,
+  orbMarkUrl,
+} from "./oneOrbRest";
 
 const web = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "../..");
 
@@ -60,11 +66,18 @@ describe("the static mark images in public/mark", () => {
       stale,
       "run `pnpm mark:render` in apps/web: these inputs changed since the pictures were drawn",
     ).toEqual([]);
-    const expected = combinations.map(([theme, size, density]) =>
-      orbMarkUrl(theme, size, density).slice(1),
-    );
+    const expected = [
+      ORB_MARK_MONO_URL.slice(1),
+      ...combinations.map(([theme, size, density]) => orbMarkUrl(theme, size, density).slice(1)),
+    ];
     expect(Object.keys(manifest.files).sort()).toEqual([...expected].sort());
     const changed = expected.filter((name) => sha256(`public/${name}`) !== manifest.files[name]);
     expect(changed, "run `pnpm mark:render` in apps/web without --only").toEqual([]);
+  });
+
+  it("has a one-color ring that is a single black shape, so a system can template it", () => {
+    const svg = NodeFS.readFileSync(NodePath.join(web, "public", ORB_MARK_MONO_URL), "utf8");
+    expect(svg.match(/<path/g)).toHaveLength(1);
+    expect(svg).not.toMatch(/fill="#|stroke|gradient/i);
   });
 });

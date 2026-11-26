@@ -55,6 +55,7 @@ import {
   visibleResourceTelemetryProcesses,
 } from "./ResourceTelemetryDiagnostics.logic";
 import { SettingsSection } from "./settingsLayout";
+import { type SettingsStatus, SettingsStatusChip } from "./settingsStatus";
 
 const HISTORY_WINDOWS = [
   { label: "5m", windowMs: 5 * 60_000, bucketMs: 15_000 },
@@ -109,10 +110,11 @@ function categoryLabel(
 }
 
 function categoryDotClass(category: ResourceTelemetryProcessCategory): string {
-  if (category === "resource-monitor") return "bg-warning";
-  if (category.startsWith("electron-")) return "bg-info";
-  if (category === "server") return "bg-violet-500";
-  return "bg-success";
+  // Four tints of one ink: a category is an identity, so it takes no status color.
+  if (category === "resource-monitor") return "bg-foreground/30";
+  if (category.startsWith("electron-")) return "bg-foreground/50";
+  if (category === "server") return "bg-foreground/80";
+  return "bg-foreground/65";
 }
 
 function ioSemanticsLabel(
@@ -141,47 +143,32 @@ function booleanStateLabel(
   return resolve(msg("Unknown"));
 }
 
-function sourceStatusTone(status: ResourceTelemetrySourceStatus): "default" | "warning" | "danger" {
-  if (status === "healthy") return "default";
-  if (status === "starting" || status === "degraded") return "warning";
-  return "danger";
-}
+const SOURCE_STATUS_CHIP = {
+  healthy: "ready",
+  starting: "connecting",
+  degraded: "attention",
+  unavailable: "failed",
+  stopped: "off",
+} as const satisfies Record<ResourceTelemetrySourceStatus, SettingsStatus>;
 
+/** A telemetry source's state as the shared chip, with a name before it when the row has none. */
 function SourceStatusBadge({
   label,
   status,
-  presentation,
+  desktopOnly = false,
 }: {
   label: string;
   status: ResourceTelemetrySourceStatus;
-  presentation?:
-    | {
-        readonly label: string;
-        readonly tone: "neutral";
-      }
-    | undefined;
+  desktopOnly?: boolean;
 }) {
-  const tone = presentation?.tone ?? sourceStatusTone(status);
+  const chip = (
+    <SettingsStatusChip status={desktopOnly ? "desktopOnly" : SOURCE_STATUS_CHIP[status]} />
+  );
+  if (label === "") return chip;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-        tone === "neutral" && "border-border/70 bg-muted/45 text-muted-foreground",
-        tone === "default" && "border-success/25 bg-success/10 text-success-foreground",
-        tone === "warning" && "border-warning/30 bg-warning/10 text-warning-foreground",
-        tone === "danger" && "border-destructive/30 bg-destructive/10 text-destructive",
-      )}
-    >
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          tone === "neutral" && "bg-muted-foreground/55",
-          tone === "default" && "bg-success",
-          tone === "warning" && "bg-warning",
-          tone === "danger" && "bg-destructive",
-        )}
-      />
-      {label} {presentation?.label ?? status}
+    <span className="inline-flex items-center gap-2 text-xs font-medium text-(--settings-description)">
+      {label}
+      {chip}
     </span>
   );
 }
@@ -233,7 +220,7 @@ function StatTile({
       <div className="truncate text-xs font-medium text-(--settings-description)">{label}</div>
       <div
         className={cn(
-          "mt-2.5 truncate text-2xl font-semibold tracking-tight tabular-nums text-foreground",
+          "mt-2.5 text-xl font-semibold tracking-tight tabular-nums text-foreground [overflow-wrap:anywhere] sm:text-2xl",
           tone === "warning" && "text-warning-foreground",
           tone === "danger" && "text-destructive",
         )}
@@ -241,38 +228,24 @@ function StatTile({
         {value}
       </div>
       {detail ? (
-        <div className="mt-1.5 truncate text-2xs text-(--settings-description)">{detail}</div>
+        <div className="mt-1.5 text-2xs text-(--settings-description) [overflow-wrap:anywhere]">
+          {detail}
+        </div>
       ) : null}
     </div>
   );
 }
 
-function memoryShare(group: ResourceTelemetryAggregate, all: ResourceTelemetryAggregate): number {
-  return all.currentRssBytes > 0 ? Math.min(1, group.currentRssBytes / all.currentRssBytes) : 0;
-}
-
 function AggregateCard({
   label,
-  accentClass,
   aggregate,
-  share,
 }: {
   label: string;
-  accentClass: string;
   aggregate: ResourceTelemetryAggregate;
-  /** This group's part of the memory all One processes hold, 0 to 1. */
-  share: number;
 }) {
   const gt = useGT();
   return (
     <div className="relative overflow-hidden border-t border-border/60 px-4 py-4 first:border-t-0 md:border-t-0 md:border-l md:first:border-l-0 sm:px-5">
-      {/* The bar is as long as the group's share of memory, so an idle group draws none. */}
-      <span
-        aria-hidden
-        data-aggregate-share={share}
-        className={cn("absolute top-0 left-5 h-0.5 rounded-full opacity-75", accentClass)}
-        style={{ width: `calc((100% - 2.5rem) * ${share})` }}
-      />
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-medium text-(--settings-description)">{label}</div>
         <div className="rounded-md bg-muted/55 px-1.5 py-0.5 text-2xs tabular-nums text-(--settings-description)">
@@ -316,18 +289,7 @@ function HealthSource({ label, health }: { label: string; health: ResourceTeleme
               })}
         </div>
       </div>
-      <SourceStatusBadge
-        label=""
-        status={health.status}
-        presentation={
-          expectedInBrowser
-            ? {
-                label: gt("Desktop only"),
-                tone: "neutral",
-              }
-            : undefined
-        }
-      />
+      <SourceStatusBadge label="" status={health.status} desktopOnly={expectedInBrowser} />
     </div>
   );
 }
@@ -399,10 +361,11 @@ function ResourceHistoryChart({
           <span className="h-1.5 w-3 rounded-full bg-foreground/70" /> <T>CPU average</T>
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-1.5 w-3 rounded-full bg-info/70" /> <T>I/O reads</T>
+          <span className="h-1.5 w-3 rounded-full bg-foreground/40" /> <T>I/O reads</T>
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-1.5 w-3 rounded-full bg-warning/80" /> <T>I/O writes</T>
+          <span className="h-1.5 w-3 rounded-full bg-foreground/15 ring-1 ring-foreground/45 ring-inset" />{" "}
+          <T>I/O writes</T>
         </span>
       </div>
       <div className="flex h-32 items-end gap-1 overflow-hidden rounded-lg border border-border/40 bg-muted/8 px-2 pt-3 pb-2">
@@ -432,11 +395,11 @@ function ResourceHistoryChart({
                       style={{ height: `${cpuHeight}%` }}
                     />
                     <span
-                      className="block rounded-t-sm bg-info/70"
+                      className="block rounded-t-sm bg-foreground/40"
                       style={{ height: `${readHeight}%` }}
                     />
                     <span
-                      className="block rounded-t-sm bg-warning/80"
+                      className="block rounded-t-sm bg-foreground/15 ring-1 ring-foreground/45 ring-inset"
                       style={{ height: `${writeHeight}%` }}
                     />
                   </div>
@@ -654,10 +617,10 @@ function ProcessTable({
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatBytes(process.residentBytes)}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-info-foreground">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatRate(process.ioReadBytesPerSecond)}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-warning-foreground">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatRate(process.ioWriteBytesPerSecond)}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
@@ -784,10 +747,10 @@ function HistoryProcessTable({
                 <td className="px-3 py-2 text-right tabular-nums">
                   {formatBytes(process.peakRssBytes)}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-info-foreground">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatBytes(process.ioReadBytes)}
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-warning-foreground">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatBytes(process.ioWriteBytes)}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
@@ -853,10 +816,10 @@ function AttributionTable({ entries }: { entries: ReadonlyArray<ResourceAttribut
                 {entry.component}
               </td>
               <td className="truncate px-3 py-2 text-muted-foreground">{entry.operation}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-info-foreground">
+              <td className="px-3 py-2 text-right tabular-nums">
                 {formatBytes(entry.logicalReadBytes)}
               </td>
-              <td className="px-3 py-2 text-right tabular-nums text-warning-foreground">
+              <td className="px-3 py-2 text-right tabular-nums">
                 {formatBytes(entry.logicalWriteBytes)}
               </td>
               <td className="px-3 py-2 text-right tabular-nums">{entry.count}</td>
@@ -1186,24 +1149,9 @@ function ResourceTelemetryDiagnosticsBody({
           ) : null}
           {snapshot ? (
             <div className="grid border-t border-border/60 bg-muted/10 md:grid-cols-3">
-              <AggregateCard
-                label={gt("Backend + agents")}
-                accentClass="bg-primary/60"
-                aggregate={snapshot.groups.backend}
-                share={memoryShare(snapshot.groups.backend, snapshot.groups.allT3)}
-              />
-              <AggregateCard
-                label={gt("Desktop")}
-                accentClass="bg-primary/60"
-                aggregate={snapshot.groups.electron}
-                share={memoryShare(snapshot.groups.electron, snapshot.groups.allT3)}
-              />
-              <AggregateCard
-                label={gt("Monitor overhead")}
-                accentClass="bg-primary/60"
-                aggregate={snapshot.groups.monitor}
-                share={memoryShare(snapshot.groups.monitor, snapshot.groups.allT3)}
-              />
+              <AggregateCard label={gt("Backend + agents")} aggregate={snapshot.groups.backend} />
+              <AggregateCard label={gt("Desktop")} aggregate={snapshot.groups.electron} />
+              <AggregateCard label={gt("Monitor overhead")} aggregate={snapshot.groups.monitor} />
             </div>
           ) : null}
         </div>

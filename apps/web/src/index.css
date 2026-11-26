@@ -8,6 +8,7 @@
 @import "./one/one-ui.css";
 @import "./one/one-settings.css";
 @import "./one/one-surfaces.css";
+@import "./one/one-voice.css";
 
 @custom-variant dark (&:is(.dark, .dark *));
 @custom-variant light (&:not(.dark, .dark *));

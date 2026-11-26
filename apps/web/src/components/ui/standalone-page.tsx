@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import { OneGlyph } from "../../one/OneGlyph";
-
 export function StandalonePage({ children }: { readonly children: ReactNode }) {
   return (
     // The page owns scrolling because root cannot scroll; safe centering keeps oversized cards top-aligned.
@@ -32,7 +30,6 @@ export function StandalonePageHeader({
         className="flex items-center justify-between gap-3 text-muted-foreground"
       >
         <span className="flex items-center gap-2" role="img" aria-label="One">
-          <OneGlyph size={20} />
           <span data-one-wordmark="" className="text-foreground">
             One
           </span>

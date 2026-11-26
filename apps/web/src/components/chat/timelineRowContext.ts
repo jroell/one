@@ -48,6 +48,10 @@ export interface TurnItemSource {
 
 export interface TimelineRowSharedState {
   pendingApprovals: ReadonlyMap<RuntimeRequestId, PendingApproval>;
+  /** Approvals just answered whose cards are still playing their exit, with the answer given. */
+  leavingApprovals?: ReadonlyMap<RuntimeRequestId, ProviderApprovalDecision | null>;
+  /** The card's exit has finished, so the timeline can drop it. */
+  onApprovalLeft?: (requestId: RuntimeRequestId) => void;
   respondingRequestIds: ReadonlyArray<RuntimeRequestId>;
   canOperateThread: boolean;
   onRespondToApproval:

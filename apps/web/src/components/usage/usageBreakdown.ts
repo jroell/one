@@ -36,15 +36,15 @@ export function costPerMillionTokens(model: ModelTotals): number | null {
     : (model.costUsd / pricedTokens) * 1_000_000;
 }
 
-const ink = (percent: number) =>
-  `color-mix(in oklab, var(--foreground) ${percent}%, var(--background))`;
+/** Bone at a strength, over the panel: the types differ by tone, and none is ever white. */
+const bone = (percent: number) => `color-mix(in oklab, var(--st-done) ${percent}%, var(--card))`;
 
 const TYPE_COLORS = {
-  input: ink(60),
-  cacheRead: ink(30),
-  cacheWrite: ink(72),
-  output: ink(100),
-  other: ink(44),
+  input: bone(74),
+  cacheRead: bone(40),
+  cacheWrite: bone(58),
+  output: bone(92),
+  other: bone(32),
 };
 
 export function costTypeSegments(cost: CategoryCost): readonly ShareSegment[] {
@@ -74,9 +74,9 @@ export function tokenTypeSegments(
 
 export function speedCostSegments(cost: SpeedCost): readonly ShareSegment[] {
   return [
-    { label: msg("Standard"), value: cost.standard, color: ink(34) },
-    { label: msg("Fast"), value: cost.fast, color: ink(66) },
-    { label: msg("Ultrafast"), value: cost.ultrafast, color: ink(100) },
+    { label: msg("Standard"), value: cost.standard, color: bone(38) },
+    { label: msg("Fast"), value: cost.fast, color: bone(62) },
+    { label: msg("Ultrafast"), value: cost.ultrafast, color: bone(92) },
   ];
 }
 

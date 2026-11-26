@@ -308,3 +308,44 @@ it("spells the snapshots section in one case in the rail", async () => {
   await using _screen = await renderNav();
   await expect.element(page.getByRole("button", { name: "Snapshots", exact: true })).toBeVisible();
 });
+
+it("changes the page from the rail inside a view transition typed settings-page, so the body cross-fades", async () => {
+  const start = vi.spyOn(document, "startViewTransition");
+  try {
+    await using screen = await render(
+      <SidebarProvider defaultOpen>
+        <SettingsSidebarNav pathname="/settings/general" />
+      </SidebarProvider>,
+      { router: "/settings/general" },
+    );
+    await userEvent.click(
+      page.getByRole("button", { name: SETTINGS_SECTION_LABELS["/settings/appearance"] }),
+    );
+    await vi.waitFor(() =>
+      expect(screen.router?.state.location.pathname).toBe("/settings/appearance"),
+    );
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start.mock.calls[0]![0]).toMatchObject({ types: ["settings-page"] });
+  } finally {
+    start.mockRestore();
+  }
+});
+
+it("scrolls the open section into view after the first paint, not while the sheet is mounting", async () => {
+  const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+  try {
+    await using screen = await render(
+      <SidebarProvider defaultOpen>
+        <SettingsSidebarNav pathname="/settings/maintenance" />
+      </SidebarProvider>,
+      { router: "/settings/maintenance" },
+    );
+    const scrolledHere = () =>
+      scroll.mock.contexts.some((element) => screen.container.contains(element as Node));
+    // Scrolling forces a layout; done in the mounting commit it would lengthen the sheet's opening.
+    expect(scrolledHere()).toBe(false);
+    await vi.waitFor(() => expect(scrolledHere()).toBe(true));
+  } finally {
+    scroll.mockRestore();
+  }
+});

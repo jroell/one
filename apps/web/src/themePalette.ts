@@ -442,10 +442,15 @@ export function getStandardThemeColors(appearance: ThemeAppearance): ThemeColors
   return (standardLightThemeColors ??= decodeThemeColors(T3_CODE_LIGHT_THEME_COLORS));
 }
 
-// index.css paints the light bubble a step darker than the shared palette mobile uses, and the dark
-// theme with the material ramp in one-ui.css (--m-base, --m-raised, --m-card), not the shared dark.
+// one-ui.css paints both themes with the material ramp (--m-base, --m-raised, --m-card) and a warm
+// light bubble, not the shared palette mobile uses.
 const STANDARD_WEB_PAINTED_COLORS: Record<ThemeAppearance, Partial<ThemeColors>> = {
-  light: { messageSurface: "#ebebed" },
+  light: {
+    canvas: "#faf7f1",
+    surface: "#fffaf0",
+    surfaceRaised: "#fffaf0",
+    messageSurface: "#f1ebe0",
+  },
   dark: {
     canvas: "#0a0908",
     surface: "#17130e",
@@ -724,18 +729,9 @@ export function readableThemeColorOn(color: string, surface: string, minContrast
   return themeRgbToHexColor(themeOklchToRgb(solved));
 }
 
-/** A chip kind's per-theme contrast-solved lightness with `color`'s hue and chroma. */
-export function contextChipAccentWithHueOf(
-  kind: ContextChipAccentKind,
-  color: string,
-): string | null {
-  const parsed = parseThemeColor(color);
-  if (!parsed) return null;
-  const { C, h } = parsed.color;
-  return `oklch(from var(${contextChipColorVariable(kind)}) l ${formatThemeColorNumber(C, 4)} ${formatThemeColorNumber(h, 2)})`;
-}
-
-const CONTEXT_CHIP_CONTRAST = 5;
+// 5:1 is the floor; the solve aims a little above it so the hex rounding of the ink cannot land
+// under it on a surface slightly darker than the ones it was solved on.
+const CONTEXT_CHIP_CONTRAST = 5.05;
 const CONTEXT_CHIP_MESSAGE_VARIABLE = "--context-chip-message";
 const CONTEXT_CHIP_INVALID_VARIABLE = "--context-chip-invalid";
 

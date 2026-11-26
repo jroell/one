@@ -12,12 +12,14 @@ import { chromium } from "playwright";
 import {
   ORB_GOLD,
   ORB_MARK_DENSITIES,
+  ORB_MARK_MONO_URL,
   ORB_MARK_SIZES,
   ORB_REST,
   ORB_SUPERSAMPLE,
   glowForSize,
   orbMarkUrl,
 } from "../src/one/oneOrbRest.ts";
+import { oneGlyphGeometry } from "../src/one/oneGlyphGeometry.ts";
 import { renderRestRing } from "../src/one/oneOrbRestRender.ts";
 import { ONE_ORB_FRAGMENT_SHADER, ONE_ORB_VERTEX_SHADER } from "../src/one/oneOrbShader.ts";
 
@@ -26,6 +28,7 @@ const MARK_INPUTS = [
   "src/one/oneOrbShader.ts",
   "src/one/oneOrbRest.ts",
   "src/one/oneOrbRestRender.ts",
+  "src/one/oneGlyphGeometry.ts",
   "scripts/render-mark.mjs",
 ];
 
@@ -91,6 +94,12 @@ for (const theme of ["dark", "light"]) {
     }
   }
 }
+// The one-colour ring: the glyph's silhouette at 24px, black so a system can template it.
+const mono = oneGlyphGeometry(24);
+await NodeFSP.writeFile(
+  NodePath.resolve(root, "public", ORB_MARK_MONO_URL.slice(1)),
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" transform="rotate(${mono.tilt} 12 12)" d="${mono.paths.band}"/></svg>\n`,
+);
 console.log(`wrote ${(total / 1024).toFixed(0)} KB to public/mark`);
 
 const sha256 = async (file) =>
@@ -100,7 +109,9 @@ const sha256 = async (file) =>
 if (only === null) {
   const inputs = {};
   for (const file of MARK_INPUTS) inputs[file] = await sha256(file);
-  const files = {};
+  const files = {
+    [ORB_MARK_MONO_URL.slice(1)]: await sha256(NodePath.join("public", ORB_MARK_MONO_URL.slice(1))),
+  };
   for (const theme of ["dark", "light"]) {
     for (const size of ORB_MARK_SIZES) {
       for (const density of ORB_MARK_DENSITIES) {

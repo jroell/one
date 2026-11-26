@@ -162,8 +162,13 @@ html[data-one-mode="chat"]
 
   & :not(pre) > code {
     border-color: transparent;
-    background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
-    font-size: 0.85em;
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+    font-size: 0.86em;
+  }
+
+  /* A paragraph that is bold from end to end is a statement, not a shout. */
+  & p[data-one-statement] > strong {
+    font-weight: 500;
   }
 }
 
@@ -192,12 +197,12 @@ html[data-one-mode="chat"]
     padding: 1rem 0.25rem;
   }
 
-  /* The caption sits under the figure: what it is on the left, what to do with it on the right. */
+  /* A slim row above the figure: the language on the left, what to do with it on the right. */
   & .chat-markdown-codeblock-header,
   & [data-one-table-header] {
-    order: 2;
-    min-height: 2rem;
-    padding: 0.25rem 0 0.375rem;
+    order: -1;
+    min-height: 1.75rem;
+    padding: 0.375rem 0 0;
     border: 0;
     background: transparent;
     color: var(--one-text-quiet, var(--muted-foreground));
@@ -210,11 +215,11 @@ html[data-one-mode="chat"]
     display: none;
   }
 
-  & [data-one-code-lang],
-  & [data-one-table-caption] {
+  & [data-one-code-lang] {
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    letter-spacing: 0;
+    font-size: 0.75rem;
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.06em;
     color: var(--muted-foreground);
   }
 
@@ -247,19 +252,17 @@ html[data-one-mode="chat"]
     display: none;
   }
 
-  & [data-one-table-caption] {
-    display: inline;
-  }
-
+  /* A table has no caption of its own: its row of actions sits at the end. */
   & [data-one-table-header] {
-    justify-content: space-between;
+    justify-content: flex-end;
   }
 
-  /* Plain rows: sans, tabular figures, sentence-case headers, one hairline between rows. */
+  /* Plain rows in the answer's own voice, with lining figures that line up. Only the column
+     heads are furniture: the one sans, small and quiet. */
   & table {
-    font-family: var(--font-sans);
-    font-size: 0.9375rem;
-    font-variant-numeric: tabular-nums;
+    font-family: var(--one-chat-face);
+    font-size: 1rem;
+    font-variant-numeric: lining-nums tabular-nums;
     line-height: 1.5;
   }
 
@@ -275,6 +278,7 @@ html[data-one-mode="chat"]
     border-bottom: 1px solid var(--one-hairline);
     background: transparent;
     color: var(--muted-foreground);
+    font-family: var(--font-sans);
     font-size: 0.8125rem;
     font-weight: 500;
     letter-spacing: 0;
@@ -336,6 +340,11 @@ html[data-one-mode="chat"] [data-one-work-details] .chat-markdown {
 
 /* Only Chat mode shows the caption that names a table's shape or an image's alt text. */
 :is([data-one-table-caption], [data-one-figure-caption]) {
+  display: none;
+}
+
+/* Chat mode names no table shape: "3 rows, 3 columns" is a footnote nobody reads. */
+html[data-one-mode="chat"] [data-one-table-caption] {
   display: none;
 }
 
@@ -622,7 +631,8 @@ html[data-one-mode="chat"]
 .one-chat-outline {
   display: flex;
   position: absolute;
-  inset-block: 5.25rem 11rem;
+  /* The title sits level with the first question's bubble, 24px under the header. */
+  inset-block: 1.5rem 11rem;
   inset-inline-end: 0.75rem;
   flex-direction: column;
   width: clamp(12rem, calc((100cqw - var(--chat-content-max-width, 43rem)) / 2 - 2.75rem), 15rem);
@@ -700,7 +710,7 @@ html[data-one-mode="chat"]
 }
 
 .one-chat-outline-item {
-  height: var(--one-chat-outline-row);
+  min-height: var(--one-chat-outline-row);
   transition: opacity 320ms var(--one-ease-out) 240ms;
 
   /* A turn's entry eases in a beat after the outline itself, so it follows the answer. */
@@ -713,7 +723,7 @@ html[data-one-mode="chat"]
   display: flex;
   align-items: center;
   width: 100%;
-  height: 100%;
+  height: var(--one-chat-outline-row);
   margin: 0;
   border: 0;
   border-radius: 0.375rem;
@@ -745,6 +755,78 @@ html[data-one-mode="chat"]
   white-space: nowrap;
 }
 
+/* The headings of the answer being read list under its turn as they stream in. Each shows a
+   gold tick once its text is finished and a small breathing dot while it is still arriving. */
+.one-chat-outline-sections {
+  margin: 0 0 0.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.one-chat-outline-section-item {
+  transition:
+    opacity var(--mo-quick, 180ms) var(--ease-enter, ease-out),
+    translate var(--mo-quick, 180ms) var(--ease-enter, ease-out);
+
+  @starting-style {
+    opacity: 0;
+    translate: 0 -3px;
+  }
+}
+
+.one-chat-outline-section {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  min-height: 1.625rem;
+  margin: 0;
+  border: 0;
+  border-radius: 0.375rem;
+  background: none;
+  padding: 0 0.25rem 0 1.625rem;
+  color: color-mix(in srgb, var(--muted-foreground) 85%, transparent);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: start;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color var(--mo-hover, 140ms) var(--ease-hover, ease-out);
+}
+
+.one-chat-outline-section:hover {
+  color: var(--foreground);
+}
+
+.one-chat-outline-section:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--one-brand) 70%, transparent);
+  outline-offset: -2px;
+}
+
+.one-chat-outline-tick {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline-start: auto;
+  color: var(--gold-400, var(--one-brand));
+}
+
+.one-chat-outline-section:not([data-complete]) .one-chat-outline-tick::after {
+  content: "";
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  background: var(--gold-400, var(--one-brand));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-chat-outline-section:not([data-complete]) .one-chat-outline-tick::after {
+    animation: one-chat-status-breathe 1400ms ease-in-out infinite;
+  }
+}
+
 @keyframes one-chat-outline-in {
   from {
     opacity: 0;
@@ -772,14 +854,26 @@ html[data-one-mode="chat"]
   }
 }
 
+/* After the stage, the answer waits for the picture to be gone: the arc and lines (126ms), then
+   the question (60ms later, 126ms), so nothing overlaps. */
+[data-chat-handoff] {
+  --one-reveal-base: 200ms;
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  /* The quiet working line that follows the stage fades in after the picture has gone too. */
+  html[data-one-mode="chat"] [data-chat-handoff][data-timeline-row-kind="working"] {
+    animation: one-chat-stage-in var(--mo-quick, 180ms) var(--ease-enter, ease-out)
+      var(--one-reveal-base) both;
+  }
+
   html[data-one-mode="chat"] [data-chat-arrival] {
     animation: one-chat-arrive 1600ms linear both;
   }
 
   html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown:not([data-streaming]) > * {
     animation: one-chat-reveal 480ms var(--one-ease-out) both;
-    animation-delay: calc(var(--one-reveal-index, 0) * 80ms);
+    animation-delay: calc(var(--one-reveal-base, 100ms) + var(--one-reveal-index, 0) * 80ms);
   }
 
   html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(2) {
@@ -813,8 +907,8 @@ html[data-one-mode="chat"]
   /* While an answer streams, a new block fades in and rises as it is added (one shot). */
   html[data-one-mode="chat"] .chat-markdown[data-streaming] > * {
     transition:
-      opacity 520ms var(--one-ease-out),
-      transform 520ms var(--one-ease-out);
+      opacity 520ms var(--one-ease-out) var(--one-reveal-base, 0ms),
+      transform 520ms var(--one-ease-out) var(--one-reveal-base, 0ms);
 
     @starting-style {
       opacity: 0;
@@ -866,6 +960,18 @@ html[data-one-mode="chat"]
   opacity: 1;
 }
 
+/* On a phone the composer sits right under the text, so a short scrim always eases the text out
+   before it meets the composer's edge. The taller fade and pill band above take over when the
+   view is away from the end. */
+@media (max-width: 40rem) {
+  html[data-one-mode="chat"]
+    [data-chat-composer-overlay][data-composer-dock]:not([data-scroll-to-end-shown])::after {
+    height: 2rem;
+    background: linear-gradient(to bottom, transparent, var(--background));
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock]::after {
     transition: none;
@@ -876,6 +982,193 @@ html[data-one-mode="chat"]
    rounder corner. */
 html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   border-radius: 1.625rem;
+}
+
+/* ------------------------------------------------------------ waiting stage */
+
+/* The first seconds of a turn. The question is restated large and quiet, the gold arc turns, and
+   three lines hold the place of the answer. The stage takes the room the answer will take. When
+   the answer starts, the stage takes no room and fades out where it stood, so the answer rises
+   into the same spot with nothing jumping and nothing shown twice. */
+.one-chat-stage {
+  position: relative;
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 0.25rem 0.25rem 0;
+  animation: one-chat-stage-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) both;
+}
+
+.one-chat-stage-question {
+  display: -webkit-box;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  font-family: var(--one-serif);
+  font-size: 1.75rem;
+  line-height: 1.25;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.one-chat-stage-live {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  color: var(--st-working, var(--one-brand));
+}
+
+.one-chat-stage-caption {
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+}
+
+.one-chat-stage-lines {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.one-chat-stage-lines > span {
+  position: relative;
+  display: block;
+  height: 0.875rem;
+  overflow: hidden;
+  border-radius: 0.4375rem;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.one-chat-stage-lines > span:nth-child(1) {
+  width: 100%;
+}
+
+.one-chat-stage-lines > span:nth-child(2) {
+  width: 93%;
+}
+
+.one-chat-stage-lines > span:nth-child(3) {
+  width: 58%;
+}
+
+/* A slow light crosses each line by transform, a beat apart, so nothing repaints. */
+.one-chat-stage-lines > span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--foreground) 9%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-chat-stage-lines > span::after {
+    animation: one-chat-stage-sweep 1800ms var(--ease-hover, ease-in-out) infinite;
+  }
+
+  .one-chat-stage-lines > span:nth-child(2)::after {
+    animation-delay: 160ms;
+  }
+
+  .one-chat-stage-lines > span:nth-child(3)::after {
+    animation-delay: 320ms;
+  }
+}
+
+@keyframes one-chat-stage-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes one-chat-stage-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes one-chat-stage-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Leaving: the stub keeps no room, so the answer is already where it will rest. The picture
+   fades on a layer over the timeline (a row clips what leaves its box), drawn where it stood. */
+.one-chat-stage[data-leaving] {
+  height: 0;
+  margin-block: 0;
+  animation: none;
+  pointer-events: none;
+}
+
+.one-chat-stage-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.one-chat-stage-ghost {
+  position: absolute;
+  /* The stub has no margin, so the picture takes the one the stage had. */
+  margin: 0.25rem 0 0;
+  visibility: hidden;
+  animation: none;
+}
+
+/* The picture leaves in two beats, and no text is ever on screen over other text: the arc, the
+   timer and the lines fade first, then the restated question (the bridge) fades, and only then
+   does the answer begin (--one-reveal-base under [data-chat-handoff]). */
+.one-chat-stage-ghost :is(.one-chat-stage-live, .one-chat-stage-lines) {
+  animation: one-chat-stage-out calc(var(--mo-quick, 180ms) * var(--mo-exit, 0.7))
+    var(--ease-exit, ease-in) both;
+}
+
+.one-chat-stage-ghost .one-chat-stage-question {
+  animation: one-chat-stage-out calc(var(--mo-quick, 180ms) * var(--mo-exit, 0.7))
+    var(--ease-exit, ease-in) calc(var(--mo-content-delay, 60ms)) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Without motion the picture is simply replaced, so nothing overlaps. */
+  .one-chat-stage-ghost {
+    display: none;
+  }
+}
+
+.one-chat-stage-ghost .one-chat-stage-lines > span::after {
+  animation-play-state: paused;
+}
+
+@media (max-width: 40rem) {
+  .one-chat-stage-question {
+    font-size: 1.375rem;
+  }
+}
+
+/* The light that travels the composer's rim while a turn works is the one thing that moves on
+   the page's edge in Chat mode, so it reads in the dark: a 2px edge and a comet at about 40%
+   that brightens to its head. It still turns on the compositor and repaints nothing. */
+html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflection {
+  padding: 2px;
+}
+
+html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflection::before {
+  background: conic-gradient(
+    transparent 0deg,
+    transparent 230deg,
+    color-mix(in oklch, var(--one-brand) 22%, transparent) 285deg,
+    color-mix(in oklch, var(--one-brand) 40%, transparent) 325deg,
+    color-mix(in oklch, var(--one-ring-hi) 75%, transparent) 352deg,
+    transparent 360deg
+  );
 }
 
 /* ------------------------------------------------------- reading position */
@@ -914,9 +1207,10 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
 
 /* Under the last answer: three ways to carry it on, set as prompts. Each is a short title over
    one line saying what it does, under its own hairline. The columns wrap to one on a phone. The
-   block keeps its height before it shows, so the answer never moves when the turn ends. Once the
-   turn ends they ease in, a beat apart (a transition, so a remount of a finished answer shows
-   them at rest). */
+   block takes no room while the answer streams: a reserved 220px on a phone left a blank band
+   under the text the whole time it was being written. Once the turn ends the block opens below
+   the answer, the list stops following the end for a moment so the text stays put, and its rows
+   ease in a beat apart (a transition, so a remount of a finished answer shows them at rest). */
 .one-chat-followups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
@@ -925,6 +1219,13 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   min-height: 4.75rem;
   margin: 0.5rem 0.25rem 0;
   visibility: hidden;
+}
+
+.one-chat-followups:not([data-ready]) {
+  height: 0;
+  min-height: 0;
+  margin-block-start: 0;
+  overflow: hidden;
 }
 
 .one-chat-followups[data-ready] {
@@ -948,19 +1249,27 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   text-align: start;
   cursor: pointer;
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(8px);
   transition:
-    opacity 320ms var(--one-ease-out),
-    transform 320ms var(--one-ease-out),
+    opacity var(--mo-surface, 240ms) var(--ease-enter, ease-out),
+    transform var(--mo-surface, 240ms) var(--ease-enter, ease-out),
     background-color 140ms var(--one-ease-out);
 }
 
+/* They arrive after the answer's own content delay, a beat apart, and take their place beneath
+   the answer: nothing above them moves. */
 .one-chat-followups[data-ready] .one-chat-followup {
   opacity: 1;
   transform: none;
   transition-delay:
-    calc(120ms + var(--one-followup-index, 0) * 80ms),
-    calc(120ms + var(--one-followup-index, 0) * 80ms), 0s;
+    calc(var(--mo-content-delay, 60ms) + var(--one-followup-index, 0) * 80ms),
+    calc(var(--mo-content-delay, 60ms) + var(--one-followup-index, 0) * 80ms), 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-chat-followup {
+    transition: none;
+  }
 }
 
 .one-chat-followup:nth-child(2) {
@@ -1010,4 +1319,504 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   .one-chat-outline-item {
     transition: none;
   }
+}
+
+/* ------------------------------------------------------------- status dot */
+
+/* The header's one place for what is quiet: a gold dot while the workspace is prepared, a gray
+   one for a note. The tap target is 44px on touch. */
+.one-chat-status {
+  display: inline-flex;
+  margin-inline-end: 0.125rem;
+}
+
+.one-chat-status-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--foreground) 38%, transparent);
+}
+
+.one-chat-status[data-working] .one-chat-status-dot {
+  background: var(--st-working, var(--one-brand));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-chat-status[data-working] .one-chat-status-dot {
+    animation: one-chat-status-breathe 1800ms ease-in-out infinite;
+  }
+}
+
+@keyframes one-chat-status-breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.one-chat-status-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  list-style: none;
+}
+
+.one-chat-status-title {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.one-chat-status-detail {
+  margin: 0.125rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ----------------------------------------------------------- failed picture */
+
+/* A picture that would not load keeps the page's shape: a 16:9 frame, the alt text under it in
+   the serif, and a way to try again. */
+.one-chat-image-failure {
+  display: block;
+  max-width: min(100%, 36rem);
+  margin-block: 0.25rem;
+}
+
+.one-chat-image-failure-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--m-radius-floating, 12px);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  padding: 1rem;
+  text-align: center;
+}
+
+.one-chat-image-failure-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: color-mix(in srgb, var(--foreground) 38%, transparent);
+}
+
+.one-chat-image-failure-text {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+}
+
+/* The failure draws its own caption; the figure's would say the same thing twice. */
+html[data-one-mode="chat"]
+  :is([data-message-role="assistant"], [data-timeline-row-kind="sent-message"])
+  .chat-markdown
+  > p[data-one-figure]:has(.one-chat-image-failure)
+  [data-one-figure-caption] {
+  display: none;
+}
+
+.one-chat-image-failure-caption {
+  display: block;
+  margin-top: 0.625rem;
+  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  font-family: var(--one-serif);
+  font-size: 0.9375rem;
+  font-style: italic;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------------ diagrams */
+
+/* Diagrams in one house style: gold 1.5px strokes, a dark node fill, serif labels no smaller
+   than 14px, and the full measure to draw in. A diagram never shrinks its labels below 14px: a
+   wider one scrolls. Its nodes appear, then each edge is drawn on, 80ms after the one before. */
+html[data-one-mode="chat"] .chat-markdown-mermaid {
+  /* A deeper gold on the light page, so a 1.5px line keeps 3:1 against it. */
+  --chat-diagram-stroke: light-dark(#86661a, var(--gold-400, #ddb55a));
+  --chat-diagram-fill: color-mix(in oklch, var(--background) 90%, var(--gold-400, #ddb55a) 10%);
+
+  & .pele {
+    --pele-font: var(--one-serif);
+    --pele-radius: 10px;
+    --pele-fg: var(--foreground);
+    --pele-muted: var(--muted-foreground);
+    --pele-line: var(--chat-diagram-stroke);
+    --pele-border: var(--chat-diagram-stroke);
+    --pele-accent: var(--chat-diagram-stroke);
+    --pele-surface: var(--chat-diagram-fill);
+    --pele-surface-alt: var(--chat-diagram-fill);
+    /* The column's full width when the diagram has the room, centred, never more than a fifth
+       over its own size, and never scrolling sideways. */
+    width: 100%;
+    max-width: calc(var(--pele-w, 480) * 1.2px);
+    margin-inline: auto;
+  }
+
+  & .pele-edge > path:not(.pele-marker),
+  & .pele-node :is(rect, polygon, ellipse, circle, path):not(.pele-marker) {
+    stroke-width: 1.5;
+  }
+
+  & .pele-edge-label rect {
+    fill: var(--background);
+  }
+}
+
+.one-chat-diagram-open {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-one-mode="chat"] .chat-markdown-mermaid[data-draw] {
+    & .pele-node {
+      animation: one-chat-diagram-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) both;
+    }
+
+    & .pele-edge > path:not(.pele-marker) {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: one-chat-edge-draw 500ms var(--ease-enter, ease-out) both;
+      animation-delay: calc(var(--mo-surface, 240ms) + var(--edge-i, 0) * 80ms);
+    }
+
+    & .pele-marker,
+    & .pele-edge-label {
+      animation: one-chat-diagram-in var(--mo-quick, 180ms) var(--ease-enter, ease-out) both;
+      animation-delay: calc(var(--mo-surface, 240ms) + 380ms + var(--edge-i, 0) * 80ms);
+    }
+  }
+}
+
+@keyframes one-chat-edge-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes one-chat-diagram-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------- approval */
+
+/* A request is a sentence that names what is asked, with Approve and Decline right under it at
+   the column's left edge. What would change waits behind one quiet link. The card is the one Code
+   mode shows, with its title, body, badge and chrome folded away; opened, it is the whole card. */
+.one-chat-approval {
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 0.5rem 0.25rem;
+}
+
+.one-chat-approval-sentence {
+  margin: 0 0 0.625rem;
+  font-family: var(--one-chat-face);
+  font-size: var(--one-chat-size);
+  line-height: var(--one-chat-leading);
+  overflow-wrap: anywhere;
+}
+
+.one-chat-approval-code {
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  padding: 0.05em 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+.one-chat-approval:not([data-open]) :is([data-approval-header], [data-approval-body]) {
+  display: none;
+}
+
+.one-chat-approval:not([data-open]) [data-approval-status] [data-slot="badge"] {
+  display: none;
+}
+
+/* Shut, the card is just its two buttons: no slab, no rule, nothing at the far right. */
+.one-chat-approval:not([data-open]) [data-approval-card][role="group"] {
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.one-chat-approval:not([data-open]) [data-approval-card]::before,
+.one-chat-approval:not([data-open]) [data-approval-card]::after {
+  display: none;
+}
+
+.one-chat-approval:not([data-open]) [data-approval-footer] {
+  justify-content: flex-start;
+  border-top: 0;
+  padding: 0;
+}
+
+.one-chat-approval:not([data-open]) [data-approval-status]:empty {
+  display: none;
+}
+
+.one-chat-approval:not([data-open]) [data-approval-actions] {
+  margin-inline-start: 0;
+  justify-content: flex-start;
+}
+
+.one-chat-approval-toggle {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+/* A resolved request leaves with the card's own motion: the sentence and the link settle away on
+   the same clock as the card, so nothing is cut. */
+@media (prefers-reduced-motion: no-preference) {
+  .one-chat-approval[data-leaving] {
+    --one-leave: calc(var(--mo-surface) * var(--mo-exit));
+    display: grid;
+    grid-template-rows: 1fr;
+    overflow: hidden;
+    animation: one-approval-settle calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit)
+      calc(var(--mo-press) + var(--one-leave) * 0.6) both;
+  }
+
+  .one-chat-approval[data-leaving] > .one-chat-approval-inner {
+    min-height: 0;
+  }
+}
+
+.one-chat-approval[data-leaving] :is(.one-chat-approval-sentence, .one-chat-approval-toggle) {
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------- quiz */
+
+/* A quiz in the reading column: one question to a card, the options as quiet rows, a gold tick on
+   the right one, and the explanation turning down from the top edge. */
+.one-chat-quiz {
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 2rem 0.25rem;
+  border-radius: var(--m-radius-raised, 16px);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  padding: 1.5rem 1.5rem 1.375rem;
+}
+
+.one-chat-quiz-card {
+  animation: one-chat-stage-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) both;
+}
+
+.one-chat-quiz-progress {
+  margin: 0 0 0.5rem;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.one-chat-quiz-question {
+  margin: 0 0 1.125rem;
+  font-family: var(--one-serif);
+  font-size: 1.375rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.one-chat-quiz-options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.one-chat-quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 2.75rem;
+  margin: 0;
+  border: 0;
+  border-radius: var(--m-radius-floating, 12px);
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  padding: 0.625rem 0.875rem;
+  color: var(--foreground);
+  font: inherit;
+  font-family: var(--one-serif);
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color var(--mo-hover, 140ms) var(--ease-hover, ease-out),
+    box-shadow var(--mo-quick, 180ms) var(--ease-enter, ease-out),
+    opacity var(--mo-quick, 180ms) var(--ease-enter, ease-out);
+}
+
+.one-chat-quiz-option[data-state="open"]:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.one-chat-quiz-option:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--one-brand) 75%, transparent);
+  outline-offset: 2px;
+}
+
+.one-chat-quiz-option[aria-disabled="true"] {
+  cursor: default;
+}
+
+.one-chat-quiz-option:is([data-state="dim"], [data-state="wrong"]) {
+  opacity: 0.45;
+}
+
+/* A wrong pick is marked by its cross as well as by dimming, so colour is never the only cue. */
+.one-chat-quiz-option[data-state="wrong"] {
+  opacity: 0.7;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+.one-chat-quiz-option[data-state="correct"] {
+  background: color-mix(in srgb, var(--gold-400, var(--one-brand)) 9%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--gold-400, var(--one-brand));
+}
+
+.one-chat-quiz-key {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+}
+
+.one-chat-quiz-option-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.one-chat-quiz-cross {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-inline-start: auto;
+  color: var(--muted-foreground);
+}
+
+.one-chat-quiz-tick {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-inline-start: auto;
+  color: var(--gold-400, var(--one-brand));
+}
+
+/* The explanation turns down from its top edge: transform and opacity only. */
+.one-chat-quiz-explain {
+  margin-top: 1rem;
+  transform-origin: top center;
+  animation: one-chat-quiz-flip var(--mo-sheet, 320ms) var(--ease-enter, ease-out) both;
+
+  & > p {
+    margin: 0 0 0.875rem;
+    color: color-mix(in srgb, var(--foreground) 78%, transparent);
+    font-family: var(--one-serif);
+    font-size: 1.0625rem;
+    line-height: 1.55;
+  }
+}
+
+@keyframes one-chat-quiz-flip {
+  from {
+    opacity: 0;
+    transform: perspective(700px) rotateX(-70deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-chat-quiz-explain {
+    animation: one-chat-stage-in var(--mo-quick, 180ms) linear both;
+  }
+}
+
+.one-chat-quiz-done {
+  display: flex;
+  align-items: center;
+  gap: 1.125rem;
+}
+
+.one-chat-quiz-ring-track,
+.one-chat-quiz-ring {
+  fill: none;
+  stroke-width: 2;
+}
+
+.one-chat-quiz-ring-track {
+  stroke: var(--one-hairline);
+}
+
+.one-chat-quiz-ring {
+  stroke: var(--gold-400, var(--one-brand));
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 32px 32px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-chat-quiz-ring {
+    animation: one-chat-quiz-draw 700ms var(--ease-enter, ease-out) both;
+  }
+}
+
+@keyframes one-chat-quiz-draw {
+  from {
+    stroke-dashoffset: var(--ring-len, 0);
+  }
+}
+
+.one-chat-quiz-score {
+  margin: 0;
+  font-family: var(--one-serif);
+  font-size: 1.75rem;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+}
+
+.one-chat-quiz-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.one-chat-quiz-pending {
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 1.5rem 0.25rem;
+}
+
+.one-chat-quiz-note {
+  margin: 1rem 0.25rem;
+  color: var(--muted-foreground);
+  font-family: var(--one-serif);
+  font-style: italic;
+}
+
+/* The state where the person must act is the one with the attention colour. */
+.one-chat-waiting-dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline: 0.25rem;
+  border-radius: 50%;
+  background: var(--st-attention);
 }

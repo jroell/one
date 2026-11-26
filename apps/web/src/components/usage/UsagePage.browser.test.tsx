@@ -1,6 +1,6 @@
 import type { UsageBucket, UsageProviderKind } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -8,7 +8,7 @@ import { render } from "../../../test/render";
 import type { EnvironmentUsageStatus } from "../../state/usage";
 import { UsagePage } from "./UsagePage";
 import { saveUsagePagePreferences } from "./usagePagePreferences";
-import { bucket, status, summary } from "./usageFixtures";
+import { bucket, freshProviderCounts, status, summary } from "./usageFixtures";
 
 const view = vi.hoisted(() => ({
   environments: [] as unknown[],
@@ -61,7 +61,183 @@ describe("UsagePage reopening", () => {
     await expect.element(page.getByText("Updating…")).not.toBeInTheDocument();
   });
 
+  it("keeps the view switch in the header and puts the filters and period in one row under the headline", async () => {
+    view.partial = false;
+    view.environments = [status("desk", { summary: summary("desk", [["codex", 40]]) })];
+    const { innerWidth, innerHeight } = window;
+    await page.viewport(1280, 800);
+    await using screen = await open(30);
+    await expect.element(page.getByRole("group", { name: "Usage period" })).toBeVisible();
+    const header = document.querySelector("header")!;
+    expect(header.querySelector('[aria-label="Usage metric"]')).not.toBeNull();
+    expect(header.querySelector('[aria-label="Usage period"]')).toBeNull();
+    expect(header.querySelector(".usage-chips")).toBeNull();
+
+    const controls = document.querySelector<HTMLElement>(".usage-controls")!;
+    expect(document.querySelector(".usage-headline-block")?.nextElementSibling).toBe(controls);
+    expect(controls.querySelector('[aria-label="Usage period"]')).not.toBeNull();
+    expect(controls.querySelectorAll(".usage-chip")).toHaveLength(2);
+
+    // Limits have no period, and the filters stay where they were.
+    await page.getByRole("button", { name: "Limits", exact: true }).first().click();
+    await vi.waitFor(() => {
+      const limitsControls = document.querySelector<HTMLElement>(".usage-controls");
+      expect(limitsControls?.querySelectorAll(".usage-chip")).toHaveLength(2);
+      expect(limitsControls?.querySelector('[aria-label="Usage period"]')).toBeNull();
+    });
+    await screen.rerender(<UsagePage />);
+    await page.viewport(innerWidth, innerHeight);
+  });
+
+  it("fits the filters and the period on one row at 390px without cutting a label", async () => {
+    view.partial = false;
+    view.environments = [status("desk", { summary: summary("desk", [["codex", 40]]) })];
+    const { innerWidth, innerHeight } = window;
+    await page.viewport(390, 844);
+    try {
+      await using _screen = await open(30);
+      await expect.element(page.getByRole("combobox", { name: "Usage period" })).toBeVisible();
+      const controls = document.querySelector<HTMLElement>(".usage-controls")!;
+      const items = [
+        ...controls.querySelectorAll<HTMLElement>(
+          '.usage-chip, .usage-period-select [data-slot="select-trigger"]',
+        ),
+      ];
+      expect(items).toHaveLength(3);
+      const centres = items.map((item) => {
+        const box = item.getBoundingClientRect();
+        return box.top + box.height / 2;
+      });
+      expect(Math.max(...centres) - Math.min(...centres)).toBeLessThanOrEqual(1);
+      for (const item of items) {
+        // The elements that carry text; an icon's box is not a label.
+        const parts = [item, ...item.querySelectorAll("*")].filter(
+          (part): part is HTMLElement =>
+            part instanceof HTMLElement &&
+            [...part.childNodes].some((node) => node.nodeType === 3 && node.textContent?.trim()),
+        );
+        for (const part of parts) {
+          expect(part.scrollWidth, `${item.textContent} is cut`).toBeLessThanOrEqual(
+            part.clientWidth + 1,
+          );
+        }
+      }
+      expect(controls.scrollWidth).toBeLessThanOrEqual(controls.clientWidth);
+    } finally {
+      await page.viewport(innerWidth, innerHeight);
+    }
+  });
+
+  it("lights a provider's series on a tap or on keyboard focus, clears it on a second tap or Escape, and says so", async () => {
+    view.partial = false;
+    view.environments = [
+      status("desk", {
+        summary: summary("desk", [
+          ["codex", 40],
+          ["claude", 60],
+        ]),
+      }),
+    ];
+    const { innerWidth, innerHeight } = window;
+    await page.viewport(1280, 800);
+    try {
+      await using _screen = await open(30);
+      const rows = await vi.waitFor(() => {
+        const found = [...document.querySelectorAll<HTMLElement>(".usage-provider")];
+        expect(found).toHaveLength(2);
+        return found;
+      });
+      // The other rows set back with the other series; the chart's own dimming is tested on it.
+      const dimmed = () => document.querySelectorAll(".usage-provider[data-dim]").length;
+      const status = () => document.querySelector('[role="status"].sr-only')?.textContent ?? "";
+      expect(dimmed()).toBe(0);
+
+      // A tap keeps it, a second tap on the same row lets go.
+      rows[0]!.click();
+      await vi.waitFor(() => expect(dimmed()).toBeGreaterThan(0));
+      expect(rows[0]!.getAttribute("aria-pressed")).toBe("true");
+      expect(rows[0]!.hasAttribute("data-dim")).toBe(false);
+      expect(rows[1]!.hasAttribute("data-dim")).toBe(true);
+      expect(status()).toMatch(/^Showing (Codex|Claude Code) in the chart\./);
+      rows[0]!.click();
+      await vi.waitFor(() => expect(dimmed()).toBe(0));
+      expect(status()).toBe("");
+
+      // Keyboard focus does the same; Escape clears it without closing the page.
+      rows[0]!.focus();
+      await userEvent.keyboard("{Tab}");
+      await vi.waitFor(() => expect(dimmed()).toBeGreaterThan(0));
+      const label = ["Codex", "Claude Code"].find((name) =>
+        document.activeElement?.textContent?.startsWith(name),
+      );
+      expect(label).toBeDefined();
+      expect(status()).toContain(label);
+      await userEvent.keyboard("{Escape}");
+      await vi.waitFor(() => expect(dimmed()).toBe(0));
+      // A dismissed dialog starts its exit transition at once, so it never does within this window.
+      await expect(
+        vi.waitFor(
+          () =>
+            expect(
+              document.querySelector('[role="dialog"]')?.hasAttribute("data-ending-style"),
+            ).toBe(true),
+          { timeout: 400 },
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await page.viewport(innerWidth, innerHeight);
+    }
+  });
+
+  it("shows each provider's colour once, on the bar under its name", async () => {
+    view.partial = false;
+    view.environments = [status("desk", { summary: summary("desk", [["claude", 60]]) })];
+    await using _screen = await open(30);
+    const row = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>(".usage-provider");
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(row.querySelector(".usage-provider-key")).toBeNull();
+    const bar = row.querySelector<HTMLElement>(".usage-share-mini")!;
+    const probe = document.createElement("span");
+    probe.style.color = "var(--usage-series-claude)";
+    row.append(probe);
+    const series = getComputedStyle(probe).color;
+    probe.remove();
+    expect(getComputedStyle(bar, "::after").backgroundColor).toBe(series);
+  });
+
+  it("holds the summary panel at the same height from the skeleton to the loaded page", async () => {
+    using _counts = freshProviderCounts();
+    view.partial = false;
+    const { innerWidth, innerHeight } = window;
+    await page.viewport(1280, 800);
+    try {
+      view.environments = [status("heightA", { isPending: true })];
+      await using screen = await open(30);
+      await expect.element(page.getByText("Reading usage…")).toBeVisible();
+      const heightOf = () =>
+        document.querySelector(".usage-summary")!.getBoundingClientRect().height;
+      const waiting = heightOf();
+      view.environments = [
+        status("heightA", {
+          summary: summary("heightA", [
+            ["codex", 40],
+            ["claude", 60],
+          ]),
+        }),
+      ];
+      await screen.rerender(<UsagePage />);
+      await expect.element(page.getByText(/of \$100\.00 in the last/)).toBeVisible();
+      expect(heightOf()).toBe(waiting);
+    } finally {
+      await page.viewport(innerWidth, innerHeight);
+    }
+  });
+
   it("sizes the cold skeleton by the providers last shown for the selection, and zero when none were", async () => {
+    using _counts = freshProviderCounts();
     view.partial = false;
     view.environments = [
       status("skelA", {
@@ -178,7 +354,10 @@ describe("UsagePage reopening", () => {
       return found;
     });
     expect(headers).toEqual(["#", "Model", "Tokens", "Share", "Cost"]);
-    expect(document.querySelector(".usage-table-note")?.textContent).toContain("Unpriced");
+    // One line says what the chip means for the total, and offers the way out.
+    const note = document.querySelector(".usage-table-note")?.textContent ?? "";
+    expect(note).toContain("1 model has no known price");
+    expect(note).toContain("Set a price");
 
     await page.getByText("Unpriced", { exact: true }).hover();
     await expect

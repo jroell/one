@@ -1,4 +1,5 @@
 import { Spinner } from "~/components/ui/spinner";
+import { providerStatusChip, SettingsStatusChip } from "./settingsStatus";
 
 import {
   AlertTriangleIcon,
@@ -81,7 +82,6 @@ import {
 import { getProviderRestartNotice } from "../ProviderUpdateLaunchNotification.logic";
 import {
   getProviderVersionAdvisoryPresentation,
-  PROVIDER_STATUS_STYLES,
   getProviderStatusKey,
   getProviderSummary,
   providerPlanLabel,
@@ -814,10 +814,13 @@ export function ProviderInstanceCard({
   const effectiveProvider = liveProvider && { ...liveProvider, enabled };
   const compatibility = enabled ? liveProvider?.compatibilityAdvisory : undefined;
   const statusKey = enabled ? getProviderStatusKey(effectiveProvider) : "disabled";
-  const statusStyle = PROVIDER_STATUS_STYLES[statusKey];
   const summary = enabled
     ? getProviderSummary(effectiveProvider, m)
-    : { headline: gt("Disabled", { $context: "provider status" }), detail: null };
+    : {
+        headline: gt("Disabled", { $context: "provider status" }),
+        detail: null,
+        restatesStatus: true,
+      };
   const authEmail = liveProvider?.auth.email?.trim();
   const isAuthenticated = enabled && liveProvider?.auth.status === "authenticated";
   const authLabel =
@@ -1013,10 +1016,7 @@ export function ProviderInstanceCard({
     <code className="font-sans text-xs tabular-nums text-muted-foreground">{versionLabel}</code>
   ) : null;
 
-  const statusDotNode =
-    statusKey === "warning" || statusKey === "error" ? (
-      <span className={cn("size-1.5 shrink-0 rounded-full", statusStyle.dot)} aria-hidden />
-    ) : null;
+  const chipStatus = providerStatusChip(statusKey);
   const needsAttention = statusKey === "warning" || statusKey === "error";
   const statusDiagnostic = hasCompatibilityWarning && needsAttention ? summary.detail : null;
   const inlineStatusDetail = hasCompatibilityWarning
@@ -1026,10 +1026,24 @@ export function ProviderInstanceCard({
         ? gt("Unsupported")
         : gt("Limited support")
     : summary.detail;
+  // The chip says the state once. The line under the name adds only what the chip does not: the
+  // plan, or why the provider needs attention. A headline that would repeat the chip is dropped.
+  const listDetailLine = updateProgress
+    ? gt("Updating · {progress}", { progress: updateProgress })
+    : [
+        isAuthenticated && authLabel
+          ? providerPlanLabel(authLabel)
+          : chipStatus !== null && summary.restatesStatus
+            ? null
+            : summary.headline,
+        needsAttention ? inlineStatusDetail : null,
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join(" · ");
   const editorStatusNode =
     isAuthenticated && authEmail ? (
       <>
-        {needsAttention ? statusDotNode : null}
+        {chipStatus ? <SettingsStatusChip status={chipStatus} /> : null}
         <span className="min-w-0 max-w-full">
           <T>
             Authenticated as{" "}
@@ -1045,8 +1059,8 @@ export function ProviderInstanceCard({
       </>
     ) : (
       <>
-        {statusDotNode}
-        <span>{summary.headline}</span>
+        {chipStatus ? <SettingsStatusChip status={chipStatus} /> : null}
+        {chipStatus !== null && summary.restatesStatus ? null : <span>{summary.headline}</span>}
         {inlineStatusDetail ? (
           <span className="min-w-0 [overflow-wrap:anywhere]">· {inlineStatusDetail}</span>
         ) : null}
@@ -1193,38 +1207,31 @@ export function ProviderInstanceCard({
           />
           {titleIconNode}
           <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="max-w-full min-w-0 truncate text-sm font-medium text-foreground">
+                {displayName}
+              </span>
               {versionLabel ? (
                 <code className="max-w-24 shrink-0 truncate font-sans text-xs tabular-nums text-muted-foreground">
                   {versionLabel}
                 </code>
               ) : null}
+              {chipStatus ? <SettingsStatusChip status={chipStatus} /> : null}
               {versionAdvisoryNode}
             </span>
-            <span className="mt-0.5 flex items-start gap-1.5 text-xs leading-normal text-muted-foreground/80">
-              {statusDotNode && !updateProgress ? (
-                <span className="flex h-[1.45em] shrink-0 items-center">{statusDotNode}</span>
-              ) : null}
-              <ProviderStatusDiagnostic detail={statusDiagnostic}>
-                <span
-                  tabIndex={statusDiagnostic ? 0 : undefined}
-                  aria-live="polite"
-                  className="pointer-events-auto block min-w-0 truncate"
-                >
-                  {updateProgress ? (
-                    gt("Updating · {progress}", { progress: updateProgress })
-                  ) : (
-                    <>
-                      {isAuthenticated && authLabel && !needsAttention
-                        ? providerPlanLabel(authLabel)
-                        : summary.headline}
-                      {needsAttention && inlineStatusDetail ? ` · ${inlineStatusDetail}` : null}
-                    </>
-                  )}
-                </span>
-              </ProviderStatusDiagnostic>
-            </span>
+            {listDetailLine ? (
+              <span className="mt-0.5 flex items-start gap-1.5 text-xs leading-normal text-muted-foreground/80">
+                <ProviderStatusDiagnostic detail={statusDiagnostic}>
+                  <span
+                    tabIndex={statusDiagnostic ? 0 : undefined}
+                    aria-live="polite"
+                    className="pointer-events-auto block min-w-0 truncate"
+                  >
+                    {listDetailLine}
+                  </span>
+                </ProviderStatusDiagnostic>
+              </span>
+            ) : null}
           </span>
         </div>
         <span className="pointer-events-none relative flex h-5 shrink-0 items-center gap-1 *:pointer-events-auto">

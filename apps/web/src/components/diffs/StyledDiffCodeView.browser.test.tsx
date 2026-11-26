@@ -1,3 +1,4 @@
+import "~/index.css";
 import type { CodeViewHandle } from "@pierre/diffs/react";
 import { WorkerPoolManager } from "@pierre/diffs/worker";
 import { useState, type Ref } from "react";
@@ -199,4 +200,51 @@ it("tells a screen reader which lines were removed and which were added", async 
     const text = await screenReaderText();
     expect(text).toContain("export const name = 1;Removedconst limit = 10;Addedconst limit = 20;");
   });
+});
+
+it("shortens a long path in a diff header from the middle, keeping the folder start and the file name end", async () => {
+  const path = "apps/desktop/resources/dmg/dmg-background-latest.svg";
+  const parsed = getRenderablePatch(
+    [
+      `diff --git a/${path} b/${path}`,
+      `--- a/${path}`,
+      `+++ b/${path}`,
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+      "",
+    ].join("\n"),
+  );
+  if (parsed?.kind !== "files") throw new Error("Expected file diffs");
+  await using screen = await render(
+    <div style={{ width: 200 }}>
+      <StyledDiffCodeView
+        className="h-[300px]"
+        items={buildFileDiffEntries(parsed.files).map(({ fileDiff, fileKey, fileVersion }) => ({
+          type: "diff",
+          id: fileKey,
+          fileDiff,
+          version: fileVersion,
+        }))}
+        options={{ theme: "pierre-dark", diffStyle: "unified" }}
+      />
+    </div>,
+    { router: false },
+  );
+  const title = () =>
+    screen.container
+      .querySelector("diffs-container")
+      ?.shadowRoot?.querySelector<HTMLElement>("[data-title]") ?? null;
+  await vi.waitFor(() => expect(title()?.querySelector("[data-path-tail]")).not.toBeNull());
+  // One title element carries the whole path: a text query, the tooltip and a screen reader read it.
+  expect(screen.container.querySelectorAll("[data-title]")).toHaveLength(0);
+  expect(title()!.getAttribute("title")).toBe(path);
+  expect(title()!.textContent).toBe(path);
+  const head = title()!.querySelector<HTMLElement>("[data-path-head]")!;
+  const tail = title()!.querySelector<HTMLElement>("[data-path-tail]")!;
+  expect(tail.textContent).toBe("latest.svg");
+  expect(head.textContent!.startsWith("apps/")).toBe(true);
+  // The head clips and the tail is whole at this width.
+  await vi.waitFor(() => expect(head.scrollWidth).toBeGreaterThan(head.clientWidth));
+  expect(tail.scrollWidth).toBeLessThanOrEqual(tail.clientWidth);
 });

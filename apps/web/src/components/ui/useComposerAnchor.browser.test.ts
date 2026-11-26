@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { pickComposerHost, placeAboveComposer } from "./useComposerAnchor";
+import { pickComposerHost, placeAboveComposer, placeInMainColumn } from "./useComposerAnchor";
 
 function host(options: { top: number; editable?: boolean; hidden?: boolean }) {
   const element = document.createElement("div");
@@ -43,5 +43,13 @@ describe("placing a toast above a composer", () => {
     // 90px of room above the composer: a 70px toast needs 70 + 12 + 8.
     expect(placeAboveComposer(rect(90), 70, 900)).toEqual({ bottom: 810, left: 300, width: 400 });
     expect(placeAboveComposer(rect(89), 70, 900)).toBeNull();
+  });
+
+  it("sits at the bottom of the main column, centered on it, when there is no composer to sit above", () => {
+    expect(placeInMainColumn({ left: 256, width: 1000 })).toEqual({
+      bottom: 24,
+      left: 756,
+      width: 1000,
+    });
   });
 });

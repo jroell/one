@@ -147,7 +147,7 @@ function SetupHeaderRow({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
       >
         <span
           ref={running ? observeVisibleAnimation : undefined}
-          className="relative min-w-0 shrink overflow-hidden whitespace-nowrap"
+          className="one-shimmer-host relative min-w-0 shrink overflow-hidden whitespace-nowrap"
         >
           <span className="block truncate">{text}</span>
           {running ? <ShimmerOverlay>{text}</ShimmerOverlay> : null}
@@ -196,7 +196,10 @@ function StageRow({
       label={
         <span
           ref={running ? observeVisibleAnimation : undefined}
-          className={cn("relative block truncate", stageRowClassName(stage.status))}
+          className={cn(
+            "one-shimmer-host relative block truncate",
+            stageRowClassName(stage.status),
+          )}
         >
           {label}
           {running ? <ShimmerOverlay>{label}</ShimmerOverlay> : null}

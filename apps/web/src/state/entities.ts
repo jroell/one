@@ -31,6 +31,7 @@ import type {
 } from "@t3tools/contracts";
 import type { ThreadCheckpointSummary } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { Atom } from "effect/reactivity";
+import { useDeferredValue } from "react";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentProjects } from "./projects";
 import { environmentPresentations } from "./presentation";
@@ -168,9 +169,14 @@ export function useQuietThreadShell(ref: ScopedThreadRef | null): EnvironmentThr
   );
 }
 
-/** Every thread shell, held through streaming ticks; see quietThreadShellAtom. */
+/**
+ * Every thread shell, held through streaming ticks; see quietThreadShellAtom. The list is for
+ * arranging rows, so a change reaches it as background work: arranging a few hundred rows runs in
+ * slices between frames instead of inside the task that delivered the update. A row reads its own
+ * live shell, so the one that changed is current at once.
+ */
 export function useQuietThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
-  return useAtomValue(environmentThreadShells.quietThreadShellsAtom);
+  return useDeferredValue(useAtomValue(environmentThreadShells.quietThreadShellsAtom));
 }
 
 export function useChildThreadInputs(ref: ScopedThreadRef | null) {

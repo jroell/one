@@ -14,6 +14,7 @@ import { formatRelativeHourShort } from "@t3tools/shared/usageFormatCopy";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "./usageProviders";
 import { observeResize } from "~/lib/observeResize";
 import { formatAxisUsd } from "./usageAxis";
+import { UsageEndLabels } from "./UsageEndLabels";
 
 const VIEW_WIDTH = 960;
 const VIEW_HEIGHT = 260;
@@ -31,6 +32,8 @@ interface UsageProviderChartProps {
   readonly hours: readonly string[];
   readonly hourly: readonly HourlyTotals[];
   readonly metric: UsageChartMetric;
+  /** A provider the page is pointing at; every other series sets back. */
+  readonly focusedProvider?: UsageProviderKind | null;
   readonly referenceTime: string | undefined;
   readonly resolution: "day" | "hour";
   readonly timeZone: string;
@@ -313,15 +316,21 @@ function buildChart(
   const stepX = periods.length < 2 ? 0 : VIEW_WIDTH / (periods.length - 1);
   let lower: readonly CurveSegment[] | null = null;
   let stacked = columns.map(() => 0);
+  const last = columns[columns.length - 1];
+  let below = 0;
   const series = chartSeries(providers, columns, loadingProviders).map((band) => {
     stacked = stacked.map((height, index) => height + seriesValue(band, columns[index]));
+    // The middle of the band at the end of the plot, where its label points.
+    const thickness = seriesValue(band, last);
+    const labelAt = valueToY(below + thickness / 2, scale.max) / VIEW_HEIGHT;
+    below += thickness;
     const top = smoothCurve(
       stacked.map((height, index) => ({
         x: index * stepX,
         y: valueToY(height, scale.max),
       })),
     );
-    const drawn = { ...band, line: curvePath(top), area: areaBetween(top, lower) };
+    const drawn = { ...band, line: curvePath(top), area: areaBetween(top, lower), labelAt };
     lower = top;
     return drawn;
   });
@@ -335,12 +344,16 @@ function seriesName(band: ChartSeries, gt: ReturnType<typeof useGT>): string {
 
 function UsageChartTooltip({
   tooltipRef,
+  closing,
+  onExited,
   label,
   column,
   series,
   format,
 }: {
   readonly tooltipRef: React.Ref<HTMLDivElement>;
+  readonly closing: boolean;
+  readonly onExited: () => void;
   readonly label: string;
   readonly column: DayColumn | undefined;
   readonly series: readonly ChartSeries[];
@@ -350,6 +363,8 @@ function UsageChartTooltip({
   return (
     <div
       ref={tooltipRef}
+      data-closing={closing ? "" : undefined}
+      onAnimationEnd={closing ? onExited : undefined}
       className="usage-tooltip m-floating pointer-events-none absolute z-10 min-w-36 max-w-full text-xs"
       style={{
         left: "var(--usage-tooltip-left, 0px)",
@@ -374,7 +389,7 @@ function UsageChartTooltip({
                   <ProviderInstanceIcon
                     driverKind={presentation.driverKind}
                     displayName={bandLabel}
-                    iconClassName="size-3"
+                    iconClassName="usage-mark size-3"
                   />
                 )}
                 {bandLabel}
@@ -405,6 +420,7 @@ function UsageChartPlot({
   label,
   unit,
   bars,
+  focusedSeries,
   children,
 }: {
   readonly periods: readonly string[];
@@ -424,6 +440,7 @@ function UsageChartPlot({
         readonly gridlines: readonly number[];
       }
     | undefined;
+  readonly focusedSeries?: string | null | undefined;
   readonly children?: React.ReactNode;
 }) {
   const gt = useGT();
@@ -439,6 +456,10 @@ function UsageChartPlot({
   const [keyIndex, setKeyIndex] = useState<number | null>(null);
   const hoverIndex = selected?.index ?? null;
   const isOpen = selected !== null;
+  // The tooltip leaves on the axis it arrived on, so it outlives the selection by its exit.
+  const [shownTip, setShownTip] = useState<number | null>(null);
+  if (hoverIndex !== null && shownTip !== hoverIndex) setShownTip(hoverIndex);
+  const tipIndex = hoverIndex ?? shownTip;
   const plotRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
@@ -575,7 +596,7 @@ function UsageChartPlot({
           total: format(columns[keyIndex]?.total ?? 0),
         });
 
-  const hoveredPeriod = hoverIndex === null ? undefined : periods[hoverIndex];
+  const hoveredPeriod = tipIndex === null ? undefined : periods[tipIndex];
 
   return (
     <div
@@ -624,7 +645,6 @@ function UsageChartPlot({
               y2={VIEW_HEIGHT}
               stroke="currentColor"
               strokeWidth={1}
-              strokeDasharray="3 3"
               className="text-muted-foreground"
               vectorEffect="non-scaling-stroke"
             />
@@ -651,6 +671,7 @@ function UsageChartPlot({
                 data-hover={hoverIndex === index ? "" : undefined}
                 style={
                   {
+                    "--usage-day": index,
                     "--usage-stack": `${(bars.segments[index] ?? []).reduce((sum, segment) => sum + segment.heightPercent, 0)}%`,
                   } as React.CSSProperties
                 }
@@ -660,6 +681,9 @@ function UsageChartPlot({
                     key={segment.key}
                     className="usage-bars-segment"
                     data-top={segment.top ? "" : undefined}
+                    data-dim={
+                      focusedSeries != null && focusedSeries !== segment.key ? "" : undefined
+                    }
                     style={{
                       height: `${segment.heightPercent}%`,
                       backgroundColor: segment.color,
@@ -672,11 +696,13 @@ function UsageChartPlot({
         </div>
       )}
 
-      {hoverIndex === null || hoveredPeriod === undefined ? null : (
+      {tipIndex === null || hoveredPeriod === undefined ? null : (
         <UsageChartTooltip
           tooltipRef={tooltipRef}
+          closing={hoverIndex === null}
+          onExited={() => setShownTip(null)}
           label={formatTooltipPeriod(hoveredPeriod)}
-          column={columns[hoverIndex]}
+          column={columns[tipIndex]}
           series={series}
           format={format}
         />
@@ -693,6 +719,7 @@ export function UsageProviderChart({
   hours,
   hourly,
   metric,
+  focusedProvider = null,
   referenceTime,
   resolution,
   timeZone,
@@ -744,7 +771,10 @@ export function UsageProviderChart({
       : formatPeriod(period);
 
   return (
-    <div className="flex flex-1 flex-col gap-1">
+    <div
+      className="usage-chart flex flex-1 flex-col gap-1"
+      data-labels={resolution === "hour" ? "" : undefined}
+    >
       <div className="flex flex-1 gap-2">
         <div aria-hidden className="relative min-h-56 w-14 shrink-0">
           {scale.labeled
@@ -770,6 +800,7 @@ export function UsageProviderChart({
           label={chartLabel}
           unit={resolution === "hour" ? "hour" : "day"}
           bars={bars}
+          focusedSeries={focusedProvider}
         >
           {scale.ticks.map((tick) => {
             const y = toY(tick);
@@ -782,8 +813,7 @@ export function UsageProviderChart({
                 y2={y}
                 stroke="currentColor"
                 strokeWidth={1}
-                strokeDasharray={tick === 0 ? undefined : "1 5"}
-                strokeLinecap="round"
+                data-base={tick === 0 ? "" : undefined}
                 className="usage-gridline"
                 vectorEffect="non-scaling-stroke"
               />
@@ -791,7 +821,12 @@ export function UsageProviderChart({
           })}
 
           {series.map(({ key, color, area }) => (
-            <path key={key} d={area} fill={color} fillOpacity={0.5} />
+            <path
+              key={key}
+              d={area}
+              fill={color}
+              fillOpacity={focusedProvider !== null && focusedProvider !== key ? 0.1 : 0.5}
+            />
           ))}
           {series.map(({ key, color, line }) => (
             <path
@@ -799,6 +834,7 @@ export function UsageProviderChart({
               d={line}
               fill="none"
               stroke={color}
+              strokeOpacity={focusedProvider !== null && focusedProvider !== key ? 0.25 : 1}
               strokeWidth={1.5}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -806,9 +842,25 @@ export function UsageProviderChart({
             />
           ))}
         </UsageChartPlot>
+        {resolution === "hour" ? (
+          <UsageEndLabels
+            focused={focusedProvider}
+            labels={series
+              .filter((band) => band.total > 0)
+              .map((band) => ({
+                key: band.key,
+                name: seriesName(band, gt),
+                color: band.color,
+                at: band.labelAt,
+              }))}
+          />
+        ) : null}
       </div>
 
-      <div aria-hidden className="usage-axis-label flex justify-between pl-16 text-3xs uppercase">
+      <div
+        aria-hidden
+        className="usage-axis-label usage-axis-row flex justify-between pl-16 text-3xs uppercase"
+      >
         <span>{periods[0] === undefined ? "" : formatPeriod(periods[0])}</span>
         <span>
           {periods[Math.floor(periods.length / 2)] === undefined

@@ -72,6 +72,7 @@ import { connectionPhaseDotClassName } from "../ConnectionStatusDot";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { Button } from "../ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
+import { SettingsStatusChip, type SettingsStatus } from "./settingsStatus";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -1135,19 +1136,19 @@ function FleetLegend({ twoWay }: { readonly twoWay: boolean }) {
   );
 }
 
-/** The tone of a card's connection chip: green when connected, amber while it connects, red when it fails. */
-function connectionChipClassName(node: FleetEnvironmentNode): string {
-  if (!node.enabled) return "bg-muted text-muted-foreground";
+/** A card's connection as one of the shared chips: ready, connecting, failed, off or needs attention. */
+function connectionChipStatus(node: FleetEnvironmentNode): SettingsStatus {
+  if (!node.enabled) return "off";
   switch (node.phase) {
     case "connected":
-      return "bg-success/12 text-success-foreground";
+      return "ready";
     case "connecting":
     case "reconnecting":
-      return "bg-warning/12 text-warning-foreground";
+      return "connecting";
     case "error":
-      return "bg-destructive/10 text-destructive-foreground";
+      return "failed";
     default:
-      return "bg-muted text-muted-foreground";
+      return "attention";
   }
 }
 
@@ -2172,8 +2173,8 @@ export const FleetScene = memo(function FleetScene({
           links.filter((edge) => edge.from === node.id).length,
           gt,
         );
-        // Links are only known from a connected machine; a card shows its connection as a chip.
-        const linksLine = node.phase === "connected" ? status : gt("Links unknown");
+        // The line under the chips says what the machine links to, or why it is not connected.
+        const linksLine = node.phase === "connected" ? status : connection;
         // The card's state is short; the name carries the reason and what it leaves unknown.
         const spoken =
           node.phase === "connected"
@@ -2215,32 +2216,35 @@ export const FleetScene = memo(function FleetScene({
                 <EnvironmentMachineIcon kind={node.machine ?? "server"} className="size-3.5" />
               </span>
               <span className={cn("min-w-0 flex-1 pr-1.5", dimmed && "opacity-70")}>
-                <span className="mb-0.5 flex flex-wrap items-center gap-1">
-                  <span
-                    data-fleet-connection=""
-                    className={cn(
-                      "rounded-sm px-1 text-2xs leading-4 font-medium",
-                      connectionChipClassName(node),
-                    )}
+                {/* The name stays on one line; the whole name is the card's label. */}
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span
+                        data-fleet-name=""
+                        className="block truncate text-xs leading-4 font-semibold"
+                      />
+                    }
                   >
-                    {connection}
-                  </span>
+                    {node.label}
+                  </TooltipTrigger>
+                  <TooltipPopup side="top">{node.label}</TooltipPopup>
+                </Tooltip>
+                <span className="my-px flex items-center gap-1 overflow-hidden">
+                  <SettingsStatusChip status={connectionChipStatus(node)} />
                   {node.thisDevice ? (
                     <span
                       data-fleet-this-device=""
-                      className="rounded-sm bg-muted px-1 text-2xs leading-4 font-medium text-muted-foreground"
+                      className="shrink-0 rounded-sm bg-muted px-1 text-2xs leading-4 font-medium text-muted-foreground"
                     >
                       {gt("This device")}
                     </span>
                   ) : null}
                 </span>
-                <span className="line-clamp-2 text-xs leading-4 font-semibold [overflow-wrap:anywhere]">
-                  {node.label}
-                </span>
                 <span
                   data-fleet-state=""
                   className={cn(
-                    "line-clamp-2 text-2xs leading-4",
+                    "block truncate text-2xs leading-4",
                     node.outgoing === "error" && node.phase === "connected"
                       ? "text-destructive"
                       : "text-muted-foreground",

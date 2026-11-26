@@ -31,6 +31,8 @@ const POSES: Record<OneOrbState, OrbPose> = {
   speaking: { tilt: 1.26, spinSpeed: 0, sway: 0.24, pulse: 0, baseEnergy: 0.1, aura: 0.55 },
 };
 
+/** Seconds the catch-light takes to go once around the band. */
+const ORBIT_SECONDS = 12;
 const MAX_PIXEL_RATIO = 2 * ORB_SUPERSAMPLE;
 const LARGE_RING_PX = 300;
 /**
@@ -40,18 +42,11 @@ const LARGE_RING_PX = 300;
 export const LARGE_RING_PIXEL_RATIOS = [1.5, 1.25, 1] as const;
 
 /**
- * Wait between frames while the ring sits at rest. The slow smoke and sway move a few pixels
- * a second, so ten frames a second show the same motion for a third of the shading cost.
+ * Wait between frames while the ring sits at rest. Its catch-light takes twelve seconds to go
+ * round, so twenty frames a second show it moving smoothly for a third of the shading cost. A
+ * resting ring keeps this pace while it can be seen, and draws nothing while it cannot.
  */
 export const RESTING_FRAME_MS = 50;
-/**
- * How long a settled idle ring keeps moving after the last sign that someone is there: its own
- * `wake()`, or pointer, key, wheel or focus activity in the window. It then draws one last frame
- * and schedules nothing until attention returns.
- */
-export const ATTENTION_MS = 6000;
-/** Window events that show someone is there. */
-const ATTENTION_EVENTS = ["pointermove", "pointerdown", "keydown", "wheel", "focus"] as const;
 /** Longest step of the animation clock. A frame that arrives late must not make the ring jump. */
 const MAX_FRAME_SECONDS = 0.05;
 /** The same limit for a resting frame, which arrives `RESTING_FRAME_MS` after the last one. */
@@ -124,25 +119,21 @@ export type FramePlan = Readonly<{
   intervalMs: number;
   /** The ring is idle and settled, so it draws at the resting cadence. */
   resting: boolean;
-  /** Nobody showed attention for `ATTENTION_MS`: the frame just drawn is the last until `wake()`. */
-  stop: boolean;
 }>;
 
-/** Decides the cadence, the scale and whether to stop, from the ring's motion and how long ago anyone was there. */
+/** Decides the cadence from the ring's motion. */
 export function restingPlan(
   motion: OrbMotion,
   state: OneOrbState,
   time: number,
   level: number,
-  sinceAttentionMs: number,
 ): FramePlan {
   const intervalMs = frameIntervalMs(motion, state, time, level);
-  const resting = intervalMs > 0;
-  return { intervalMs, resting, stop: resting && sinceAttentionMs >= ATTENTION_MS };
+  return { intervalMs, resting: intervalMs > 0 };
 }
 
 /** The plan for reduced motion: one frame per `wake()` at the normal scale, and no loop to stop. */
-const STILL_PLAN: FramePlan = { intervalMs: 0, resting: false, stop: false };
+const STILL_PLAN: FramePlan = { intervalMs: 0, resting: false };
 
 /** How a frame loop is doing against the frame budget. */
 export type FrameBudget = Readonly<{
@@ -237,6 +228,7 @@ const UNIFORM_NAMES = {
   aura: "uAura",
   reveal: "uReveal",
   glow: "uGlow",
+  orbit: "uOrbit",
 } as const;
 
 /** Everything the GPU holds for the ring. A lost context takes all of it. */
@@ -286,8 +278,7 @@ function releaseResources(gl: WebGLRenderingContext, resources: GlResources) {
 }
 
 /**
- * Draws the ring on a canvas until disposed, only while it can be seen, slowly while it rests,
- * and not at all once it has rested for `ATTENTION_MS` with nobody there.
+ * Draws the ring on a canvas until disposed, only while it can be seen and slowly while it rests.
  * Returns null (after onUnsupported) without WebGL. A lost context keeps the canvas and
  * rebuilds the ring on restore.
  */
@@ -335,8 +326,7 @@ export function startOneOrb(
   let budget = FRAME_BUDGET_START;
   const resize = () => {
     if (!resources) return;
-    // A resting ring keeps its full resolution: it is what people look at, and its last frame
-    // stays on screen. Its cost is bounded by ATTENTION_MS instead.
+    // A resting ring keeps its full resolution: it is what people look at.
     const cap = pixelRatioCap(canvas.clientWidth, budget.step);
     const density = window.devicePixelRatio || 1;
     const ratio = Math.min(
@@ -375,10 +365,6 @@ export function startOneOrb(
   const motion = (): OrbMotion => ({ spin, sway, tilt, pulse, energy, aura, reveal });
 
   let lastDrawn = Number.NEGATIVE_INFINITY;
-  /** The last sign that someone is there. */
-  let attentionAt = performance.now();
-  /** True after the final resting frame, while nothing is scheduled. */
-  let asleep = false;
   /** When the previous full-speed frame started, or null when the loop was not running at full speed. */
   let lastFullSpeedFrame: number | null = null;
 
@@ -421,7 +407,7 @@ export function startOneOrb(
     const state = input.getState();
     const level = Math.min(1, Math.max(0, input.getLevel()));
     const still = reducedMotion.matches;
-    const plan = still ? STILL_PLAN : restingPlan(motion(), state, time, level, now - attentionAt);
+    const plan = still ? STILL_PLAN : restingPlan(motion(), state, time, level);
     const interval = plan.intervalMs;
     const wait = interval - (now - lastDrawn);
     if (interval > 0 && wait > 0) {
@@ -484,28 +470,20 @@ export function startOneOrb(
     gl.uniform1f(uniforms.energy, energy);
     gl.uniform1f(uniforms.aura, aura);
     gl.uniform1f(uniforms.reveal, reveal);
+    gl.uniform1f(uniforms.orbit, still ? ORB_REST.orbit : (time / ORBIT_SECONDS) % 1);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     if (still) return;
-    const next = restingPlan(motion(), input.getState(), time, level, now - attentionAt);
-    if (next.stop) asleep = true;
-    else schedule(next.intervalMs);
+    schedule(restingPlan(motion(), input.getState(), time, level).intervalMs);
   };
   const wake = () => {
     last = performance.now();
-    attentionAt = last;
-    asleep = false;
     lastDrawn = Number.NEGATIVE_INFINITY;
     lastFullSpeedFrame = null;
     clearTimeout(timer);
     timer = undefined;
     schedule();
-  };
-  /** One timestamp write while the ring is awake; a ring that went to sleep draws again. */
-  const onActivity = () => {
-    if (asleep) wake();
-    else attentionAt = performance.now();
   };
   /** Draws when the ring can be seen again, and stops the queued frame when it cannot. */
   const syncWithVisibility = () => {
@@ -546,9 +524,6 @@ export function startOneOrb(
   watchDensity();
   document.addEventListener("visibilitychange", syncWithVisibility);
   reducedMotion.addEventListener("change", wake);
-  for (const type of ATTENTION_EVENTS) {
-    window.addEventListener(type, onActivity, { capture: true, passive: true });
-  }
 
   let disposed = false;
   const dispose = () => {
@@ -561,9 +536,6 @@ export function startOneOrb(
     densityQuery?.removeEventListener("change", onDensityChange);
     document.removeEventListener("visibilitychange", syncWithVisibility);
     reducedMotion.removeEventListener("change", wake);
-    for (const type of ATTENTION_EVENTS) {
-      window.removeEventListener(type, onActivity, { capture: true });
-    }
     canvas.removeEventListener("webglcontextlost", onContextLost);
     canvas.removeEventListener("webglcontextrestored", onContextRestored);
     if (resources) releaseResources(gl, resources);

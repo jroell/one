@@ -17,7 +17,7 @@ export interface RestRingJob {
   readonly dark: number;
   readonly glow: number;
   readonly rest: Readonly<
-    Record<"time" | "spin" | "tilt" | "pulse" | "energy" | "aura" | "reveal", number>
+    Record<"time" | "spin" | "tilt" | "pulse" | "energy" | "aura" | "reveal" | "orbit", number>
   >;
   readonly quality: number;
 }
@@ -74,6 +74,7 @@ export async function renderRestRing(job: RestRingJob): Promise<Blob> {
     gl.uniform1f(at("uEnergy"), job.rest.energy);
     gl.uniform1f(at("uAura"), job.rest.aura);
     gl.uniform1f(at("uReveal"), job.rest.reveal);
+    gl.uniform1f(at("uOrbit"), job.rest.orbit);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

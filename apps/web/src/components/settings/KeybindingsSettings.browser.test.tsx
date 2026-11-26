@@ -327,10 +327,13 @@ it("shows a command's alternate keys on one row, as glyphs, with its condition i
     )
     .toBeVisible();
   // The condition is the default one, so it shows only once the row has focus.
-  expect(screen.getByRole("button", { name: "Edit when clause for Chat: new" }).query()).toBeNull();
-  (chatNewKeys.first().element() as HTMLElement).focus();
   const condition = screen.getByRole("button", { name: "Edit when clause for Chat: new" });
-  await expect.element(condition).toHaveTextContent("not in the terminal");
+  const reveal = condition.element().closest("[data-settings-reveal]")!;
+  expect(reveal.hasAttribute("data-open")).toBe(false);
+  expect(condition.element().closest("[inert]")).not.toBeNull();
+  (chatNewKeys.first().element() as HTMLElement).focus();
+  await vi.waitFor(() => expect(reveal.hasAttribute("data-open")).toBe(true));
+  await expect.element(condition).toHaveTextContent("outside the terminal");
 });
 
 it("says in words, not behind an icon, that a browser may claim some shortcuts", async () => {

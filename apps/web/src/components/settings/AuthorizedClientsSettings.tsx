@@ -647,10 +647,13 @@ export function RevokeOtherClientsAction({
             : "text-(--settings-description)",
         )}
       >
-        {statusText}
+        {/* A new sentence re-mounts this span, so it arrives with the buttons beside it. */}
+        <span key={statusText} data-settings-swap="">
+          {statusText}
+        </span>
       </span>
       {confirming ? (
-        <>
+        <span data-settings-swap="" className="flex items-center gap-2">
           <Button
             ref={takeFocus}
             size="sm"
@@ -677,7 +680,7 @@ export function RevokeOtherClientsAction({
           >
             {gt("Revoke others")}
           </Button>
-        </>
+        </span>
       ) : (
         <Button
           ref={takeFocus}

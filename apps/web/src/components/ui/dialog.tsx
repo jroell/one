@@ -12,6 +12,8 @@ import {
   useState,
 } from "react";
 import { cn } from "~/lib/utils";
+import { useOpenerFocusReturn } from "./openerFocus";
+import { pageSetBackRef } from "./pageSetBack";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
 import { Button, type ButtonVariant } from "~/components/ui/button";
 import {
@@ -53,7 +55,9 @@ function Dialog<Payload>(props: DialogPrimitive.Root.Props<Payload>) {
 
 function useDialogActionInitialFocus() {
   const popupRef = useRef<HTMLDivElement>(null);
+  const { remember, finalFocus } = useOpenerFocusReturn();
   const initialFocus = (openType: string) => {
+    remember(popupRef.current);
     // Match Base UI: touch opens focus the popup to avoid opening the virtual keyboard.
     if (openType === "touch") return popupRef.current;
     return (
@@ -62,7 +66,7 @@ function useDialogActionInitialFocus() {
       ) ?? true
     );
   };
-  return { popupRef, initialFocus };
+  return { popupRef, initialFocus, finalFocus };
 }
 
 const DialogPortal = DialogPrimitive.Portal;
@@ -83,6 +87,7 @@ function DialogBackdrop({
   return (
     <DialogPrimitive.Backdrop
       forceRender
+      ref={pageSetBackRef}
       className={cn(
         variant === "media" ? DIALOG_MEDIA_BACKDROP_CLASS : DIALOG_BACKDROP_CLASS,
         className,
@@ -122,7 +127,7 @@ function DialogPopup({
   mediaControlsPlacement?: "inside" | "outside";
 }) {
   const gt = useGT();
-  const { popupRef, initialFocus } = useDialogActionInitialFocus();
+  const { popupRef, initialFocus, finalFocus } = useDialogActionInitialFocus();
   const popup = useRender({
     ref: popupRef,
     render: (
@@ -136,6 +141,7 @@ function DialogPopup({
         )}
         data-slot="dialog-popup"
         initialFocus={initialFocus}
+        finalFocus={finalFocus}
         render={renderRetainedPopup}
         {...props}
       >

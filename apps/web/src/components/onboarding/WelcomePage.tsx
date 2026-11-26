@@ -82,7 +82,6 @@ import {
   welcomeImportSelectionKey,
 } from "../../onboarding/welcomeState";
 import { newProjectId, randomUUID } from "../../lib/utils";
-import { OneMark } from "../../one/OneMark";
 import { agentSessionImport } from "../../state/agentSessions";
 import { readProjects, useProjects, waitForProject } from "../../state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
@@ -283,7 +282,6 @@ export function WelcomePage({
             data-one-welcome=""
             className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-6 pt-12 pb-8 sm:pt-20"
           >
-            <OneMark className="mb-5 size-12" size={48} />
             <h1
               data-one-welcome-title=""
               className="text-2xl font-semibold tracking-tight text-foreground"

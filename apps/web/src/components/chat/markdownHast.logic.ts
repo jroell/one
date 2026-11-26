@@ -60,3 +60,18 @@ export function standaloneImageCaption(node: unknown): string | null {
   const alt = typeof properties.alt === "string" ? properties.alt.trim() : "";
   return alt === "" ? null : alt;
 }
+
+/**
+ * A paragraph that is one bold run from end to end, such as a closing summary. Chat mode sets it
+ * as a statement in a medium weight, since a whole paragraph of bold reads as shouting.
+ */
+export function isWhollyBoldParagraph(node: unknown): boolean {
+  if (!node || typeof node !== "object" || !("children" in node) || !Array.isArray(node.children)) {
+    return false;
+  }
+  const meaningful = node.children.filter(
+    (child) => !(child?.type === "text" && String(child.value ?? "").trim() === ""),
+  );
+  const only = meaningful.length === 1 ? meaningful[0] : undefined;
+  return only?.type === "element" && only.tagName === "strong" && hastHasText(only);
+}

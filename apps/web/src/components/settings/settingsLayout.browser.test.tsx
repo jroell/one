@@ -1,11 +1,12 @@
 import { textContrast } from "../../../test/contrast";
 import { render } from "../../../test/render";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "../../index.css";
 import { Button } from "../ui/button";
+import { ScrollArea } from "../ui/scroll-area";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsEmptyState } from "./SettingsEmptyState";
@@ -197,6 +198,60 @@ describe("settings layout", () => {
     expect(screen.container.querySelectorAll("[data-settings-picker-field]")).toHaveLength(3);
   });
 
+  it("stretches a Model and an Effort picker to the row width, one under the other, in a 360 px row", async () => {
+    const narrow = document.createElement("div");
+    narrow.style.width = "360px";
+    const picker = (label: string) => (
+      <Button variant="outline" size="sm" aria-label={`${label} trigger`}>
+        <span data-composer-control-label>{label} value</span>
+      </Button>
+    );
+    await using screen = await render(
+      <SettingsSection title="Models">
+        <SettingsRow
+          title="Default model"
+          control={
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <SettingsPickerField label="Model">{picker("Model")}</SettingsPickerField>
+              <SettingsPickerField label="Effort">{picker("Effort")}</SettingsPickerField>
+            </div>
+          }
+        />
+      </SettingsSection>,
+      { container: narrow, router: false },
+    );
+
+    const model = page.getByRole("button", { name: "Model trigger" }).element();
+    const effort = page.getByRole("button", { name: "Effort trigger" }).element();
+    const row = screen.container.querySelector("[data-settings-control]")!.getBoundingClientRect();
+    // Full width of the row's control column, and the second under the first.
+    expect(Math.round(model.getBoundingClientRect().width)).toBe(Math.round(row.width));
+    expect(Math.round(effort.getBoundingClientRect().width)).toBe(Math.round(row.width));
+    expect(effort.getBoundingClientRect().top).toBeGreaterThan(
+      model.getBoundingClientRect().bottom,
+    );
+  });
+
+  it("keeps a picker's chevron a 14 px mark on a touch screen, where the shared button would stretch it over the whole trigger", async () => {
+    await using _screen = await render(<div data-app-modal="" />, { router: false });
+    // The shared button gives its ::after a full-size absolute box on a coarse pointer, which a
+    // desktop test run cannot trigger; the settings rule must overrule that box on its own.
+    const rules = [...document.styleSheets]
+      .flatMap((sheet) => [...sheet.cssRules])
+      .filter(
+        (rule): rule is CSSStyleRule =>
+          rule instanceof CSSStyleRule &&
+          rule.selectorText.includes("data-composer-control-chevron") &&
+          rule.selectorText.includes("::after"),
+      );
+    expect(rules.length).toBeGreaterThan(0);
+    for (const rule of rules) {
+      expect(rule.style.position).toBe("static");
+      expect(rule.style.inlineSize).toBe("0.875rem");
+      expect(rule.style.minInlineSize).toBe("0px");
+    }
+  });
+
   it("starts an empty state the same distance under the page header whether its section hides its title or only repeats the page's", async () => {
     const gapUnder = async (path: string, section: ReactNode) => {
       await using screen = await render(<SettingsPageContainer>{section}</SettingsPageContainer>, {
@@ -220,6 +275,98 @@ describe("settings layout", () => {
       </SettingsSection>,
     );
     expect(Math.abs(repeated - hidden)).toBeLessThan(1.5);
+  });
+
+  it("draws a picker trigger and a select trigger in one style: fill, edge, radius, height, padding, chevron", async () => {
+    await using _screen = await render(
+      <div data-app-modal="">
+        <SettingsSection title="Models">
+          {selectRow("Permissions", "Full access")}
+          <SettingsRow
+            title="Model"
+            control={
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <Button variant="outline" size="sm" aria-label="Model picker">
+                  <span data-composer-control-label>6 Astra</span>
+                </Button>
+              </div>
+            }
+          />
+        </SettingsSection>
+      </div>,
+      { container: wideContainer(), router: false },
+    );
+
+    const select = page.getByRole("combobox", { name: "Permissions" }).element();
+    const picker = page.getByRole("button", { name: "Model picker" }).element();
+    const look = (element: Element) => {
+      const style = getComputedStyle(element);
+      return {
+        fill: style.backgroundColor,
+        edge: style.borderTopColor,
+        radius: style.borderTopLeftRadius,
+        height: style.height,
+        padding: style.paddingLeft,
+        inset: style.boxShadow,
+      };
+    };
+    expect(look(picker)).toEqual(look(select));
+    // The select draws its chevron as an icon, the picker draws the same one as a mask.
+    const icon = select.querySelector("svg")!;
+    const mask = getComputedStyle(picker, "::after");
+    expect(mask.width).toBe(getComputedStyle(icon).width);
+    expect(mask.opacity).toBe(getComputedStyle(icon).opacity);
+  });
+
+  it("opens a page, a swapped confirmation and a revealed line with the shared motion tokens, never a cut", async () => {
+    await using screen = await render(
+      <div data-app-modal="">
+        <SettingsPageContainer>
+          <span data-settings-swap="">Sign out every other client?</span>
+          <span data-settings-reveal="" data-open="">
+            <span>When</span>
+          </span>
+        </SettingsPageContainer>
+      </div>,
+      { router: "/settings/general" },
+    );
+    const quick = getComputedStyle(document.documentElement).getPropertyValue("--mo-quick").trim();
+    const seconds = (value: string) =>
+      value.endsWith("ms") ? Number.parseFloat(value) / 1000 : Number.parseFloat(value);
+
+    const pageStyle = getComputedStyle(screen.container.querySelector("[data-settings-page]")!);
+    expect(pageStyle.animationName).toBe("settings-page-in");
+    expect(Number.parseFloat(pageStyle.animationDuration)).toBe(seconds(quick));
+
+    const swap = getComputedStyle(screen.container.querySelector("[data-settings-swap]")!);
+    expect(swap.animationName).toBe("settings-swap-in");
+    // The confirmation follows the line before it by the content delay.
+    expect(Number.parseFloat(swap.animationDelay)).toBeCloseTo(0.06, 3);
+
+    const reveal = screen.container.querySelector<HTMLElement>("[data-settings-reveal]")!;
+    expect(Number.parseFloat(getComputedStyle(reveal).transitionDuration)).toBe(seconds(quick));
+    expect(getComputedStyle(reveal.firstElementChild!).transitionDelay).toBe("0.06s");
+  });
+
+  it("keeps the shortcut sheet's scrollbar out of sight while the pointer only rests on the list", async () => {
+    await using screen = await render(
+      <div data-shortcuts-sheet="" style={{ height: 160, width: 320 }}>
+        <ScrollArea>
+          <div style={{ height: 800 }}>A long list</div>
+        </ScrollArea>
+      </div>,
+      { router: false },
+    );
+    const viewport = screen.container.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]',
+    )!;
+    await userEvent.hover(viewport);
+    const bar = screen.container.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-scrollbar"][data-orientation="vertical"]',
+    )!;
+    // Hovering used to fade it in; only scrolling does now.
+    await vi.waitFor(() => expect(bar.hasAttribute("data-hovering")).toBe(true));
+    expect(getComputedStyle(bar).opacity).toBe("0");
   });
 
   it("sorts a danger row after the primary action of its section whatever the source order", async () => {

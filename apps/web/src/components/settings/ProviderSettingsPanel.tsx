@@ -1170,7 +1170,7 @@ function EnvironmentProviderSettingsBody({
             {canAddProvider ? (
               <button
                 type="button"
-                className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left text-sm text-(--settings-description) transition-colors outline-none hover:bg-muted/25 hover:text-foreground focus-visible:bg-muted/25 focus-visible:text-foreground sm:px-4"
+                className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left text-sm text-(--settings-description) transition-colors outline-none hover:bg-muted/25 hover:text-foreground focus-visible:bg-muted/25 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4"
                 onClick={() => setIsAddInstanceDialogOpen(true)}
               >
                 <PlusIcon className="size-4 shrink-0" />

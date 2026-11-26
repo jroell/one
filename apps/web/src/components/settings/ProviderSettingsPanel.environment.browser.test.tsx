@@ -532,6 +532,76 @@ describe("EnvironmentProviderSettings page", () => {
   });
 });
 
+describe("EnvironmentProviderSettings status wording", () => {
+  it("says a ready provider's state once, as a Ready chip, with the plan as plain text and no Available or Authenticated beside it", async () => {
+    await setup();
+    await setProviders([provider()]);
+    await using _screen = await render(panel(), { router: "/settings/providers" });
+
+    const row = document.querySelector("[data-provider-row]")!.parentElement!;
+    await expect.element(row.querySelector("[data-settings-status]") as HTMLElement).toBeVisible();
+    expect(row.querySelector("[data-settings-status]")!.textContent).toBe("Ready");
+    for (const word of ["Available", "Authenticated", "Unavailable", "Disabled"]) {
+      expect(row.textContent, word).not.toContain(word);
+    }
+  });
+});
+
+describe("EnvironmentProviderSettings provider page status", () => {
+  it("shows the same Ready chip in the Status row of a provider's own page, with no Available line beside it", async () => {
+    await setup();
+    await setProviders([provider()]);
+    await using _screen = await render(panel({ targetInstanceId: codexId }), {
+      router: "/settings/providers",
+    });
+
+    await expect.element(page.getByText("Status", { exact: true })).toBeVisible();
+    await vi.waitFor(() =>
+      expect(document.querySelector("[data-settings-status]")?.textContent).toBe("Ready"),
+    );
+    const line = document.querySelector("[data-settings-status]")!.parentElement!;
+    expect(line.textContent).not.toContain("Available");
+  });
+});
+
+describe("EnvironmentProviderSettings narrow list", () => {
+  it("shows a provider's whole name beside its status chip in a 260 px list, the chip wrapping under it", async () => {
+    await setup();
+    await setProviders([provider()]);
+    const narrow = document.createElement("div");
+    narrow.style.width = "260px";
+    await using _screen = await render(panel(), {
+      container: narrow,
+      router: "/settings/providers",
+    });
+
+    const row = document.querySelector("[data-provider-row]")!.parentElement!;
+    const name = row.querySelector<HTMLElement>("span.truncate")!;
+    const chip = row.querySelector<HTMLElement>("[data-settings-status]")!;
+    await expect.element(chip).toBeVisible();
+    expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
+    expect(chip.getBoundingClientRect().left).toBeGreaterThanOrEqual(0);
+    expect(chip.getBoundingClientRect().right).toBeLessThanOrEqual(260);
+  });
+});
+
+describe("EnvironmentProviderSettings keyboard", () => {
+  it("draws a focus ring on the Add provider row when the keyboard reaches it", async () => {
+    await setup();
+    await setProviders([provider()]);
+    await using _screen = await render(panel(), { router: "/settings/providers" });
+    const add = page.getByRole("button", { name: "Add provider" }).last();
+    await expect.element(add).toBeVisible();
+
+    // A key press first, so the browser treats the focus that follows as the keyboard's.
+    await userEvent.keyboard("{Shift}");
+    (add.element() as HTMLElement).focus();
+
+    expect((add.element() as HTMLElement).matches(":focus-visible")).toBe(true);
+    expect(getComputedStyle(add.element()).boxShadow).not.toBe("none");
+  });
+});
+
 describe("EnvironmentProviderSettings account email", () => {
   it("keeps the email behind a Hidden pill until its Show button reveals it, and hides it again", async () => {
     await setup();

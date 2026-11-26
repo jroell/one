@@ -1,0 +1,17 @@
+diff --git a/dist/components/OverflowText.js b/dist/components/OverflowText.js
+index b986a3c8568d68901f134d391d532fdb2a7b209e..b8cc2121b88bd20bbdff9262ada466a5787df9c5 100644
+--- a/dist/components/OverflowText.js
++++ b/dist/components/OverflowText.js
+@@ -22,7 +22,11 @@ const splitExtension = (contents) => {
+ 	if (contents.length < 4) return [contents, ""];
+ 	const extensionIndex = contents.lastIndexOf(".") + 1;
+ 	const isTooLong = contents.length - extensionIndex > 10;
+-	const splitIndex = extensionIndex >= 1 && !isTooLong ? extensionIndex : centerSplitIndex(contents);
++	let splitIndex = extensionIndex >= 1 && !isTooLong ? extensionIndex : centerSplitIndex(contents);
++	if (splitIndex === extensionIndex && extensionIndex >= 1) for (let index = extensionIndex - 2; index >= Math.max(1, contents.length - 14); index--) if (/[-_ ]/.test(contents[index])) {
++		splitIndex = index + 1;
++		break;
++	}
+ 	return [contents.slice(0, splitIndex), contents.slice(splitIndex)];
+ };
+ const splitLeafPath = (contents) => {

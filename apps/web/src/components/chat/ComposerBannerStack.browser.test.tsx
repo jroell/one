@@ -146,6 +146,7 @@ it("opens the details of a long notice right above its button", async () => {
       details.element().getBoundingClientRect().top -
       popup.element().getBoundingClientRect().bottom;
     expect(gap).toBeGreaterThanOrEqual(0);
-    expect(gap).toBeLessThan(8);
+    // The popover sits one 8px offset above its trigger; beside it the gap would be negative.
+    expect(gap).toBeLessThanOrEqual(8);
   });
 });

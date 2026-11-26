@@ -1,7 +1,7 @@
 /**
- * The flat glyph: the mark's silhouette as a two-tone ring for 12 to 24 pixels. It is drawn
- * on the pixel grid of its own size (radii and band weights snap to half pixels, and the band
- * never gets thinner than a pixel and a half (two from 14 pixels up)) so it reads as a ring and not as a zero.
+ * The flat glyph: the mark's silhouette as a ring for sizes below 28 pixels. The stroke is about
+ * 22% of the diameter, so the hole stays open and it never reads as the letter O, and it is drawn
+ * on the pixel grid of its own size (radii and weights snap to half pixels, two at the least).
  */
 
 export interface OneGlyphGeometry {
@@ -19,10 +19,9 @@ export interface OneGlyphGeometry {
     readonly highlight: string;
   };
   readonly highlightWidth: number;
-  readonly glint: { readonly x: number; readonly y: number; readonly r: number };
 }
 
-const TILT = -24;
+const TILT = -28;
 const HALF = (value: number) => Math.round(value * 2) / 2;
 const QUARTER = (value: number) => Math.round(value * 4) / 4;
 const POINT = (value: number) => Number(value.toFixed(2));
@@ -34,11 +33,9 @@ function ellipse(cx: number, cy: number, rx: number, ry: number): string {
 /** The glyph's geometry at `size` pixels. */
 export function oneGlyphGeometry(size: number): OneGlyphGeometry {
   const c = size / 2;
-  const outer = { rx: HALF(size * 0.4), ry: HALF(size * 0.279) };
-  // The band is a pixel and a half at the least, so a 12 pixel glyph still has a hole to see.
-  const floor = size >= 14 ? 2 : 1.5;
-  const across = Math.max(floor, HALF(size * 0.092));
-  const along = Math.max(floor, HALF(size * 0.104));
+  const outer = { rx: HALF(size * 0.42), ry: HALF(size * 0.32) };
+  const across = Math.max(2, HALF(size * 0.185));
+  const along = Math.max(2, HALF(size * 0.14));
   const inner = {
     rx: outer.rx - across,
     ry: outer.ry - along,
@@ -55,15 +52,9 @@ export function oneGlyphGeometry(size: number): OneGlyphGeometry {
     const t = (degrees * Math.PI) / 180;
     return [POINT(c + rxm * Math.cos(t)), POINT(c + rym * Math.sin(t))] as const;
   };
-  const [x1, y1] = at(198);
-  const [x2, y2] = at(252);
+  const [x1, y1] = at(188);
+  const [x2, y2] = at(296);
   const highlight = `M${x1} ${y1}A${rxm} ${rym} 0 0 1 ${x2} ${y2}`;
-  // One o'clock on screen is this angle on the turned band: the glint stays where the lit mark's is.
-  const turn = (TILT * Math.PI) / 180;
-  const glintAngle = Math.atan2(
-    (Math.sin(-turn) * 0.866 + Math.cos(-turn) * -0.5) / rym,
-    (Math.cos(-turn) * 0.866 - Math.sin(-turn) * -0.5) / rxm,
-  );
   return {
     size,
     tilt: TILT,
@@ -71,12 +62,7 @@ export function oneGlyphGeometry(size: number): OneGlyphGeometry {
     inner,
     counter: Math.min(inner.rx, inner.ry) * 2,
     paths: { band, shade, highlight },
-    highlightWidth: size >= 18 ? 1 : 0.9,
-    glint: {
-      x: POINT(c + rxm * Math.cos(glintAngle)),
-      y: POINT(c + rym * Math.sin(glintAngle)),
-      r: Math.max(0.6, HALF(size * 0.045)),
-    },
+    highlightWidth: Math.max(1, HALF(size * 0.06)),
   };
 }
 

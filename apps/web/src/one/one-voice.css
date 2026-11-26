@@ -1,0 +1,587 @@
+/* Voice chat: a dark stage with the ring as the voice orb. It is a dark scene in every theme, like
+   the opening: the ring makes its own light, so nothing here reads the theme's colors. Only
+   transform and opacity ever animate, and each state changes shape (halo, ripples, arc) as well
+   as color, so no state depends on sound or on telling two golds apart. */
+
+.one-voice-stage,
+.one-voice-ghost {
+  --vs-gold: #d9b35a;
+  --vs-bone: #ece5d8;
+  --vs-bone-soft: rgb(236 229 216 / 68%);
+  --vs-hairline: rgb(255 255 255 / 14%);
+  --vs-ember: var(--st-attention, #e08a3c);
+  --vs-oxblood: var(--st-error, #d4574a);
+  --vs-orb: min(52vw, 30vh, 17rem);
+  /* The whole window, header and sidebar too: a stage, not a panel over one column. */
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: radial-gradient(120% 90% at 50% 40%, #15110b 0%, #070605 60%, #030302 100%);
+  color: var(--vs-bone);
+}
+
+/* The window's drag handle where the title bar was; the stage's own controls stay clickable. */
+.one-voice-drag {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2.75rem;
+  -webkit-app-region: drag;
+}
+
+.one-voice-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem max(1.5rem, env(safe-area-inset-bottom));
+  overflow: hidden;
+  /* Native controls and scrollbars inside the stage draw for a dark surface. */
+  color-scheme: dark;
+}
+
+/* A warm light field behind the ring. Two opacities multiply: the look sets the outer one, and the
+   sound level moves the inner one each frame. Nothing about the ring's shape changes with sound. */
+.one-voice-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 320%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
+}
+
+.one-voice-glow-pulse {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(217 179 90 / 30%),
+    rgb(217 179 90 / 7%),
+    transparent
+  );
+  opacity: 0.55;
+  will-change: opacity;
+}
+
+.one-voice-stage[data-look="listening"] .one-voice-glow {
+  opacity: 0.8;
+}
+
+.one-voice-stage[data-look="speaking"] .one-voice-glow {
+  opacity: 1;
+}
+
+.one-voice-stage[data-look="muted"] .one-voice-glow,
+.one-voice-stage[data-look="notice"] .one-voice-glow,
+.one-voice-stage[data-look="failed"] .one-voice-glow {
+  opacity: 0.16;
+}
+
+.one-voice-stage > :not(.one-voice-drag) {
+  position: relative;
+}
+
+.one-voice-stage-body {
+  display: flex;
+  width: 100%;
+  max-width: 40rem;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ orb */
+
+.one-voice-orb-wrap {
+  position: relative;
+  display: grid;
+  width: var(--vs-orb);
+  flex-shrink: 1;
+  min-height: 0;
+  aspect-ratio: 1;
+  place-items: center;
+}
+
+.one-voice-orb-swell {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  will-change: transform;
+  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
+}
+
+.one-voice-stage[data-look="muted"] .one-voice-orb-swell,
+.one-voice-stage[data-look="notice"] .one-voice-orb-swell,
+.one-voice-stage[data-look="failed"] .one-voice-orb-swell {
+  opacity: 0.45;
+}
+
+.one-voice-stage[data-look="preparing"] .one-voice-orb-swell {
+  opacity: 0.8;
+}
+
+.one-voice-orb-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+  transition: scale var(--mo-quick, 180ms) var(--ease-spring, var(--one-ease-spring));
+}
+
+.one-voice-orb-button[aria-disabled="true"] {
+  cursor: default;
+}
+
+.one-voice-orb-button:not([aria-disabled="true"]):active {
+  scale: 0.96;
+  transition: scale var(--mo-press, 100ms) ease-out;
+}
+
+.one-voice-orb-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--vs-gold);
+}
+
+/* Interrupted: the ring recoils and its inner halo flashes once. */
+.one-voice-stage[data-look="interrupted"] .one-voice-orb-swell {
+  animation: one-voice-recoil 360ms var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+}
+
+@keyframes one-voice-recoil {
+  from {
+    scale: 0.93;
+  }
+}
+
+/* ----------------------------------------------------------------- halo */
+
+/* Three hairline rings follow the swell by transform. Their shape says what the stage is doing:
+   listening holds them still around the orb, speaking sends ripples outward, thinking replaces
+   them with one turning arc. */
+.one-voice-halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.one-voice-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgb(217 179 90 / 24%);
+  opacity: 0;
+  will-change: transform;
+  transition:
+    opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)),
+    border-color var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
+}
+
+.one-voice-ring:nth-child(1) {
+  inset: -8%;
+}
+
+.one-voice-ring:nth-child(2) {
+  inset: -20%;
+  border-color: rgb(217 179 90 / 15%);
+}
+
+.one-voice-ring:nth-child(3) {
+  inset: -34%;
+  border-color: rgb(217 179 90 / 8%);
+}
+
+.one-voice-stage:is([data-look="listening"], [data-look="speaking"], [data-look="interrupted"])
+  .one-voice-ring {
+  opacity: 1;
+}
+
+.one-voice-stage[data-look="preparing"] .one-voice-ring:nth-child(1) {
+  opacity: 0.6;
+}
+
+.one-voice-stage[data-look="notice"] .one-voice-ring:nth-child(1) {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--vs-ember) 70%, transparent);
+}
+
+.one-voice-stage[data-look="failed"] .one-voice-ring:nth-child(1) {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--vs-oxblood) 70%, transparent);
+}
+
+.one-voice-stage[data-look="muted"] .one-voice-ring:nth-child(1) {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.one-voice-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgb(217 179 90 / 45%);
+  opacity: 0;
+}
+
+.one-voice-arc {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  opacity: 0;
+  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
+}
+
+.one-voice-arc circle {
+  fill: none;
+  stroke: var(--st-working, var(--vs-gold));
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.one-voice-stage[data-look="thinking"] .one-voice-arc {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-voice-stage[data-look="thinking"] .one-voice-arc {
+    animation: one-voice-turn 1.2s linear infinite;
+  }
+
+  .one-voice-stage[data-look="speaking"] .one-voice-ripple {
+    animation: one-voice-ripple 2.6s var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) infinite;
+  }
+
+  .one-voice-stage[data-look="speaking"] .one-voice-ripple + .one-voice-ripple {
+    animation-delay: 1.3s;
+  }
+
+  .one-voice-stage[data-look="interrupted"] .one-voice-ring:nth-child(1) {
+    animation: one-voice-flash 420ms var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+  }
+}
+
+@keyframes one-voice-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes one-voice-ripple {
+  from {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+@keyframes one-voice-flash {
+  from {
+    border-color: rgb(217 179 90 / 90%);
+  }
+}
+
+/* --------------------------------------------------------------- status */
+
+.one-voice-status {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0 0.875rem 0 0.625rem;
+  border: 0.5px solid var(--vs-hairline);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 5%);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--vs-bone);
+}
+
+.one-voice-status-glyph {
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  color: var(--vs-gold);
+}
+
+.one-voice-status-glyph svg {
+  width: 100%;
+  height: 100%;
+}
+
+.one-voice-stage[data-look="notice"] .one-voice-status-glyph {
+  color: var(--vs-ember);
+}
+
+.one-voice-stage[data-look="failed"] .one-voice-status-glyph {
+  color: var(--vs-oxblood);
+}
+
+.one-voice-stage:is([data-look="muted"], [data-look="preparing"]) .one-voice-status-glyph {
+  color: var(--vs-bone-soft);
+}
+
+.one-voice-status-glyph svg[data-glyph="working"] circle {
+  fill: none;
+  stroke: var(--st-working, var(--vs-gold));
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-voice-status-glyph svg[data-glyph="working"] {
+    animation: one-voice-turn 1.2s linear infinite;
+  }
+}
+
+/* ----------------------------------------------------------- transcript */
+
+/* A quiet sentence-case label says whose words these are; the voice says it too: yours italic and
+   dim, the answer upright and bright. */
+.one-voice-eyebrow {
+  display: block;
+  height: 1.25em;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--vs-bone-soft);
+}
+
+/* A fixed box, so the ring never moves when the words arrive or leave. */
+.one-voice-caption {
+  width: 100%;
+  max-width: 36rem;
+  height: min(24vh, 11rem);
+  margin-top: 0.5rem;
+  /* A long reply scrolls; its first and last lines fade out instead of being cut in half. */
+  padding-bottom: 1.75rem;
+  overflow-y: auto;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 1rem,
+    #000 calc(100% - 1.75rem),
+    transparent
+  );
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  font-family: var(--one-serif);
+  font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.75rem);
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  color: #f4eee3;
+  text-wrap: pretty;
+  white-space: pre-line;
+}
+
+.one-voice-caption[data-kind="heard"] {
+  color: var(--vs-bone-soft);
+  font-style: italic;
+}
+
+.one-voice-caption:focus-visible {
+  outline: 2px solid var(--vs-gold);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* -------------------------------------------------------------- actions */
+
+.one-voice-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.one-voice-action {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1.125rem;
+  border: 0.5px solid var(--vs-hairline);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 7%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--vs-bone);
+  cursor: pointer;
+  transition:
+    background-color var(--mo-quick, 180ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)),
+    scale var(--mo-quick, 180ms) var(--ease-spring, var(--one-ease-spring));
+}
+
+.one-voice-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.one-voice-action:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.one-voice-action:active {
+  scale: 0.97;
+  transition-duration: var(--mo-press, 100ms);
+}
+
+.one-voice-action:focus-visible {
+  outline: 2px solid var(--vs-gold);
+  outline-offset: 2px;
+}
+
+.one-voice-action[aria-pressed="true"] {
+  border-color: rgb(217 179 90 / 55%);
+  background: rgb(217 179 90 / 14%);
+}
+
+.one-voice-hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--vs-bone-soft);
+}
+
+.one-voice-hints li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.one-voice-hints kbd {
+  min-width: 1.5rem;
+  padding: 0.0625rem 0.4rem;
+  border: 0.5px solid var(--vs-hairline);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 6%);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  color: var(--vs-bone);
+}
+
+/* A phone has no keys to hint at. */
+@media (hover: none) and (pointer: coarse) {
+  .one-voice-hints {
+    display: none;
+  }
+
+  .one-voice-action {
+    min-height: 2.75rem;
+  }
+}
+
+/* ----------------------------------------------------- arrival and exit */
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-voice-stage {
+    animation: one-voice-stage-in var(--mo-surface, 240ms)
+      var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+  }
+
+  /* The stage reaches full opacity first; its words and controls follow 60ms later. */
+  .one-voice-stage-body > :not(.one-voice-orb-wrap),
+  .one-voice-stage-actions,
+  .one-voice-hints {
+    animation: one-voice-content-in var(--mo-surface, 240ms)
+      var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) 60ms both;
+  }
+
+  /* A new label or transcript line arrives the same way, so a change of state is seen, not swapped. */
+  .one-voice-status-text,
+  .one-voice-caption-line {
+    animation: one-voice-content-in var(--mo-quick, 180ms)
+      var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-voice-stage {
+    animation: one-voice-stage-in var(--mo-quick, 180ms) linear both;
+  }
+
+  .one-voice-caption {
+    scroll-behavior: auto;
+  }
+}
+
+@keyframes one-voice-stage-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes one-voice-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.one-voice-ghost {
+  pointer-events: none;
+}
+
+.one-voice-ghost-orb {
+  position: absolute;
+}
+
+@media (forced-colors: active) {
+  .one-voice-orb-button:focus-visible,
+  .one-voice-action:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+/* The stage is dark in every theme, so the flat mark it falls back to is the one made for dark. */
+html .one-voice-stage .one-mark > img[data-mark-theme="dark"],
+html .one-voice-ghost .one-mark > img[data-mark-theme="dark"] {
+  display: block;
+}
+
+html .one-voice-stage .one-mark > img[data-mark-theme="light"],
+html .one-voice-ghost .one-mark > img[data-mark-theme="light"] {
+  display: none;
+}
+
+/* Without motion, each state keeps its own shape: speaking holds two outer rings where the ripples
+   would travel, interrupted holds one bright ring where the flash would be, and thinking holds its
+   gold arc, which is a partial circle no other state draws. */
+@media (prefers-reduced-motion: reduce) {
+  .one-voice-stage[data-look="speaking"] .one-voice-ripple {
+    opacity: 0.4;
+    transform: scale(1.5);
+  }
+
+  .one-voice-stage[data-look="speaking"] .one-voice-ripple + .one-voice-ripple {
+    opacity: 0.2;
+    transform: scale(1.75);
+  }
+
+  .one-voice-stage[data-look="interrupted"] .one-voice-ring:nth-child(1) {
+    border-color: rgb(217 179 90 / 90%);
+  }
+}

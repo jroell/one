@@ -458,10 +458,10 @@
 
 /* ------------------------------------------------------------ code welcome */
 
-/* The empty code thread uses the chat welcome's parts at a quieter scale: a smaller ring, the
-   same serif greeting at regular weight, the project beneath it, and chips with their keycaps. */
+/* The home hero: a 112px ring, the serif greeting at regular weight, the project as a chip, and
+   plain chips with no keyboard hints. */
 [data-one-code-welcome] .one-chat-welcome-orb {
-  width: 5.5rem;
+  width: 7rem;
 }
 
 [data-one-code-welcome] .one-chat-welcome-title {
@@ -470,20 +470,25 @@
   font-weight: 400;
 }
 
-[data-one-code-welcome] .one-chat-welcome-lead {
-  margin-inline: auto;
-  margin-top: 0.375rem;
-  max-width: 28rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.875rem;
-  color: var(--one-text-quiet);
+/* The project the thread lives in: a chip with its icon, on the same glass edge as the others. */
+.one-project-chip {
+  display: inline-flex;
+  max-width: min(28rem, 100%);
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem auto 0;
+  padding: 0.25rem 0.75rem 0.25rem 0.5rem;
+  border-radius: var(--m-radius-floating, 0.75rem);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  box-shadow: inset 0 0 0 0.5px color-mix(in oklab, var(--foreground) 14%, transparent);
 }
 
 /* One starter layout for the empty thread and the new-thread draft: four equal chips in a row
-   when the welcome is wide, two by two when it is not. The label sits at the left, the keycap at
-   the right edge. The welcome is the container, so a narrow pane gets the narrow layout. */
+   when the welcome is wide, two by two when it is not. The welcome is the container, so a narrow
+   pane gets the narrow layout. */
 [data-one-code-welcome] {
   container: welcome / inline-size;
   max-width: 56rem;
@@ -511,13 +516,9 @@
   white-space: nowrap;
 }
 
-[data-one-code-welcome] .one-chip kbd {
-  margin-inline-start: auto;
-}
-
-/* A still warm glow behind the ring, painted once. Its alpha follows an eased curve to zero through a mask,
-   so the color never shifts and no circular edge shows. */
-[data-one-code-welcome]::before {
+/* A still warm glow behind the ring in the dark theme. Its alpha follows an eased curve to zero
+   through a mask, so no circular edge shows. Light has none: its light field is --m-ambient. */
+html.dark [data-one-code-welcome]::before {
   content: "";
   position: absolute;
   inset: -10rem -16rem -10rem;
@@ -538,11 +539,6 @@
     rgb(0 0 0 / 1%) 82%,
     transparent 100%
   );
-}
-
-.one-chip kbd {
-  margin-inline-end: -0.25rem;
-  margin-inline-start: 0.125rem;
 }
 
 /* ------------------------------------------------------------- list headers */
@@ -673,7 +669,7 @@
 /* A new thread's draft: the same welcome, with the project picker in the headline. Its starters
    use the empty thread's grid, so the two screens differ only in the headline. */
 [data-one-code-welcome][data-draft] .one-chat-welcome-orb {
-  width: 5.5rem;
+  width: 7rem;
 }
 
 .one-chat-welcome-heading {
@@ -717,12 +713,7 @@
   color: var(--ui-on-solid);
 }
 
-/* On a phone there is no keyboard to show: the starters keep their labels only. */
 @media (max-width: 480px) {
-  [data-one-code-welcome] .one-chip kbd {
-    display: none;
-  }
-
   /* The thread header gives the title the whole row: the project crumb is in the sidebar. */
   [data-one-header-crumbs] nav > ol > li:not([aria-current="page"]) {
     display: none;
@@ -744,10 +735,8 @@
 /* The flat glyph's two tones and its highlight, all from the brand color, so a theme that lends
    its action color gets its own gold. */
 .one-glyph {
-  /* The standard theme draws the glyph from the shared gold ramp. A chosen theme lends its action
-     color, and the glyph's tones come from that. */
-  --one-glyph-base: var(--gold-500);
-  --one-glyph-shade: var(--gold-700);
+  --one-glyph-base: var(--gold-400);
+  --one-glyph-shade: var(--gold-600);
   --one-glyph-highlight: var(--gold-300);
   flex-shrink: 0;
   overflow: visible;
@@ -765,29 +754,25 @@
   stroke: var(--one-glyph-highlight);
 }
 
-.one-glyph [data-glyph="glint"] {
-  fill: var(--one-glyph-highlight);
+.one-glyph[data-mono] [data-glyph="base"] {
+  fill: currentColor;
 }
 
-html[data-theme-id]:not([data-theme-id=""]) .one-glyph {
-  --one-glyph-base: var(--one-brand);
-  --one-glyph-shade: color-mix(in oklch, var(--one-brand) 56%, black);
-  --one-glyph-highlight: color-mix(in oklch, var(--one-brand) 40%, white);
+.one-glyph[data-mono] [data-glyph="shade"],
+.one-glyph[data-mono] [data-glyph="highlight"] {
+  display: none;
 }
 
-/* The lit mark and the ring in the standard theme are one metal: the shared gold ramp, the same
-   in both themes. The static images in public/mark are drawn from these values (see
-   scripts/render-mark.mjs and ORB_GOLD in oneOrbRest.ts). */
-html:not([data-theme-id]),
-html[data-theme-id=""] {
+/* The ring is one metal in every theme: the shared gold ramp. Themes change the interface, never
+   the mark. The pictures in public/mark are drawn from these values (scripts/render-mark.mjs). */
+:root:root {
   --one-ring-hi: var(--gold-300);
   --one-ring-mid: var(--gold-500);
   --one-ring-lo: var(--gold-700);
   --one-ring-deep: color-mix(in oklch, var(--gold-700) 55%, black);
 }
 
-html:not([data-theme-id]) .one-opening,
-html[data-theme-id=""] .one-opening {
+.one-opening {
   --one-ring-hi: var(--gold-300);
   --one-ring-mid: var(--gold-500);
   --one-ring-lo: var(--gold-700);
@@ -826,13 +811,104 @@ html:not(.dark) .one-mark > img[data-mark-theme="dark"] {
   display: none;
 }
 
-/* Chat mode's live line leads with a gold dot and draws no ring (one-chat.css hides the vector).
-   The lit mark is a picture inside a span now, so it is hidden here the same way. */
-html[data-one-mode="chat"]
-  :is([data-timeline-row-kind="working"], [data-chat-waiting])
-  .one-working-mark
-  > .one-mark {
-  display: none;
+/* ------------------------------------------------------------ boot to home handoff */
+
+/* While the boot ring flies to the home ring, the rest of the welcome waits, then arrives behind
+   it: opacity and a small rise only. The page itself never waits; this only moves. */
+html[data-one-handoff] #root {
+  opacity: 0;
+}
+
+html[data-one-handoff="settle"] #root,
+html[data-one-handoff="fade"] #root,
+html[data-one-handoff="travel"] #root,
+html[data-one-handoff="arrive"] #root {
+  opacity: 1;
+  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, ease-out);
+}
+
+html[data-one-handoff]:not([data-one-handoff="fade"])
+  [data-one-code-welcome]
+  > :not(.one-chat-welcome-orb) {
+  opacity: 0;
+  translate: 0 6px;
+}
+
+html[data-one-handoff="arrive"] [data-one-code-welcome] > :not(.one-chat-welcome-orb) {
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity var(--mo-surface, 240ms) var(--ease-enter, ease-out) 60ms,
+    translate var(--mo-surface, 240ms) var(--ease-enter, ease-out) 60ms;
+}
+
+/* ------------------------------------------------------------------- the working arc */
+
+/* One turn every 1.2s on its own layer: transform only. It holds still under reduced motion. */
+.one-working-arc {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--st-working, var(--gold-400));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .one-working-arc > svg {
+    animation: one-working-arc-turn 1.2s linear infinite;
+  }
+}
+
+@keyframes one-working-arc-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ sidebar status */
+
+/* One meaning per color: a gold arc for working, a bone check for done, an ember dot for the
+   person's attention, oxblood for failed. The fallbacks hold until the shared tokens land. */
+.one-status-dot {
+  display: inline-block;
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--st-attention, #e08a3c);
+}
+
+[data-sidebar-status-word="failed"] {
+  color: var(--st-error, #d4574a);
+}
+
+[data-sidebar-status="done"] {
+  color: var(--st-done, #cfc6b6);
+}
+
+[data-sidebar-status="failed"] {
+  color: var(--st-error, #d4574a);
+}
+
+[data-sidebar-status="waiting"] {
+  color: var(--sidebar-muted-foreground, currentColor);
+}
+
+/* The one header over the list that names how many rows need the person. */
+[data-sidebar-needs-you] button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.125rem var(--sidebar-row-content-inset, 0.75rem);
+  border-radius: var(--m-radius-control, 0.5rem);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: var(--st-attention, #e08a3c);
+  text-align: start;
+}
+
+[data-sidebar-needs-you] button:hover {
+  background: color-mix(in oklab, var(--st-attention, #e08a3c) 10%, transparent);
 }
 
 /* ----------------------------------------------------------------- the wordmark */

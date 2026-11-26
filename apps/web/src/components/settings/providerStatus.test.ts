@@ -32,6 +32,8 @@ describe("getProviderSummary", () => {
     ).toEqual({
       headline: "Unavailable",
       detail: "The provider process failed to start.",
+      // The list shows a Failed chip, so the word Unavailable is not repeated beside it.
+      restatesStatus: true,
     });
   });
 

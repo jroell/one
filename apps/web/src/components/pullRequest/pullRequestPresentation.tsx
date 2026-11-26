@@ -92,7 +92,7 @@ function reviewDecisionPresentation(decision: PullRequestReviewDecision) {
       return {
         Icon: UserRoundXIcon,
         label: msg("Changes requested"),
-        toneClassName: "text-amber-600/90 dark:text-amber-400/80",
+        toneClassName: "one-st-attention",
       };
     case "review-required":
       return {
@@ -155,7 +155,7 @@ function resolvePullRequestConflict(
     label: input.baseBranch
       ? resolve(msg("Conflicts with {baseBranch}", { baseBranch: input.baseBranch }))
       : resolve(msg("Has conflicts")),
-    toneClassName: "text-destructive",
+    toneClassName: "one-st-error",
     Icon: PullRequestGlyph.conflicting,
   };
 }
@@ -227,22 +227,22 @@ const CHECK_STATUS_PRESENTATION = {
   pending: {
     label: msg("Running", { $context: "check status" }),
     Icon: Spinner,
-    toneClassName: "text-amber-500",
+    toneClassName: "one-st-working",
   },
   "action-required": {
     label: msg("Awaiting action"),
     Icon: CircleDotIcon,
-    toneClassName: "text-amber-600 dark:text-amber-400/90",
+    toneClassName: "one-st-attention",
   },
   success: {
     label: msg("Passed", { $context: "check status" }),
     Icon: CircleCheckIcon,
-    toneClassName: "text-emerald-600 dark:text-emerald-300/90",
+    toneClassName: "one-st-done",
   },
   failure: {
     label: msg("Failed", { $context: "check status" }),
     Icon: CircleXIcon,
-    toneClassName: "text-destructive",
+    toneClassName: "one-st-error",
   },
   cancelled: {
     label: msg("Cancelled", { $context: "check status" }),
@@ -300,12 +300,12 @@ const CHECKS_STATE_PRESENTATION = {
   failing: {
     label: msg("Some checks were not successful"),
     Icon: CircleXIcon,
-    toneClassName: "text-destructive",
+    toneClassName: "one-st-error",
   },
   pending: {
     label: msg("Some checks haven't completed yet"),
     Icon: CircleDotIcon,
-    toneClassName: "text-amber-600 dark:text-amber-400/90",
+    toneClassName: "one-st-attention",
   },
 } as const satisfies Record<
   PullRequestChecksState,
@@ -337,11 +337,10 @@ const REVIEW_OUTCOME_PRESENTATION = {
       $context: "tooltip: this approval was given before the latest commits were pushed",
     }),
     Icon: CircleCheckIcon,
-    toneClassName: "text-emerald-600 dark:text-emerald-300/90",
-    ringClassName: "ring-2 ring-emerald-500 dark:ring-emerald-400",
-    staleRingClassName:
-      "ring-2 ring-[color-mix(in_srgb,var(--color-emerald-500)_35%,var(--background))] dark:ring-[color-mix(in_srgb,var(--color-emerald-400)_35%,var(--background))]",
-    fillClassName: "fill-emerald-500 dark:fill-emerald-400",
+    toneClassName: "one-st-done",
+    ringClassName: "ring-2 one-st-ring-done",
+    staleRingClassName: "ring-2 one-st-ring-done-stale",
+    fillClassName: "one-st-fill-done",
     badgeVariant: "success",
   },
   "changes-requested": {
@@ -351,10 +350,10 @@ const REVIEW_OUTCOME_PRESENTATION = {
         "tooltip: the reviewer requested changes on an older version, before the latest commits",
     }),
     Icon: CircleXIcon,
-    toneClassName: "text-destructive",
-    ringClassName: "ring-2 ring-destructive",
-    staleRingClassName: "ring-2 ring-[color-mix(in_srgb,var(--destructive)_35%,var(--background))]",
-    fillClassName: "fill-destructive",
+    toneClassName: "one-st-error",
+    ringClassName: "ring-2 one-st-ring-error",
+    staleRingClassName: "ring-2 one-st-ring-error-stale",
+    fillClassName: "one-st-fill-error",
     badgeVariant: "error",
   },
   dismissed: {

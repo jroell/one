@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  ATTENTION_MS,
   canDrawFrame,
   frameIntervalMs,
   FRAME_BUDGET_START,
@@ -91,19 +90,10 @@ describe("how much light a ring gives off", () => {
 });
 
 describe("what the next frame does", () => {
-  it("keeps a settled idle ring at the resting cadence and scale until ATTENTION_MS has passed", () => {
-    expect(restingPlan(IDLE_AT_REST, "idle", 0, 0, ATTENTION_MS - 1)).toEqual({
+  it("keeps a settled idle ring at the resting cadence", () => {
+    expect(restingPlan(IDLE_AT_REST, "idle", 0, 0)).toEqual({
       intervalMs: RESTING_FRAME_MS,
       resting: true,
-      stop: false,
-    });
-  });
-
-  it("stops a settled idle ring once ATTENTION_MS has passed since the last attention", () => {
-    expect(restingPlan(IDLE_AT_REST, "idle", 0, 0, ATTENTION_MS)).toEqual({
-      intervalMs: RESTING_FRAME_MS,
-      resting: true,
-      stop: true,
     });
   });
 
@@ -118,15 +108,11 @@ describe("what the next frame does", () => {
       level: 0,
     },
     { name: "sound is playing", state: "idle", motion: {}, level: 0.3 },
-  ])("never stops or lowers the scale when $name, however long nobody was there", (input) => {
-    const plan = restingPlan(
-      { ...IDLE_AT_REST, ...input.motion },
-      input.state,
-      0,
-      input.level,
-      10 * ATTENTION_MS,
-    );
-    expect(plan).toEqual({ intervalMs: 0, resting: false, stop: false });
+  ])("draws every frame when $name", (input) => {
+    expect(restingPlan({ ...IDLE_AT_REST, ...input.motion }, input.state, 0, input.level)).toEqual({
+      intervalMs: 0,
+      resting: false,
+    });
   });
 });
 

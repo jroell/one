@@ -208,6 +208,8 @@ import { matchInlineSkills } from "@t3tools/shared/inlineSkills";
 import { collectComposerModelMentions } from "@t3tools/client-runtime/composer-model-mentions";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
+import { ChatQuizBlock } from "~/one/ChatQuizCards";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 import { MarkdownTable, markdownTableShape } from "./chat/MarkdownTable";
 import { MarkdownDetails } from "./chat/MarkdownDetails";
 import {
@@ -227,6 +229,7 @@ import {
   hastHasText,
   hastPlainTextDeep,
   plainHastText,
+  isWhollyBoldParagraph,
   standaloneImageCaption,
 } from "./chat/markdownHast.logic";
 import {
@@ -1844,6 +1847,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       ChatMarkdownRendererContext,
     );
     const text = use(ChatMarkdownTextContext);
+    const chatMode = useWorkspaceMode() === "chat";
     const codeBlock = extractCodeBlock(children);
     if (!codeBlock) {
       return <pre {...props}>{children}</pre>;
@@ -1872,6 +1876,14 @@ const CHAT_MARKDOWN_COMPONENTS = {
         </Suspense>
       </RenderErrorBoundary>
     );
+    if (language === "quiz" && chatMode) {
+      return (
+        <ChatQuizBlock
+          code={codeBlock.code}
+          streaming={isStreaming && !isClosedCodeFence(node, text, codeBlock.code)}
+        />
+      );
+    }
     if (language === "mermaid") {
       return (
         <MarkdownMermaidCodeBlock
@@ -2044,20 +2056,23 @@ function markdownIslandOptions(state: ChatMarkdownComponentState): MarkdownIslan
         case "p": {
           // Chat mode sets a lone image as a figure, with its alt text as the caption.
           const caption = standaloneImageCaption(node);
-          return caption === null
-            ? node
-            : {
-                ...withProperties(node, { dataOneFigure: "" }),
-                children: [
-                  ...node.children,
-                  {
-                    type: "element",
-                    tagName: "span",
-                    properties: { dataOneFigureCaption: "" },
-                    children: [{ type: "text", value: caption }],
-                  },
-                ],
-              };
+          if (caption === null) {
+            return isWhollyBoldParagraph(node)
+              ? withProperties(node, { dataOneStatement: "" })
+              : node;
+          }
+          return {
+            ...withProperties(node, { dataOneFigure: "" }),
+            children: [
+              ...node.children,
+              {
+                type: "element",
+                tagName: "span",
+                properties: { dataOneFigureCaption: "" },
+                children: [{ type: "text", value: caption }],
+              },
+            ],
+          };
         }
         default:
           return node;

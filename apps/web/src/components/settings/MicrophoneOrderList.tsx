@@ -22,6 +22,7 @@ import {
   preferredMicrophone,
 } from "../../speech/microphoneOrder";
 import { Button } from "../ui/button";
+import { SettingsStatusChip } from "./settingsStatus";
 
 /** The saved microphone order. Keyboard users reorder with the step buttons. */
 export function MicrophoneOrderList(props: {
@@ -139,9 +140,7 @@ function MicrophoneRow(props: {
         )}
       >
         {props.inUse ? (
-          <span className="rounded-sm bg-success/12 px-1 text-2xs text-success-foreground">
-            <T>In use</T>
-          </span>
+          <SettingsStatusChip status="inUse" />
         ) : props.notConnected ? (
           <span className="text-2xs text-muted-foreground">
             <T>Not connected</T>

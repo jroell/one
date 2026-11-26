@@ -814,20 +814,20 @@ export const FLEET_ROUTE_PITCH = 22;
 /** How far that column may reach into the gap above and below its card's place. */
 const PILL_OVERHANG = 9;
 /**
- * A machine's card stacks a row of chips (its connection, and "This device"), the name (one or two
- * lines) and the links line (up to two lines), each `line` tall, inside `padding`. `nameLine` is the most characters of a name the
- * narrowest card sets on one line.
+ * A machine's card stacks its name (one line, cut with an ellipsis when long), a row of chips (its
+ * state, and "This device") and a line saying why or what it links to, each `line` tall, inside
+ * `padding`. The card is wide enough for the names people give machines, and the full name is the
+ * card's label.
  */
-const CARD = { padding: 12, line: 16, badge: 18, stateLines: 2, nameLine: 13 };
+const CARD = { padding: 12, line: 16, chips: 18, stateLines: 1 };
 
 /** How tall a machine's card is. It follows the card's own text, so what attaches never stretches it. */
 export function fleetCardHeight(host: FleetNode): number {
   if (host.kind === "connect") return OFFER.height;
-  const nameLines = host.label.length > CARD.nameLine ? 2 : 1;
-  // Every machine's card carries its connection chip (and "This device" beside it) on a row of its own.
-  const badge = host.kind === "environment" ? CARD.badge : 0;
-  return CARD.padding + badge + (nameLines + CARD.stateLines) * CARD.line;
+  const chips = host.kind === "environment" ? CARD.chips : 0;
+  return CARD.padding + chips + (1 + CARD.stateLines) * CARD.line;
 }
+
 /** Routes enter a card as one bundle: this far apart, and never wider than `spread`. */
 const ROUTE_ENTRY = { pitch: 4, spread: 10 };
 const OFFER = { height: 44 };
@@ -861,7 +861,7 @@ const REGULAR: FleetMetrics = {
   wire: 72,
   pill: 82,
   pillGap: 20,
-  card: 164,
+  card: 212,
   target: 188,
   linkRun: 92,
   laneFirst: 24,
@@ -874,7 +874,7 @@ const COMPACT: FleetMetrics = {
   wire: 28,
   pill: 72,
   pillGap: 14,
-  card: 148,
+  card: 168,
   target: 146,
   linkRun: 36,
   laneFirst: 18,
@@ -887,7 +887,7 @@ const ROOMY: FleetMetrics = {
   wire: 112,
   pill: 88,
   pillGap: 26,
-  card: 180,
+  card: 228,
   target: 220,
   linkRun: 132,
   laneFirst: 24,

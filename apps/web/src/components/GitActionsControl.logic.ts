@@ -654,7 +654,7 @@ export type ChangesLineTotals = {
 // working tree and the Changes row read +0 while Diff still showed the work.
 // The Diff panel's branch comparison wins when it has file stats, so a remembered base or
 // hidden whitespace reads the same in the row as in the panel.
-export function resolveChangesTotals(
+function computeChangesTotals(
   status: VcsStatusResult | null | undefined,
   branchPreview?: ReviewDiffPreviewSource | null,
 ): ChangesLineTotals | null {
@@ -696,6 +696,30 @@ export function resolveChangesTotals(
           )
         : null,
   };
+}
+
+// The row re-renders with every commit but its inputs change only when the status or the branch
+// preview does, so the totals (and the file classification under them) follow those objects.
+const totalsByPreview = new WeakMap<object, ChangesLineTotals>();
+const totalsByStatus = new WeakMap<object, ChangesLineTotals | null>();
+
+export function resolveChangesTotals(
+  status: VcsStatusResult | null | undefined,
+  branchPreview?: ReviewDiffPreviewSource | null,
+): ChangesLineTotals | null {
+  if (branchPreview?.files) {
+    let kept = totalsByPreview.get(branchPreview);
+    if (kept === undefined) {
+      kept = computeChangesTotals(status, branchPreview) as ChangesLineTotals;
+      totalsByPreview.set(branchPreview, kept);
+    }
+    return kept;
+  }
+  if (!status) return null;
+  if (totalsByStatus.has(status)) return totalsByStatus.get(status) ?? null;
+  const computed = computeChangesTotals(status, branchPreview);
+  totalsByStatus.set(status, computed);
+  return computed;
 }
 
 /** A base ref as the Changes row names it: `origin/main` reads `main`, so the row keeps its room. */

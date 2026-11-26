@@ -7,6 +7,7 @@ import { observeResize } from "~/lib/observeResize";
 
 import { CHAT_OUTLINE_MIN_TURNS, ChatOutline } from "./ChatOutline";
 import { chatOutlineFits } from "./chatOutlineLayout";
+import type { ChatSection } from "./chatSections";
 
 /**
  * The host over the timeline in Chat mode. It mounts the outline only where the outline has room:
@@ -18,6 +19,8 @@ export function ChatNav({
   currentId,
   threadKey,
   onSelect,
+  sections,
+  onSelectSection,
   onWheel,
   onShownChange,
   progressRef,
@@ -27,6 +30,8 @@ export function ChatNav({
   readonly currentId: string | null;
   readonly threadKey: string;
   readonly onSelect: (item: TimelineMinimapItem) => void;
+  readonly sections: ReadonlyMap<string, ReadonlyArray<ChatSection>>;
+  readonly onSelectSection: (section: ChatSection) => void;
   readonly onWheel: (event: WheelEvent) => void;
   /** Whether the outline is mounted, so the timeline measures the current turn only then. */
   readonly onShownChange: (shown: boolean) => void;
@@ -46,8 +51,12 @@ export function ChatNav({
     measure();
     return observeResize(node, measure);
   };
+  const hasSections = [...sections.values()].reduce((total, list) => total + list.length, 0) >= 1;
   const showsOutline =
-    fits && items.length >= CHAT_OUTLINE_MIN_TURNS && chatWidth !== "wide" && chatWidth !== "full";
+    fits &&
+    (items.length >= CHAT_OUTLINE_MIN_TURNS || (items.length > 0 && hasSections)) &&
+    chatWidth !== "wide" &&
+    chatWidth !== "full";
   const reportShown = useStableCallback(onShownChange);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the timeline's scroll loop, which holds no render state, whether it must measure turns
   useLayoutEffect(() => {
@@ -65,6 +74,8 @@ export function ChatNav({
           currentId={currentId}
           threadKey={threadKey}
           onSelect={onSelect}
+          sections={sections}
+          onSelectSection={onSelectSection}
           onWheel={onWheel}
         />
       ) : null}

@@ -38,6 +38,7 @@ import { usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { SettingsStatusChip } from "./settingsStatus";
 
 export function EnvironmentRoutesList({
   environment,
@@ -181,16 +182,8 @@ function SortableRouteRow({
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
           {label}
-          {inUse ? (
-            <span className="rounded-sm bg-success/12 px-1 text-2xs font-normal text-success-foreground">
-              <T>In use</T>
-            </span>
-          ) : null}
-          {refused ? (
-            <span className="rounded-sm bg-destructive/8 px-1 text-2xs font-normal text-destructive-foreground">
-              <T>Sign-in refused</T>
-            </span>
-          ) : null}
+          {inUse ? <SettingsStatusChip status="inUse" /> : null}
+          {refused ? <SettingsStatusChip status="failed" /> : null}
         </p>
         {address !== null ? (
           <p className="truncate text-2xs text-muted-foreground">

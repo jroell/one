@@ -268,35 +268,35 @@ export function keybindingConflictLabels(
 
 const WHEN_WORDS: Record<string, string> = {
   terminalFocus: msg("in the terminal"),
-  terminalOpen: msg("with the terminal open"),
+  terminalOpen: msg("when the terminal is open"),
   previewFocus: msg("in the preview"),
-  previewOpen: msg("with the preview open"),
+  previewOpen: msg("when the preview is open"),
   composerFocus: msg("in the composer"),
   editableFocus: msg("while typing in a field"),
-  turnRunning: msg("while the agent works"),
-  rightPanelOpen: msg("with the right panel open"),
-  usagePageOpen: msg("on the usage page"),
-  modelPickerOpen: msg("with the model picker open"),
+  turnRunning: msg("while the agent is working"),
+  rightPanelOpen: msg("when the right panel is open"),
+  usagePageOpen: msg("on the Usage page"),
+  modelPickerOpen: msg("when the model picker is open"),
   draftThreadRoute: msg("in a new thread"),
-  isMac: msg("on macOS"),
+  isMac: msg("on a Mac"),
   isWeb: msg("in the browser"),
   isDesktop: msg("in the desktop app"),
 };
 
 const WHEN_NEGATED_WORDS: Record<string, string> = {
-  terminalFocus: msg("not in the terminal"),
-  previewFocus: msg("not in the preview"),
-  composerFocus: msg("not in the composer"),
-  editableFocus: msg("while not typing in a field"),
+  terminalFocus: msg("outside the terminal"),
+  previewFocus: msg("outside the preview"),
+  composerFocus: msg("outside the composer"),
+  editableFocus: msg("when not typing in a field"),
   draftThreadRoute: msg("in a thread that has started"),
-  modelPickerOpen: msg("with the model picker closed"),
-  isMac: msg("not on macOS"),
+  modelPickerOpen: msg("when the model picker is closed"),
+  isMac: msg("not on a Mac"),
   isWeb: msg("not in the browser"),
   isDesktop: msg("not in the desktop app"),
 };
 
 /**
- * A `when` clause in words, such as "not in the terminal". Names with no wording
+ * A `when` clause in words, such as "outside the terminal". Names with no wording
  * keep their raw spelling; the raw clause stays in the editor and on hover.
  */
 export function describeWhen(
@@ -424,6 +424,12 @@ const KEYBINDING_GROUPS = [
     title: msg("Threads"),
     prefixes: ["thread", "chat", "pullRequest"],
     headingArea: "thread",
+  },
+  {
+    id: "approval",
+    title: msg("Approval"),
+    prefixes: ["approval"],
+    headingArea: "approval",
   },
   {
     id: "composer",
@@ -721,6 +727,8 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "preview.focusUrl": msg("Preview: focus URL"),
   "preview.find": msg("Preview: find on page"),
   "shortcuts.show": msg("Keyboard shortcuts: show"),
+  "approval.approve": msg("Approval: approve"),
+  "approval.decline": msg("Approval: decline"),
 };
 
 /** The area a command belongs to, the first part of its id ("thread" for "thread.next"). */
@@ -741,6 +749,8 @@ const COMMAND_ACTION_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "thread.pin": msg("Pin"),
   "thread.regenerateTitle": msg("Regenerate title"),
   "thread.undo": msg("Undo"),
+  "approval.approve": msg("Approve"),
+  "approval.decline": msg("Decline"),
   "composer.sendAlternate": msg("Opposite queue or steer action"),
   "composer.sendBackground": msg("Start in background"),
   "composer.sendAndNewThread": msg("Send and start new thread"),

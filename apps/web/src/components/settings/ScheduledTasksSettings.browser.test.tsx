@@ -349,7 +349,7 @@ describe("ScheduledTasksSettings", () => {
       </RegistryContext.Provider>,
     );
     await expect
-      .element(page.getByText("Scheduled tasks run a prompt on a timer", { exact: false }))
+      .element(page.getByText("A scheduled task runs a prompt on a timer", { exact: false }))
       .toBeVisible();
     await expect.element(page.getByRole("button", { name: "New task" })).toBeEnabled();
     expect(

@@ -92,7 +92,10 @@ describe("keyboard shortcut rows", () => {
     await expect.element(pill).toBeVisible();
     const row = pill.element().closest<HTMLElement>('[data-slot="settings-row"]')!;
     expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(46);
-    expect(row.querySelector("[data-settings-row-description]")).toBeNull();
+    // The condition is in the row but closed to no height until the row is focused or edited.
+    const reveal = row.querySelector<HTMLElement>("[data-settings-reveal]")!;
+    expect(reveal.hasAttribute("data-open")).toBe(false);
+    expect(reveal.getBoundingClientRect().height).toBe(0);
     expect(screen.container.querySelector("[data-compact]")).not.toBeNull();
   });
 });

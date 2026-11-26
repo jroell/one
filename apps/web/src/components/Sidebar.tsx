@@ -77,6 +77,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import {
+  memo,
   useEffect,
   useLayoutEffect,
   useReducer,
@@ -131,6 +132,7 @@ import {
   useThreadActions,
 } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
+import { useStableArray } from "../hooks/useStableArray";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
@@ -203,6 +205,7 @@ import {
   resolveSidebarDropVerb,
   resolveSidebarThreadSection,
   resolveSidebarReorderableThreadKeys,
+  resolveSidebarThreadStatus,
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
   resolveScopedNewThreadProjectRef,
@@ -347,6 +350,8 @@ const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Ma
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
 const EMPTY_DRAFT_IDS: readonly DraftId[] = [];
 
+// Wrapped here, not where it is defined, so a test can still spy on the row function itself.
+const MemoSortableThreadRow = memo(SortableThreadRow);
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
@@ -1621,27 +1626,31 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
 
   const readOpensPullRequestsInRightPanel = useStableCallback(() => routeThreadRef !== null);
-  const handleThreadClick = (event: ReactMouseEvent, threadRef: ScopedThreadRef) => {
-    if (isSidebarNestedLinkClick(event.target)) return;
-    const isMac = isMacPlatform(navigator.platform);
-    const isModClick = isMac ? event.metaKey : event.ctrlKey;
-    const threadKey = scopedThreadKey(threadRef);
-    if (isModClick) {
-      event.preventDefault();
-      toggleThreadSelection(threadKey);
-      return;
-    }
-    if (event.shiftKey) {
-      event.preventDefault();
-      rangeSelectTo(threadKey, orderedThreadKeysRef.current);
-      return;
-    }
-    // macOS keeps counting quick clicks across rows, so only the open row's trailing click is a double-click.
-    if (isTrailingDoubleClick(event.detail) && routeThreadKey === threadKey) {
-      return;
-    }
-    navigateToThread(threadRef);
-  };
+  // Rows are memoized, so a handler that closed over the open thread would give every row new
+  // props on each navigation; the stable callback reads the latest values when it is called.
+  const handleThreadClick = useStableCallback(
+    (event: ReactMouseEvent, threadRef: ScopedThreadRef) => {
+      if (isSidebarNestedLinkClick(event.target)) return;
+      const isMac = isMacPlatform(navigator.platform);
+      const isModClick = isMac ? event.metaKey : event.ctrlKey;
+      const threadKey = scopedThreadKey(threadRef);
+      if (isModClick) {
+        event.preventDefault();
+        toggleThreadSelection(threadKey);
+        return;
+      }
+      if (event.shiftKey) {
+        event.preventDefault();
+        rangeSelectTo(threadKey, orderedThreadKeysRef.current);
+        return;
+      }
+      // macOS keeps counting quick clicks across rows, so only the open row's trailing click is a double-click.
+      if (isTrailingDoubleClick(event.detail) && routeThreadKey === threadKey) {
+        return;
+      }
+      navigateToThread(threadRef);
+    },
+  );
 
   // Snapshot navigation before partition mutation; background parks use a null plan.
   const planForwardNavigation = (
@@ -1776,14 +1785,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     };
   };
 
-  const attachTreeRef = (node: HTMLUListElement) => {
+  // A ref callback with a new identity detaches and attaches again on every render, which would
+  // rebuild the list motion and shift guard (and read every row's layout) on each navigation.
+  const attachTreeRef = useStableCallback((node: HTMLUListElement) => {
     const detachMotion = attachListMotionRef(node);
     const detachTree = attachSidebarTree(node);
     return () => {
       detachTree?.();
       detachMotion();
     };
-  };
+  });
 
   // Folder rows only drag out to the composer; folders own their order, so nothing drops in the list.
   const isContextDrag =
@@ -2072,20 +2083,21 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   ].join("\0");
   const listMotionAnimate =
     dragState === null && sidebarListItems.length + visibleDraftSessionCount > 0;
-  // Cache on both fields so layout-key changes trigger the effect even when animate is unchanged.
-  const listMotionPass = { layoutKey: listMotionLayoutKey, animate: listMotionAnimate };
   const shelfExpansionKey = [workingShelfExpanded, snoozedShelfExpanded, settledShelfExpanded].join(
     ":",
   );
   const previousShelfExpansionKeyRef = useRef(shelfExpansionKey);
+  const motionLayoutKeyRef = useRef(listMotionLayoutKey);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- records moved rows and updates list motion after each layout-affecting commit
   useLayoutEffect(() => {
+    // The key is the trigger: a navigation that leaves the list as it was must not read layout.
+    motionLayoutKeyRef.current = listMotionLayoutKey;
     shiftGuardRef.current?.update();
     // Shelf rows would travel over stationary headers below the bottom-anchored shelf.
     const shelvesUnchanged = previousShelfExpansionKeyRef.current === shelfExpansionKey;
     previousShelfExpansionKeyRef.current = shelfExpansionKey;
-    listMotionRef.current?.update(listMotionPass.animate && shelvesUnchanged);
-  }, [listMotionPass, shelfExpansionKey]);
+    listMotionRef.current?.update(listMotionAnimate && shelvesUnchanged);
+  }, [listMotionLayoutKey, listMotionAnimate, shelfExpansionKey]);
   const handleThreadDragOver = (event: DragOverEvent) => {
     const target = event.over
       ? resolveSidebarDropTarget(sidebarListItems, String(event.active.id), String(event.over.id))
@@ -2096,7 +2108,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         : { ...current, targetSection: target?.section ?? null },
     );
   };
-  const sortableIds = sidebarListItems.map(sidebarListItemId);
+  const sortableIds = useStableArray(sidebarListItems.map(sidebarListItemId));
   // Keep non-drag orders constant to preserve sorting strategy and row identity during streaming.
   const { settledOrder: draggedSettledOrder, activeOrder: draggedActiveOrder } =
     dragState === null
@@ -3585,7 +3597,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             ? "card"
                             : "slim";
                         return (
-                          <SortableThreadRow
+                          <MemoSortableThreadRow
                             key={threadKey}
                             sortableId={threadKey}
                             contextDrag={isContextDrag}
@@ -3697,6 +3709,25 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           />
                         );
                       };
+                      // The rows drawn that wait on the person, by the same rule each row's mark uses.
+                      const needsYouItems = sidebarListItems.flatMap((item) => {
+                        const thread =
+                          item.kind === "thread" ? threadByKey.get(item.key) : undefined;
+                        const status = thread ? resolveSidebarThreadStatus(thread) : null;
+                        return item.kind === "thread" &&
+                          thread &&
+                          (status === "approval" || status === "input" || status === "request")
+                          ? [{ thread, section: item.section, key: item.key }]
+                          : [];
+                      });
+                      const needsYou = needsYouItems.map((entry) => entry.thread);
+                      // In the flat list they sit together under the header, so the count is
+                      // the rows below it. A drag keeps the natural order the sorting expects.
+                      const regroupNeedsYou =
+                        projectFolders === null && dragState === null && needsYouItems.length > 0;
+                      const regrouped = new Set(
+                        regroupNeedsYou ? needsYouItems.map((entry) => entry.key) : [],
+                      );
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
                       const items: ReactNode[] = [
                         <SidebarDraftBlock
@@ -3711,6 +3742,32 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           onNavigateToDraft={navigateToDraft}
                           onDraftContextMenu={handleDraftContextMenu}
                         />,
+                        ...(needsYou.length > 0
+                          ? [
+                              <li
+                                key="needs-you"
+                                data-sidebar-needs-you=""
+                                className="list-none pt-1"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigateToThread(
+                                      scopeThreadRef(needsYou[0]!.environmentId, needsYou[0]!.id),
+                                    )
+                                  }
+                                >
+                                  <span aria-hidden className="one-status-dot" />
+                                  {gt("{count} need you", { count: needsYou.length })}
+                                </button>
+                              </li>,
+                            ]
+                          : []),
+                        ...(regroupNeedsYou
+                          ? needsYouItems.map((entry) =>
+                              renderThreadRow(entry.thread, entry.section),
+                            )
+                          : []),
                         ...(soleProject?.name
                           ? [
                               <li
@@ -3733,6 +3790,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         if (item.kind === "thread") {
                           // Folders draw active rows in their own place below.
                           if (projectFolders !== null && item.section === "active") continue;
+                          if (regrouped.has(item.key)) continue;
                           items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
                           continue;
                         }

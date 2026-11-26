@@ -7,7 +7,7 @@ import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../../i18n/messages";
 
-export const PROVIDER_STATUS_STYLES = {
+const PROVIDER_STATUS_STYLES = {
   disabled: {
     dot: "bg-muted-foreground/50",
   },
@@ -82,6 +82,7 @@ export function getProviderSummary(
       detail:
         provider.message ??
         resolve(msg("This provider is installed but disabled for new sessions in One.")),
+      restatesStatus: true,
     };
   }
   if (!provider.installed) {
@@ -111,12 +112,14 @@ export function getProviderSummary(
       detail:
         provider.message ??
         resolve(msg("The provider is installed, but the server could not fully verify it.")),
+      restatesStatus: true,
     };
   }
   if (provider.status === "error") {
     return {
       headline: resolve(msg("Unavailable", { $context: "provider status" })),
       detail: provider.message ?? resolve(msg("The provider failed its startup checks.")),
+      restatesStatus: true,
     };
   }
   if (provider.auth.status === "authenticated") {
@@ -126,11 +129,13 @@ export function getProviderSummary(
         ? resolve(msg("Authenticated · {method}", { method: authLabel }))
         : resolve(msg("Authenticated")),
       detail: provider.message ?? null,
+      restatesStatus: true,
     };
   }
   return {
     headline: resolve(msg("Available", { $context: "provider status" })),
     detail: provider.message ?? null,
+    restatesStatus: true,
   };
 }
 

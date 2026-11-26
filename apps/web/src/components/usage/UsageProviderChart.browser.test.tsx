@@ -26,6 +26,9 @@ const daily = [
   },
 ];
 
+/** Bars grow in once on mount; measure them after that, not while they scale. */
+const grown = () => Promise.all(document.getAnimations().map((animation) => animation.finished));
+
 const chart = (resolution: "day" | "hour") => (
   <UsageProviderChart
     providers={["codex", "claude"]}
@@ -143,6 +146,7 @@ describe("UsageProviderChart daily bars", () => {
       />,
       { router: false },
     );
+    await grown();
     const segments = [...screen.container.querySelectorAll<HTMLElement>(".usage-bars-segment")];
     const gridTops = [
       ...screen.container.querySelectorAll<HTMLElement>(".usage-bars-gridline"),
@@ -187,6 +191,7 @@ describe("UsageProviderChart daily bars", () => {
       expect(hovered).not.toBeNull();
       return hovered!;
     });
+    await grown();
     const halo = getComputedStyle(day, "::before");
     const bars = [...day.querySelectorAll<HTMLElement>(".usage-bars-segment")];
     const barWidth = bars[0]!.getBoundingClientRect().width;
@@ -213,12 +218,9 @@ describe("UsageProviderChart daily bars", () => {
     expect(swatches.toSorted()).toEqual(bars.toSorted());
   });
 
-  it.each([
-    ["dark", [207, 207, 207]],
-    ["light", [63, 63, 70]],
-  ] as const)(
-    "paints Codex in a soft neutral in %s, not the page's full ink",
-    async (theme, expected) => {
+  it.each(["dark", "light"] as const)(
+    "paints Codex as a quiet warm bone in %s, never white or full ink",
+    async (theme) => {
       document.documentElement.classList.toggle("dark", theme === "dark");
       try {
         await using screen = await render(chart("day"), { router: false });
@@ -230,14 +232,13 @@ describe("UsageProviderChart daily bars", () => {
         const context = canvas.getContext("2d")!;
         context.fillStyle = getComputedStyle(codex!).backgroundColor;
         context.fillRect(0, 0, 1, 1);
-        const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-        for (const [actual, want] of [
-          [r, expected[0]],
-          [g, expected[1]],
-          [b, expected[2]],
-        ] as const) {
-          expect(Math.abs((actual ?? 0) - want)).toBeLessThan(6);
-        }
+        const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+        const brightest = Math.max(r, g, b);
+        // Mid-tone on dark, deep on light; warm (red above blue) in both.
+        if (theme === "dark") expect(brightest).toBeGreaterThan(120);
+        if (theme === "dark") expect(brightest).toBeLessThan(200);
+        if (theme === "light") expect(brightest).toBeLessThan(110);
+        expect(r - b).toBeGreaterThanOrEqual(8);
       } finally {
         document.documentElement.classList.remove("dark");
       }
@@ -370,6 +371,159 @@ describe("UsageProviderChart daily bars", () => {
     const wide = slotLeft();
     container.style.width = "300px";
     await vi.waitFor(() => expect(slotLeft()).toBeLessThan(wide - 40));
+  });
+
+  it("grows each bar from the baseline once on mount, by transform only", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    const day = screen.container.querySelector<HTMLElement>(".usage-bars-day")!;
+    // The origin is the bottom edge, so the bar grows up from the axis.
+    expect(getComputedStyle(day).transformOrigin.split(" ")[1]).toBe(getComputedStyle(day).height);
+    const growing = day
+      .getAnimations()
+      .filter((a) => (a as CSSAnimation).animationName === "usage-grow");
+    expect(growing).toHaveLength(1);
+    const properties = (growing[0]!.effect as KeyframeEffect)
+      .getKeyframes()
+      .flatMap((frame) => Object.keys(frame))
+      .filter((name) => !["offset", "easing", "composite", "computedOffset"].includes(name));
+    expect(new Set(properties)).toEqual(new Set(["transform"]));
+
+    // A new selection does not replay it.
+    await grown();
+    screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await vi.waitFor(() => expect(screen.container.querySelector(".usage-tooltip")).not.toBeNull());
+    expect(
+      day.getAnimations().filter((a) => (a as CSSAnimation).animationName === "usage-grow"),
+    ).toHaveLength(0);
+  });
+
+  it("lets the tooltip finish leaving on the axis it arrived on before it is removed", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    const plot = screen.getByRole("group", { name: "Daily cost by provider" }).element();
+    plot.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    const tooltip = await vi.waitFor(() => {
+      const found = screen.container.querySelector<HTMLElement>(".usage-tooltip");
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(getComputedStyle(tooltip).animationName).toBe("usage-tip-in");
+
+    await userEvent.keyboard("{Escape}");
+    // Still there, leaving: the exit is its own animation, shorter than the enter.
+    await vi.waitFor(() => expect(tooltip.hasAttribute("data-closing")).toBe(true));
+    const leaving = getComputedStyle(tooltip);
+    expect(leaving.animationName).toBe("usage-tip-out");
+    expect(Number.parseFloat(leaving.animationDuration) * 1000).toBeCloseTo(180 * 0.7, 0);
+    const axis = (name: string) =>
+      document
+        .getAnimations()
+        .flatMap((a) =>
+          (a as CSSAnimation).animationName === name
+            ? (a.effect as KeyframeEffect)
+                .getKeyframes()
+                .map((frame) => String(frame["transform"] ?? ""))
+            : [],
+        );
+    expect(
+      [...axis("usage-tip-in"), ...axis("usage-tip-out")].every(
+        (value) =>
+          ["", "none"].includes(value) || /^(translateY\(|matrix\(1, 0, 0, 1, 0, )/.test(value),
+      ),
+    ).toBe(true);
+    await vi.waitFor(() => expect(screen.container.querySelector(".usage-tooltip")).toBeNull());
+  });
+
+  it("names each series at the end of the 24-hour area, none touching another and none outside the plot", async () => {
+    const start = Date.parse("2026-08-01T00:00:00.000Z");
+    const hours = Array.from({ length: 24 }, (_, index) =>
+      new Date(start + index * 3_600_000).toISOString(),
+    );
+    // Four providers, three of them with almost the same share at the end: the labels must spread.
+    const hourly = hours.map((hourStart, index) => ({
+      day: "2026-08-01",
+      hourStart,
+      costUsd: 0,
+      totalTokens: 0,
+      byProvider: new Map([
+        ["codex" as const, { costUsd: 50 + index, totalTokens: 0 }],
+        ["claude" as const, { costUsd: 1, totalTokens: 0 }],
+        ["grok" as const, { costUsd: 1, totalTokens: 0 }],
+        ["muse" as const, { costUsd: 1, totalTokens: 0 }],
+      ]),
+    }));
+    await using screen = await render(
+      <div style={{ width: 900 }}>
+        <UsageProviderChart
+          providers={["codex", "claude", "grok", "muse"]}
+          days={[]}
+          daily={[]}
+          hours={hours}
+          hourly={hourly as never}
+          metric="cost"
+          referenceTime={undefined}
+          resolution="hour"
+          timeZone="UTC"
+          hour12={false}
+        />
+      </div>,
+      { router: false },
+    );
+    const labels = await vi.waitFor(() => {
+      const found = [...screen.container.querySelectorAll<HTMLElement>(".usage-area-label")];
+      expect(found.map((label) => label.textContent).toSorted()).toEqual([
+        "Claude Code",
+        "Codex",
+        "Grok Build",
+        "Muse Code",
+      ]);
+      return found;
+    });
+    const boxes = labels
+      .map((label) => label.getBoundingClientRect())
+      .toSorted((a, b) => a.top - b.top);
+    for (let at = 1; at < boxes.length; at += 1) {
+      expect(boxes[at]!.top).toBeGreaterThanOrEqual(boxes[at - 1]!.bottom);
+    }
+    const plot = screen.container.querySelector(".usage-area-labels")!.getBoundingClientRect();
+    for (const box of boxes) {
+      expect(box.top).toBeGreaterThanOrEqual(plot.top);
+      expect(box.bottom).toBeLessThanOrEqual(plot.bottom);
+    }
+    // The bunched ones are joined to their series by leaders.
+    expect(screen.container.querySelectorAll(".usage-area-leaders path")).toHaveLength(4);
+  });
+
+  it("sets the other series back while one provider is focused", async () => {
+    await using screen = await render(
+      <UsageProviderChart
+        providers={["codex", "claude"]}
+        days={days}
+        daily={daily as never}
+        hours={[]}
+        hourly={[]}
+        metric="cost"
+        focusedProvider="claude"
+        referenceTime={undefined}
+        resolution="day"
+        timeZone="UTC"
+        hour12={false}
+      />,
+      { router: false },
+    );
+    const segments = [...screen.container.querySelectorAll<HTMLElement>(".usage-bars-segment")];
+    expect(segments.length).toBeGreaterThan(1);
+    const opacityOf = (segment: HTMLElement) => getComputedStyle(segment).opacity;
+    await vi.waitFor(() => {
+      // Claude's segments stay full; Codex's fall back.
+      const claude = segments.filter((segment) => !segment.hasAttribute("data-dim"));
+      const others = segments.filter((segment) => segment.hasAttribute("data-dim"));
+      expect(claude.length).toBeGreaterThan(0);
+      expect(others.length).toBeGreaterThan(0);
+      for (const segment of claude) expect(opacityOf(segment)).toBe("1");
+      for (const segment of others) expect(Number(opacityOf(segment))).toBeLessThan(0.5);
+    });
   });
 
   // Last in the file: choosing a locale in the provider stays in effect for later tests.

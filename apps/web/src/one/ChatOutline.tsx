@@ -10,6 +10,8 @@ import { useStableCallback } from "~/hooks/useStableCallback";
 import type { TimelineMinimapItem } from "~/components/chat/timelineMinimapItems";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 
+import type { ChatSection } from "./chatSections";
+
 /** An outline of one or two turns is shorter than the screen it sits beside. */
 export const CHAT_OUTLINE_MIN_TURNS = 3;
 const LABEL_SOURCE_LENGTH = 240;
@@ -54,6 +56,9 @@ interface ChatOutlineProps {
   /** Identifies the thread, so a pick made in another thread is never carried over. */
   readonly threadKey: string;
   readonly onSelect: (item: TimelineMinimapItem) => void;
+  /** The headings of each turn's answers, by the turn's id; they list under the turn being read. */
+  readonly sections: ReadonlyMap<string, ReadonlyArray<ChatSection>>;
+  readonly onSelectSection: (section: ChatSection) => void;
   /** The outline sits over the gutter, so a wheel turn there scrolls the timeline. */
   readonly onWheel: (event: WheelEvent) => void;
 }
@@ -61,7 +66,9 @@ interface ChatOutlineProps {
 function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
   if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
   const buttons = [
-    ...(event.currentTarget.closest("ol")?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+    ...(event.currentTarget
+      .closest(".one-chat-outline-list")
+      ?.querySelectorAll<HTMLButtonElement>("button") ?? []),
   ];
   const at = buttons.indexOf(event.currentTarget);
   const target =
@@ -74,18 +81,63 @@ function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
   buttons[target]?.focus();
 }
 
+const OutlineSection = memo(function OutlineSection({
+  section,
+  onPick,
+}: {
+  readonly section: ChatSection;
+  readonly onPick: (section: ChatSection) => void;
+}) {
+  const gt = useGT();
+  return (
+    <li className="one-chat-outline-section-item">
+      <button
+        type="button"
+        className="one-chat-outline-section"
+        data-complete={section.complete ? "" : undefined}
+        tabIndex={-1}
+        onClick={() => onPick(section)}
+        onKeyDown={moveFocus}
+      >
+        <span className="one-chat-outline-text">{section.text}</span>
+        <span
+          className="one-chat-outline-tick"
+          role="img"
+          aria-label={section.complete ? gt("Section finished") : gt("Section in progress")}
+        >
+          {section.complete ? (
+            <svg viewBox="0 0 12 12" width="12" height="12" fill="none" aria-hidden="true">
+              <path
+                d="M2.5 6.4 5 8.8l4.5-5.2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : null}
+        </span>
+      </button>
+    </li>
+  );
+});
+
 const OutlineEntry = memo(function OutlineEntry({
   id,
   label,
   current,
   tabbable,
   onPick,
+  sections,
+  onPickSection,
 }: {
   readonly id: string;
   readonly label: string;
   readonly current: boolean;
   readonly tabbable: boolean;
   readonly onPick: (id: string) => void;
+  readonly sections: ReadonlyArray<ChatSection> | undefined;
+  readonly onPickSection: (section: ChatSection) => void;
 }) {
   return (
     <li className="one-chat-outline-item">
@@ -106,6 +158,13 @@ const OutlineEntry = memo(function OutlineEntry({
         </TooltipTrigger>
         <TooltipPopup side="left">{label}</TooltipPopup>
       </Tooltip>
+      {sections !== undefined && sections.length > 0 ? (
+        <ol className="one-chat-outline-sections">
+          {sections.map((section) => (
+            <OutlineSection key={section.id} section={section} onPick={onPickSection} />
+          ))}
+        </ol>
+      ) : null}
     </li>
   );
 });
@@ -115,7 +174,15 @@ const OutlineEntry = memo(function OutlineEntry({
  * the timeline minimap's items, and a pick scrolls through the minimap's own
  * navigation. Its host mounts it only where it fits beside the reading column.
  */
-export function ChatOutline({ items, currentId, threadKey, onSelect, onWheel }: ChatOutlineProps) {
+export function ChatOutline({
+  items,
+  currentId,
+  threadKey,
+  onSelect,
+  sections,
+  onSelectSection,
+  onWheel,
+}: ChatOutlineProps) {
   const gt = useGT();
   const scrollerRef = useRef<HTMLDivElement>(null);
   // A pick that cannot scroll (the thread already fits, or it is at the end) still
@@ -149,7 +216,9 @@ export function ChatOutline({ items, currentId, threadKey, onSelect, onWheel }: 
     }
   }, [current]);
 
-  if (items.length < CHAT_OUTLINE_MIN_TURNS) return null;
+  const sectionTotal = [...sections.values()].reduce((total, list) => total + list.length, 0);
+  if (items.length < CHAT_OUTLINE_MIN_TURNS && !(items.length > 0 && sectionTotal >= 1))
+    return null;
 
   const title = gt("In this chat");
   const fallback = gt("User message");
@@ -183,6 +252,8 @@ export function ChatOutline({ items, currentId, threadKey, onSelect, onWheel }: 
               current={index === current}
               tabbable={index === (current ?? 0)}
               onPick={onPick}
+              sections={index === current ? sections.get(item.id) : undefined}
+              onPickSection={onSelectSection}
             />
           ))}
         </ol>

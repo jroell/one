@@ -82,3 +82,14 @@ export function status(
     ...overrides,
   };
 }
+
+/** Clears the provider counts the skeleton keeps between sessions, now and when the test ends. */
+export function freshProviderCounts(): Disposable {
+  const clear = () => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("one:usage:providers:")) localStorage.removeItem(key);
+    }
+  };
+  clear();
+  return { [Symbol.dispose]: clear };
+}

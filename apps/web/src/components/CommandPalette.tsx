@@ -92,6 +92,7 @@ import { openThreadFind } from "./chat/threadFindStore";
 import { dispatchPreviewAction } from "./preview/previewActionBus";
 import { previewBridge } from "./preview/previewBridge";
 import {
+  startTransition,
   useDeferredValue,
   useEffect,
   useId,
@@ -259,6 +260,7 @@ import {
   sourceControlHostIcon,
 } from "./CommandPaletteAddProject";
 import { useCommandPaletteThreadItems } from "./CommandPaletteThreadItems";
+import { PaletteQueryContext } from "./commandPalette/paletteQuery";
 import { useCommandPaletteThemeItems } from "./CommandPaletteThemeItems";
 import {
   PORT_FORWARD_GROUP_PREFIX,
@@ -495,6 +497,14 @@ function OpenCommandPaletteDialog(props: {
   const isActionsOnly = deferredQuery.startsWith(">");
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
   const resultListRef = useRef<LegendListRef | null>(null);
+  // The dialog, its field and the footer paint in the first frame; the rows follow in the next, so
+  // the shortcut answers at once. Keys typed meanwhile go to the field, and the lists read its value.
+  const [listsMounted, setListsMounted] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a frame timer that mounts the result rows after the dialog's first paint
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => startTransition(() => setListsMounted(true)));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   // A pushed view drops the typed highlight until the user moves it again.
   const highlightClearedRef = useRef(viewStack.length > 0);
   // Entering or leaving browse mode remounts the input; carry the caret across it.
@@ -3334,36 +3344,40 @@ function OpenCommandPaletteDialog(props: {
           <T>Loading folders...</T>
         </div>
       ) : null}
-      <CommandPaletteVirtualizedResults
-        rows={resultRows.rows}
-        listRef={resultListRef}
-        highlightedItemValue={highlightedItemValue}
-        isActionsOnly={isActionsOnly}
-        keybindings={keybindings}
-        onExecuteItem={executeItem}
-        {...(addProjectCloneFlow?.step === "repository"
-          ? {
-              emptyStateMessage:
-                addProjectCloneFlow.source === "url"
-                  ? gt("Enter a Git clone URL and press Enter to continue.")
-                  : gt("Enter a repository path and press Enter to look it up."),
-            }
-          : addProjectCloneFlow?.step === "confirm"
-            ? { emptyStateMessage: gt("Choose a destination path and press Enter to clone.") }
-            : relativePathNeedsActiveProject
-              ? { emptyStateMessage: gt("Relative paths require an active project.") }
-              : willCreateProjectPath
-                ? {
-                    emptyStateMessage: gt(
-                      "Press Enter to create this folder and add it as a project.",
-                    ),
-                  }
-                : isThreadSearchPending
-                  ? { emptyStateMessage: gt("Searching thread messages…") }
-                  : isThreadSearchFailed
-                    ? { emptyStateMessage: gt("Couldn't search thread messages.") }
-                    : {})}
-      />
+      {listsMounted ? (
+        <PaletteQueryContext value={threadSearchQuery}>
+          <CommandPaletteVirtualizedResults
+            rows={resultRows.rows}
+            listRef={resultListRef}
+            highlightedItemValue={highlightedItemValue}
+            isActionsOnly={isActionsOnly}
+            keybindings={keybindings}
+            onExecuteItem={executeItem}
+            {...(addProjectCloneFlow?.step === "repository"
+              ? {
+                  emptyStateMessage:
+                    addProjectCloneFlow.source === "url"
+                      ? gt("Enter a Git clone URL and press Enter to continue.")
+                      : gt("Enter a repository path and press Enter to look it up."),
+                }
+              : addProjectCloneFlow?.step === "confirm"
+                ? { emptyStateMessage: gt("Choose a destination path and press Enter to clone.") }
+                : relativePathNeedsActiveProject
+                  ? { emptyStateMessage: gt("Relative paths require an active project.") }
+                  : willCreateProjectPath
+                    ? {
+                        emptyStateMessage: gt(
+                          "Press Enter to create this folder and add it as a project.",
+                        ),
+                      }
+                    : isThreadSearchPending
+                      ? { emptyStateMessage: gt("Searching thread messages…") }
+                      : isThreadSearchFailed
+                        ? { emptyStateMessage: gt("Couldn't search thread messages.") }
+                        : {})}
+          />
+        </PaletteQueryContext>
+      ) : null}
     </CommandPaletteContent>
   );
 }

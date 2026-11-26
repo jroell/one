@@ -2,7 +2,6 @@
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
-import { BUILT_IN_THEMES, getThemeColorsForAppearance } from "@t3tools/shared/themePalettes";
 import { describe, expect, it } from "vite-plus/test";
 
 import { ONE_MARK_LIT_AXIS, ONE_MARK_LIT_STOPS, ONE_MARK_PATHS } from "./oneMarkPaths";
@@ -39,7 +38,7 @@ describe("boot screen mark", () => {
   });
 
   it("puts the glint at one o'clock in white, as the One mark does", () => {
-    expect(boot).toContain(`d="${ONE_MARK_PATHS.glint}"\n                fill="#fff"`);
+    expect(boot.replace(/\s+/g, " ")).toContain(`d="${ONE_MARK_PATHS.glint}" fill="#fff"`);
   });
 
   it("fades its glow to nothing with no hard step at the edge", () => {
@@ -55,34 +54,13 @@ describe("boot screen mark", () => {
     "shows the same %s picture of the ring that the One mark and the live ring at rest show",
     (theme) => {
       const image = new RegExp(`<img[^>]*data-mark-theme="${theme}"[^>]*>`).exec(html)?.[0] ?? "";
-      expect(image).toContain(`src="${orbMarkUrl(theme, 112, 1)}"`);
+      expect(image).toContain(`src="${orbMarkUrl(theme, 176, 1)}"`);
       const srcset = /srcset="([^"]*)"/.exec(image)?.[1]?.replace(/\s+/g, " ").trim();
       expect(srcset).toBe(
-        ORB_MARK_DENSITIES.map((density) => `${orbMarkUrl(theme, 112, density)} ${density}x`).join(
+        ORB_MARK_DENSITIES.map((density) => `${orbMarkUrl(theme, 176, density)} ${density}x`).join(
           ", ",
         ),
       );
     },
   );
-
-  it("recolors the gold picture for a chosen theme in an inline script, with no module of its own", () => {
-    expect(html).not.toMatch(/<script type="module" src="\/src\/one\//);
-    expect(html).toContain("const ringTintTable");
-    expect(html).toContain(".boot-ring-image:not([data-tinted])");
-  });
-
-  it("gives the ring each built-in theme's action color in both modes, as the app's ring uses", () => {
-    const start = html.indexOf("const BUILT_IN_THEME_PALETTES");
-    const table = html.slice(start, html.indexOf("const BUILT_IN_THEME_MODES", start));
-    const palettes = new Function(
-      `${table.replace("const BUILT_IN_THEME_PALETTES =", "return")}`,
-    )() as Record<string, Record<"light" | "dark", { ring: string }>>;
-    for (const theme of BUILT_IN_THEMES) {
-      for (const mode of ["light", "dark"] as const) {
-        expect(palettes[theme.id]?.[mode]?.ring, `${theme.id} ${mode}`).toBe(
-          getThemeColorsForAppearance(theme, mode)?.messageAction,
-        );
-      }
-    }
-  });
 });

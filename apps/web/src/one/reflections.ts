@@ -11,14 +11,10 @@ export const REFLECT_PROXIMITY_PX = 24;
 export const REMEASURE_MS = 250;
 
 const REFLECT_SELECTOR = "[data-one-reflect]";
-/** Primary buttons catch the pointer's light while it is over them, with no proximity halo. */
-const GLINT_SELECTOR = '[data-ui-glint], [data-button][data-variant="default"]';
 /** While the agent works the edge light travels around the surface on its own and ignores the pointer. */
 const WORKING_SELECTOR = "[data-one-working]";
 
 type Tracked = {
-  /** Reflection surfaces glow near the pointer; glint elements only while it is over them. */
-  tier: "reflect" | "glint";
   rect: DOMRectReadOnly | null;
   /** The `epoch` the rect was measured in. */
   measuredIn: number;
@@ -49,7 +45,6 @@ export function installOneReflections(): () => void {
   let epoch = 0;
   let frame = 0;
   let active: HTMLElement | null = null;
-  let activeGlint: HTMLElement | null = null;
   let x = 0;
   let y = 0;
 
@@ -57,11 +52,10 @@ export function installOneReflections(): () => void {
     tracked.get(element)?.stopObserving();
     tracked.delete(element);
   };
-  const track = (element: HTMLElement, tier: Tracked["tier"] = "reflect"): Tracked => {
+  const track = (element: HTMLElement): Tracked => {
     const known = tracked.get(element);
     if (known) return known;
     const entry: Tracked = {
-      tier,
       rect: null,
       measuredIn: -1,
       measuredAt: 0,
@@ -101,7 +95,6 @@ export function installOneReflections(): () => void {
       return over;
     }
     for (const [element, entry] of tracked) {
-      if (entry.tier !== "reflect") continue;
       if (!element.isConnected) {
         forget(element);
         continue;
@@ -144,14 +137,8 @@ export function installOneReflections(): () => void {
   const apply = () => {
     frame = 0;
     if (active && !write(active)) active = null;
-    if (activeGlint && !write(activeGlint)) activeGlint = null;
   };
 
-  /** A glint element is tracked only while hovered; leaving or removing it releases its observer. */
-  const releaseGlint = () => {
-    if (activeGlint && tracked.get(activeGlint)?.tier === "glint") forget(activeGlint);
-    activeGlint = null;
-  };
   const sweepDetached = () => {
     for (const element of tracked.keys()) {
       if (!element.isConnected) forget(element);
@@ -163,18 +150,7 @@ export function installOneReflections(): () => void {
     x = event.clientX;
     y = event.clientY;
     active = surfaceAt(event.target);
-    const glint =
-      event.target instanceof Element ? event.target.closest<HTMLElement>(GLINT_SELECTOR) : null;
-    if (glint !== activeGlint) releaseGlint();
-    if (glint) {
-      const entry = track(glint, "glint");
-      if (glint !== activeGlint) entry.measuredIn = -1;
-    }
-    activeGlint = glint;
-    if ((active || activeGlint) && frame === 0) frame = requestAnimationFrame(apply);
-  };
-  const onPointerOut = (event: PointerEvent) => {
-    if (event.relatedTarget === null) releaseGlint();
+    if (active && frame === 0) frame = requestAnimationFrame(apply);
   };
   const onLayoutChange = () => {
     epoch++;
@@ -183,14 +159,12 @@ export function installOneReflections(): () => void {
   document.addEventListener("pointermove", onPointerMove, { passive: true });
   // A surface closed from the keyboard leaves no pointer event behind to release it.
   document.addEventListener("keydown", sweepDetached, { passive: true });
-  document.addEventListener("pointerout", onPointerOut, { passive: true });
   // Scroll does not bubble; a capturing listener hears every scroll container.
   window.addEventListener("scroll", onLayoutChange, { capture: true, passive: true });
   window.addEventListener("resize", onLayoutChange, { passive: true });
   return () => {
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("keydown", sweepDetached);
-    document.removeEventListener("pointerout", onPointerOut);
     window.removeEventListener("scroll", onLayoutChange, { capture: true });
     window.removeEventListener("resize", onLayoutChange);
     if (frame !== 0) cancelAnimationFrame(frame);

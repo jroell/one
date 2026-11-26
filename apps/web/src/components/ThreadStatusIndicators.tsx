@@ -734,7 +734,7 @@ export function terminalStatusFromRunningIds(
   }
   return {
     label: resolve(msg("Terminal process running")),
-    colorClass: "text-teal-600 dark:text-teal-300/90",
+    colorClass: "text-(--st-working-fg)",
     pulse: true,
   };
 }
@@ -1030,11 +1030,11 @@ function settledPrHoverColorClass(state: ThreadPullRequestBadge["state"]): strin
     case "draft":
       return "group-hover/sidebar-row:text-zinc-500 dark:group-hover/sidebar-row:text-zinc-400/80";
     case "open":
-      return "group-hover/sidebar-row:text-emerald-600 dark:group-hover/sidebar-row:text-emerald-300/90";
+      return "group-hover/sidebar-row:text-(--st-done-fg)";
     case "merged":
-      return "group-hover/sidebar-row:text-violet-600 dark:group-hover/sidebar-row:text-violet-300/90";
+      return "group-hover/sidebar-row:text-(--st-done-fg)";
     case "closed":
-      return "group-hover/sidebar-row:text-red-600 dark:group-hover/sidebar-row:text-red-300/90";
+      return "group-hover/sidebar-row:text-(--st-error-fg)";
   }
 }
 

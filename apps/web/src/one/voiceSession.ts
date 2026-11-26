@@ -27,7 +27,13 @@ export type VoiceMessage = Readonly<{
 export type ReplyAnchor = Readonly<{ afterId: string | null; count: number }>;
 
 /** The reply being read aloud. Fixed when reading begins, so later messages cannot replace it. */
-export type SpokenReply = Readonly<{ id: string; text: string; runId?: string | null }>;
+export type SpokenReply = Readonly<{
+  id: string;
+  text: string;
+  runId?: string | null;
+  /** A message from voice chat itself (the connection dropped), not an answer from the thread. */
+  kind?: "notice";
+}>;
 
 export type VoiceSessionState = Readonly<{
   stage: VoiceStage;
@@ -46,8 +52,12 @@ export type VoiceSessionState = Readonly<{
   /** Replies and runs already read in this conversation; none is read twice. */
   readIds: ReadonlyArray<string>;
   readRuns: ReadonlyArray<string>;
+  /** What the microphone had heard when the question was sent; shown until the thread has its own row. */
+  heard: string;
   /** Why the last turn could not be sent, shown with a way to try again. */
   error: string | null;
+  /** The person muted the microphone: voice chat keeps its place but does not listen. */
+  muted: boolean;
 }>;
 
 export type VoiceSessionEvent =
@@ -55,7 +65,12 @@ export type VoiceSessionEvent =
   /** The draft this conversation started in became a saved thread when its first question was sent. */
   | { readonly type: "promoted"; readonly threadKey: string }
   | { readonly type: "stop" }
-  | { readonly type: "sent"; readonly after: ReplyAnchor; readonly submission: string }
+  | {
+      readonly type: "sent";
+      readonly after: ReplyAnchor;
+      readonly submission: string;
+      readonly heard?: string;
+    }
   /** The composer is sending `submission`'s question to the thread under this id. */
   | { readonly type: "identified"; readonly submission: string; readonly messageId: string }
   | { readonly type: "working" }
@@ -65,8 +80,12 @@ export type VoiceSessionEvent =
   | { readonly type: "spoken"; readonly replyId?: string }
   /** The question could not be sent or ran into a limit. With `submission`, only that send can fail it. */
   | { readonly type: "failed"; readonly message?: string; readonly submission?: string }
+  /** The thread now shows the question's own text; it replaces what the microphone had heard. */
+  | { readonly type: "asked"; readonly text: string }
   /** The person asked to try the microphone again. */
-  | { readonly type: "retried" };
+  | { readonly type: "retried" }
+  /** The person turned the microphone off or back on; it holds across turns until changed. */
+  | { readonly type: "muted"; readonly muted: boolean };
 
 export const VOICE_SESSION_OFF: VoiceSessionState = {
   stage: "off",
@@ -78,7 +97,9 @@ export const VOICE_SESSION_OFF: VoiceSessionState = {
   reply: null,
   readIds: [],
   readRuns: [],
+  heard: "",
   error: null,
+  muted: false,
 };
 
 export function reduceVoiceSession(
@@ -111,6 +132,7 @@ export function reduceVoiceSession(
             submission: event.submission,
             messageId: null,
             reply: null,
+            heard: event.heard ?? "",
             error: null,
           }
         : state;
@@ -165,10 +187,18 @@ export function reduceVoiceSession(
             error: event.message ?? null,
           }
         : state;
+    case "asked":
+      return (state.stage === "sending" || state.stage === "thinking") && state.heard !== event.text
+        ? { ...state, heard: event.text }
+        : state;
     case "retried":
       return state.stage === "listening" && state.error !== null
         ? { ...state, error: null }
         : state;
+    case "muted":
+      return state.stage === "off" || state.muted === event.muted
+        ? state
+        : { ...state, muted: event.muted };
   }
 }
 
@@ -328,19 +358,31 @@ export function speechDeadlineMs(text: string): number {
 
 /** Removes markup so a reply can be read aloud: no code, links become their text. */
 export function speakableText(markdown: string): string {
-  return markdown
-    .replace(/```[\s\S]*?(```|$)/g, " ")
-    .replace(/`([^`]*)`/g, "$1")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, "")
-    .replace(/^\s*\|?[\s:|-]+\|[\s:|-]*$/gm, " ")
-    .replace(/\|/g, ", ")
-    .replace(/(\*\*|__|\*|_|~~)/g, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\s*\n\s*/g, "\n")
-    .trim();
+  return (
+    markdown
+      .replace(/```[\s\S]*?(```|$)/g, " ")
+      .replace(/`([^`]*)`/g, "$1")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, "")
+      .replace(/^\s*\|?[\s:|-]+\|[\s:|-]*$/gm, " ")
+      // A table row is read as a short sentence: its cells separated by commas, closed by a stop.
+      .replace(
+        /^[ \t]*\|(.+)\|[ \t]*$/gm,
+        (_row, cells: string) =>
+          `${cells
+            .split("|")
+            .map((cell) => cell.trim())
+            .filter(Boolean)
+            .join(", ")}.`,
+      )
+      .replace(/\|/g, ", ")
+      .replace(/(\*\*|__|\*|_|~~)/g, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\s*\n\s*/g, "\n")
+      .trim()
+  );
 }
 
 export type SilenceDetectorOptions = Readonly<{
@@ -473,6 +515,15 @@ export function getVoiceSession(): VoiceSessionState {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Whether voice chat covers the conversation. A boolean snapshot, so it re-renders only when voice chat opens or closes. */
+export function useVoiceStageOpen(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => getVoiceSession().stage !== "off",
+    () => false,
+  );
 }
 
 export function useVoiceSession(): VoiceSessionState {

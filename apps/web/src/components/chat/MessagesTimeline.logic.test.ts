@@ -1728,6 +1728,46 @@ describe("deriveMessagesTimelineRows", () => {
     });
   });
 
+  it("marks the question after a longer answer, and not the one after a single line", () => {
+    const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
+    const message = (id: string, second: number, role: "user" | "assistant", text: string) =>
+      ({
+        kind: "message",
+        id,
+        createdAt: time(second),
+        message: {
+          id: MessageId.make(id),
+          role,
+          text,
+          runId: null,
+          createdAt: time(second),
+          updatedAt: time(second),
+          streaming: false,
+        },
+      }) as TimelineEntry;
+    const rows = deriveMessagesTimelineRows({
+      timelineEntries: [
+        message("q1", 0, "user", "First"),
+        message("a1", 1, "assistant", "Short."),
+        message("q2", 2, "user", "Second"),
+        message("a2", 3, "assistant", "One paragraph.\n\nAnother paragraph that runs longer."),
+        message("q3", 4, "user", "Third"),
+        message("a3", 5, "assistant", "x".repeat(300)),
+        message("q4", 6, "user", "Fourth"),
+      ],
+      latestRun: null,
+      isWorking: false,
+      expandedRunIds: new Set(),
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    expect(byId.get("q1")).not.toHaveProperty("afterLongAnswer");
+    expect(byId.get("q2")).not.toHaveProperty("afterLongAnswer");
+    expect(byId.get("q3")).toMatchObject({ afterLongAnswer: true });
+    expect(byId.get("q4")).toMatchObject({ afterLongAnswer: true });
+  });
+
   it("keeps the previous turn folded while a newly sent message awaits its turn", () => {
     const rows = deriveMessagesTimelineRows({
       timelineEntries: [
@@ -5326,18 +5366,30 @@ describe("turn fold summary", () => {
         "dynamic_tool",
         "approval_request",
       ])?.summary,
-    ).toEqual({ duration: "22s", toolCount: 3, thought: true });
+    ).toEqual({ duration: "22s", toolCount: 3, sourceCount: 0, thought: true });
   });
 
   it("reports a fold that only reasoned as no tools", () => {
     expect(foldOf(["reasoning"])?.summary).toEqual({
       duration: "22s",
       toolCount: 0,
+      sourceCount: 0,
       thought: true,
     });
   });
 
+  it("counts searches and web lookups as sources, apart from commands and edits", () => {
+    expect(
+      foldOf(["file_search", "web_search", "command_execution", "file_change"])?.summary,
+    ).toEqual({ duration: "22s", toolCount: 4, sourceCount: 2, thought: false });
+  });
+
   it("counts nothing for work of a kind it does not know, so the line keeps its own label", () => {
-    expect(foldOf([undefined])?.summary).toEqual({ duration: "22s", toolCount: 0, thought: false });
+    expect(foldOf([undefined])?.summary).toEqual({
+      duration: "22s",
+      toolCount: 0,
+      sourceCount: 0,
+      thought: false,
+    });
   });
 });

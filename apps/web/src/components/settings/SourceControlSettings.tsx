@@ -18,15 +18,14 @@ import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { sourceControlEnvironment } from "../../state/sourceControl";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsibleContent } from "../ui/collapsible";
 import { SettingsEmptyState } from "./SettingsEmptyState";
 import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { msg, T, useGT, useMessages, Var } from "gt-react";
-import { m, type MessageResolver } from "../../i18n/messages";
+import { T, useGT, useMessages, Var } from "gt-react";
+import type { MessageResolver } from "../../i18n/messages";
 
 import { GitIcon, JujutsuIcon, type Icon } from "../Icons";
 import { IssueTrackerSettings } from "./IssueTrackerSettings";
@@ -35,6 +34,7 @@ import { SourceControlAccountSettings } from "./SourceControlAccountSettings";
 import { SourceControlAppSignInSettings } from "./SourceControlAppSignInSettings";
 import { SourceControlTokenSettings } from "./SourceControlTokenSettings";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
+import { SettingsStatusChip, type SettingsStatus } from "./settingsStatus";
 import { SourceControlWritingSettingsSection } from "./SourceControlWritingSettings";
 import {
   SettingsPageContainer,
@@ -71,22 +71,6 @@ function isProviderDiscoveryItem(
 
 function isVcsNotReady(item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem): boolean {
   return !isProviderDiscoveryItem(item) && !item.implemented;
-}
-
-function authPresentation(
-  auth: SourceControlProviderAuth,
-  resolve: MessageResolver = m,
-): {
-  readonly label: string;
-  readonly badge: "secondary" | null;
-} {
-  if (auth.status === "authenticated") {
-    return { label: resolve(msg("Authenticated")), badge: null };
-  }
-  if (auth.status === "unauthenticated") {
-    return { label: resolve(msg("Not authenticated")), badge: "secondary" };
-  }
-  return { label: resolve(msg("Status unknown")), badge: null };
 }
 
 function RedactedAccount(props: { readonly account: string | null }) {
@@ -136,21 +120,15 @@ function SourceControlItemMark({
   return <span className="inline-flex size-5 shrink-0 items-center justify-center">{icon}</span>;
 }
 
-/** What the row's tool is doing, as one chip beside its name. */
-function itemStatusChip(
+/** What the row's tool is doing, as one chip from the shared set beside its name. */
+function itemStatus(
   item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem,
-  resolve: MessageResolver,
-): { readonly label: string; readonly variant: "success" | "warning" | "secondary" } | null {
-  if (isVcsNotReady(item)) return { label: resolve(msg("Coming soon")), variant: "warning" };
-  if (item.status !== "available") {
-    return { label: resolve(msg("Not available")), variant: "warning" };
-  }
-  if (!isProviderDiscoveryItem(item)) {
-    return { label: resolve(msg("Available")), variant: "success" };
-  }
-  const auth = authPresentation(item.auth, resolve);
-  if (item.auth.status === "authenticated") return { label: auth.label, variant: "success" };
-  return auth.badge ? { label: auth.label, variant: auth.badge } : null;
+): SettingsStatus | null {
+  if (isVcsNotReady(item)) return "soon";
+  if (item.status !== "available") return "attention";
+  if (!isProviderDiscoveryItem(item)) return "ready";
+  if (item.auth.status === "authenticated") return "ready";
+  return item.auth.status === "unauthenticated" ? "attention" : null;
 }
 
 function itemSummary({
@@ -277,7 +255,7 @@ export function DiscoveryItemRow({
   const version = optionLabel(item.version);
   const auth = isProviderDiscoveryItem(item) ? item.auth : null;
   const authAccount = auth ? optionLabel(auth.account) : null;
-  const statusChip = itemStatusChip(item, messages);
+  const status = itemStatus(item);
   const summary = itemSummary({ item, auth, authAccount, resolve: messages });
   const [isExpanded, setIsExpanded] = useState(false);
   const hasDetails = children !== undefined;
@@ -302,11 +280,7 @@ export function DiscoveryItemRow({
                   {version}
                 </span>
               ) : null}
-              {statusChip ? (
-                <Badge variant={statusChip.variant} dot>
-                  {statusChip.label}
-                </Badge>
-              ) : null}
+              {status ? <SettingsStatusChip status={status} /> : null}
             </div>
             {summary ? (
               <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs leading-normal text-(--settings-description)">

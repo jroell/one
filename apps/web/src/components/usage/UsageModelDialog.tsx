@@ -82,7 +82,7 @@ export function UsageModelDialog({
             <ProviderInstanceIcon
               driverKind={presentation.driverKind}
               displayName={presentation.label}
-              iconClassName="size-5"
+              iconClassName="usage-mark size-5"
             />
             <DialogTitle>{model.model}</DialogTitle>
           </div>

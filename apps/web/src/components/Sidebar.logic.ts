@@ -1282,8 +1282,8 @@ export function resolveThreadStatusPill(input: {
   ) {
     return {
       label: msg("Working"),
-      colorClass: "text-sky-600 dark:text-sky-300/80",
-      dotClass: "bg-sky-500 dark:bg-sky-300/80",
+      colorClass: "text-(--st-working-fg)",
+      dotClass: "bg-(--st-working)",
       pulse: true,
     };
   }
@@ -1295,8 +1295,8 @@ export function resolveThreadStatusPill(input: {
   ) {
     return {
       label: msg("Connecting"),
-      colorClass: "text-sky-600 dark:text-sky-300/80",
-      dotClass: "bg-sky-500 dark:bg-sky-300/80",
+      colorClass: "text-(--st-working-fg)",
+      dotClass: "bg-(--st-working)",
       pulse: true,
     };
   }
@@ -1313,8 +1313,8 @@ export function resolveThreadStatusPill(input: {
   if (hasUnseenRunFailure(thread)) {
     return {
       label: msg("Failed"),
-      colorClass: "text-red-600 dark:text-red-300/90",
-      dotClass: "bg-red-500 dark:bg-red-300/90",
+      colorClass: "text-(--st-error-fg)",
+      dotClass: "bg-(--st-error)",
       pulse: false,
     };
   }
@@ -1329,8 +1329,8 @@ export function resolveThreadStatusPill(input: {
   if (hasPlanReadyPrompt) {
     return {
       label: msg("Plan Ready"),
-      colorClass: "text-violet-600 dark:text-violet-300/90",
-      dotClass: "bg-violet-500 dark:bg-violet-300/90",
+      colorClass: "text-(--st-attention-fg)",
+      dotClass: "bg-(--st-attention)",
       pulse: false,
     };
   }
@@ -1338,8 +1338,8 @@ export function resolveThreadStatusPill(input: {
   if (hasUnseenCompletion(thread)) {
     return {
       label: msg("Completed"),
-      colorClass: "text-emerald-600 dark:text-emerald-300/90",
-      dotClass: "bg-emerald-500 dark:bg-emerald-300/90",
+      colorClass: "text-(--st-done-fg)",
+      dotClass: "bg-(--st-done)",
       pulse: false,
     };
   }

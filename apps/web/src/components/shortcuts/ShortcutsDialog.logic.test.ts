@@ -190,7 +190,7 @@ describe("buildShortcutSections", () => {
       ],
       [
         "Model picker: jump to model 1 to 9",
-        "with the model picker open",
+        "when the model picker is open",
         [
           ["Ctrl", "1"],
           ["Ctrl", "9"],

@@ -979,11 +979,10 @@ describe("layoutFleetGraph", () => {
     const cards = names.map((name) => layout.nodes.get(node(name))!);
     // Nine routes and eight links leave a card the size of one with a single route.
     expect(cards.map((card) => card.height)).toEqual(names.map(() => plain.height));
-    expect(plain.height).toBeLessThanOrEqual(80);
+    expect(plain.height).toBeLessThanOrEqual(66);
     const long = layoutFleetGraph(build([environment("Julius's MacBook Pro")]));
-    const wrapped = long.nodes.get(node("Julius's MacBook Pro"))!.height;
-    expect(wrapped).toBeGreaterThan(plain.height);
-    expect(wrapped).toBeLessThanOrEqual(96);
+    // A long name never wraps, so it never makes a card taller.
+    expect(long.nodes.get(node("Julius's MacBook Pro"))!.height).toBe(plain.height);
     for (const [index, name] of names.entries()) {
       const card = cards[index]!;
       const pills = mesh.edges

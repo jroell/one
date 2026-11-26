@@ -1,5 +1,5 @@
-import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
-import { WorkLogDetails, WorkLogRow } from "./WorkLog";
+import { ApprovalRow } from "~/one/ChatApproval";
+import { WorkLogCollapse, WorkLogDetails, WorkLogRow } from "./WorkLog";
 import {
   getQuestionAnswerPreview,
   getQuestionAnswerText,
@@ -341,7 +341,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     failureItem?.type === "approval_request"
       ? ctx.pendingApprovals.get(failureItem.requestId)
       : undefined;
-  if (pendingApproval) return <TimelinePendingApprovalRow approval={pendingApproval} />;
+  if (pendingApproval) return <ApprovalRow approval={pendingApproval} />;
   if (failureItem?.type === "error" && failureItem.status === "failed") {
     const warning = failureItem.failure.class === "usage_limit";
     const resetAt = failureItem.failure.resetAt;
@@ -728,61 +728,63 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
         </>
       }
     >
-      {expanded && viewedImage && threadRef ? (
-        <WorkLogDetails kind="media">
-          <ChatMarkdownAssetImage
-            environmentId={threadRef.environmentId}
-            resource={viewedImage.resource}
-            alt={viewedImage.alt}
-            srcFragment={viewedImage.srcFragment}
-            workspaceRoot={workspaceRoot}
-            maxHeightRem={16}
-            onImageExpand={expandImage}
-          />
-        </WorkLogDetails>
-      ) : null}
-      {expanded && workEntry.questionAnswer ? (
-        <QuestionAnswerHistory answer={workEntry.questionAnswer} />
-      ) : null}
-      {expanded && isReasoning ? <ReasoningTraceContent entries={[workEntry]} /> : null}
-      {expanded &&
-      !isReasoning &&
-      !workEntry.questionAnswer &&
-      canExpandProjectedItem &&
-      (expandedBody ||
-        plainOutputFetches ||
-        (workEntry.projectedItem && plainOutput === undefined)) ? (
-        <WorkLogDetails kind="panel">
-          {workEntry.projectedItem && plainOutput === undefined ? (
-            <V2ItemInspector
-              onInitialOutputReady={onInitialOutputReady}
-              projectedItem={workEntry.projectedItem}
-              environmentId={ctx.activeThreadEnvironmentId}
-              cwd={ctx.markdownCwd}
+      <WorkLogCollapse>
+        {expanded && viewedImage && threadRef ? (
+          <WorkLogDetails kind="media">
+            <ChatMarkdownAssetImage
+              environmentId={threadRef.environmentId}
+              resource={viewedImage.resource}
+              alt={viewedImage.alt}
+              srcFragment={viewedImage.srcFragment}
               workspaceRoot={workspaceRoot}
-              onOpenToolDiff={ctx.onOpenToolDiff}
+              maxHeightRem={16}
               onImageExpand={expandImage}
-              source={ctx.turnItemSource}
             />
-          ) : (
-            <>
-              {expandedBody &&
-              !(plainOutputFetches && previewText.includes(expandedBody.trim())) ? (
-                <pre className={toolCallExpandedBodyClassName}>{expandedBody}</pre>
-              ) : null}
-              {plainOutputFetches && workEntry.projectedItem ? (
-                <FetchedToolOutput
-                  onInitialOutputReady={onInitialOutputReady}
-                  projectedItem={workEntry.projectedItem}
-                  environmentId={ctx.activeThreadEnvironmentId}
-                  onImageExpand={expandImage}
-                  source={ctx.turnItemSource}
-                />
-              ) : null}
-            </>
-          )}
-        </WorkLogDetails>
-      ) : null}
+          </WorkLogDetails>
+        ) : null}
+        {expanded && workEntry.questionAnswer ? (
+          <QuestionAnswerHistory answer={workEntry.questionAnswer} />
+        ) : null}
+        {expanded && isReasoning ? <ReasoningTraceContent entries={[workEntry]} /> : null}
+        {expanded &&
+        !isReasoning &&
+        !workEntry.questionAnswer &&
+        canExpandProjectedItem &&
+        (expandedBody ||
+          plainOutputFetches ||
+          (workEntry.projectedItem && plainOutput === undefined)) ? (
+          <WorkLogDetails kind="panel">
+            {workEntry.projectedItem && plainOutput === undefined ? (
+              <V2ItemInspector
+                onInitialOutputReady={onInitialOutputReady}
+                projectedItem={workEntry.projectedItem}
+                environmentId={ctx.activeThreadEnvironmentId}
+                cwd={ctx.markdownCwd}
+                workspaceRoot={workspaceRoot}
+                onOpenToolDiff={ctx.onOpenToolDiff}
+                onImageExpand={expandImage}
+                source={ctx.turnItemSource}
+              />
+            ) : (
+              <>
+                {expandedBody &&
+                !(plainOutputFetches && previewText.includes(expandedBody.trim())) ? (
+                  <pre className={toolCallExpandedBodyClassName}>{expandedBody}</pre>
+                ) : null}
+                {plainOutputFetches && workEntry.projectedItem ? (
+                  <FetchedToolOutput
+                    onInitialOutputReady={onInitialOutputReady}
+                    projectedItem={workEntry.projectedItem}
+                    environmentId={ctx.activeThreadEnvironmentId}
+                    onImageExpand={expandImage}
+                    source={ctx.turnItemSource}
+                  />
+                ) : null}
+              </>
+            )}
+          </WorkLogDetails>
+        ) : null}
+      </WorkLogCollapse>
     </WorkLogRow>
   );
 }

@@ -16,8 +16,10 @@ import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageSquareIcon } from "lucide-react";
-import { useState } from "react";
-import { useGT, useMessages } from "gt-react";
+import { useInsertionEffect, useState } from "react";
+import { useLocale } from "gt-react";
+import { useStableCallback } from "../hooks/useStableCallback";
+import { useStableGT, useStableMessages } from "../hooks/useStableTranslation";
 
 import {
   applyProviderInstanceSettings,
@@ -36,15 +38,16 @@ import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
 import { buildThreadRouteParams } from "../threadRoutes";
 import { formatRelativeTimeLabel } from "../timestampFormat";
-import { buildThreadActionItems, ITEM_ICON_CLASS } from "./CommandPalette.logic";
+import {
+  buildThreadActionItems,
+  cachedThreadActionItems,
+  ITEM_ICON_CLASS,
+} from "./CommandPalette.logic";
 import { useEnvironmentLookups, useProjectLookups } from "./CommandPaletteLookups";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
-import {
-  ThreadRowLeadingStatus,
-  ThreadRowTrailingStatus,
-  ThreadSearchPullRequestNumber,
-} from "./ThreadStatusIndicators";
+import { ThreadRowLeadingStatus, ThreadRowTrailingStatus } from "./ThreadStatusIndicators";
+import { PaletteThreadPullRequestNumber } from "./commandPalette/paletteQuery";
 
 function useProviderEntryByEnvironmentAndInstanceId() {
   const { environments } = useEnvironments();
@@ -110,13 +113,19 @@ function threadContextKey(thread: {
   ].join("\u0000");
 }
 
+type ThreadShell = ReturnType<typeof useVisibleThreadShells>[number];
+
+// Set by the palette that is open; see `useCommandPaletteThreadItems`.
+let liveRunThread: (thread: ThreadShell) => Promise<void> = async () => undefined;
+
 export function useCommandPaletteThreadItems(input: {
   readonly activeThread: { readonly environmentId: EnvironmentId; readonly id: ThreadId } | null;
   readonly threadSearchQuery: string;
 }) {
   const { activeThread, threadSearchQuery } = input;
-  const messages = useMessages();
-  const gt = useGT();
+  const messages = useStableMessages();
+  const gt = useStableGT();
+  const locale = useLocale();
   const navigate = useNavigate();
   const threads = useVisibleThreadShells();
   const delegatedUnderParent = useDelegatedUnderParent();
@@ -128,124 +137,150 @@ export function useCommandPaletteThreadItems(input: {
   // Ranking is relative to when the palette opened, so rows do not reorder as time passes.
   const [now] = useState(() => Date.now());
 
+  // Items are built once and kept while the person types, so a pick reads the latest query when it
+  // runs, not when the item was built.
+  const runThreadNow = useStableCallback(async (thread: (typeof threads)[number]) => {
+    // A pick sends its open with the query, always, so the server records
+    // it; the thread view then skips its own open. The open thread is no pick.
+    const isOpen =
+      activeThread?.environmentId === thread.environmentId && activeThread.id === thread.id;
+    if (threadSearchQuery.trim().length > 0 && !threadSearchQuery.startsWith(">") && !isOpen) {
+      claimThreadOpen(thread.environmentId, thread.id, Date.now());
+    }
+    if (
+      threadSearchQuery.trim().length > 0 &&
+      !threadSearchQuery.startsWith(">") &&
+      thread.lastVisitedAt !== undefined &&
+      !isOpen
+    ) {
+      void visitThread({
+        environmentId: thread.environmentId,
+        input: {
+          threadId: thread.id,
+          visitedAt: thread.updatedAt,
+          opened: true,
+          searchQuery: pickedQuery(threadSearchQuery),
+        },
+      });
+    }
+    await navigate({
+      to: "/$environmentId/$threadId",
+      params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
+    });
+  });
+
+  // The items are cached across openings, so they call whichever opening is live, not the one
+  // that built them.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- points the module-level pick handler of the cached items at the open palette
+  useInsertionEffect(() => {
+    liveRunThread = runThreadNow;
+  });
+
   const { environments } = useEnvironments();
-  const threadItems = buildThreadActionItems(
-    {
+  const threadItems = cachedThreadActionItems(
+    [
       threads,
       delegatedUnderParent,
-      ...(environments.length > 1
-        ? {
-            environmentLabelOf: (thread: (typeof threads)[number]) =>
-              projectEnvironmentLocationById.get(thread.environmentId)?.label ?? null,
-          }
-        : {}),
-      ...(activeThread ? { activeThread } : {}),
       projectByKey,
-      icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
-      renderLeadingContent: (thread) => <ThreadRowLeadingStatus thread={thread} />,
-      renderTrailingContent: (thread) => (
-        <>
-          <ThreadSearchPullRequestNumber
-            thread={thread}
-            query={threadSearchQuery}
-            settled={thread.settledOverride === "settled"}
-          />
-          <ThreadRowTrailingStatus thread={thread} />
-        </>
-      ),
-      contextOf: (thread, { projectTitle }) => ({
-        key: threadContextKey(thread),
-        label: [
-          projectTitle,
-          projectEnvironmentLocationById.get(thread.environmentId)?.label ??
-            gt("Remote", { $context: "machine location" }),
-          thread.branch,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      }),
-      renderTitleSuffix: (thread) => {
-        const modelInstanceId =
-          thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
-        const providerEntry =
-          providerEntryByEnvironmentAndInstanceId.get(
-            `${thread.environmentId}:${modelInstanceId}`,
-          ) ?? null;
-        if (providerEntry?.driverKind == null) return null;
-        return (
-          <ProviderInstanceIcon
-            driverKind={providerEntry.driverKind}
-            displayName={
-              thread.runtime?.providerName ?? providerEntry.displayName ?? modelInstanceId
-            }
-            acpRegistryAgentId={providerEntry.acpRegistryAgentId}
-            acpRegistryIconUrl={providerEntry.acpRegistryIconUrl}
-            iconClassName="size-3 shrink-0 text-muted-foreground opacity-80"
-          />
-        );
-      },
-      renderDescription: (thread, { projectTitle }) => {
-        const modelInstanceId =
-          thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
-        const providerEntry =
-          providerEntryByEnvironmentAndInstanceId.get(
-            `${thread.environmentId}:${modelInstanceId}`,
-          ) ?? null;
-        return (
-          <ThreadCommandSubtitle
-            project={projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ?? null}
-            projectTitle={projectTitle ?? null}
-            environmentLabel={
+      projectEnvironmentLocationById,
+      providerEntryByEnvironmentAndInstanceId,
+      environments,
+      activeThread?.environmentId,
+      activeThread?.id,
+      locale,
+    ],
+    () =>
+      buildThreadActionItems(
+        {
+          threads,
+          delegatedUnderParent,
+          locale,
+          ...(environments.length > 1
+            ? {
+                environmentLabelOf: (thread: (typeof threads)[number]) =>
+                  projectEnvironmentLocationById.get(thread.environmentId)?.label ?? null,
+              }
+            : {}),
+          ...(activeThread ? { activeThread } : {}),
+          projectByKey,
+          icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
+          renderLeadingContent: (thread) => <ThreadRowLeadingStatus thread={thread} />,
+          renderTrailingContent: (thread) => (
+            <>
+              <PaletteThreadPullRequestNumber
+                thread={thread}
+                settled={thread.settledOverride === "settled"}
+              />
+              <ThreadRowTrailingStatus thread={thread} />
+            </>
+          ),
+          contextOf: (thread, { projectTitle }) => ({
+            key: threadContextKey(thread),
+            label: [
+              projectTitle,
               projectEnvironmentLocationById.get(thread.environmentId)?.label ??
-              gt("Remote", { $context: "machine location" })
-            }
-            branch={thread.branch}
-            contextKey={threadContextKey(thread)}
-            variant="favicon-workspace"
-            worktreePath={thread.worktreePath}
-            isCurrent={
-              thread.id === activeThread?.id && thread.environmentId === activeThread.environmentId
-            }
-            driverKind={providerEntry?.driverKind ?? null}
-            providerDisplayName={
-              thread.runtime?.providerName ?? providerEntry?.displayName ?? modelInstanceId
-            }
-            acpRegistryAgentId={providerEntry?.acpRegistryAgentId}
-            acpRegistryIconUrl={providerEntry?.acpRegistryIconUrl}
-          />
-        );
-      },
-      runThread: async (thread) => {
-        // A pick sends its open with the query, always, so the server records
-        // it; the thread view then skips its own open. The open thread is no pick.
-        const isOpen =
-          activeThread?.environmentId === thread.environmentId && activeThread.id === thread.id;
-        if (threadSearchQuery.trim().length > 0 && !threadSearchQuery.startsWith(">") && !isOpen) {
-          claimThreadOpen(thread.environmentId, thread.id, Date.now());
-        }
-        if (
-          threadSearchQuery.trim().length > 0 &&
-          !threadSearchQuery.startsWith(">") &&
-          thread.lastVisitedAt !== undefined &&
-          !isOpen
-        ) {
-          void visitThread({
-            environmentId: thread.environmentId,
-            input: {
-              threadId: thread.id,
-              visitedAt: thread.updatedAt,
-              opened: true,
-              searchQuery: pickedQuery(threadSearchQuery),
-            },
-          });
-        }
-        await navigate({
-          to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
-        });
-      },
-    },
-    messages,
+                gt("Remote", { $context: "machine location" }),
+              thread.branch,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          }),
+          renderTitleSuffix: (thread) => {
+            const modelInstanceId =
+              thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
+            const providerEntry =
+              providerEntryByEnvironmentAndInstanceId.get(
+                `${thread.environmentId}:${modelInstanceId}`,
+              ) ?? null;
+            if (providerEntry?.driverKind == null) return null;
+            return (
+              <ProviderInstanceIcon
+                driverKind={providerEntry.driverKind}
+                displayName={
+                  thread.runtime?.providerName ?? providerEntry.displayName ?? modelInstanceId
+                }
+                acpRegistryAgentId={providerEntry.acpRegistryAgentId}
+                acpRegistryIconUrl={providerEntry.acpRegistryIconUrl}
+                iconClassName="size-3 shrink-0 text-muted-foreground opacity-80"
+              />
+            );
+          },
+          renderDescription: (thread, { projectTitle }) => {
+            const modelInstanceId =
+              thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
+            const providerEntry =
+              providerEntryByEnvironmentAndInstanceId.get(
+                `${thread.environmentId}:${modelInstanceId}`,
+              ) ?? null;
+            return (
+              <ThreadCommandSubtitle
+                project={projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ?? null}
+                projectTitle={projectTitle ?? null}
+                environmentLabel={
+                  projectEnvironmentLocationById.get(thread.environmentId)?.label ??
+                  gt("Remote", { $context: "machine location" })
+                }
+                branch={thread.branch}
+                contextKey={threadContextKey(thread)}
+                variant="favicon-workspace"
+                worktreePath={thread.worktreePath}
+                isCurrent={
+                  thread.id === activeThread?.id &&
+                  thread.environmentId === activeThread.environmentId
+                }
+                driverKind={providerEntry?.driverKind ?? null}
+                providerDisplayName={
+                  thread.runtime?.providerName ?? providerEntry?.displayName ?? modelInstanceId
+                }
+                acpRegistryAgentId={providerEntry?.acpRegistryAgentId}
+                acpRegistryIconUrl={providerEntry?.acpRegistryIconUrl}
+              />
+            );
+          },
+          runThread: (thread) => liveRunThread(thread),
+        },
+        messages,
+      ),
   );
 
   const itemByValue = new Map(threadItems.map((item) => [item.value, item]));

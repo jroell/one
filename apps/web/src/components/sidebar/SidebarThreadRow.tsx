@@ -45,19 +45,15 @@ import {
   CheckIcon,
   CircleAlertIcon,
   CircleCheckIcon,
-  CircleDashedIcon,
   CircleDotDashedIcon,
   ClockIcon,
   FolderGit2Icon,
   GitBranchIcon,
-  MessageCircleQuestionIcon,
   PinIcon,
   PinOffIcon,
-  ShieldQuestionIcon,
   SquarePenIcon,
   TerminalIcon,
   Undo2Icon,
-  UserRoundIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -92,6 +88,7 @@ import { formatRelativeTime, parseTimestampDate } from "../../timestampFormat";
 import type { SidebarThreadSummary } from "../../types";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
+import { WorkingArc } from "~/one/WorkingArc";
 import { textDirection } from "~/textDirection";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {
@@ -678,20 +675,43 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
   ),
 };
 
-const TOP_STATUS_ICONS = {
-  working: CircleDashedIcon,
-  waiting: CircleDotDashedIcon,
-  input: MessageCircleQuestionIcon,
-  request: UserRoundIcon,
-  approval: ShieldQuestionIcon,
-  failed: CircleAlertIcon,
-  done: CircleCheckIcon,
-  woke: AlarmClockIcon,
-} as const;
+/**
+ * The status of a row, drawn with the status colors and nothing else: a turning gold arc while
+ * it works, a bone check when it is done, an ember dot when it needs the person (named once by
+ * the list's "need you" header, not by a chip on every row) and oxblood when it failed. The word
+ * stays in the row's accessible name.
+ */
+function SidebarStatusMark(props: {
+  readonly kind: "working" | "waiting" | "done" | "attention" | "failed";
+  readonly size: 12 | 14;
+}) {
+  const { kind, size } = props;
+  if (kind === "working") return <WorkingArc size={size} />;
+  if (kind === "attention") {
+    return <span aria-hidden data-sidebar-status="attention" className="one-status-dot" />;
+  }
+  const Icon =
+    kind === "done" ? CheckIcon : kind === "failed" ? CircleAlertIcon : CircleDotDashedIcon;
+  return (
+    <Icon
+      aria-hidden
+      data-sidebar-status={kind}
+      className="shrink-0"
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
-function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
-  const Icon = TOP_STATUS_ICONS[props.icon];
-  return <Icon aria-hidden className={cn("shrink-0", props.className)} />;
+/** The mark kind a row status draws, or null for a status with no mark of its own. */
+function sidebarStatusKind(
+  icon: string,
+): "working" | "waiting" | "done" | "attention" | "failed" | null {
+  if (icon === "working") return "working";
+  if (icon === "waiting") return "waiting";
+  if (icon === "done") return "done";
+  if (icon === "failed") return "failed";
+  if (icon === "approval" || icon === "input" || icon === "request") return "attention";
+  return null;
 }
 
 type SidebarThreadRowProps = {
@@ -920,7 +940,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 ? gt("Goal", { $context: "thread status: working on a goal" })
                 : gt("Working", { $context: "thread status" }),
           icon: "working" as const,
-          className: "text-info-foreground",
+          className: "text-muted-foreground",
         }
       : status === "waiting"
         ? {
@@ -932,43 +952,43 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           ? {
               label: gt("Needs approval", { $context: "thread status: needs approval" }),
               icon: "approval" as const,
-              className: "text-warning-foreground",
+              className: "text-muted-foreground",
             }
           : status === "input"
             ? {
                 label: gt("Input", { $context: "thread status: needs user input" }),
                 icon: "input" as const,
-                className: "text-indigo-600 dark:text-indigo-300",
+                className: "text-muted-foreground",
               }
             : status === "request"
               ? {
                   label: gt("Request", { $context: "thread status: guest request" }),
                   icon: "request" as const,
-                  className: "text-guest-foreground",
+                  className: "text-muted-foreground",
                 }
               : status === "limited"
                 ? {
                     label: gt("Limited", { $context: "thread status: usage limited" }),
                     icon: "failed" as const,
-                    className: "text-warning-foreground",
+                    className: "text-muted-foreground",
                   }
                 : status === "failed"
                   ? {
                       label: gt("Failed", { $context: "thread status" }),
                       icon: "failed" as const,
-                      className: "text-error-foreground",
+                      className: "",
                     }
                   : isWoke
                     ? {
                         label: gt("Woke", { $context: "thread status: woke from snooze" }),
                         icon: "woke" as const,
-                        className: "text-warning-foreground",
+                        className: "text-muted-foreground",
                       }
                     : isUnread
                       ? {
                           label: gt("Done", { $context: "thread status" }),
                           icon: "done" as const,
-                          className: "text-success-foreground",
+                          className: "text-muted-foreground",
                         }
                       : null;
   const isWokeStatus = topStatus?.icon === "woke";
@@ -1022,11 +1042,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   };
   const handleContextMenu = (event: ReactMouseEvent) => {
     event.preventDefault();
-    // Open beside the row, not over the title it acts on.
+    // Open at the pointer, just below the row, so the menu never covers the row it acts on.
     const rowRect = event.currentTarget.getBoundingClientRect();
-    // With no room on the right, the web menu opens to the left of the row instead (flipTo).
-    const position = { x: rowRect.right + 6, y: rowRect.top, flipTo: rowRect.left - 6 };
-    onContextMenu(threadRef, position, contextMenuSourceOf(event));
+    const source = contextMenuSourceOf(event);
+    const position = {
+      x: source === "keyboard" ? rowRect.left + 24 : event.clientX,
+      y: rowRect.bottom + 2,
+      avoid: { top: rowRect.top, bottom: rowRect.bottom },
+    };
+    onContextMenu(threadRef, position, source);
   };
   const handleKeyDown = (event: ReactKeyboardEvent) => {
     if (event.target !== event.currentTarget) return;
@@ -1213,7 +1237,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         "min-w-0 flex-1 text-start text-sm transition-opacity motion-reduce:transition-none",
         shouldRecede ? "font-normal" : "font-medium",
         isRegeneratingTitle
-          ? "relative truncate text-muted-foreground"
+          ? "one-shimmer-host relative truncate text-muted-foreground"
           : variant !== "slim"
             ? cn(
                 "truncate",
@@ -1591,8 +1615,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           topStatus.className,
                         )}
                       >
-                        <TopStatusIcon icon={topStatus.icon} className="size-3" />
-                        {topStatus.label}
+                        <SidebarStatusMark
+                          kind={sidebarStatusKind(topStatus.icon) ?? "waiting"}
+                          size={12}
+                        />
+                        <span className="sr-only">{topStatus.label}</span>
                       </span>
                     ) : (
                       <span className="text-xs">
@@ -1779,16 +1806,26 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         </Tooltip>
                       ) : (
                         <span
+                          data-sidebar-status-word={sidebarStatusKind(topStatus.icon) ?? undefined}
                           className={cn(
                             "inline-flex items-center gap-1 font-medium",
                             topStatus.className,
                           )}
                         >
-                          <TopStatusIcon icon={topStatus.icon} className="size-4" />
+                          <SidebarStatusMark
+                            kind={sidebarStatusKind(topStatus.icon) ?? "waiting"}
+                            size={14}
+                          />
                           {/* Not a live region: a collapsed sidebar is inert, so
                             BackgroundThreadAnnouncer and the open thread's
                             timeline speak status changes instead. */}
-                          {topStatus.label}
+                          <span
+                            className={
+                              status === "failed" || status === "limited" ? undefined : "sr-only"
+                            }
+                          >
+                            {topStatus.label}
+                          </span>
                           {status === "preparing" || status === "working" ? (
                             <span aria-hidden>
                               <WorkingDuration
@@ -2081,7 +2118,7 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
                   "min-w-0 flex-1 truncate",
                   props.isSettled ? "font-normal" : "font-medium",
                   isRegeneratingTitle
-                    ? "relative text-muted-foreground"
+                    ? "one-shimmer-host relative text-muted-foreground"
                     : props.isSettled && !props.isHighlighted && !props.isRouteActive
                       ? "text-secondary-label/70 group-hover/sidebar-row:text-foreground"
                       : "text-foreground",

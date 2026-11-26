@@ -14,6 +14,32 @@ function CommitOnBlurField({ onCommit }: { onCommit: (next: string) => void }) {
 }
 
 describe("AppRouteModal", () => {
+  it("paints its frame with a skeleton first and mounts the page a frame later", async () => {
+    const seen: string[] = [];
+    const watcher = new MutationObserver(() => {
+      const modal = document.querySelector("[data-app-modal]");
+      if (!modal) return;
+      const state = modal.querySelector('[data-testid="page"]')
+        ? "page"
+        : modal.querySelector('[data-slot="skeleton"]')
+          ? "skeleton"
+          : "empty";
+      if (seen.at(-1) !== state) seen.push(state);
+    });
+    watcher.observe(document.body, { childList: true, subtree: true });
+    await using _screen = await render(
+      <AppRouteModal label="Settings">
+        <div data-testid="page">General</div>
+      </AppRouteModal>,
+      { router: "/settings/general" },
+    );
+
+    await expect.element(page.getByTestId("page")).toBeVisible();
+    watcher.disconnect();
+
+    expect(seen).toEqual(["skeleton", "page"]);
+  });
+
   it("commits a focused field when Esc closes it", async () => {
     const onCommit = vi.fn();
     await using _screen = await render(

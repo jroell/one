@@ -21,7 +21,7 @@ import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { RelativeTime } from "../RelativeTime";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { SettingsEmptyState } from "./SettingsEmptyState";
+import { EmptyGhostRows, SettingsEmptyState } from "./SettingsEmptyState";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
@@ -340,8 +340,26 @@ export function ArchivedThreadsPanel() {
                 ? gt("Checking connected environments.")
                 : (archiveError ??
                   gt(
-                    "Archive a thread from the sidebar to set it aside, such as a finished experiment you may want back.",
+                    "Archive a thread from its menu in the sidebar to set it aside. It waits here until you restore it.",
                   ))
+            }
+            preview={
+              isLoadingArchive || archiveError ? undefined : (
+                <EmptyGhostRows
+                  rows={[
+                    {
+                      icon: <ArchiveIcon />,
+                      title: gt("Fix the flaky checkout test"),
+                      meta: gt("Archived 3 days ago"),
+                    },
+                    {
+                      icon: <ArchiveIcon />,
+                      title: gt("Try the new export format"),
+                      meta: gt("Archived last month"),
+                    },
+                  ]}
+                />
+              )
             }
             action={
               isLoadingArchive ? undefined : archiveError ? (
@@ -349,8 +367,8 @@ export function ArchivedThreadsPanel() {
                   <T>Retry</T>
                 </Button>
               ) : (
-                <Button onClick={() => void closeAppModal()}>
-                  <T>Back to threads</T>
+                <Button variant="outline" onClick={() => void closeAppModal()}>
+                  <T>Go to threads</T>
                 </Button>
               )
             }

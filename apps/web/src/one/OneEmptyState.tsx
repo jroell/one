@@ -1,8 +1,6 @@
 import { T, useGT } from "gt-react";
-import { useAtomValue } from "@effect/atom-react";
 import { useParams } from "@tanstack/react-router";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
-import type { KeybindingCommand } from "@t3tools/contracts";
 import { createContext, use, type ReactNode } from "react";
 import {
   AudioLinesIcon,
@@ -19,11 +17,9 @@ import {
 } from "lucide-react";
 
 import { dispatchCommandPalette } from "~/commandPaletteStore";
-import { Kbd } from "~/components/ui/kbd";
+import { ProjectFavicon } from "~/components/ProjectFavicon";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
-import { shortcutLabelForCommand } from "~/keybindings";
-import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useProject, useThreadShell } from "~/state/entities";
 import { resolveThreadRouteTarget } from "~/threadRoutes";
 import { OneOrb } from "./OneOrb";
@@ -87,10 +83,6 @@ interface CodeStarter {
   readonly id: string;
   readonly icon: LucideIcon;
   readonly label: string;
-  /** The keybinding command whose shortcut is shown, when the action has one. */
-  readonly command: KeybindingCommand | null;
-  /** Shown when the action has no binding of its own. */
-  readonly keycap?: string;
   readonly run: () => void;
 }
 
@@ -101,7 +93,6 @@ interface CodeStarter {
 export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) {
   const gt = useGT();
   const composer = useComposerHandleContext();
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const params = useParams({ strict: false }) as Record<string, string | undefined>;
   const target = resolveThreadRouteTarget(params);
   const threadRef = target?.kind === "server" ? target.threadRef : null;
@@ -114,8 +105,6 @@ export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) 
       id: "mention",
       icon: AtSignIcon,
       label: gt("Mention a file"),
-      command: null,
-      keycap: "@",
       run: () => {
         const handle = composer?.current;
         if (!handle) return;
@@ -128,7 +117,6 @@ export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) 
       id: "search",
       icon: FileSearchIcon,
       label: gt("Search the project"),
-      command: "projectSearch.toggle",
       run: () => dispatchCommandPalette({ _tag: "ToggleMode", mode: "content" }),
     },
     // The third starter is the diff when the thread has one, else a file: the set is always four.
@@ -137,21 +125,18 @@ export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) 
           id: "changes",
           icon: FileDiffIcon,
           label: gt("Review changes"),
-          command: "diff.toggle",
           run: review.open,
         }
       : {
           id: "open-file",
           icon: FileTextIcon,
           label: gt("Open a file"),
-          command: "filePicker.toggle",
           run: () => dispatchCommandPalette({ _tag: "ToggleMode", mode: "files" }),
         },
     {
       id: "palette",
       icon: SquareTerminalIcon,
       label: gt("Command palette"),
-      command: "commandPalette.toggle",
       run: () => dispatchCommandPalette({ _tag: "SetOpen", open: true }),
     },
   ];
@@ -168,27 +153,26 @@ export function CodeWelcome({ heading }: { readonly heading?: ReactNode } = {}) 
           <h1 className="one-chat-welcome-title">
             <T>What are we building?</T>
           </h1>
-          {project ? <p className="one-chat-welcome-lead">{project.title}</p> : null}
+          {project ? (
+            <p className="one-project-chip" data-one-project-chip="">
+              <ProjectFavicon project={project} className="size-4" />
+              <span className="min-w-0 truncate">{project.title}</span>
+            </p>
+          ) : null}
         </>
       ) : (
         <div className="one-chat-welcome-heading">{heading}</div>
       )}
       <ul className="one-chat-starters" aria-label={gt("Ways to start")}>
-        {starters.map((starter) => {
-          const keycap =
-            (starter.command ? shortcutLabelForCommand(keybindings, starter.command) : null) ??
-            starter.keycap;
-          return (
-            <li key={starter.id}>
-              <button type="button" className="one-chip" data-one-reflect="" onClick={starter.run}>
-                <starter.icon aria-hidden="true" className="size-4" />
-                {starter.label}
-                {keycap ? <Kbd>{keycap}</Kbd> : null}
-                <span aria-hidden="true" className="one-reflection" />
-              </button>
-            </li>
-          );
-        })}
+        {starters.map((starter) => (
+          <li key={starter.id}>
+            <button type="button" className="one-chip" data-one-reflect="" onClick={starter.run}>
+              <starter.icon aria-hidden="true" className="size-4" />
+              {starter.label}
+              <span aria-hidden="true" className="one-reflection" />
+            </button>
+          </li>
+        ))}
       </ul>
     </div>
   );

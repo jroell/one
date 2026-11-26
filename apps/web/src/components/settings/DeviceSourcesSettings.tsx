@@ -845,8 +845,8 @@ export function DeviceSourceRow(props: { row: SourceRow }) {
   const problems = issues.filter((environment) => environment.status.tone !== "pending");
   const pending = issues.find((environment) => environment.status.tone === "pending");
   return (
-    <div className="flex min-h-14 items-center gap-3 border-t border-border/60 px-3 py-3 first:border-t-0 sm:px-4">
-      <div className="min-w-0 flex-1 space-y-1">
+    <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/60 px-3 py-3 first:border-t-0 sm:px-4">
+      <div className="min-w-0 flex-1 basis-48 space-y-1">
         <div className="flex min-h-5 min-w-0 items-center gap-1.5">
           <p data-settings-row-title="" className="truncate text-sm font-medium">
             {row.title}

@@ -31,7 +31,7 @@ function useColorDrag(
   return {
     thumbTransition: isDragging
       ? undefined
-      : "left 80ms linear, top 80ms linear, background-color 80ms linear",
+      : "left var(--mo-press) linear, top var(--mo-press) linear, background-color var(--mo-press) linear",
     handlers: {
       onPointerDown(event: PointerEvent<HTMLDivElement>) {
         if (pointerId.current !== null || event.button !== 0) return;

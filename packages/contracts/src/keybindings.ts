@@ -45,6 +45,8 @@ const THREAD_KEYBINDING_COMMANDS = [
   "thread.pin",
   "thread.regenerateTitle",
   "thread.undo",
+  "approval.approve",
+  "approval.decline",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
 ] as const;
 

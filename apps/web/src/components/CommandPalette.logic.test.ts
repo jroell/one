@@ -9,6 +9,8 @@ import {
   buildNestedSearchItems,
   resolveCommandPaletteProject,
   buildThreadActionItems,
+  cachedThreadActionItems,
+  resolveItemContent,
   buildLinkedThreadActionItems,
   filterPinnedBrowseEntries,
   filterCommandPaletteGroups,
@@ -198,12 +200,37 @@ describe("buildThreadActionItems", () => {
       runThread: async (_thread) => undefined,
     });
 
-    expect(item?.titleSuffixContent).toBe("harness mark");
+    expect(resolveItemContent(item!).titleSuffixContent).toBe("harness mark");
     expect(item?.description).toBe("Project");
     expect(item?.context).toEqual({
       key: `${LOCAL_ENVIRONMENT_ID}:${PROJECT_ID}`,
       label: "Project",
     });
+  });
+
+  it("builds the row elements of a thread only when its row asks for them, and only once", () => {
+    const renderLeadingContent = vi.fn(() => "status");
+    const renderDescription = vi.fn(() => "described");
+    const items = buildThreadActionItems({
+      threads: Array.from({ length: 50 }, (_, index) =>
+        makeThread({ id: ThreadId.make(`thread-${index}`) }),
+      ),
+      projectByKey: new Map(),
+      icon: null,
+      renderLeadingContent,
+      renderDescription,
+      runThread: async (_thread) => undefined,
+    });
+
+    expect(items).toHaveLength(50);
+    expect(renderLeadingContent).not.toHaveBeenCalled();
+    expect(renderDescription).not.toHaveBeenCalled();
+
+    const row = resolveItemContent(items[3]!);
+    expect(resolveItemContent(items[3]!)).toBe(row);
+    expect(row).toMatchObject({ titleLeadingContent: "status", description: "described" });
+    expect(renderLeadingContent).toHaveBeenCalledTimes(1);
+    expect(renderDescription).toHaveBeenCalledTimes(1);
   });
 
   it("ranks thread title matches ahead of contextual project-name matches", () => {
@@ -1120,5 +1147,36 @@ describe("buildRootGroups", () => {
 
     expect(labels(">")).toEqual(["Thread", "View", "Git", "Navigate"]);
     expect(labels(">diff")).toEqual(["View"]);
+  });
+});
+
+describe("cachedThreadActionItems", () => {
+  const item = {
+    kind: "action",
+    value: "thread:a",
+    searchTerms: [],
+    title: "A",
+    icon: null,
+  } as const;
+
+  it("builds again only when an input changed, treating equal arrays and maps as unchanged", () => {
+    const build = vi.fn(() => [{ ...item, run: async () => undefined }]);
+    const threads = [{ id: "a" }];
+    const inputs = (locale: string) => [
+      threads,
+      [1, 2],
+      new Map([["env", { label: "Local", kind: "local" }]]),
+      locale,
+    ];
+
+    const first = cachedThreadActionItems(inputs("en"), build);
+    expect(cachedThreadActionItems(inputs("en"), build)).toBe(first);
+    expect(build).toHaveBeenCalledTimes(1);
+
+    cachedThreadActionItems(inputs("de"), build);
+    expect(build).toHaveBeenCalledTimes(2);
+
+    cachedThreadActionItems([[{ id: "a" }], [1, 2], new Map(), "de"], build);
+    expect(build).toHaveBeenCalledTimes(3);
   });
 });

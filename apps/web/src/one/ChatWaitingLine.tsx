@@ -5,11 +5,9 @@ import { formatWorkingTimerNow } from "~/components/chat/TimelineWorkGroupRows.l
 import { TimelineRowCtx } from "~/components/chat/timelineRowContext";
 import { tickTextContent } from "~/lib/tickTextContent";
 
-import { OneGlyph } from "./OneGlyph";
-
 /**
- * Chat mode's one status line while the turn waits on the person: it keeps the elapsed time
- * and holds the glyph still, since nothing is working.
+ * Chat mode's one status line while the turn waits on the person: an ember dot (the one colour
+ * that means "this needs you") and the elapsed time. Nothing turns, since nothing is working.
  */
 export function ChatWaitingLine({ since }: { readonly since: string | null }) {
   const gt = useGT();
@@ -17,9 +15,7 @@ export function ChatWaitingLine({ since }: { readonly since: string | null }) {
   return (
     <div className="border-b border-border/60 pb-2 pt-1" data-chat-waiting>
       <div className="flex h-6 min-w-0 items-center gap-2 px-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        <span aria-hidden="true" className="one-working-mark">
-          <OneGlyph size={16} />
-        </span>
+        <span aria-hidden="true" className="one-chat-waiting-dot" />
         <span className="shrink-0 whitespace-nowrap">{gt("Waiting for you")}</span>
         {since ? (
           <>

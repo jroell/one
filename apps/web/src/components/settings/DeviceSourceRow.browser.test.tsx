@@ -68,6 +68,21 @@ describe("device source row", () => {
       .toBeVisible();
   });
 
+  it("keeps the title whole in a 300 px row by moving 'Not checked yet' under the text", async () => {
+    await using screen = await render(
+      <div className="w-[300px]">
+        <DeviceSourceRow row={{ ...local(), check: vi.fn() }} />
+      </div>,
+      { router: false },
+    );
+    const title = screen.container.querySelector<HTMLElement>("[data-settings-row-title]")!;
+    const status = page.getByText(/Not checked yet/).element();
+    expect(title.scrollWidth).toBeLessThanOrEqual(title.clientWidth);
+    expect(status.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      title.getBoundingClientRect().bottom,
+    );
+  });
+
   it("sets a tool version in the weight and color of the sentence it ends", async () => {
     await using screen = await render(
       <div data-app-modal="" className="w-[880px]">

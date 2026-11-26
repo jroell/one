@@ -91,23 +91,27 @@ function LicenseNoticeRow({
     label.kind === "custom" ? gt("Custom (see {file})", { file: label.file }) : label.text;
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <article>
+      <article className="@container/license">
         <div className="flex min-h-10 items-center hover:bg-muted/35 sm:min-h-9">
           <CollapsibleTrigger className="group flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 text-left sm:min-h-9 sm:px-4">
             <ChevronRightIcon
               aria-hidden
               className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-90"
             />
-            <span className="flex min-w-0 flex-1 items-baseline gap-2">
-              <span className="truncate font-medium text-foreground">{entry.name}</span>
-              {entry.version ? (
-                <code className="shrink-0 font-sans text-xs tabular-nums text-muted-foreground">
-                  {entry.version}
-                </code>
-              ) : null}
-            </span>
-            <span className="max-w-[42%] shrink-0 truncate text-xs text-muted-foreground">
-              {license} · {formatLicenseBundles(entry.bundles, messages)}
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 @xl/license:flex-row @xl/license:items-baseline @xl/license:gap-2">
+              <span className="flex min-w-0 items-baseline gap-2 @xl/license:flex-1">
+                <span className="font-medium text-foreground [overflow-wrap:anywhere] @xl/license:truncate">
+                  {entry.name}
+                </span>
+                {entry.version ? (
+                  <code className="shrink-0 font-sans text-xs tabular-nums text-muted-foreground">
+                    {entry.version}
+                  </code>
+                ) : null}
+              </span>
+              <span className="text-xs text-muted-foreground @xl/license:max-w-[42%] @xl/license:shrink-0 @xl/license:truncate">
+                {license} · {formatLicenseBundles(entry.bundles, messages)}
+              </span>
             </span>
           </CollapsibleTrigger>
           {entry.sourceUrl ? (

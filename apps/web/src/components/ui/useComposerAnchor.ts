@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { observeResize } from "~/lib/observeResize";
 
@@ -12,6 +12,7 @@ export interface ComposerAnchor {
 
 const ANCHOR_GAP_PX = 12;
 const VIEWPORT_MARGIN_PX = 8;
+const WINDOW_MARGIN_PX = 24;
 const ANCHOR_POLL_MS = 400;
 /** Used until Base UI has measured the toast. */
 const ESTIMATED_TOAST_HEIGHT_PX = 72;
@@ -65,21 +66,31 @@ export function placeAboveComposer(
   };
 }
 
+/** With no composer on the page the toast keeps the same place: the bottom of the main column. */
+export function placeInMainColumn(rect: Pick<DOMRect, "left" | "width">): ComposerAnchor {
+  return {
+    bottom: WINDOW_MARGIN_PX,
+    left: Math.round(rect.left + rect.width / 2),
+    width: Math.round(rect.width),
+  };
+}
+
 function measureComposer(toastHeight: number): {
   anchor: ComposerAnchor | null;
   host: HTMLElement | null;
 } {
   const hosts = [...document.querySelectorAll<HTMLElement>('[data-slot="composer-host"]')];
   const host = pickComposerHost(hosts, document.activeElement);
-  if (!host) return { anchor: null, host: null };
-  return {
-    anchor: placeAboveComposer(
-      host.getBoundingClientRect(),
-      toastHeight > 0 ? toastHeight : ESTIMATED_TOAST_HEIGHT_PX,
-      window.innerHeight,
-    ),
-    host,
-  };
+  const above = host
+    ? placeAboveComposer(
+        host.getBoundingClientRect(),
+        toastHeight > 0 ? toastHeight : ESTIMATED_TOAST_HEIGHT_PX,
+        window.innerHeight,
+      )
+    : null;
+  if (above) return { anchor: above, host };
+  const column = document.querySelector<HTMLElement>('[data-slot="sidebar-inset"]');
+  return { anchor: column ? placeInMainColumn(column.getBoundingClientRect()) : null, host };
 }
 
 function sameAnchor(a: ComposerAnchor | null, b: ComposerAnchor | null): boolean {
@@ -88,7 +99,8 @@ function sameAnchor(a: ComposerAnchor | null, b: ComposerAnchor | null): boolean
 }
 
 /**
- * Where a toast sits so it clears the composer, or null for the top right. It measures only while
+ * Where a toast sits: above the composer, or at the bottom of the main column when there is no
+ * room or no composer. The same place on every page. It measures only while
  * `active` (a toast is showing): on resize, scroll and every 400ms, and at once when the composer
  * changes size, since it grows as you type.
  */
@@ -122,4 +134,69 @@ export function useComposerAnchor(active: boolean, toastHeight: number): Compose
   }, [active, toastHeight]);
 
   return active ? anchor : null;
+}
+
+const TIMELINE = ".messages-timeline-scroll";
+const LANE_RELEASE_MS = 320;
+
+function scrollBehavior(): ScrollBehavior {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+}
+
+function atEnd(scroller: HTMLElement): boolean {
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4;
+}
+
+/**
+ * Keeps the thread's last lines out from under a toast: the timeline gets bottom padding the
+ * height of the toast and, at the end of a thread, scrolls that far. It scrolls back before the
+ * padding goes. A reader mid-thread keeps their place.
+ */
+export function useToastLane(active: boolean, toastHeight: number): void {
+  const lane =
+    (toastHeight > 0 ? toastHeight : ESTIMATED_TOAST_HEIGHT_PX) +
+    ANCHOR_GAP_PX +
+    VIEWPORT_MARGIN_PX;
+  const laneRef = useRef(lane);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the latest lane for the cleanup below, which runs outside render
+  useEffect(() => {
+    laneRef.current = lane;
+  }, [lane]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reserves bottom padding on the timeline scroller, a DOM node outside React's tree, while a toast shows
+  useEffect(() => {
+    if (!active) return;
+    const scroller = document.querySelector<HTMLElement>(TIMELINE);
+    if (!scroller) return;
+    const previous = scroller.style.paddingBottom;
+    const restore = () => {
+      scroller.style.paddingBottom = previous;
+    };
+    const follow = atEnd(scroller);
+    scroller.style.paddingBottom = `${laneRef.current}px`;
+    if (follow) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: scrollBehavior() });
+    }
+    return () => {
+      if (!scroller.isConnected || !atEnd(scroller)) {
+        restore();
+        return;
+      }
+      scroller.scrollTo({
+        top: Math.max(0, scroller.scrollHeight - scroller.clientHeight - laneRef.current),
+        behavior: scrollBehavior(),
+      });
+      window.setTimeout(restore, LANE_RELEASE_MS);
+    };
+  }, [active]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- resizes the reserved padding on the timeline scroller when the measured toast height replaces the estimate
+  useEffect(() => {
+    if (!active) return;
+    const scroller = document.querySelector<HTMLElement>(TIMELINE);
+    if (!scroller || scroller.style.paddingBottom === `${lane}px`) return;
+    const follow = atEnd(scroller);
+    scroller.style.paddingBottom = `${lane}px`;
+    if (follow) scroller.scrollTo({ top: scroller.scrollHeight, behavior: scrollBehavior() });
+  }, [active, lane]);
 }

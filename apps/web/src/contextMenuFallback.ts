@@ -213,6 +213,25 @@ function clampMenuPosition(menu: HTMLDivElement, preferredLeft: number, preferre
   menu.style.top = `${top}px`;
 }
 
+const MENU_EXIT_FALLBACK_MS = 200;
+
+/** Plays the exit animation (see `[data-context-menu][data-closing]`), then removes the menu. */
+function retireMenu(menu: HTMLDivElement) {
+  const animates =
+    typeof menu.getAnimations === "function" &&
+    !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!animates) {
+    menu.remove();
+    return;
+  }
+  menu.inert = true;
+  menu.dataset.closing = "";
+  menu.addEventListener("animationend", (event) => {
+    if (event.target === menu) menu.remove();
+  });
+  window.setTimeout(() => menu.remove(), MENU_EXIT_FALLBACK_MS);
+}
+
 function isNodeWithinMenuStack(target: EventTarget | null, menuStack: readonly HTMLDivElement[]) {
   if (typeof Node !== "undefined" && target instanceof Node) {
     return menuStack.some((menu) => menu.contains(target));
@@ -243,13 +262,13 @@ export function dismissContextMenu(restoreFocus = true): void {
 }
 
 /**
- * Where a menu opens. `flipTo` is the right edge the menu takes instead when it will not fit
- * to the right of `x`: the left edge of the thing the menu acts on, so it never covers it.
+ * Where a menu opens: at the point. `avoid` is the box of the thing the menu acts on; the menu
+ * opens just below it, or above it when there is more room there, so it never covers it.
  */
 export interface ContextMenuPoint {
   readonly x: number;
   readonly y: number;
-  readonly flipTo?: number;
+  readonly avoid?: { readonly top: number; readonly bottom: number };
 }
 
 export function showContextMenuFallback<T extends string>(
@@ -287,7 +306,7 @@ export function showContextMenuFallback<T extends string>(
       const shouldRestoreFocus =
         restoreFocus && isNodeWithinMenuStack(document.activeElement, menuStack);
       for (const menu of menuStack) {
-        menu.remove();
+        retireMenu(menu);
       }
       if (shouldRestoreFocus && previouslyFocusedElement?.isConnected) {
         previouslyFocusedElement.focus({ preventScroll: true });
@@ -386,7 +405,8 @@ export function showContextMenuFallback<T extends string>(
     const closeMenusFromLevel = (level: number) => {
       while (menuStack.length > level) {
         submenuTriggerStack.pop()?.setAttribute("aria-expanded", "false");
-        menuStack.pop()?.remove();
+        const closing = menuStack.pop();
+        if (closing) retireMenu(closing);
       }
     };
 
@@ -616,15 +636,27 @@ export function showContextMenuFallback<T extends string>(
 
       requestAnimationFrame(() => {
         if (!parentTrigger) {
-          const flipTo = position?.flipTo;
-          if (flipTo !== undefined && level === 0) {
+          const avoid = position?.avoid;
+          if (avoid && level === 0) {
+            // A fixed menu at the right edge shrinks to the space left; measure its real size.
             menu.style.width = "max-content";
-            const { width } = menu.getBoundingClientRect();
-            const fitsRight = preferredLeft + width <= window.innerWidth - 4;
-            if (!fitsRight && flipTo - width >= 4) {
-              clampMenuPosition(menu, flipTo - width, preferredTop);
-              return;
+            const roomBelow = window.innerHeight - avoid.bottom - 6;
+            const roomAbove = avoid.top - 6;
+            const below =
+              menu.getBoundingClientRect().height <= roomBelow || roomBelow >= roomAbove;
+            const room = below ? roomBelow : roomAbove;
+            // A tall menu takes the larger side and scrolls inside it, so it never covers the row.
+            const scroller = menu.firstElementChild;
+            if (scroller instanceof HTMLElement && menu.getBoundingClientRect().height > room) {
+              scroller.style.maxHeight = `${Math.max(120, room)}px`;
             }
+            const { height } = menu.getBoundingClientRect();
+            clampMenuPosition(
+              menu,
+              preferredLeft,
+              below ? avoid.bottom + 2 : avoid.top - height - 2,
+            );
+            return;
           }
           clampMenuPosition(menu, preferredLeft, preferredTop);
           return;

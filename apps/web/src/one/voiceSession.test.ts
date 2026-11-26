@@ -179,6 +179,52 @@ function message(
   return { id, role, text: id, streaming: false, ...extra };
 }
 
+describe("muting voice chat", () => {
+  const listening: ReadonlyArray<VoiceSessionEvent> = [{ type: "start", threadKey: "t1" }];
+
+  it("holds across a whole turn, so the next listening stage starts muted", () => {
+    const state = run([
+      ...listening,
+      { type: "muted", muted: true },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
+      { type: "working" },
+      { type: "replied", reply: ANSWER },
+      { type: "spoken" },
+    ]);
+    expect(state).toMatchObject({ stage: "listening", muted: true });
+  });
+
+  it("is forgotten when voice chat ends, and cannot be set while it is off", () => {
+    expect(run([...listening, { type: "muted", muted: true }, { type: "stop" }]).muted).toBe(false);
+    expect(run([{ type: "muted", muted: true }])).toBe(VOICE_SESSION_OFF);
+  });
+
+  it("turns back off", () => {
+    expect(
+      run([...listening, { type: "muted", muted: true }, { type: "muted", muted: false }]).muted,
+    ).toBe(false);
+  });
+});
+
+describe("the question's words while the agent works", () => {
+  const sent: ReadonlyArray<VoiceSessionEvent> = [
+    { type: "start", threadKey: "t1" },
+    { type: "sent", after: NOTHING_BEFORE, submission: "s1", heard: "why is the sky" },
+  ];
+
+  it("starts with what the microphone had heard and takes the thread's own text when it shows it", () => {
+    expect(run(sent).heard).toBe("why is the sky");
+    expect(run([...sent, { type: "asked", text: "Why is the sky blue?" }]).heard).toBe(
+      "Why is the sky blue?",
+    );
+  });
+
+  it("ignores the thread's text once the turn is over", () => {
+    const over = run([...sent, { type: "working" }, { type: "replied", reply: ANSWER }]);
+    expect(reduceVoiceSession(over, { type: "asked", text: "late" })).toBe(over);
+  });
+});
+
 describe("which message answers the spoken question", () => {
   const before = [message("u1", "user"), message("a1", "assistant")];
   const anchor = replyAnchor(before);
@@ -477,6 +523,14 @@ describe("text read aloud in voice chat", () => {
     expect(speakableText("## Light\n- **Refraction** bends it\n1. _Then_ it splits")).toBe(
       "Light\nRefraction bends it\nThen it splits",
     );
+  });
+
+  it("reads a table row as a short sentence, without stray commas and spaces before them", () => {
+    expect(
+      speakableText(
+        "| Order | Focal length |\n| --- | --- |\n| First | 920 mm |\n| Third | 500 mm |",
+      ),
+    ).toBe("Order, Focal length.\nFirst, 920 mm.\nThird, 500 mm.");
   });
 
   it("returns an empty string for a reply that is only code", () => {

@@ -25,11 +25,36 @@ type ThemeEditorStore = {
 };
 
 let nextSessionId = 0;
+// The control that was focused when the editor opened, so closing it hands focus back there.
+let opener: HTMLElement | null = null;
 
-export const useThemeEditorStore = create<ThemeEditorStore>((set) => ({
+function rememberOpener(): void {
+  const active = document.activeElement;
+  opener = active instanceof HTMLElement && active !== document.body ? active : null;
+}
+
+function returnFocusToOpener(): void {
+  const target = opener;
+  opener = null;
+  if (!target) return;
+  // The panel unmounts on the next render; focus is on the page again only after that.
+  requestAnimationFrame(() => {
+    const active = document.activeElement;
+    if (target.isConnected && (active === null || active === document.body)) target.focus();
+  });
+}
+
+export const useThemeEditorStore = create<ThemeEditorStore>((set, get) => ({
   session: null,
-  openThemeEditor: (session) => set({ session: { ...session, id: ++nextSessionId } }),
-  closeThemeEditor: () => set({ session: null }),
+  openThemeEditor: (session) => {
+    // A second open, from inside the open editor, keeps the first opener.
+    if (get().session === null) rememberOpener();
+    set({ session: { ...session, id: ++nextSessionId } });
+  },
+  closeThemeEditor: () => {
+    set({ session: null });
+    returnFocusToOpener();
+  },
 }));
 
 export function toggleThemeEditorForTheme(input: {

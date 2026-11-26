@@ -24,14 +24,15 @@ uniform float uDark;
 uniform float uAura;
 uniform float uReveal;
 uniform float uGlow;
+uniform float uOrbit;
 
 const float RADIUS = 1.0;
 const vec2 BAND = vec2(0.15, 0.14);
 const float ROLL = 0.17;
 /* Sets where the body's mid-tone lands: the standard gold ramp's 500 step. */
 const float EXPOSURE = 0.88;
-/* Where the mark's glint sits: its one o'clock catch-light, in the units of the ring's box. */
-const vec2 GLINT = vec2(0.61, 0.35);
+/* Where on the band the catch-light sits at rest, in radians around the ring. */
+const float GLINT_AT = 5.75;
 
 /* 1 below "low", 0 above "high". smoothstep itself is undefined when its edges descend. */
 float fall(float high, float low, float x) { return 1.0 - smoothstep(low, high, x); }
@@ -197,10 +198,16 @@ void main() {
     vec3 keyHalf = normalize(normalize(vec3(0.35, 0.9, 0.55)) + v);
     // A soft key light, not a pin: a tight exponent sparkles along the rim as the normal turns.
     color += mix(uHi, vec3(1.0), 0.6) * pow(max(dot(n, keyHalf), 0.0), 36.0) * 0.9;
-    // The glint is part of the mark: a catch-light fixed at one o'clock on screen, whatever
-    // the ring is doing. It sits on the outer rim and is the only fixed light on the band.
-    vec2 glintAt = (uv - GLINT) * vec2(1.0, 1.7);
-    float glint = exp(-dot(glintAt, glintAt) / 0.0022);
+    // The catch-light rides the band: a short specular where the outer top of the section
+    // faces the camera, at a place that turns once every uOrbit cycle. At rest it sits at one
+    // o'clock, which is where the static picture has it.
+    vec3 ringAt = toRing(p);
+    vec3 ringNormal = toRing(p + n) - ringAt;
+    float glintGap = atan(ringAt.z, ringAt.x) - (GLINT_AT + 6.2831853 * uOrbit);
+    glintGap = atan(sin(glintGap), cos(glintGap));
+    vec3 rimUp = normalize(vec3(cos(atan(ringAt.z, ringAt.x)), 1.0, sin(atan(ringAt.z, ringAt.x))));
+    float glint = exp(-glintGap * glintGap / 0.035) * pow(max(dot(ringNormal, rimUp), 0.0), 7.0)
+      * smoothstep(0.15, 0.55, facing);
     color += mix(uHi, vec3(1.0), 0.7) * glint * 4.2;
     color *= EXPOSURE;
     color = rollOff(color);

@@ -4,7 +4,13 @@ import { T, useGT, Var } from "gt-react";
 import { use, useState } from "react";
 
 import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
-import { Button } from "../ui/button";
+import { Button, InlineButton } from "../ui/button";
+import { cn } from "~/lib/utils";
+import { drawDiagramOn, readSerifStack } from "~/one/chatDiagram";
+import { useWorkspaceMode } from "~/one/workspaceMode";
+
+/** How far a diagram may scale down to fit its column: 18px labels stay at 15.75px or more. */
+const DIAGRAM_MIN_SCALE = 0.875;
 
 type Pele = typeof import("pele/lazy");
 type PeleLoad = { readonly status: "loaded"; readonly pele: Pele } | { readonly status: "failed" };
@@ -228,6 +234,7 @@ export function MermaidDiagram({
   onExpand: (imageUrl: string) => void;
 }) {
   const gt = useGT();
+  const chatMode = useWorkspaceMode() === "chat";
   const [, setAttempt] = useState(0);
   const [renderError, setRenderError] = useState<string | null>(null);
   const trimmedSource = source.trim();
@@ -239,20 +246,46 @@ export function MermaidDiagram({
   // Re-created, and so remounted, whenever the renderer, math support or source changes.
   const mountDiagram = (container: HTMLSpanElement) => {
     if (load.status !== "loaded") return;
+    // Chat mode draws the house style: serif labels, nodes first, then each edge drawn on.
+    const draw = chatMode ? drawDiagramOn(container) : null;
+    const serif = chatMode ? readSerifStack(container) : undefined;
     const mounted = load.pele.mount(container, trimmedSource, {
+      // Chat mode lays the diagram out for the column it sits in: labels stay at their size, and a
+      // diagram too wide for the column turns top to bottom (or scales) instead of scrolling.
+      ...(chatMode
+        ? {
+            ...(serif ? { fontFamily: serif } : {}),
+            fontSize: 18,
+            padding: 16,
+            // A little over the column: labels may shrink to 14px (7/8) before the diagram turns.
+            maxWidth: Math.max(
+              240,
+              (container.parentElement?.clientWidth ?? 0) / DIAGRAM_MIN_SCALE,
+            ),
+            autoDirection: true,
+            directionBreakpoint: 100_000,
+          }
+        : {
+            // Keep the author's direction; a wide diagram scales down to fit instead of turning vertical.
+            autoDirection: false,
+          }),
       links: false,
       images: false,
       zoom: false,
-      // Keep the author's direction; a wide diagram scales down to fit instead of turning vertical.
-      autoDirection: false,
       ...(math ? { math, sanitize: sanitizeMathDiagramSvg } : { sanitize: sanitizeDiagramSvg }),
-      onRender: () => setRenderError(null),
+      onRender: (result) => {
+        setRenderError(null);
+        draw?.rendered(result.width);
+      },
       onError: (error) =>
         setRenderError(
           error instanceof Error ? error.message : gt("The diagram could not be rendered."),
         ),
     });
-    return () => mounted.destroy();
+    return () => {
+      draw?.destroy();
+      mounted.destroy();
+    };
   };
 
   if (load.status === "failed") {
@@ -271,7 +304,7 @@ export function MermaidDiagram({
 
   return (
     <div
-      className="chat-markdown-mermaid overflow-x-auto"
+      className={cn("chat-markdown-mermaid", !chatMode && "overflow-x-auto")}
       data-markdown-mermaid=""
       data-markdown-copy={serializeCodeBlockToMarkdown(source, "mermaid")}
     >
@@ -288,6 +321,21 @@ export function MermaidDiagram({
       >
         <span ref={mountDiagram} className="flex w-full justify-center" />
       </button>
+      {chatMode && renderError === null ? (
+        <div className="one-chat-diagram-open">
+          <InlineButton
+            tone="muted"
+            onClick={(event) => {
+              const svg = event.currentTarget
+                .closest(".chat-markdown-mermaid")
+                ?.querySelector("svg");
+              if (svg) onExpand(diagramImageUrl(svg));
+            }}
+          >
+            {gt("Open larger")}
+          </InlineButton>
+        </div>
+      ) : null}
     </div>
   );
 }

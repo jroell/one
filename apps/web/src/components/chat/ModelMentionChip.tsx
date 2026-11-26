@@ -6,9 +6,8 @@ import { Atom } from "effect/reactivity";
 
 import { brandProviderInstanceEntries, deriveProviderInstanceEntries } from "~/providerInstances";
 import { serverEnvironment } from "~/state/server";
-import { contextChipAccentWithHueOf } from "~/themePalette";
 import { ContextChipPopover } from "../contextChipParts";
-import { ProviderInstanceIcon, providerLogoColor } from "./ProviderInstanceIcon";
+import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import { getDisplayModelName } from "./providerIconUtils";
 
 interface ModelMentionPresentation {
@@ -80,11 +79,6 @@ export const modelMentionKeysAtom = Atom.family((environmentId: string) =>
   }).pipe(Atom.withLabel("model-mention-keys")),
 );
 
-function logoAccent(driverKind: ProviderDriverKind): string | undefined {
-  const color = providerLogoColor(driverKind);
-  return (color && contextChipAccentWithHueOf("model", color)) || undefined;
-}
-
 export function ModelMentionChip(props: {
   environmentId: EnvironmentId | null;
   instanceId: string;
@@ -98,11 +92,9 @@ export function ModelMentionChip(props: {
     ),
   );
   if (!presentation) return props.source;
-  const accent = logoAccent(presentation.driverKind);
   return (
     <ContextChipPopover
       kind="neutral"
-      accent={accent}
       icon={
         <ProviderInstanceIcon
           driverKind={presentation.driverKind}

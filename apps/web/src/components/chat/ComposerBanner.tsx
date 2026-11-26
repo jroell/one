@@ -6,6 +6,7 @@ import type { ComponentProps } from "react";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
+import { useAttachedBannerRegistration } from "./ComposerSurface";
 
 export type ComposerBannerVariant = "default" | "error" | "info" | "success" | "warning";
 
@@ -48,6 +49,7 @@ function Surface({
   variant?: ComposerBannerVariant;
   detached?: boolean;
 }) {
+  useAttachedBannerRegistration(!detached);
   return (
     <div
       data-composer-banner-surface={detached ? "detached" : "attached"}

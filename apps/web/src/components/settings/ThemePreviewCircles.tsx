@@ -41,7 +41,7 @@ export type ThemeCardPreviewColors = ThemeCardPreview["colors"];
  */
 export const STANDARD_TILE_MATERIAL = {
   light: {
-    base: "#fcfcfc",
+    base: "#faf7f1",
     raised: "#fffaf0",
     card: "#fffbf2",
     floating: "#fbf8f0",

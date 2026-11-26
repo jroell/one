@@ -44,6 +44,7 @@ import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../u
 import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ResetCreditDialog, barColor, useResetCredit } from "./UsageLimits";
+import { UsageControlsSlot } from "./usageControls";
 import { LimitMeter } from "./UsageMeter";
 import {
   inlineWindowName,
@@ -109,7 +110,7 @@ function AccountAvatar({
         showBadge={Boolean(account.displayName)}
         indicatorBackground="var(--popover)"
         className={cn("size-5", className)}
-        iconClassName="size-4 text-foreground/80"
+        iconClassName="usage-mark size-4 text-foreground/80"
       />
     );
   }
@@ -830,7 +831,7 @@ function PoolSection({
           driverKind={pool.driver}
           displayName={label}
           indicatorBackground="var(--background)"
-          className="size-5"
+          className="usage-mark size-5"
           iconClassName="size-4 text-foreground/80"
         />
         {label}
@@ -1030,6 +1031,7 @@ export function UsageLimitsPooled({
   return (
     <div className="usage-stack usage-limits" aria-busy={loading}>
       <LimitsSummary pools={pools} quotaSources={quotaSources} now={now} />
+      <UsageControlsSlot />
       {pools.length === 0 &&
       notices.length === 0 &&
       externalLinks.length === 0 &&

@@ -2,6 +2,7 @@ import { injectHtmlRenderBootstrap } from "@t3tools/shared/htmlRender";
 import { HtmlRenderDocument } from "../files/BrowserDocumentFrame";
 import { AudioPreview } from "../files/AudioPreview";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
+import { noteApprovalDecision } from "~/one/approvalDecision";
 import {
   ComposerContextId,
   EnvironmentId,
@@ -503,6 +504,93 @@ describe("MessagesTimeline work rows", () => {
     ]) {
       expect(text.split(expected)).toHaveLength(2);
     }
+  });
+
+  it("keeps an answered card on screen as it leaves, then lets the resolved row stand in", async () => {
+    const approvalId = RuntimeRequestId.make("edit-approval");
+    const item = (id: string, ordinal: number, type: string, extra: object) =>
+      ({
+        id: TurnItemId.make(id),
+        threadId: ThreadId.make("thread"),
+        runId: RunId.make("run"),
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: ProviderTurnId.make("turn"),
+        nativeItemRef: {
+          driver: ProviderDriverKind.make("acp"),
+          nativeId: "edit-1",
+          strength: "strong" as const,
+        },
+        parentItemId: null,
+        ordinal,
+        title: null,
+        startedAt: DateTime.makeUnsafe(CREATED_AT),
+        completedAt: null,
+        updatedAt: DateTime.makeUnsafe(CREATED_AT),
+        status: "waiting" as const,
+        type,
+        ...extra,
+      }) as OrchestrationV2TurnItem;
+    const entries = deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        item("edit", 1, "file_change", {
+          fileName: "src/unique-name.ts",
+          changes: [
+            { operation: "update", path: "src/unique-name.ts" },
+            { operation: "rename", oldPath: "src/before-name.ts", path: "src/after-name.ts" },
+            { operation: "delete", path: "src/removed-name.ts" },
+          ],
+        }),
+        item("ask", 2, "approval_request", {
+          requestId: approvalId,
+          requestKind: "file-change",
+          prompt: "Edit src/unique-name.ts",
+        }),
+      ].map((it) => ({
+        position: it.ordinal,
+        visibility: "local" as const,
+        sourceThreadId: it.threadId,
+        sourceItemId: it.id,
+        item: it,
+      })),
+      optimisticMessages: [],
+    });
+    const props = baseProps();
+    const pending = [
+      {
+        requestId: approvalId,
+        requestKind: "file-change",
+        createdAt: CREATED_AT,
+        detail: "Changed files",
+        responseCapability: "live",
+      } as never,
+    ];
+    const timeline = (approvals: unknown[]) => (
+      <MessagesTimeline
+        {...props}
+        timelineEntries={entries as Entry[]}
+        isWorking
+        runningRunId={RunId.make("run")}
+        latestRun={
+          {
+            runId: RunId.make("run"),
+            status: "running",
+            startedAt: CREATED_AT,
+            completedAt: null,
+          } as never
+        }
+        pendingApprovals={approvals as never}
+        canOperateThread
+        onRespondToApproval={async () => {}}
+      />
+    );
+    await using screen = await renderElement(timeline(pending));
+    await expect.element(screen.getByRole("group", { name: "File change approval" })).toBeVisible();
+    await screen.rerender(timeline([]));
+    // The answer arrived: the card stays, marked as leaving, rather than being cut.
+    const card = () => screen.container.querySelector("[data-approval-card]");
+    expect(card()?.hasAttribute("data-leaving")).toBe(true);
+    await vi.waitFor(() => expect(card()).toBeNull());
   });
 
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
@@ -1160,6 +1248,31 @@ describe("MessagesTimeline messages", () => {
     } finally {
       await session.send("Emulation.setEmulatedMedia", { features: [] });
     }
+  });
+
+  it("places each minimap tick where its turn sits in the thread, not evenly", async () => {
+    const props = baseProps();
+    const longReply = (id: string) => message("Reply.\n\n".repeat(120), { role: "assistant" }, id);
+    const entries = [
+      message("turn-0", {}, "turn-0"),
+      longReply("turn-0-r"),
+      message("turn-1", {}, "turn-1"),
+      message("Short.", { role: "assistant" }, "turn-1-r"),
+      message("turn-2", {}, "turn-2"),
+      longReply("turn-2-r"),
+    ];
+    await using screen = await renderTimeline(entries, props);
+    const tops = () =>
+      [...screen.container.querySelectorAll<HTMLElement>("[data-minimap-strip]")].map((strip) =>
+        parseFloat(strip.style.top),
+      );
+    await vi.waitFor(() => {
+      const [first, second, third] = tops();
+      expect(first).toBe(0);
+      // The first turn is long and the second short, so the ticks are far apart, then close.
+      expect(second! - first!).toBeGreaterThan(40);
+      expect(third! - second!).toBeLessThan(25);
+    });
   });
 
   it("preserves XML-like tags and comparisons in user messages as text", async () => {
@@ -2586,6 +2699,102 @@ it("renders automatic compaction as one live divider that finishes with its reas
   expect(container.textContent).not.toContain("Compacting before");
 });
 
+it("answers one of two pending approvals: only that card leaves, the other stays actionable and takes the chord hints", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const source = fixture.visibleTurnItems[4]!;
+  if (source.item.type !== "dynamic_tool") throw new Error("Expected fixture tool");
+  const sourceItem = source.item;
+  const commandRequest = RuntimeRequestId.make("command-approval");
+  const appRequest = RuntimeRequestId.make("app-approval");
+  const approvals: PendingApproval[] = [
+    {
+      requestId: commandRequest,
+      requestKind: "command",
+      createdAt: fixture.time(6),
+      detail: "printf '" + "long-command ".repeat(80) + "'",
+      reason: "Needs permission to run the command",
+      fullAccessOverride: "ask_rule",
+      responseCapability: "live",
+    },
+    {
+      requestId: appRequest,
+      requestKind: "permission",
+      createdAt: fixture.time(6),
+      detail: "Open the current tab",
+      appName: "Safari",
+      options: [
+        { decision: "decline", label: "Deny" },
+        { decision: "accept", label: "Allow once" },
+        {
+          decision: "acceptAlways",
+          label: "Always allow Safari",
+          warning: "Applies to future requests",
+        },
+      ],
+      responseCapability: "live",
+    },
+  ];
+  const entries = (completed = false) =>
+    deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        { ...source, item: { ...sourceItem, status: completed ? "completed" : sourceItem.status } },
+        ...approvals.map((approval, index) => ({
+          ...source,
+          position: source.position + index + 1,
+          sourceItemId: TurnItemId.make(`approval-${index}`),
+          item: {
+            ...sourceItem,
+            id: TurnItemId.make(`approval-${index}`),
+            type: "approval_request" as const,
+            status: completed ? ("completed" as const) : ("waiting" as const),
+            requestId: approval.requestId,
+            requestKind: approval.requestKind,
+            prompt: approval.detail,
+          },
+        })),
+      ],
+      optimisticMessages: [],
+    });
+  const props = baseProps();
+  const onRespondToApproval = vi.fn(async () => {});
+  const ui = (overrides: Partial<TimelineProps> = {}) => (
+    <MessagesTimeline
+      {...props}
+      timelineEntries={entries()}
+      pendingApprovals={approvals}
+      canOperateThread
+      onRespondToApproval={onRespondToApproval}
+      isWorking
+      runningRunId={fixture.runId}
+      {...overrides}
+    />
+  );
+  await using screen = await renderElement(ui());
+  const card = (name: string) =>
+    screen.container.querySelector(`[role="group"][aria-label="${name}"]`);
+  const hintsIn = (name: string) => card(name)!.querySelectorAll("[data-approval-hint]").length;
+  await expect.element(screen.getByRole("group", { name: "Command approval" })).toBeVisible();
+  // The chords act on the oldest request, so only its card shows them.
+  expect(hintsIn("Command approval")).toBe(2);
+  expect(hintsIn("App permission approval")).toBe(0);
+  noteApprovalDecision(commandRequest, "accept");
+  await screen.rerender(ui({ pendingApprovals: [approvals[1]!] }));
+  await vi.waitFor(() => expect(card("Command approval")?.hasAttribute("data-leaving")).toBe(true));
+  // The other card stays enabled and unmarked while the first one leaves.
+  const other = card("App permission approval")!;
+  expect(other.hasAttribute("data-leaving")).toBe(false);
+  expect(other.hasAttribute("data-responding")).toBe(false);
+  expect(
+    [...other.querySelectorAll("[data-approval-actions] button")].every(
+      (button) => !button.hasAttribute("disabled"),
+    ),
+  ).toBe(true);
+  await vi.waitFor(() => expect(card("Command approval")).toBeNull());
+  // Once the first card is gone the second is the oldest, so the chords now act on it.
+  await vi.waitFor(() => expect(hintsIn("App permission approval")).toBe(2));
+});
+
 it("keeps concurrent approvals actionable outside collapsed work and restores settled rows", async () => {
   setup();
   const fixture = makeStreamingTimelineFixture();
@@ -2730,7 +2939,11 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
     ).toBe(true),
   );
   await screen.rerender(ui({ respondingRequestIds: [commandRequest] }));
-  await expect.element(screen.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
+  // The Approve click above recorded its decision, so the pressed button now names what is
+  // happening ("Approving…"); it stays disabled, and the other request's buttons stay enabled.
+  await expect
+    .element(screen.getByRole("button", { name: "Approving…", exact: true }))
+    .toBeDisabled();
   await expect
     .element(screen.getByRole("button", { name: "Allow once", exact: true }))
     .toBeEnabled();

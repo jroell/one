@@ -249,7 +249,7 @@ it("opens a linked Linear issue from an inactive thread's sidebar badge", async 
     name: `Issue ${issue.displayKey}: ${issue.title}, Open`,
   });
   await expect.element(badge).toBeVisible();
-  expect(badge.element().querySelector("span")).toHaveClass(/text-emerald-600/);
+  expect(badge.element().querySelector("span")).toHaveClass("one-st-done");
   expect(badge.element()).toHaveTextContent("123");
   expect(badge.element()).not.toHaveTextContent("#");
   const prBadge = page.getByRole("link", { name: "PR #124, status pending" });
@@ -263,7 +263,7 @@ it("opens a linked Linear issue from an inactive thread's sidebar badge", async 
   }
   const groupedBadge = page.getByRole("button", { name: "2 linked issues" });
   await vi.waitFor(() =>
-    expect(groupedBadge.element().querySelector("span")).toHaveClass(/text-emerald-600/),
+    expect(groupedBadge.element().querySelector("span")).toHaveClass("one-st-done"),
   );
   await userEvent.hover(badge);
   const issueName = `Issue ${issue.displayKey}: ${liveTitle}`;
@@ -1192,9 +1192,7 @@ it("the composer asks for a question in Chat mode and keeps the @, $ and / hints
   await using _app = await render(<AppRoot router={router} />, { router: false });
   try {
     setWorkspaceMode("chat");
-    await expect
-      .element(page.getByText("Ask a question, or pick up where you left off"))
-      .toBeVisible();
+    await expect.element(page.getByText("Ask anything, or talk it through")).toBeVisible();
     expect(document.body.textContent).not.toContain("@ files");
 
     setWorkspaceMode("code");

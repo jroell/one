@@ -61,22 +61,6 @@ function presentationsFor(...usedPercents: readonly number[]) {
   ]);
 }
 
-/** The glow's animation inside the stylesheet's reduced-motion media rule, as the browser parsed it. */
-function reducedMotionGlowAnimation(): string | undefined {
-  for (const sheet of document.styleSheets) {
-    for (const rule of sheet.cssRules) {
-      if (!(rule instanceof CSSMediaRule)) continue;
-      if (!rule.conditionText.includes("prefers-reduced-motion: reduce")) continue;
-      for (const inner of rule.cssRules) {
-        if (inner instanceof CSSStyleRule && inner.selectorText === ".usage-meter-glow") {
-          return inner.style.animationName;
-        }
-      }
-    }
-  }
-  return undefined;
-}
-
 describe("LimitMeter", () => {
   it("exposes the remaining share, its range and a spoken value to assistive tech", async () => {
     await using screen = await render(
@@ -109,21 +93,41 @@ describe("LimitMeter", () => {
     expect(screen.container.querySelector(".usage-meter-gap")).toBeNull();
   });
 
-  it("draws the breathing glow only at 10% left or less and turns its animation off for reduced motion", async () => {
+  it("draws the fill matte: one flat colour with no gradient and no highlight band", async () => {
     await using screen = await render(
-      <LimitMeter remaining={11} timeLeft={null} pace={null} color="red" label="Weekly" />,
+      <LimitMeter remaining={60} timeLeft={null} pace={null} color="red" label="Weekly" />,
       { router: false },
     );
-    expect(screen.container.querySelector(".usage-meter-glow")).toBeNull();
+    const fill = screen.container.querySelector<HTMLElement>(".usage-meter-fill")!;
+    expect(getComputedStyle(fill).backgroundImage).toBe("none");
+    expect(getComputedStyle(fill, "::after").content).toBe("none");
+  });
 
-    await screen.rerender(
-      <LimitMeter remaining={10} timeLeft={null} pace={null} color="red" label="Weekly" />,
-    );
-    const glow = screen.container.querySelector<HTMLElement>(".usage-meter-glow");
-    expect(glow).not.toBeNull();
-    expect(getComputedStyle(glow!).animationName).toBe("usage-breathe");
-
-    expect(reducedMotionGlowAnimation()).toBe("none");
+  it("fills in the status colours with no glow: ember at 25% left or less, oxblood at 10% left or less", async () => {
+    const fill = async (remaining: number) => {
+      await using screen = await render(
+        <LimitMeter remaining={remaining} timeLeft={null} pace={null} color="red" label="Weekly" />,
+        { router: false },
+      );
+      expect(screen.container.querySelector(".usage-meter-glow, .usage-meter-halo")).toBeNull();
+      const expected = (token: string) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${token})`;
+        screen.container.append(probe);
+        return getComputedStyle(probe).color;
+      };
+      const color = getComputedStyle(
+        screen.container.querySelector<HTMLElement>(".usage-meter-fill")!,
+      ).backgroundColor;
+      return { color, attention: expected("--st-attention"), error: expected("--st-error") };
+    };
+    const low = await fill(25);
+    expect(low.color).toBe(low.attention);
+    const critical = await fill(10);
+    expect(critical.color).toBe(critical.error);
+    const plenty = await fill(26);
+    expect(plenty.color).not.toBe(plenty.attention);
+    expect(plenty.color).not.toBe(plenty.error);
   });
 });
 

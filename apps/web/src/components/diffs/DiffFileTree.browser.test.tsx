@@ -112,3 +112,60 @@ it("lists files in the order the review list uses, keeping a folder's subtree to
     listed.map((file) => file.path),
   );
 });
+
+it("names a focused row by its whole path, so the folder is read as well as the file", async () => {
+  const entries: DiffFileTreeEntry[] = [
+    { path: "apps/desktop/resources/dmg/dmg-background-latest.svg", status: "modified" as const },
+    { path: "apps/desktop/resources/dmg/dmg-background-nightly.svg", status: "modified" as const },
+  ];
+  await using screen = await render(
+    <div className="flex h-[400px] flex-col">
+      <DiffFileTree entries={entries} onSelectFile={() => {}} ariaLabel="Changed files" />
+    </div>,
+  );
+  await expect.element(page.getByRole("button", { name: "Collapse all folders" })).toBeVisible();
+  const rowFor = (path: string) =>
+    [...screen.container.querySelectorAll("file-tree-container")]
+      .map((host) =>
+        host.shadowRoot?.querySelector<HTMLElement>(`button[data-item-path="${path}"]`),
+      )
+      .find((row) => row);
+  await vi.waitFor(() =>
+    expect(rowFor("apps/desktop/resources/dmg/dmg-background-latest.svg")).toBeTruthy(),
+  );
+  const row = rowFor("apps/desktop/resources/dmg/dmg-background-latest.svg")!;
+  row.focus();
+  await vi.waitFor(() =>
+    expect(row.getAttribute("aria-label")).toBe(
+      "apps/desktop/resources/dmg/dmg-background-latest.svg",
+    ),
+  );
+});
+
+it("keeps the end of a long file name in a narrow tree, so siblings that differ at the end stay apart", async () => {
+  const dir = "apps/desktop/resources/dmg";
+  const entries: DiffFileTreeEntry[] = ["latest", "nightly"].map((kind) => ({
+    path: `${dir}/dmg-background-${kind}.svg`,
+    status: "modified" as const,
+  }));
+  await using screen = await render(
+    <div className="flex h-[400px] w-[170px] flex-col">
+      <DiffFileTree entries={entries} onSelectFile={() => {}} ariaLabel="Changed files" />
+    </div>,
+  );
+  const tailOf = (kind: string) =>
+    [...screen.container.querySelectorAll("file-tree-container")]
+      .map((host) =>
+        host.shadowRoot?.querySelector(
+          `button[data-item-path="${dir}/dmg-background-${kind}.svg"]`,
+        ),
+      )
+      .find((row) => row)
+      ?.querySelectorAll("[data-truncate-segment-priority]")[1]
+      ?.querySelector("[data-truncate-content='visible']")
+      ?.textContent?.trim();
+  await vi.waitFor(() => {
+    expect(tailOf("latest")).toBe("latest.svg");
+    expect(tailOf("nightly")).toBe("nightly.svg");
+  });
+});

@@ -7,6 +7,25 @@ import { PIERRE_TREE_UNSAFE_CSS } from "../../pierre-tree-theme";
 const FILE_TREE_CHROME_CSS = `
   :host {
     --trees-indent-guide-bg-override: color-mix(in srgb, currentColor 13%, transparent);
+    /* File names stay bone; only the status letter speaks: modified gold, added ember, deleted
+       oxblood. The names and letters are never another product's blue, green and red. */
+    --trees-status-modified-override: light-dark(var(--gold-600), var(--gold-400));
+    --trees-status-renamed-override: light-dark(var(--gold-600), var(--gold-400));
+    --trees-status-added-override: var(--st-attention);
+    --trees-status-untracked-override: var(--st-attention);
+    --trees-status-deleted-override: var(--st-error);
+  }
+  svg[data-icon-name] {
+    opacity: 0.7;
+  }
+  [data-item-git-status] [data-item-section='content'] {
+    color: var(--trees-fg-override, currentColor);
+  }
+  button[data-item-git-status] > [data-item-section='icon'] > svg:not([data-icon-name='file-tree-icon-chevron']) {
+    color: var(--trees-fg-override, currentColor);
+  }
+  [data-item-git-status] [data-item-section='git'] {
+    opacity: 1;
   }
   button[data-type='item'][aria-selected='true'] {
     box-shadow:

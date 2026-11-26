@@ -1,19 +1,10 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type HTMLAttributes,
-  type RefObject,
-} from "react";
+import { useId, useState, type HTMLAttributes } from "react";
 
 import { cn } from "~/lib/utils";
 import { ONE_MARK_LIT_AXIS, ONE_MARK_LIT_STOPS, ONE_MARK_PATHS } from "./oneMarkPaths";
 import { ORB_MARK_DENSITIES, orbMarkUrl, type OrbMarkSize } from "./oneOrbRest";
-import { holdRestRing, type RestRingHold } from "./restRingPicture";
 
-/** The mark drawn as vectors, from the `--one-ring-*` tokens: the stand-in when an image is missing or a chosen theme recolors the ring. */
+/** The mark drawn as vectors, from the `--one-ring-*` tokens: the stand-in when an image is missing. */
 function VectorMark() {
   const id = useId();
   const band = `${id}band`;
@@ -112,88 +103,10 @@ function VectorMark() {
   );
 }
 
-/** True while a chosen theme (not the standard gold) is on: the picture is recolored for it. */
-function chosenTheme(): boolean {
-  return (document.documentElement.dataset.themeId ?? "") !== "";
-}
-
-function subscribeToTheme(onChange: () => void): () => void {
-  const observer = new MutationObserver(onChange);
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-theme-id"],
-  });
-  return () => observer.disconnect();
-}
-
-/**
- * The ring drawn in the theme's ring colors (`--one-ring-lo/mid/hi`), once it has decoded, or
- * null while it is pending, if WebGL cannot draw it, or while the standard theme is on. It follows
- * theme, mode and screen-density changes and lets its picture go when it changes or unmounts.
- */
-function useThemedPicture(root: RefObject<HTMLElement | null>, size: OrbMarkSize): string | null {
-  const [url, setUrl] = useState<string | null>(null);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the picture in step with the theme attributes on <html> and the screen density, which change outside React
-  useEffect(() => {
-    const html = document.documentElement;
-    let current = 0;
-    let held: RestRingHold | null = null;
-    let density: MediaQueryList | null = null;
-    const update = () => {
-      held?.release();
-      held = null;
-      const element = root.current;
-      if (!element || !chosenTheme()) {
-        setUrl(null);
-        return;
-      }
-      const style = getComputedStyle(element);
-      const ring = (tone: string) => style.getPropertyValue(`--one-ring-${tone}`);
-      const request = (current += 1);
-      const next = holdRestRing({
-        lo: ring("lo"),
-        mid: ring("mid"),
-        hi: ring("hi"),
-        dark: html.classList.contains("dark"),
-        size,
-        density: Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 1))),
-      });
-      held = next;
-      // Until it has decoded, the vector drawing in the same colors shows.
-      void next.picture
-        .then(async (picture) => {
-          const decoded = new Image();
-          decoded.src = picture;
-          await decoded.decode();
-          if (request === current) setUrl(picture);
-        })
-        .catch(() => {
-          if (request === current) setUrl(null);
-        });
-      density?.removeEventListener("change", update);
-      density = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
-      density.addEventListener("change", update);
-    };
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(html, {
-      attributes: true,
-      attributeFilter: ["class", "style", "data-theme-id"],
-    });
-    return () => {
-      observer.disconnect();
-      density?.removeEventListener("change", update);
-      current += 1;
-      held?.release();
-    };
-  }, [root, size]);
-  return url;
-}
-
 /**
  * The One mark: the live ring's rest pose as a picture (public/mark, drawn by
- * scripts/render-mark.mjs). A chosen theme gets the same ring drawn in its colors
- * (restRingPicture.ts); the vector drawing only stands in for a missing image. `size` is the CSS width and picks the file.
+ * scripts/render-mark.mjs). It is gold in every theme. The vector drawing only stands in for a
+ * missing image. `size` is the CSS width and picks the file.
  */
 export function OneMark({
   className,
@@ -206,12 +119,6 @@ export function OneMark({
   readonly size?: OrbMarkSize;
 }) {
   const [imageMissing, setImageMissing] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
-  const chosen = useSyncExternalStore(subscribeToTheme, chosenTheme, () => false);
-  const themed = useThemedPicture(root, size);
-  // A chosen theme shows the vector in its colors until its picture has decoded, and keeps it if
-  // the picture cannot be drawn; a standard picture that fails to load does the same.
-  const showVector = imageMissing || (chosen && themed === null);
   const image = (theme: "dark" | "light") => (
     <img
       alt=""
@@ -231,33 +138,20 @@ export function OneMark({
   );
   return (
     <span
-      ref={root}
       aria-hidden="true"
       {...props}
       data-one-mark={interactive ? "interactive" : "static"}
-      data-vector={showVector ? "" : undefined}
+      data-vector={imageMissing ? "" : undefined}
       className={cn("one-mark", className)}
     >
-      {chosen ? (
-        themed === null ? null : (
-          <img
-            alt=""
-            aria-hidden="true"
-            data-mark-tinted=""
-            width={size}
-            height={size}
-            src={themed}
-            draggable={false}
-            onError={() => setImageMissing(true)}
-          />
-        )
+      {imageMissing ? (
+        <VectorMark />
       ) : (
         <>
           {image("dark")}
           {image("light")}
         </>
       )}
-      {showVector ? <VectorMark /> : null}
     </span>
   );
 }

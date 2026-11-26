@@ -653,6 +653,8 @@ type MessagesTimelineRowContent =
       groupedWithPrevious?: boolean;
       /** Set when the message above is a steer too, so the label shows once. */
       continuesSteer?: boolean;
+      /** The answer above runs past one line, so more room opens before this message. */
+      afterLongAnswer?: true;
       /** The first row of an assistant turn, so it carries the turn's mark. */
       startsTurn?: true;
     }
@@ -783,6 +785,8 @@ export interface TurnFoldSummary {
   readonly duration: string | null;
   /** Tool calls behind the fold: commands, edits, searches and other tools. */
   readonly toolCount: number;
+  /** Of those, the calls that only looked: searches, reads and page fetches. */
+  readonly sourceCount: number;
   /** The agent reasoned before or between the calls. */
   readonly thought: boolean;
 }
@@ -795,20 +799,33 @@ const NON_TOOL_WORK_ITEM_TYPES: ReadonlySet<string> = new Set([
   "notification",
 ]);
 
+const LOOKING_TOOL_TITLE = /^(read|search|fetch|open|view|find|list|grep|glob|look|browse|get)\b/i;
+
+/** A call that only looked at something: a search, a page, or a read of a file. */
+function isLookingWork(work: WorkLogEntry): boolean {
+  if (work.itemType === "file_search" || work.itemType === "web_search") return true;
+  if (work.itemType !== "dynamic_tool") return false;
+  return LOOKING_TOOL_TITLE.test((work.toolTitle ?? work.label).trim());
+}
+
 function summarizeFoldedWork(
   entries: ReadonlyArray<TimelineEntry>,
   hiddenEntryIds: ReadonlySet<string>,
   duration: string | null,
 ): TurnFoldSummary {
   let toolCount = 0;
+  let sourceCount = 0;
   let thought = false;
   for (const entry of entries) {
     if (entry.kind !== "work" || !hiddenEntryIds.has(entry.id)) continue;
     const itemType = entry.entry.itemType;
     if (itemType === "reasoning") thought = true;
-    else if (itemType !== undefined && !NON_TOOL_WORK_ITEM_TYPES.has(itemType)) toolCount += 1;
+    else if (itemType !== undefined && !NON_TOOL_WORK_ITEM_TYPES.has(itemType)) {
+      toolCount += 1;
+      if (isLookingWork(entry.entry)) sourceCount += 1;
+    }
   }
-  return { duration, toolCount, thought };
+  return { duration, toolCount, sourceCount, thought };
 }
 
 interface TurnFold {
@@ -2523,9 +2540,31 @@ export function deriveMessagesTimelineRows(
     const groupedWithPrevious = timelineRowIsOwnUserMessage(previous);
     const continuesSteer =
       groupedWithPrevious && messageIsSteer(row.message) && messageIsSteer(previous.message);
-    if (!groupedWithNext && !groupedWithPrevious) return row;
-    return { ...row, groupedWithNext, groupedWithPrevious, continuesSteer };
+    const afterLongAnswer = followsLongAnswer(result, index);
+    if (!groupedWithNext && !groupedWithPrevious) {
+      return afterLongAnswer ? { ...row, afterLongAnswer: true as const } : row;
+    }
+    return {
+      ...row,
+      groupedWithNext,
+      groupedWithPrevious,
+      continuesSteer,
+      ...(afterLongAnswer ? { afterLongAnswer: true as const } : {}),
+    };
   });
+}
+
+/** An answer of more than a line leaves more room before the next question than a short one. */
+const LONG_ANSWER_CHARS = 160;
+
+function followsLongAnswer(rows: ReadonlyArray<MessagesTimelineRow>, index: number): boolean {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const row = rows[cursor]!;
+    if (row.kind !== "message") continue;
+    if (row.message.role !== "assistant") return false;
+    return row.message.text.length > LONG_ANSWER_CHARS || row.message.text.includes("\n");
+  }
+  return false;
 }
 
 /**
@@ -3042,6 +3081,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.groupedWithNext === bm.groupedWithNext &&
         a.groupedWithPrevious === bm.groupedWithPrevious &&
         a.continuesSteer === bm.continuesSteer &&
+        a.afterLongAnswer === bm.afterLongAnswer &&
         a.startsTurn === bm.startsTurn
       );
     }

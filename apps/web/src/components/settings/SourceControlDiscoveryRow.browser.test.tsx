@@ -31,8 +31,15 @@ describe("source control discovery row", () => {
       { router: false },
     );
 
-    await expect.element(screen.getByText("Available", { exact: true })).toBeVisible();
+    // The same chips every provider row uses: Ready for a tool that works, Coming soon for one that
+    // is not built yet.
+    await expect.element(screen.getByText("Ready", { exact: true })).toBeVisible();
     await expect.element(screen.getByText("Coming soon", { exact: true })).toBeVisible();
+    expect(
+      [...screen.container.querySelectorAll("[data-settings-status]")].map((chip) =>
+        chip.getAttribute("data-settings-status"),
+      ),
+    ).toEqual(["ready", "soon"]);
     expect(screen.container.textContent).not.toContain("Coming Soon");
     expect(screen.container.querySelector('[role="switch"]')).toBeNull();
     expect(screen.container.querySelector("svg + span.rounded-full")).toBeNull();

@@ -7,6 +7,12 @@ import { msg, useGT, useMessages } from "gt-react";
 import { memo } from "react";
 import { ChevronDownIcon, EllipsisIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "../ui/button";
+import { Kbd } from "../ui/kbd";
+import {
+  clearApprovalDecision,
+  noteApprovalDecision,
+  useApprovalDecision,
+} from "~/one/approvalDecision";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
@@ -18,6 +24,8 @@ interface ComposerPendingApprovalActionsProps {
   canRespond: boolean;
   disabled?: boolean;
   options?: ReadonlyArray<ProviderApprovalOption> | undefined;
+  /** The key hints a card shows beside Approve and Decline, when those chords act on it. */
+  shortcuts?: { readonly accept?: string | null; readonly decline?: string | null } | undefined;
   onRespondToApproval: (
     requestId: RuntimeRequestId,
     decision: ProviderApprovalDecision,
@@ -47,9 +55,11 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
   canRespond,
   disabled = false,
   options = DEFAULT_APPROVAL_OPTIONS,
+  shortcuts,
   onRespondToApproval,
 }: ComposerPendingApprovalActionsProps) {
   const gt = useGT();
+  const pressed = useApprovalDecision(requestId);
   const m = useMessages();
   // Provider options carry server-authored labels; only the built-in defaults are translated.
   const optionLabel = (label: string) => (options === DEFAULT_APPROVAL_OPTIONS ? m(label) : label);
@@ -62,12 +72,29 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
 
   const card = presentation === "card";
   const primaryButtons = primaryOptions.map((option) => {
+    // The pressed button keeps full contrast and says what is happening; the rest dim.
+    const pending = card && isResponding && pressed === option.decision;
+    const hint =
+      card && !isResponding
+        ? option.decision === "accept"
+          ? shortcuts?.accept
+          : option.decision === "decline"
+            ? shortcuts?.decline
+            : null
+        : null;
     const buttonProps = {
-      disabled: disabled || isResponding || !canRespond,
+      disabled: pending ? false : disabled || isResponding || !canRespond,
+      ...(pending ? { "aria-disabled": true, "data-pending": "" } : {}),
       "aria-description": option.warning,
+      // The visible key hint is decoration, so the button keeps its plain name.
+      ...(hint ? { "aria-label": optionLabel(option.label) } : {}),
       onClick: () => {
         if (!disabled && !isResponding && canRespond) {
-          void onRespondToApproval(requestId, option.decision);
+          noteApprovalDecision(requestId, option.decision);
+          // A refused answer leaves the card pending, so it must not stay marked as pressed.
+          void Promise.resolve(onRespondToApproval(requestId, option.decision)).catch(() =>
+            clearApprovalDecision(requestId),
+          );
         }
       },
     };
@@ -75,8 +102,17 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
       <>
         {option.warning ? <TriangleAlertIcon className="size-3 shrink-0" /> : null}
         <span className={presentation === "composer" ? "max-w-40 truncate" : "whitespace-normal"}>
-          {optionLabel(option.label)}
+          {pending
+            ? option.decision === "accept"
+              ? gt("Approving…")
+              : gt("Declining…")
+            : optionLabel(option.label)}
         </span>
+        {hint ? (
+          <Kbd aria-hidden data-approval-hint="">
+            {hint}
+          </Kbd>
+        ) : null}
       </>
     );
     const button = (

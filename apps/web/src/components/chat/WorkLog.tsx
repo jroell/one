@@ -1,9 +1,12 @@
 import {
+  Children,
   createContext,
   use,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
+  useState,
   type ComponentProps,
   type ReactNode,
 } from "react";
@@ -161,6 +164,47 @@ export function WorkLogRow({
 
 const LIVE_EDGE_PX = 4;
 
+const ClosingContext = createContext(false);
+
+/**
+ * Keeps what a row opened showing while it closes. The row passes its details only while it is
+ * open; when it stops, the last details stay mounted, marked as closing, until their closing
+ * animations end, or at once when there are none (reduced motion).
+ */
+export function WorkLogCollapse({ children }: { children: ReactNode }) {
+  const open = Children.toArray(children).length > 0;
+  const [kept, setKept] = useState<ReactNode>(open ? children : null);
+  if (open && kept !== children) setKept(children);
+  const closing = !open && kept !== null;
+  const hostRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops the kept details once their closing animations have ended
+  useEffect(() => {
+    if (!closing) return;
+    const animations = hostRef.current?.getAnimations({ subtree: true }) ?? [];
+    if (animations.length === 0) {
+      setKept(null);
+      return;
+    }
+    let live = true;
+    void Promise.all(animations.map((animation) => animation.finished.catch(() => undefined))).then(
+      () => {
+        if (live) setKept(null);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [closing]);
+  if (kept === null) return null;
+  return (
+    <ClosingContext value={closing}>
+      <div ref={hostRef} className="contents">
+        {open ? children : kept}
+      </div>
+    </ClosingContext>
+  );
+}
+
 export function WorkLogDetails({
   children,
   kind = "text",
@@ -171,6 +215,7 @@ export function WorkLogDetails({
 
   followLive?: boolean;
 }) {
+  const closing = use(ClosingContext);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const atLiveEdgeRef = useRef(true);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pins the scroller's scrollTop to the bottom after each commit while following live output
@@ -181,25 +226,29 @@ export function WorkLogDetails({
     }
   });
   return (
-    <div
-      ref={scrollerRef}
-      data-one-work-details={kind}
-      onScroll={(event) => {
-        const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
-        atLiveEdgeRef.current = scrollHeight - scrollTop - clientHeight <= LIVE_EDGE_PX;
-      }}
-      className={cn(
-        "cursor-auto",
-        kind === "text"
-          ? "ms-7 flex max-h-96 flex-col gap-3 overflow-auto px-0.5 py-1 select-text"
-          : kind === "panel"
-            ? "ms-7 mt-0.5 mb-1.5"
-            : "ms-7 mt-1",
-      )}
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      {children}
+    <div data-one-work-reveal="" data-closing={closing ? "" : undefined}>
+      <div>
+        <div
+          ref={scrollerRef}
+          data-one-work-details={kind}
+          onScroll={(event) => {
+            const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+            atLiveEdgeRef.current = scrollHeight - scrollTop - clientHeight <= LIVE_EDGE_PX;
+          }}
+          className={cn(
+            "cursor-auto",
+            kind === "text"
+              ? "ms-7 flex max-h-96 flex-col gap-3 overflow-auto px-0.5 py-1 select-text"
+              : kind === "panel"
+                ? "ms-7 mt-0.5 mb-1.5"
+                : "ms-7 mt-1",
+          )}
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

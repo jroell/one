@@ -35,7 +35,7 @@ import {
 } from "./toast.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
-import { useComposerAnchor } from "./useComposerAnchor";
+import { useComposerAnchor, useToastLane } from "./useComposerAnchor";
 import { ToastQueue, type ToastQueueEvent, type WaitingToast } from "./toast.queue";
 import { Popover, PopoverPopup, PopoverTrigger } from "./popover";
 
@@ -160,7 +160,7 @@ function errorDescriptionClampClass(type: unknown, description: unknown): string
 
 // The close button shows while the toast is hovered or holds focus, and always on touch.
 const toastCornerDismissClass =
-  "absolute z-20 top-1.5 right-1.5 opacity-0 transition-opacity duration-150 group-hover/toast:opacity-100 group-focus-within/toast:opacity-100 [@media(hover:none)]:opacity-100";
+  "absolute z-20 top-1.5 right-1.5 opacity-0 transition-opacity duration-(--mo-hover) group-hover/toast:opacity-100 group-focus-within/toast:opacity-100 [@media(hover:none)]:opacity-100";
 const toastCornerOrbClass = cn(
   "inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none",
   "transition-[color,background-color] hover:bg-(--ui-hover) hover:text-foreground",
@@ -567,17 +567,8 @@ function ToastBodyContent({
   );
 }
 
-type ToastPosition =
-  | "top-left"
-  | "top-center"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-center"
-  | "bottom-right";
-
-interface ToastProviderProps extends Toast.Provider.Props {
-  position?: ToastPosition;
-}
+/** Toasts have one place on every page: above the composer, else the bottom of the main column. */
+const TOAST_POSITION = "bottom-center";
 
 function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
   const routeTarget = useThreadRouteTarget();
@@ -676,16 +667,16 @@ function ThreadToastVisibleAutoDismiss({
   return null;
 }
 
-function ToastProvider({ children, position = "top-right", ...props }: ToastProviderProps) {
+function ToastProvider({ children, ...props }: Toast.Provider.Props) {
   return (
     <Toast.Provider toastManager={toastManager} {...props}>
       {children}
-      <Toasts position={position} />
+      <Toasts />
     </Toast.Provider>
   );
 }
 
-function Toasts({ position }: { position: ToastPosition }) {
+function Toasts() {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
   const activeThreadRef = useActiveThreadRefFromRoute();
   const gt = useGT();
@@ -706,8 +697,7 @@ function Toasts({ position }: { position: ToastPosition }) {
     toastManager.queue?.refresh();
   }, [activeThreadRef]);
   const anchor = useComposerAnchor(visibleToasts.length > 0, visibleToastLayout.frontmostHeight);
-  const effectivePosition: ToastPosition = anchor ? "bottom-center" : position;
-  const isTop = effectivePosition.startsWith("top");
+  useToastLane(visibleToasts.length > 0, visibleToastLayout.frontmostHeight);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- prunes the module-level remaining-time map of toasts the manager has dropped
   useEffect(() => {
@@ -731,7 +721,7 @@ function Toasts({ position }: { position: ToastPosition }) {
           "data-[position*=right]:right-(--toast-inset)",
           "data-[position*=center]:-translate-x-1/2 data-[position*=center]:left-1/2",
         )}
-        data-position={effectivePosition}
+        data-position={TOAST_POSITION}
         data-slot="toast-viewport"
         style={
           {
@@ -749,45 +739,11 @@ function Toasts({ position }: { position: ToastPosition }) {
           return (
             <Toast.Root
               className={cn(
-                "dropdown-glass group/toast absolute z-[calc(9999-var(--toast-index))] w-full overflow-visible select-none rounded-(--m-radius-floating) text-popover-foreground [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s]",
-                "data-[position*=right]:right-0 data-[position*=right]:left-auto",
-                "data-[position*=left]:right-auto data-[position*=left]:left-0",
-                "data-[position*=center]:right-0 data-[position*=center]:left-0",
-                "data-[position*=top]:top-0 data-[position*=top]:bottom-auto data-[position*=top]:origin-top",
-                "data-[position*=bottom]:top-auto data-[position*=bottom]:bottom-0 data-[position*=bottom]:origin-bottom",
-                "after:absolute after:left-0 after:h-[calc(var(--toast-gap)+1px)] after:w-full",
-                "data-[position*=top]:after:top-full",
-                "data-[position*=bottom]:after:bottom-full",
-                visibleIndex > 0
-                  ? "not-data-expanded:[--toast-calc-height:var(--toast-frontmost-height)] data-expanded:[--toast-calc-height:max(var(--toast-frontmost-height,var(--toast-height)),var(--toast-height))]"
-                  : "[--toast-calc-height:max(var(--toast-frontmost-height,var(--toast-height)),var(--toast-height))]",
-                "[--toast-gap:--spacing(3)] [--toast-peek:--spacing(3)] [--toast-scale:calc(max(0,1-(var(--toast-index)*.1)))] [--toast-shrink:calc(1-var(--toast-scale))]",
-                // Base UI measures with height:auto; --toast-height as min-height would prevent shrinking.
-                visibleIndex > 0
-                  ? "not-data-expanded:h-(--toast-calc-height) data-expanded:h-auto"
-                  : "h-auto",
-                "data-[position*=top]:[--toast-calc-offset-y:calc(var(--toast-offset-y)+var(--toast-index)*var(--toast-gap)+var(--toast-swipe-movement-y))]",
-                "data-[position*=bottom]:[--toast-calc-offset-y:calc(var(--toast-offset-y)*-1+var(--toast-index)*var(--toast-gap)*-1+var(--toast-swipe-movement-y))]",
-                "data-[position*=top]:transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)+(var(--toast-index)*var(--toast-peek))+(var(--toast-shrink)*var(--toast-calc-height))))_scale(var(--toast-scale))]",
-                "data-[position*=bottom]:transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--toast-peek))-(var(--toast-shrink)*var(--toast-calc-height))))_scale(var(--toast-scale))]",
-                "data-limited:opacity-0",
-                "data-position:data-expanded:transform-[translateX(var(--toast-swipe-movement-x))_translateY(var(--toast-calc-offset-y))]",
-                "data-[position*=top]:data-starting-style:transform-[translateY(calc(-100%-var(--toast-inset)))]",
-                "data-[position*=bottom]:data-starting-style:transform-[translateY(calc(100%+var(--toast-inset)))]",
-                "data-[position*=top]:data-[position*=right]:data-starting-style:transform-[translateX(calc(100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
-                "data-ending-style:opacity-0",
-                "data-ending-style:not-data-limited:not-data-swipe-direction:transform-[translateY(calc(100%+var(--toast-inset)))]",
-                "data-[position*=top]:data-[position*=right]:data-ending-style:not-data-limited:not-data-swipe-direction:transform-[translateX(calc(100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
-                "data-ending-style:data-[swipe-direction=left]:transform-[translateX(calc(var(--toast-swipe-movement-x)-100%-var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
-                "data-ending-style:data-[swipe-direction=right]:transform-[translateX(calc(var(--toast-swipe-movement-x)+100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
-                "data-ending-style:data-[swipe-direction=up]:transform-[translateY(calc(var(--toast-swipe-movement-y)-100%-var(--toast-inset)))]",
-                "data-ending-style:data-[swipe-direction=down]:transform-[translateY(calc(var(--toast-swipe-movement-y)+100%+var(--toast-inset)))]",
-                "data-expanded:data-ending-style:data-[swipe-direction=left]:transform-[translateX(calc(var(--toast-swipe-movement-x)-100%-var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
-                "data-expanded:data-ending-style:data-[swipe-direction=right]:transform-[translateX(calc(var(--toast-swipe-movement-x)+100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
-                "data-expanded:data-ending-style:data-[swipe-direction=up]:transform-[translateY(calc(var(--toast-swipe-movement-y)-100%-var(--toast-inset)))]",
-                "data-expanded:data-ending-style:data-[swipe-direction=down]:transform-[translateY(calc(var(--toast-swipe-movement-y)+100%+var(--toast-inset)))]",
+                // One live toast: it sits at the viewport's bottom edge. Its enter and exit are
+                // the opacity and translate rules in one-ui.css, on the one y axis.
+                "dropdown-glass group/toast absolute inset-x-0 bottom-0 z-[calc(9999-var(--toast-index))] w-full overflow-visible select-none rounded-(--m-radius-floating) text-popover-foreground",
               )}
-              data-position={effectivePosition}
+              data-position={TOAST_POSITION}
               key={toast.id}
               style={
                 {
@@ -795,13 +751,7 @@ function Toasts({ position }: { position: ToastPosition }) {
                   "--toast-offset-y": `${offsetY}px`,
                 } as CSSProperties
               }
-              swipeDirection={
-                effectivePosition.includes("center")
-                  ? [isTop ? "up" : "down"]
-                  : effectivePosition.includes("left")
-                    ? ["left", isTop ? "up" : "down"]
-                    : ["right", isTop ? "up" : "down"]
-              }
+              swipeDirection={["down"]}
               toast={toast}
             >
               <ThreadToastVisibleAutoDismiss
@@ -825,7 +775,7 @@ function Toasts({ position }: { position: ToastPosition }) {
                 className={cn(
                   // overflow-x:clip preserves visible vertical overflow; hidden would force overflow-y:auto
                   // and clip detail panels.
-                  "pointer-events-auto min-h-0 overflow-y-visible pl-3.5 text-sm transition-opacity duration-250 [overflow-x:clip] data-expanded:opacity-100",
+                  "pointer-events-auto min-h-0 overflow-y-visible pl-3.5 text-sm transition-opacity duration-(--mo-surface) [overflow-x:clip] data-expanded:opacity-100",
                   stackedActionLayout
                     ? "flex flex-col gap-2 py-2.5 pr-3.5"
                     : cn("py-3", "flex items-center justify-between gap-1.5", inlineContentEndPad),
@@ -893,7 +843,7 @@ function AnchoredToasts() {
               >
                 <Toast.Root
                   className={cn(
-                    "dropdown-glass group/toast relative overflow-visible text-balance text-popover-foreground text-xs transition-[scale,opacity] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0",
+                    "dropdown-glass group/toast relative overflow-visible text-balance text-popover-foreground text-xs",
                     tooltipStyle ? "rounded-md" : "rounded-(--m-radius-floating)",
                   )}
                   data-slot="toast-popup"
@@ -957,10 +907,4 @@ function AnchoredToasts() {
 export { stackedThreadToast } from "./toastHelpers";
 export type { StackedThreadToastOptions } from "./toastHelpers";
 
-export {
-  ToastProvider,
-  type ToastPosition,
-  toastManager,
-  AnchoredToastProvider,
-  anchoredToastManager,
-};
+export { ToastProvider, toastManager, AnchoredToastProvider, anchoredToastManager };

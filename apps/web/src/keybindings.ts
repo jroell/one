@@ -145,16 +145,34 @@ export function shortcutForContext(
   return shortcut;
 }
 
-export function effectiveShortcutsForCommand(
-  keybindings: ResolvedKeybindingsConfig,
-  command: KeybindingCommand,
-  options?: ShortcutMatchOptions,
-): KeybindingShortcut[] {
-  const platform = resolvePlatform(options);
-  const context = resolveContext(options);
-  const claimedShortcuts = new Set<string>();
-  const effective: KeybindingShortcut[] = [];
+// Which shortcut each command ends up with depends only on the binding list, the platform and the
+// when-context, and a screen asks for dozens of commands (every tooltip, every button) on each
+// render. The whole table is worked out once per binding list and context.
+const effectiveShortcutTables = new WeakMap<
+  ResolvedKeybindingsConfig,
+  Map<string, ReadonlyMap<KeybindingCommand, readonly KeybindingShortcut[]>>
+>();
 
+function effectiveShortcutTable(
+  keybindings: ResolvedKeybindingsConfig,
+  platform: string,
+  context: ShortcutMatchContext,
+): ReadonlyMap<KeybindingCommand, readonly KeybindingShortcut[]> {
+  const contextKey = Object.keys(context)
+    .toSorted()
+    .map((name) => `${name}:${context[name] ? 1 : 0}`)
+    .join(",");
+  const key = `${platform}|${contextKey}`;
+  let tables = effectiveShortcutTables.get(keybindings);
+  if (tables === undefined) {
+    tables = new Map();
+    effectiveShortcutTables.set(keybindings, tables);
+  }
+  const kept = tables.get(key);
+  if (kept !== undefined) return kept;
+
+  const claimedShortcuts = new Set<string>();
+  const table = new Map<KeybindingCommand, KeybindingShortcut[]>();
   for (let index = keybindings.length - 1; index >= 0; index -= 1) {
     const binding = keybindings[index];
     if (!binding) continue;
@@ -167,12 +185,25 @@ export function effectiveShortcutsForCommand(
     }
 
     claimedShortcuts.add(conflictKey);
-    if (binding.command === command) {
-      effective.push(shortcut);
-    }
+    const forCommand = table.get(binding.command);
+    if (forCommand) forCommand.push(shortcut);
+    else table.set(binding.command, [shortcut]);
   }
+  tables.set(key, table);
+  return table;
+}
 
-  return effective;
+export function effectiveShortcutsForCommand(
+  keybindings: ResolvedKeybindingsConfig,
+  command: KeybindingCommand,
+  options?: ShortcutMatchOptions,
+): KeybindingShortcut[] {
+  const table = effectiveShortcutTable(
+    keybindings,
+    resolvePlatform(options),
+    resolveContext(options),
+  );
+  return [...(table.get(command) ?? [])];
 }
 
 function findEffectiveShortcutForCommand(

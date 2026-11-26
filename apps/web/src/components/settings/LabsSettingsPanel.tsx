@@ -37,17 +37,23 @@ export function LabsSettingsPanel() {
   const gt = useGT();
   return (
     <SettingsPageContainer>
-      <SettingsSection id="beta" title={gt("Beta and alpha")}>
+      <SettingsSection id="beta" title={gt("Sidebar and composer")}>
         <BoringSidebarRow />
+        <PromptSuggestionsRow />
+      </SettingsSection>
+      <SettingsSection title={gt("Sharing and linking")}>
         {/* Clerk is only mounted when this build has T3 Connect. */}
         {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
         <LinkedEnvironmentsRow />
+      </SettingsSection>
+      <SettingsSection title={gt("Agents and workflows")}>
         <WorkflowsRow />
         <WorkflowSkippedRunsRow />
-        <PromptSuggestionsRow />
+        <AgentFeedbackRow />
+      </SettingsSection>
+      <SettingsSection title={gt("Devices and worktrees")}>
         <SimlockHostsRow />
         <FastWorktreeCheckoutRow />
-        <AgentFeedbackRow />
       </SettingsSection>
     </SettingsPageContainer>
   );

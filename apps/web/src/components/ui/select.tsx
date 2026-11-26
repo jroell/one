@@ -101,7 +101,7 @@ function SelectPopup({
   className,
   children,
   side = "bottom",
-  sideOffset = 4,
+  sideOffset = 8,
   align = "start",
   alignOffset = 0,
   alignItemWithTrigger = true,

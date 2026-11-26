@@ -110,6 +110,25 @@ describe("RevokeOtherClientsAction", () => {
     expect(onRevoke).toHaveBeenCalledOnce();
   });
 
+  it("brings the question and its two buttons in together: the same animation, the same 60 ms content delay", async () => {
+    await using screen = await render(
+      <RevokeOtherClientsAction
+        clientSessions={[{ current: true }, { current: false }] as never}
+        isRevoking={false}
+        onRevoke={vi.fn()}
+      />,
+    );
+    await screen.getByRole("button", { name: "Revoke others" }).click();
+
+    const question = screen.getByRole("status").element().firstElementChild!;
+    const buttons = screen.getByRole("button", { name: "Cancel" }).element().parentElement!;
+    for (const part of [question, buttons]) {
+      const style = getComputedStyle(part);
+      expect(style.animationName).toBe("settings-swap-in");
+      expect(style.animationDelay).toBe("0.06s");
+    }
+  });
+
   it("keeps keyboard focus through the question: Cancel opens focused and returns to the launcher", async () => {
     await using screen = await render(
       <RevokeOtherClientsAction

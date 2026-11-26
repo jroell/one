@@ -57,6 +57,7 @@ import {
 } from "./useAvailableSettingsSearchItems";
 import { SETTINGS_DETAIL_PAGE_PARENTS } from "./settingsDetailPages";
 import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
+import { SETTINGS_PAGE_TRANSITION } from "./settingsPageTransition";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
 const SnapShotIcon = createLucideIcon("snap-shot", [
@@ -184,9 +185,13 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- brings the active section into the rail's visible box when Settings opens or the page changes
   useEffect(() => {
-    document
-      .querySelector<HTMLElement>(`[data-settings-nav] [data-settings-section="${activePath}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    // After the first paint: scrolling forces a layout, which the sheet's opening should not wait on.
+    const frame = requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(`[data-settings-nav] [data-settings-section="${activePath}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [activePath]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focuses the search input DOM node after the compact search opens
@@ -200,6 +205,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       hash: "",
       replace: true,
       hashScrollIntoView: false,
+      viewTransition: SETTINGS_PAGE_TRANSITION,
     });
   };
 
@@ -222,6 +228,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       replace: true,
       hashScrollIntoView: false,
       state: { settingsTargetHighlight: true },
+      viewTransition: SETTINGS_PAGE_TRANSITION,
     });
   };
 

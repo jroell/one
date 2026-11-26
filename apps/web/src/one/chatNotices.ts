@@ -51,3 +51,22 @@ export function planChatNotices(
   closeTurn();
   return plans.size === 0 ? NO_CHAT_NOTICES : plans;
 }
+
+/** The notices a turn raised that need nothing from the person, newest last. */
+export function quietNotices(
+  plans: Iterable<ChatNoticeRowPlan>,
+  isActionable: (entry: WorkLogEntry) => boolean,
+): WorkLogEntry[] {
+  const quiet: WorkLogEntry[] = [];
+  for (const plan of plans) {
+    for (const entry of plan.notices) if (!isActionable(entry)) quiet.push(entry);
+  }
+  return quiet;
+}
+
+/** The tool's own words for a notice, when they add to its title. */
+export function noticeDetail(entry: WorkLogEntry): string | null {
+  const message =
+    entry.structuredPayload?.type === "system_notice" ? entry.structuredPayload.message : null;
+  return message !== null && message !== entry.label ? message : null;
+}

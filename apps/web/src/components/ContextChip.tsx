@@ -5,38 +5,39 @@ import type * as React from "react";
 
 import { cn } from "~/lib/utils";
 
+// Attachments and context share one ink: colour is kept for state (a pull request's, an error).
+const ONE_INK = "[--context-chip-accent:currentColor]";
+
 const contextChipVariants = cva(
   "inline-flex max-w-full items-center gap-[0.2em] font-medium leading-[normal] text-(--context-chip-ink) [--context-chip-ink:var(--context-chip-message-ink,var(--context-chip-accent))] [--document-icon-stroke:var(--context-chip-ink)] [&_svg]:block [&_svg]:size-[1em] [&_svg]:shrink-0 [&_svg]:self-center [button&,a&,[data-popup-open]&]:cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-current rounded-sm disabled:cursor-default",
   {
     defaultVariants: { kind: "neutral" },
     variants: {
       kind: {
-        neutral: "[--context-chip-accent:currentColor]",
-        image: "[--context-chip-accent:var(--context-chip-image)]",
-        video: "[--context-chip-accent:var(--context-chip-video)]",
-        file: "[--context-chip-accent:var(--context-chip-file)]",
-        mention: "[--context-chip-accent:var(--context-chip-mention)]",
-        terminal: "[--context-chip-accent:var(--context-chip-terminal)]",
-        element: "[--context-chip-accent:var(--context-chip-element)]",
-        "preview-annotation": "[--context-chip-accent:var(--context-chip-preview-annotation)]",
-        "review-comment": "[--context-chip-accent:var(--context-chip-review-comment)]",
-        "pull-request": "[--context-chip-accent:var(--context-chip-pull-request)]",
+        neutral: ONE_INK,
+        image: ONE_INK,
+        video: ONE_INK,
+        file: ONE_INK,
+        mention: ONE_INK,
+        terminal: ONE_INK,
+        element: ONE_INK,
+        "preview-annotation": ONE_INK,
+        "review-comment": ONE_INK,
+        "pull-request": ONE_INK,
         "pr-open": "[--context-chip-accent:var(--context-chip-pr-open)]",
         "pr-draft": "[--context-chip-accent:var(--context-chip-pr-draft)]",
         "pr-merged": "[--context-chip-accent:var(--context-chip-pr-merged)]",
         "pr-closed": "[--context-chip-accent:var(--context-chip-pr-closed)]",
-        skill: "[--context-chip-accent:var(--context-chip-skill)]",
-        model: "[--context-chip-accent:var(--context-chip-model)]",
-        thread: "[--context-chip-accent:var(--context-chip-thread)]",
-        environment: "[--context-chip-accent:var(--context-chip-environment)]",
-        citation: "[--context-chip-accent:var(--context-chip-citation)]",
-        // PDF red reads as the invalid state, so only the icon carries it.
-        "doc-pdf":
-          "[--context-chip-accent:var(--context-chip-doc-pdf)] [--context-chip-ink:var(--context-chip-message-ink,currentColor)] [--document-icon-stroke:var(--context-chip-message-ink,var(--context-chip-accent))]",
-        "doc-word": "[--context-chip-accent:var(--context-chip-doc-word)]",
-        "doc-spreadsheet": "[--context-chip-accent:var(--context-chip-doc-spreadsheet)]",
-        "doc-slides": "[--context-chip-accent:var(--context-chip-doc-slides)]",
-        "doc-epub": "[--context-chip-accent:var(--context-chip-doc-epub)]",
+        skill: ONE_INK,
+        model: ONE_INK,
+        thread: ONE_INK,
+        environment: ONE_INK,
+        citation: ONE_INK,
+        "doc-pdf": ONE_INK,
+        "doc-word": ONE_INK,
+        "doc-spreadsheet": ONE_INK,
+        "doc-slides": ONE_INK,
+        "doc-epub": ONE_INK,
       },
       shape: {
         inline: "",

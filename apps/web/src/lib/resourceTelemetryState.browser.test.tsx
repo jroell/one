@@ -13,6 +13,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+import "~/index.css";
 import { act, render } from "../../test/render";
 
 const monitor = vi.hoisted(() => ({
@@ -196,13 +197,74 @@ describe("resource monitor retry", () => {
 
     await expect.element(screen.getByText(startError, { exact: true })).not.toBeInTheDocument();
     await expect.element(screen.getByText(historyError, { exact: true })).not.toBeInTheDocument();
-    await expect.element(screen.getByText("Native healthy", { exact: true })).toBeVisible();
+    // A healthy source reads as the shared Ready chip.
+    await expect
+      .element(
+        screen
+          .getByRole("region", { name: "Resource monitor" })
+          .getByText("Ready", { exact: true }),
+      )
+      .toBeVisible();
     await expect
       .element(screen.getByRole("button", { name: "Retry monitor" }))
       .not.toBeInTheDocument();
   });
 
-  it("reads CPU in cores, scales each group's bar to its memory share, and shows no speed-limit figure when the host reports none", async () => {
+  it("says a source the browser cannot reach is Desktop only, as the shared chip, and a healthy one is Ready", async () => {
+    using fixture = setup();
+    Object.assign(fixture.snapshot.health, {
+      desktop: {
+        status: "unavailable",
+        lastSampleAt: Option.none(),
+        lastError: Option.some("The desktop source is not available in 'web' mode."),
+      },
+    });
+    await using screen = await render(
+      <RegistryContext.Provider value={fixture.registry}>
+        <ResourceTelemetryDiagnostics environmentId={environmentId} />
+      </RegistryContext.Provider>,
+    );
+    await screen.getByRole("button", { name: "Retry monitor" }).click();
+
+    const chips = () =>
+      [...screen.container.querySelectorAll("[data-settings-status]")].map((chip) => [
+        chip.getAttribute("data-settings-status"),
+        chip.textContent,
+      ]);
+    await vi.waitFor(() => expect(chips()).toContainEqual(["desktopOnly", "Desktop only"]));
+    expect(chips()).toContainEqual(["ready", "Ready"]);
+    expect(screen.container.textContent).not.toContain("unavailable");
+  });
+
+  it("shows a throughput figure whole in a 340 px page, wrapping instead of ending in an ellipsis", async () => {
+    using fixture = setup();
+    Object.assign(fixture.snapshot.groups.allT3, {
+      ioReadBytesPerSecond: 117_000_000,
+      ioReadBytes: 5_000,
+    });
+    const narrow = document.createElement("div");
+    narrow.style.width = "340px";
+    await using screen = await render(
+      <RegistryContext.Provider value={fixture.registry}>
+        <ResourceTelemetryDiagnostics environmentId={environmentId} />
+      </RegistryContext.Provider>,
+      { container: narrow },
+    );
+    await screen.getByRole("button", { name: "Retry monitor" }).click();
+
+    const value = await vi.waitFor(() => {
+      const found = [...screen.container.querySelectorAll<HTMLElement>("div")].find(
+        (candidate) =>
+          candidate.childElementCount === 0 && /MB\/s$/.test(candidate.textContent ?? ""),
+      );
+      expect(found).toBeDefined();
+      return found!;
+    });
+    expect(value.scrollWidth).toBeLessThanOrEqual(value.clientWidth);
+    expect(getComputedStyle(value).textOverflow).not.toBe("ellipsis");
+  });
+
+  it("reads CPU in cores, draws no meter in the group cells, and shows no speed-limit figure when the host reports none", async () => {
     using fixture = setup();
     const idle = fixture.snapshot.groups.monitor;
     Object.assign(fixture.snapshot.groups, {
@@ -223,12 +285,8 @@ describe("resource monitor retry", () => {
     await expect
       .element(screen.getByText("This machine does not report a CPU speed limit."))
       .toBeVisible();
-    // A group's bar is as long as its share of the memory all One processes hold.
-    expect(
-      [...screen.container.querySelectorAll("[data-aggregate-share]")].map((bar) =>
-        bar.getAttribute("data-aggregate-share"),
-      ),
-    ).toEqual(["0.3", "0.7", "0"]);
+    // Nothing in a group's cell draws a meter that says nothing: the numbers are the information.
+    expect(screen.container.querySelectorAll("span.absolute.h-0\\.5")).toHaveLength(0);
     expect(screen.container.textContent).not.toContain("Unknown");
   });
 

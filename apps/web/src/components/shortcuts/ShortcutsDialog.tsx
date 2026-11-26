@@ -70,9 +70,11 @@ function ShortcutsDialogPopup() {
                       className="flex items-center justify-between gap-4 px-2 py-1.5"
                     >
                       <span className="flex min-w-0 flex-col">
-                        <span className="truncate text-sm">{row.label}</span>
+                        <span className="text-sm text-pretty [overflow-wrap:anywhere]">
+                          {row.label}
+                        </span>
                         {row.qualifier ? (
-                          <span className="truncate text-muted-foreground/70 text-xs">
+                          <span className="text-xs text-pretty text-(--settings-description) [overflow-wrap:anywhere]">
                             {row.qualifier}
                           </span>
                         ) : null}

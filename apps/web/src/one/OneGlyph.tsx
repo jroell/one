@@ -4,14 +4,16 @@ import { cn } from "~/lib/utils";
 import { oneGlyphGeometry } from "./oneGlyphGeometry";
 
 /**
- * The One mark as a flat two-tone ring, for 12 to 24 pixels. Larger than that, use OneMark.
- * Its colors come from `--one-brand`, so every theme gets its own gold.
+ * The One mark as a flat ring, for sizes below 28 pixels (larger, use OneMark): gold in every
+ * theme, one highlight arc. `mono` draws one color, `currentColor`, for small system uses.
  */
 export function OneGlyph({
   size = 16,
+  mono = false,
   className,
   ...props
 }: Omit<SVGProps<SVGSVGElement>, "width" | "height" | "viewBox"> & {
+  readonly mono?: boolean;
   /** Pixels across; the glyph snaps its geometry to the grid of this size. */
   readonly size?: number;
 }) {
@@ -24,6 +26,7 @@ export function OneGlyph({
       aria-hidden="true"
       {...props}
       data-one-glyph={size}
+      data-mono={mono ? "" : undefined}
       className={cn("one-glyph", className)}
       width={size}
       height={size}
@@ -47,12 +50,6 @@ export function OneGlyph({
           fill="none"
           strokeWidth={geometry.highlightWidth}
           strokeLinecap="round"
-        />
-        <circle
-          data-glyph="glint"
-          cx={geometry.glint.x}
-          cy={geometry.glint.y}
-          r={geometry.glint.r}
         />
       </g>
     </svg>

@@ -93,9 +93,9 @@
   height: 2rem;
   border-radius: 0.625rem;
   transition:
-    background-color var(--one-hover-ms) var(--one-ease-hover),
-    color var(--one-hover-ms) var(--one-ease-hover),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+    background-color var(--mo-hover) var(--ease-hover),
+    color var(--mo-hover) var(--ease-hover),
+    box-shadow var(--mo-hover) var(--ease-hover);
 }
 
 [data-settings-nav] [data-slot="sidebar-menu-button"]:not([data-active="true"]) {
@@ -107,28 +107,28 @@
 }
 
 [data-settings-nav] [data-slot="sidebar-menu-button"] > svg {
-  transition: color var(--one-hover-ms) var(--one-ease-hover);
+  transition: color var(--mo-hover) var(--ease-hover);
 }
 
 /* A press answers with color under every setting; the scale only when motion is allowed. */
 [data-settings-nav] [data-slot="sidebar-menu-button"]:not([data-active="true"]):active {
   background: color-mix(in oklab, var(--foreground) 7%, transparent);
-  transition-duration: var(--one-press-ms);
+  transition-duration: var(--mo-press);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-settings-nav] [data-slot="sidebar-menu-button"] {
     transition:
-      background-color var(--one-hover-ms) var(--one-ease-hover),
-      color var(--one-hover-ms) var(--one-ease-hover),
-      box-shadow var(--one-hover-ms) var(--one-ease-hover),
-      scale var(--one-move-ms) var(--one-ease-spring);
+      background-color var(--mo-hover) var(--ease-hover),
+      color var(--mo-hover) var(--ease-hover),
+      box-shadow var(--mo-hover) var(--ease-hover),
+      scale var(--mo-spring) var(--ease-spring);
   }
 
   [data-settings-nav] [data-slot="sidebar-menu-button"]:active {
     scale: 0.985;
-    transition-duration: var(--one-press-ms);
-    transition-timing-function: ease-out;
+    transition-duration: var(--mo-press);
+    transition-timing-function: var(--ease-enter);
   }
 }
 
@@ -296,7 +296,7 @@
 }
 
 [data-settings-row-description] {
-  max-width: 34rem;
+  max-width: 30rem;
   font-size: 0.78125rem;
   line-height: 1.125rem;
   color: var(--settings-description);
@@ -360,6 +360,36 @@
   }
 }
 
+/* In a narrow row the pickers fill the row, one under the other, as a select does there, so the
+   icon and the value are never squeezed into a shrunk chip. */
+@container settings-row (width < 32rem) {
+  [data-settings-control]:has(
+    [data-chat-provider-model-picker-label],
+    [data-composer-control-label]
+  ) {
+    inline-size: 100%;
+
+    > div {
+      inline-size: 100%;
+      min-inline-size: 0;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    > div > [data-settings-picker-field],
+    > div > button,
+    > div > [data-settings-picker-field] > button {
+      inline-size: 100%;
+      min-inline-size: 0;
+      max-inline-size: none;
+      justify-content: flex-start;
+      text-align: start;
+    }
+  }
+}
+
 /* A lone picker is named by its row, so its caption would only repeat the title. */
 [data-settings-picker-field]:only-child > span:first-child {
   display: none;
@@ -373,6 +403,8 @@
   border-color: var(--ui-field-edge);
   background-color: var(--ui-field);
   box-shadow: var(--ui-field-inset);
+  /* The select triggers beside it use 9px. */
+  padding-inline: 0.5625rem;
 }
 
 @media (hover: hover) {
@@ -389,13 +421,18 @@
     :has([data-composer-control-chevron])
   )::after {
   content: "";
+  /* On a touch screen the shared button stretches this pseudo-element over the whole button as a
+     tap target, which would paint the chevron across it. The row is the tap target here. */
+  position: static;
+  min-inline-size: 0;
+  min-block-size: 0;
   flex: none;
-  inline-size: 1rem;
-  block-size: 1rem;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
   margin-inline-start: auto;
   background-color: currentColor;
-  opacity: 0.72;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+  opacity: 0.7;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
     center / contain no-repeat;
 }
 
@@ -521,7 +558,7 @@
     inset 0 1px 0 0 var(--one-glass-rim-top),
     0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
     0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
-  transition: box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  transition: box-shadow var(--mo-hover) var(--ease-hover);
 }
 
 .settings-slider::-moz-range-thumb {
@@ -533,7 +570,7 @@
     inset 0 1px 0 0 var(--one-glass-rim-top),
     0 0 0 1px color-mix(in oklab, var(--foreground) 14%, transparent),
     0 2px 6px color-mix(in oklab, var(--background) 55%, transparent);
-  transition: box-shadow var(--one-hover-ms) var(--one-ease-hover);
+  transition: box-shadow var(--mo-hover) var(--ease-hover);
 }
 
 .settings-slider:hover::-webkit-slider-thumb,
@@ -571,14 +608,14 @@
 @media (prefers-reduced-motion: no-preference) {
   .settings-slider::-webkit-slider-thumb {
     transition:
-      transform var(--one-move-ms) var(--one-ease-spring),
-      box-shadow var(--one-hover-ms) var(--one-ease-hover);
+      transform var(--mo-spring) var(--ease-spring),
+      box-shadow var(--mo-hover) var(--ease-hover);
   }
 
   .settings-slider::-moz-range-thumb {
     transition:
-      transform var(--one-move-ms) var(--one-ease-spring),
-      box-shadow var(--one-hover-ms) var(--one-ease-hover);
+      transform var(--mo-spring) var(--ease-spring),
+      box-shadow var(--mo-hover) var(--ease-hover);
   }
 }
 
@@ -601,24 +638,24 @@
    shows its selected state as a brand ring with a soft glow. */
 [data-settings-card] {
   transition:
-    background-color var(--one-hover-ms) var(--one-ease-hover),
-    box-shadow var(--one-hover-ms) var(--one-ease-hover);
+    background-color var(--mo-hover) var(--ease-hover),
+    box-shadow var(--mo-hover) var(--ease-hover);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-settings-card] {
     transition:
-      background-color var(--one-hover-ms) var(--one-ease-hover),
-      box-shadow var(--one-hover-ms) var(--one-ease-hover),
-      translate var(--one-move-ms) var(--one-ease-spring),
-      scale var(--one-move-ms) var(--one-ease-spring);
+      background-color var(--mo-hover) var(--ease-hover),
+      box-shadow var(--mo-hover) var(--ease-hover),
+      translate var(--mo-quick) var(--ease-enter),
+      scale var(--mo-spring) var(--ease-spring);
   }
 
   [data-settings-card]:active:not(:has(button:active, [role="button"]:active)) {
     scale: 0.99;
     translate: 0 0;
-    transition-duration: var(--one-press-ms);
-    transition-timing-function: ease-out;
+    transition-duration: var(--mo-press);
+    transition-timing-function: var(--ease-enter);
   }
 }
 
@@ -696,7 +733,7 @@
     inset 0 0 0 1.5px color-mix(in oklab, var(--one-brand) 60%, transparent),
     0 0 0 4px color-mix(in oklab, var(--one-brand) 12%, transparent);
   opacity: 0;
-  animation: one-settings-landing 1800ms var(--one-ease-out) both;
+  animation: one-settings-landing calc(var(--mo-sheet) * 6) var(--ease-enter) both;
 }
 
 @keyframes one-settings-landing {
@@ -717,18 +754,18 @@
 /* A row that opens something (a project, an environment): it tints on hover, presses in, and the
    chevron leans toward where it goes. */
 [data-settings-choice] {
-  transition: background-color var(--one-hover-ms) var(--one-ease-hover);
+  transition: background-color var(--mo-hover) var(--ease-hover);
 }
 
 [data-settings-choice] > svg:last-child {
-  transition: color var(--one-hover-ms) var(--one-ease-hover);
+  transition: color var(--mo-hover) var(--ease-hover);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-settings-choice] > svg:last-child {
     transition:
-      translate var(--one-move-ms) var(--one-ease-spring),
-      color var(--one-hover-ms) var(--one-ease-hover);
+      translate var(--mo-quick) var(--ease-enter),
+      color var(--mo-hover) var(--ease-hover);
   }
 }
 
@@ -754,7 +791,7 @@
 
 [data-settings-choice]:active {
   background: color-mix(in oklab, var(--foreground) 7%, transparent);
-  transition-duration: var(--one-press-ms);
+  transition-duration: var(--mo-press);
 }
 
 /* ----------------------------------------------------------- header, About */
@@ -865,10 +902,139 @@
   font-weight: 400;
   letter-spacing: -0.01em;
   color: var(--foreground);
+  text-wrap: balance;
 }
 
 [data-settings-empty] [data-slot="empty-description"] {
   font-size: 0.875rem;
   line-height: 1.375rem;
   color: var(--settings-description);
+}
+
+/* ------------------------------------------------------------ shortcut sheet */
+
+/* The sheet is read, not scrolled through: its scrollbar shows while the list moves and not
+   because the pointer rests on it. */
+[data-shortcuts-sheet] [data-slot="scroll-area-scrollbar"]:not([data-scrolling]) {
+  opacity: 0;
+}
+
+/* ------------------------------------------------------------------- motion */
+
+/* A page opens inside the sheet with a short rise and fade, so changing page is never a cut. Only
+   transform and opacity move; unless motion is allowed it is a plain fade. */
+@keyframes settings-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes settings-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+[data-settings-page] {
+  animation: settings-fade-in var(--mo-quick) var(--ease-enter) both;
+}
+
+/* Changing page from the rail or a provider row cross-fades the page body as one piece: old and
+   new run the same curve, one out and one in, so together they always add up to full strength.
+   The page's own entrance would double it, so it stands down while that transition plays. */
+:root:active-view-transition-type(settings-page) [data-settings-page-scroll] {
+  view-transition-name: settings-body;
+}
+
+:root:active-view-transition-type(settings-page) [data-settings-page] {
+  animation: none;
+}
+
+:root:active-view-transition-type(settings-page)::view-transition-group(root),
+:root:active-view-transition-type(settings-page)::view-transition-old(root),
+:root:active-view-transition-type(settings-page)::view-transition-new(root) {
+  animation: none;
+}
+
+:root:active-view-transition-type(settings-page)::view-transition-old(settings-body) {
+  animation: settings-body-out var(--mo-surface) var(--ease-enter) both;
+}
+
+:root:active-view-transition-type(settings-page)::view-transition-new(settings-body) {
+  animation: settings-body-in var(--mo-surface) var(--ease-enter) both;
+}
+
+@keyframes settings-body-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes settings-body-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:active-view-transition-type(settings-page)::view-transition-old(settings-body),
+  :root:active-view-transition-type(settings-page)::view-transition-new(settings-body) {
+    animation: none;
+  }
+}
+
+/* A confirmation takes the place of the action it asks about: it arrives from the side the
+   action sits on, after the line before it has begun to go. */
+[data-settings-swap] {
+  animation: settings-fade-in var(--mo-quick) var(--ease-enter) var(--mo-content-delay) both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-settings-page] {
+    animation-name: settings-page-in;
+  }
+
+  [data-settings-swap] {
+    animation-name: settings-swap-in;
+  }
+}
+
+@keyframes settings-swap-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+}
+
+/* A hidden line that a row reveals (a shortcut's condition) opens in height first and fades in
+   60ms later. */
+[data-settings-reveal] {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--mo-quick) var(--ease-enter);
+}
+
+[data-settings-reveal][data-open] {
+  grid-template-rows: 1fr;
+}
+
+[data-settings-reveal] > * {
+  min-block-size: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--mo-quick) var(--ease-enter);
+}
+
+[data-settings-reveal][data-open] > * {
+  opacity: 1;
+  transition-delay: var(--mo-content-delay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-settings-reveal],
+  [data-settings-reveal] > * {
+    transition: none;
+  }
 }

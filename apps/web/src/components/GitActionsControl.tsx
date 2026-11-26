@@ -112,6 +112,7 @@ import {
   useDiffPanelStore,
 } from "~/diffPanelStore";
 import { useClientSettings } from "~/hooks/useSettings";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { serverEnvironment } from "~/state/server";
 import { sourceControlEnvironment } from "~/state/sourceControl";
 import { threadEnvironment } from "~/state/threads";
@@ -2052,8 +2053,12 @@ function CheckoutGitActionsControl({
   );
 }
 
-/** Git actions for a thread's own folder, whose branch the thread or its draft records. */
-export default function ThreadGitActionsControl({
+/**
+ * Git actions for a thread's own folder, whose branch the thread or its draft records. Memoized: the
+ * details card rebuilds its children whenever the chat view renders (a route change, a modal
+ * opening), and this control renders only for its own inputs.
+ */
+const ThreadGitActionsControl = memo(function ThreadGitActionsControl({
   gitCwd,
   name,
   activeThreadRef,
@@ -2175,24 +2180,35 @@ export default function ThreadGitActionsControl({
     isSelectingWorktreeBase,
   ]);
 
+  // The React Compiler keeps these values and closures while their inputs are unchanged, so the
+  // memoized control below renders for git state, not for each render of this wrapper.
+  const target = gitCwd === null ? null : { key: gitCwd, cwd: gitCwd, name };
+  const owner = {
+    ...(activeServerThread ? { threadId: activeServerThread.id } : {}),
+    ...(activeDraftThread ? { projectId: activeDraftThread.projectId } : {}),
+  };
+  // Read per render: a granted or revoked scope re-renders this wrapper, and the control reads
+  // `canFollow` while it renders, so the follower must change with it.
+  const canFollowNow =
+    isLocalDraftThread ||
+    (activeEnvironmentId !== null &&
+      readEnvironmentScope(activeEnvironmentId, AuthOrchestrationOperateScope));
+  const followBranch = useStableCallback((branch: string | null) =>
+    persistThreadBranchSync(branch, true),
+  );
+  const branchFollower = { canFollow: () => canFollowNow, follow: followBranch };
+
   return (
     <GitActionsControl
       {...view}
-      target={gitCwd === null ? null : { key: gitCwd, cwd: gitCwd, name }}
+      target={target}
       threadRef={activeThreadRef}
-      owner={{
-        ...(activeServerThread ? { threadId: activeServerThread.id } : {}),
-        ...(activeDraftThread ? { projectId: activeDraftThread.projectId } : {}),
-      }}
-      branchFollower={{
-        canFollow: () =>
-          isLocalDraftThread ||
-          (activeEnvironmentId !== null &&
-            readEnvironmentScope(activeEnvironmentId, AuthOrchestrationOperateScope)),
-        follow: (branch) => persistThreadBranchSync(branch, true),
-      }}
+      owner={owner}
+      branchFollower={branchFollower}
       quietUntilWork={draftId !== undefined || activeServerThreadShell?.latestRun === null}
       changesBaseRef={changesBaseRef}
     />
   );
-}
+});
+
+export default ThreadGitActionsControl;

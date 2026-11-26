@@ -452,7 +452,11 @@ export function AppSidebarLayout({
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
     usePanelAnimationSettings();
   const pathname = useLocation({ select: (location) => location.pathname });
-  const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
+  // Settings and Usage open over the same view, so they keep its key and every panel consumer
+  // (the chat view among them) skips a render pair when one opens or closes.
+  const [mainPathname, setMainPathname] = useState(pathname);
+  if (mainPathname !== pathname && !isAppModalPage(pathname)) setMainPathname(pathname);
+  const panelAnimationsSuppressed = usePanelNavigationSuppression(mainPathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);

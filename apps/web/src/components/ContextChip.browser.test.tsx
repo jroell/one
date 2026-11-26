@@ -39,4 +39,42 @@ describe("ContextChip", () => {
       0,
     );
   });
+
+  it("draws every attachment and context chip label in the one text ink, keeping colour for a pull request's state", async () => {
+    const kinds = [
+      "file",
+      "image",
+      "video",
+      "doc-pdf",
+      "doc-spreadsheet",
+      "mention",
+      "skill",
+      "model",
+      "thread",
+      "citation",
+    ] as const;
+    // The theme sets one accent variable per kind at runtime; give each a vivid colour here.
+    const accents = Object.fromEntries(
+      [...kinds, "pr-merged"].map((kind) => [`--context-chip-${kind}`, "rgb(255 0 0)"]),
+    );
+    await using screen = await render(
+      <p className="text-sm" style={accents}>
+        <ContextChip data-kind="plain">
+          <ContextChipLabel>plain</ContextChipLabel>
+        </ContextChip>
+        {kinds.map((kind) => (
+          <ContextChip key={kind} kind={kind} data-kind={kind}>
+            <ContextChipLabel>{kind}</ContextChipLabel>
+          </ContextChip>
+        ))}
+        <ContextChip kind="pr-merged" data-kind="pr-merged">
+          <ContextChipLabel>merged</ContextChipLabel>
+        </ContextChip>
+      </p>,
+    );
+    const ink = (kind: string) =>
+      getComputedStyle(screen.container.querySelector<HTMLElement>(`[data-kind="${kind}"]`)!).color;
+    for (const kind of kinds) expect(ink(kind), kind).toBe(ink("plain"));
+    expect(ink("pr-merged")).not.toBe(ink("plain"));
+  });
 });

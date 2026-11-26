@@ -15,7 +15,16 @@ vi.mock(import("~/state/entities"), async (original) => ({
     state.params.threadId
       ? { environmentId: "env-1", id: "thread-1", projectId: "project-1" }
       : null) as never,
-  useProject: (() => (state.params.threadId ? { title: "orbit-api" } : null)) as never,
+  useProject: (() =>
+    state.params.threadId
+      ? {
+          title: "orbit-api",
+          environmentId: "env-1",
+          workspaceRoot: "/work/orbit-api",
+          faviconPath: null,
+          projectIcon: { kind: "monogram", text: "OA", color: "gold" },
+        }
+      : null) as never,
 }));
 
 import { ComposerHandleContext, type ComposerHandleRef } from "~/composerHandleContext";
@@ -52,7 +61,10 @@ describe("code mode welcome", () => {
     const title = screen.getByRole("heading", { name: "What are we building?" });
     await expect.element(title).toBeVisible();
     expect(getComputedStyle(title.element()).fontFamily).toContain("Iowan Old Style");
-    await expect.element(screen.getByText("orbit-api")).toBeVisible();
+    // The project is a chip with its icon, not a grey line of text.
+    const chip = screen.container.querySelector<HTMLElement>("[data-one-project-chip]");
+    expect(chip?.textContent).toContain("orbit-api");
+    expect(chip?.children).toHaveLength(2);
     const starters = screen.getByRole("list", { name: "Ways to start" }).getByRole("button");
     const labels = starters.elements().map((button) => button.textContent ?? "");
     expect(labels).toHaveLength(4);
@@ -60,8 +72,8 @@ describe("code mode welcome", () => {
     expect(labels[1]).toMatch(/^Search the project/);
     expect(labels[2]).toMatch(/^Review changes/);
     expect(labels[3]).toMatch(/^Command palette/);
-    // A starter with a binding shows its keycap; the @ starter shows the character itself.
-    expect(starters.elements().every((button) => button.querySelector("kbd") !== null)).toBe(true);
+    // No starter carries a keyboard hint.
+    expect(starters.elements().some((button) => button.querySelector("kbd") !== null)).toBe(false);
   });
 
   it("offers no Review changes when the conversation says the thread has no diff", async () => {
@@ -119,8 +131,7 @@ describe("code mode welcome", () => {
     expect(opened).toBe(1);
   });
 
-  it("lays the starters out as an even grid with the keycap at each chip's right edge", async () => {
-    // Keycaps are hidden on a phone, so measure at a desktop width.
+  it("lays the starters out as an even two-column grid", async () => {
     await page.viewport(1000, 800);
     reset();
     state.params = { environmentId: "env-1", threadId: "thread-1" };
@@ -138,8 +149,5 @@ describe("code mode welcome", () => {
       .map((button) => button.getBoundingClientRect());
     expect(new Set(chips.map((chip) => Math.round(chip.width))).size).toBe(1);
     expect(new Set(chips.map((chip) => Math.round(chip.left))).size).toBe(2);
-    const first = screen.getByRole("button", { name: /Mention a file/ }).element();
-    const keycap = first.querySelector("kbd")!.getBoundingClientRect();
-    expect(first.getBoundingClientRect().right - keycap.right).toBeLessThan(16);
   });
 });

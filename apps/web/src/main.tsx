@@ -11,6 +11,7 @@ import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
 import { whenLocaleReady } from "./i18n/runtime";
 import { chunkLoadState } from "./lib/chunkReloadGuard";
+import { prepareBootHandoff } from "./one/bootHandoff";
 import { installOneReflections } from "./one/reflections";
 
 const stopTrackingKeyboardLayout = trackKeyboardLayout();
@@ -41,6 +42,7 @@ export const startup = Promise.all([
   .then(([ManagedAuthShell]) => {
     // Route chunk failures resolve router.load() and surface later through the error boundary.
     if (chunkLoadState.reloadScheduled) return;
+    const playHandoff = prepareBootHandoff();
     ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <React.StrictMode>
         {ManagedAuthShell && clerkPublishableKey ? (
@@ -50,6 +52,7 @@ export const startup = Promise.all([
         )}
       </React.StrictMode>,
     );
+    playHandoff();
   })
   .catch((error: unknown) => {
     if (chunkLoadState.reloadScheduled) return;

@@ -1,7 +1,11 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildDiffFileTreeUpdates, diffFileTreeEntries } from "./diffFileTree.logic";
+import {
+  buildDiffFileTreeUpdates,
+  diffFileTreeEntries,
+  diffFileTreeModel,
+} from "./diffFileTree.logic";
 
 function file(type: FileDiffMetadata["type"], name: string, prevName = name): FileDiffMetadata {
   return { type, name, prevName } as FileDiffMetadata;
@@ -38,5 +42,20 @@ describe("buildDiffFileTreeUpdates", () => {
       { type: "remove", path: "src/lib/a.ts" },
       { type: "remove", path: "src/lib/", recursive: true },
     ]);
+  });
+});
+
+describe("diffFileTreeModel", () => {
+  it("draws the changed files' icons in one flat color, with or without a file that is also a folder", () => {
+    expect(diffFileTreeModel(["src/a.ts", "logo.png"]).icons).toMatchObject({ colored: false });
+    // The app's own sprite colors a test badge red and pnpm orange; none of it survives.
+    expect(diffFileTreeModel(["a.test.ts"]).icons.spriteSheet).not.toMatch(
+      /light-dark\(|style="color:|(?:fill|stroke)="#/,
+    );
+    const withAlias = diffFileTreeModel(["src", "src/a.ts"]);
+    expect(withAlias.icons).toMatchObject({ colored: false });
+    expect(
+      Object.keys(withAlias.icons.byFileName ?? {}).some((name) => name.startsWith("src")),
+    ).toBe(true);
   });
 });
