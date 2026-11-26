@@ -8,7 +8,6 @@ import { shortcutLabelForCommand } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useVoiceBridge } from "./voiceBridge";
 import { startVoiceChat } from "./startVoiceChat";
-import { rememberVoiceLauncher } from "./voiceStageMotion";
 import { useWorkspaceMode } from "./workspaceMode";
 
 /** Opens voice chat from the header. Shown in chat mode when the composer can take dictation. */
@@ -29,10 +28,7 @@ export function VoiceChatButton() {
           size="icon-sm-pill"
           aria-label={gt("Start voice chat")}
           className="pointer-events-auto [-webkit-app-region:no-drag]"
-          onClick={(event) => {
-            rememberVoiceLauncher(event.currentTarget);
-            startVoiceChat(voice);
-          }}
+          onClick={(event) => startVoiceChat(voice, event.currentTarget)}
         >
           <AudioLinesIcon />
         </Button>

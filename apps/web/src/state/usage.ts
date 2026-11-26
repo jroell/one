@@ -1,3 +1,4 @@
+import { forgetProviderCounts } from "../components/usage/usageSkeletonMemory";
 import { useAtomValue } from "@effect/atom-react";
 import {
   AuthDiagnosticsReadScope,
@@ -45,7 +46,10 @@ let presentEnvironments = new Set(
 );
 subscribeAtomChanges(environmentPresentations.presentationsAtom, (presentations) => {
   for (const environmentId of presentEnvironments) {
-    if (!presentations.has(environmentId)) forgetEnvironmentAuthorization(environmentId);
+    if (!presentations.has(environmentId)) {
+      forgetEnvironmentAuthorization(environmentId);
+      forgetProviderCounts();
+    }
   }
   presentEnvironments = new Set(presentations.keys());
 });
@@ -57,21 +61,34 @@ subscribeAtomChanges(environmentPresentations.presentationsAtom, (presentations)
  */
 const settledUnder = new Map<string, { readonly generation: string; readonly result: unknown }>();
 
-function summaryUnder(
+/**
+ * More than the queries one screen holds at once (environments times the views flipped between);
+ * the past-24-hours view adds a key every minute it is refreshed, and the least recently read go.
+ */
+const MAX_SETTLED = 64;
+
+export function settledSummaryCount(): number {
+  return settledUnder.size;
+}
+
+export function summaryUnder(
   queryKey: string,
   generation: string,
   result: AsyncResult.AsyncResult<UsageSummary, unknown>,
 ): UsageSummary | null {
-  if (
-    AsyncResult.isSuccess(result) &&
-    !result.waiting &&
-    settledUnder.get(queryKey)?.result !== result
-  ) {
-    settledUnder.set(queryKey, { generation, result });
+  let entry = settledUnder.get(queryKey);
+  if (AsyncResult.isSuccess(result) && !result.waiting && entry?.result !== result) {
+    entry = { generation, result };
   }
-  return settledUnder.get(queryKey)?.generation === generation
-    ? AsyncResult.getOrElse(result, () => null)
-    : null;
+  if (entry !== undefined) {
+    settledUnder.delete(queryKey);
+    settledUnder.set(queryKey, entry);
+    for (const oldest of settledUnder.keys()) {
+      if (settledUnder.size <= MAX_SETTLED) break;
+      settledUnder.delete(oldest);
+    }
+  }
+  return entry?.generation === generation ? AsyncResult.getOrElse(result, () => null) : null;
 }
 
 const usageByWindowAtom = Atom.family((windowKey: string) =>
@@ -206,12 +223,8 @@ function deriveSelection(
   };
 }
 
-export function useUsage(
-  input: UsageSummaryInput,
-  selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
-  hiddenProviders: ReadonlySet<UsageProviderKind> = NO_HIDDEN_PROVIDERS,
-): UsageView {
-  const windowKey = JSON.stringify({
+function usageWindowKey(input: UsageSummaryInput): string {
+  return JSON.stringify({
     sinceDay: input.sinceDay,
     untilDay: input.untilDay,
     timeZone: input.timeZone,
@@ -219,6 +232,38 @@ export function useUsage(
     sinceTime: input.sinceTime,
     untilTime: input.untilTime,
   });
+}
+
+/** Long enough to cover the move from the sidebar button to the opened page, and a slow open. */
+const PREFETCH_HOLD_MS = 30_000;
+let prefetched: { readonly key: string; readonly release: () => void } | null = null;
+let prefetchTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Starts the query a Usage page would start for this window, so its answer is waiting when the page
+ * opens. It reads the same atom the page reads, so what the page shows is still decided there: a
+ * machine whose credential is not confirmed asks nothing and answers nothing for any generation.
+ * The atom is held for a short while and let go when the page does not come.
+ */
+export function prefetchUsage(input: UsageSummaryInput): void {
+  const key = usageWindowKey(input);
+  if (prefetched?.key !== key) {
+    prefetched?.release();
+    prefetched = { key, release: appAtomRegistry.mount(usageByWindowAtom(key)) };
+  }
+  clearTimeout(prefetchTimer);
+  prefetchTimer = setTimeout(() => {
+    prefetched?.release();
+    prefetched = null;
+  }, PREFETCH_HOLD_MS);
+}
+
+export function useUsage(
+  input: UsageSummaryInput,
+  selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
+  hiddenProviders: ReadonlySet<UsageProviderKind> = NO_HIDDEN_PROVIDERS,
+): UsageView {
+  const windowKey = usageWindowKey(input);
   const atom = usageByWindowAtom(windowKey);
   const environments = useAtomValue(atom);
   // Identity-based render sync needs a derivation retained by inputs across renders.

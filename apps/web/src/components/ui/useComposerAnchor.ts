@@ -147,10 +147,53 @@ function atEnd(scroller: HTMLElement): boolean {
   return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4;
 }
 
+interface ScrollerLane {
+  /** The padding the scroller had before any toast claimed it. */
+  readonly original: string;
+  claims: number;
+  releaseTimer: number | undefined;
+}
+
+const lanes = new WeakMap<HTMLElement, ScrollerLane>();
+
+function claimLane(scroller: HTMLElement): { lane: ScrollerLane; resumed: boolean } {
+  const lane = lanes.get(scroller) ?? {
+    original: scroller.style.paddingBottom,
+    claims: 0,
+    releaseTimer: undefined,
+  };
+  // A toast that arrives while the last one is leaving takes over its padding; the reader was at
+  // the end of the thread when it left, so they are taken back to the end.
+  const resumed = lane.releaseTimer !== undefined;
+  window.clearTimeout(lane.releaseTimer);
+  lane.releaseTimer = undefined;
+  lane.claims += 1;
+  lanes.set(scroller, lane);
+  return { lane, resumed };
+}
+
+function releaseLane(scroller: HTMLElement, lane: ScrollerLane, reserved: number) {
+  lane.claims -= 1;
+  if (lane.claims > 0) return;
+  const restore = () => {
+    scroller.style.paddingBottom = lane.original;
+    lanes.delete(scroller);
+  };
+  if (!scroller.isConnected || !atEnd(scroller)) {
+    restore();
+    return;
+  }
+  scroller.scrollTo({
+    top: Math.max(0, scroller.scrollHeight - scroller.clientHeight - reserved),
+    behavior: scrollBehavior(),
+  });
+  lane.releaseTimer = window.setTimeout(restore, LANE_RELEASE_MS);
+}
+
 /**
  * Keeps the thread's last lines out from under a toast: the timeline gets bottom padding the
- * height of the toast and, at the end of a thread, scrolls that far. It scrolls back before the
- * padding goes. A reader mid-thread keeps their place.
+ * toast's height and, at the end of a thread, scrolls that far; a reader mid-thread keeps their
+ * place. The first toast's original padding is kept per scroller, so no gap is left behind.
  */
 export function useToastLane(active: boolean, toastHeight: number): void {
   const lane =
@@ -158,6 +201,7 @@ export function useToastLane(active: boolean, toastHeight: number): void {
     ANCHOR_GAP_PX +
     VIEWPORT_MARGIN_PX;
   const laneRef = useRef(lane);
+  const scrollerRef = useRef<HTMLElement | null>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the latest lane for the cleanup below, which runs outside render
   useEffect(() => {
     laneRef.current = lane;
@@ -168,33 +212,23 @@ export function useToastLane(active: boolean, toastHeight: number): void {
     if (!active) return;
     const scroller = document.querySelector<HTMLElement>(TIMELINE);
     if (!scroller) return;
-    const previous = scroller.style.paddingBottom;
-    const restore = () => {
-      scroller.style.paddingBottom = previous;
-    };
-    const follow = atEnd(scroller);
+    scrollerRef.current = scroller;
+    const { lane: claim, resumed } = claimLane(scroller);
+    const follow = resumed || atEnd(scroller);
     scroller.style.paddingBottom = `${laneRef.current}px`;
     if (follow) {
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: scrollBehavior() });
     }
     return () => {
-      if (!scroller.isConnected || !atEnd(scroller)) {
-        restore();
-        return;
-      }
-      scroller.scrollTo({
-        top: Math.max(0, scroller.scrollHeight - scroller.clientHeight - laneRef.current),
-        behavior: scrollBehavior(),
-      });
-      window.setTimeout(restore, LANE_RELEASE_MS);
+      scrollerRef.current = null;
+      releaseLane(scroller, claim, laneRef.current);
     };
   }, [active]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- resizes the reserved padding on the timeline scroller when the measured toast height replaces the estimate
   useEffect(() => {
-    if (!active) return;
-    const scroller = document.querySelector<HTMLElement>(TIMELINE);
-    if (!scroller || scroller.style.paddingBottom === `${lane}px`) return;
+    const scroller = scrollerRef.current;
+    if (!active || !scroller || scroller.style.paddingBottom === `${lane}px`) return;
     const follow = atEnd(scroller);
     scroller.style.paddingBottom = `${lane}px`;
     if (follow) scroller.scrollTo({ top: scroller.scrollHeight, behavior: scrollBehavior() });

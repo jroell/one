@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import { threadSyncLabel, type ThreadSyncPhase } from "../../threadSync";
 import { cn } from "~/lib/utils";
 import { useGT, useMessages } from "gt-react";
-import { useEffect } from "react";
+import { use, useEffect } from "react";
 
-import { publishChatStatus } from "~/one/chatStatus";
+import { ChatStatusScopeContext, publishChatStatus } from "~/one/chatStatus";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 
 /** A line of thread state for the end of the timeline. */
@@ -68,12 +68,13 @@ function ThreadSyncLine({ phase }: { readonly phase: ThreadSyncPhase }) {
   // Chat mode keeps catching up behind the header's status dot; only a failure is shown.
   const quiet = useWorkspaceMode() === "chat" && phase !== "failed";
   const title = gt("Catching up on this conversation");
+  const statusScope = use(ChatStatusScopeContext);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the header's status dot lives outside this tree and reads what is published
   useEffect(() => {
     if (!quiet) return;
-    publishChatStatus("sync", [{ id: "sync", kind: "working", title, detail: null }]);
-    return () => publishChatStatus("sync", []);
-  }, [quiet, title]);
+    publishChatStatus(statusScope, "sync", [{ id: "sync", kind: "working", title, detail: null }]);
+    return () => publishChatStatus(statusScope, "sync", []);
+  }, [quiet, title, statusScope]);
   if (quiet) return null;
   return (
     <div

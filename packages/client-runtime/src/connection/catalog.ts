@@ -70,6 +70,12 @@ export class DpopConnectionCredential extends Schema.TaggedClass<DpopConnectionC
   {
     accessToken: Schema.String,
     expiresAtEpochMs: Schema.Number,
+    /**
+     * When this link was paired. A renewal keeps it, a new pairing sets a new one, so the
+     * authorization generation can tell a link paired again from the same link renewed. Absent on
+     * credentials saved before it existed.
+     */
+    pairedAtEpochMs: Schema.optionalKey(Schema.Number),
   },
 ) {}
 

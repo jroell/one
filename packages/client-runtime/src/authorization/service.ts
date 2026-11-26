@@ -65,14 +65,15 @@ export interface AuthorizedRemoteEnvironment {
 }
 
 /**
- * The public thumbprint of the signing key. A T3 Connect token is also tied to its account, whose
- * id is folded in as a short digest so the account never appears in the value.
+ * The public thumbprint of the signing key. A T3 Connect token is also tied to its account, and a
+ * direct link to the time it was paired; either is folded in as a short digest (`scope`) so the
+ * account never appears in the value.
  */
-function dpopCredentialId(thumbprint: string, accountId?: string): string {
-  if (accountId === undefined) return `dpop:${thumbprint}`;
+function dpopCredentialId(thumbprint: string, scope?: string): string {
+  if (scope === undefined) return `dpop:${thumbprint}`;
   let high = 0xdeadbeef;
   let low = 0x41c6ce57;
-  for (const unit of accountId) {
+  for (const unit of scope) {
     const code = unit.codePointAt(0) ?? 0;
     high = Math.imul(high ^ code, 2654435761);
     low = Math.imul(low ^ code, 1597334677);
@@ -618,6 +619,9 @@ export const make = Effect.gen(function* () {
         const renewed = new DpopConnectionCredential({
           accessToken: access.access_token,
           expiresAtEpochMs: (yield* Clock.currentTimeMillis) + access.expires_in * 1_000,
+          ...(current.pairedAtEpochMs === undefined
+            ? {}
+            : { pairedAtEpochMs: current.pairedAtEpochMs }),
         });
         yield* credentials.put(connection.connectionId, renewed);
         return renewed;
@@ -691,7 +695,10 @@ export const make = Effect.gen(function* () {
         socketUrl: socket.success,
         descriptor,
         httpAuthorization: directHttpAuthorization(connection, credential),
-        credentialId: dpopCredentialId(thumbprint),
+        credentialId: dpopCredentialId(
+          thumbprint,
+          credential.pairedAtEpochMs === undefined ? undefined : String(credential.pairedAtEpochMs),
+        ),
       };
     },
   );

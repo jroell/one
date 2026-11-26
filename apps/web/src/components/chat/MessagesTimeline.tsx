@@ -11,7 +11,11 @@ import { MarkdownFindContext } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
 import type { ProviderApprovalDecision, RuntimeRequestId } from "@t3tools/contracts";
 import { WorkLogBlock } from "./WorkLog";
-import { clearApprovalDecision, peekApprovalDecision } from "~/one/approvalDecision";
+import {
+  clearApprovalDecision,
+  peekApprovalDecision,
+  pruneApprovalDecisions,
+} from "~/one/approvalDecision";
 import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import type { WorktreeSetupSnapshot } from "@t3tools/contracts";
 import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
@@ -113,9 +117,11 @@ import { ChatQuizMessageContext } from "~/one/chatQuiz";
 import { ChatStageBlock } from "~/one/ChatWaitingStage";
 import {
   ChatEndHoldContext,
+  ChatHandoffAnswerContext,
   ChatStageContext,
   ChatStageLayerContext,
   findChatStageTarget,
+  findHandoffAnswerId,
   useChatStage,
 } from "~/one/chatStage";
 import { ApprovalSubjectContext, deriveApprovalSubjects } from "~/one/chatApprovalSubject";
@@ -131,7 +137,7 @@ import { ChatNav } from "~/one/ChatNav";
 import { deriveChatSections, NO_CHAT_SECTIONS, type ChatSection } from "~/one/chatSections";
 import { chatFoldLabel } from "~/one/chatFoldLabel";
 import { ChatNoticeLine, isActionableNotice } from "~/one/ChatNoticeLine";
-import { publishChatStatus, type ChatStatusItem } from "~/one/chatStatus";
+import { ChatStatusScopeContext, publishChatStatus, type ChatStatusItem } from "~/one/chatStatus";
 import {
   ChatNoticePlanContext,
   isNoticeEntry,
@@ -147,6 +153,7 @@ import { type HandoffTimelineRun } from "./V2LifecycleRow";
 import { TimelineSystemDivider } from "./TimelineSystemDivider";
 
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
+import { isFirstScreenReady, setFirstScreenReady } from "./firstScreenReady";
 import { TimelineMinimap } from "./TimelineMinimap";
 import {
   type TimelineRowSharedState,
@@ -275,9 +282,16 @@ export interface MessagesTimelineHistoryControls {
   readonly onLoadEarlier: (throughEntryId?: string) => void;
 }
 
+/** Longer than a card's whole exit (press, fold, settle), so only a card that never reports hits it. */
+const APPROVAL_LEAVE_FALLBACK_MS = 1200;
+
 interface MessagesTimelineProps {
   pendingApprovals?: ReadonlyArray<PendingApproval>;
   heldApprovalRequestIds?: ReadonlySet<string> | undefined;
+  /** Show the Approve and Decline chords on the card they answer. Only the chat view's own timeline does. */
+  showApprovalChordHints?: boolean;
+  /** The thread's messages have not arrived yet, so an empty list is not an empty thread. */
+  detailLoading?: boolean;
   respondingRequestIds?: TimelineRowSharedState["respondingRequestIds"];
   canOperateThread?: boolean;
   onRespondToApproval?: TimelineRowSharedState["onRespondToApproval"];
@@ -417,6 +431,8 @@ export function MessagesTimeline(props: MessagesTimelineProps) {
 const ConversationTimeline = memo(function ConversationTimeline({
   pendingApprovals = EMPTY_PENDING_APPROVALS,
   heldApprovalRequestIds,
+  showApprovalChordHints = false,
+  detailLoading = false,
   respondingRequestIds = EMPTY_RESPONDING_REQUEST_IDS,
   canOperateThread = false,
   onRespondToApproval,
@@ -878,6 +894,28 @@ const ConversationTimeline = memo(function ConversationTimeline({
       return next;
     });
   });
+  // A leaving card ends when its animations do. Whatever stops that (no card mounted for it, a
+  // hidden tab, a removed element) must not keep the request leaving for the rest of the visit.
+  const leavingKey = [...leavingApprovals.keys()].join("|");
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends each leaving approval after a fixed time even if its card never reports
+  useEffect(() => {
+    if (leavingKey === "") return;
+    const timers = leavingKey
+      .split("|")
+      .map((id) =>
+        window.setTimeout(() => onApprovalLeft(id as RuntimeRequestId), APPROVAL_LEAVE_FALLBACK_MS),
+      );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [leavingKey, onApprovalLeft]);
+  // An answer kept for a request that is neither waiting nor leaving is dropped, whichever way the
+  // request left (reduced motion skips the leaving state).
+  const waitingKey = pendingApprovals.map((approval) => approval.requestId).join("|");
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops recorded approval answers for requests that are gone
+  useEffect(() => {
+    const waiting = new Set(waitingKey === "" ? [] : waitingKey.split("|"));
+    const leaving = new Set(leavingKey === "" ? [] : leavingKey.split("|"));
+    pruneApprovalDecisions((id) => waiting.has(id) || leaving.has(id));
+  }, [waitingKey, leavingKey]);
   const pendingApprovalRequestIds = new Set([
     ...visiblePendingApprovals.map((approval) => approval.requestId),
     ...leavingApprovals.keys(),
@@ -919,6 +957,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       ),
     chatMode && !prefersReducedMotion,
   );
+  const statusScope = use(ChatStatusScopeContext);
   const noticePlan = chatMode ? planChatNotices(rows) : NO_CHAT_NOTICES;
   const chatSections = chatMode ? deriveChatSections(rows) : NO_CHAT_SECTIONS;
   const preparingWorkspace =
@@ -946,9 +985,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the header's status dot lives outside this tree and reads what the conversation publishes
   useEffect(() => {
     if (!chatMode) return;
-    publishChatStatus("conversation", quietStatus);
-    return () => publishChatStatus("conversation", []);
-  }, [chatMode, quietStatus]);
+    publishChatStatus(statusScope, "conversation", quietStatus);
+    return () => publishChatStatus(statusScope, "conversation", []);
+  }, [chatMode, quietStatus, statusScope]);
   const [stageLayer, setStageLayer] = useState<HTMLElement | null>(null);
   const turnRunning = isWorking && latestRun?.turnEnded !== true;
   const chatStage = useChatStage(
@@ -957,6 +996,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     // A request that is pending, or leaving, has the screen: the stage waits, and does not return.
     awaitingUser !== null || pendingApprovalRequestIds.size > 0 || leavingApprovals.size > 0,
   );
+  const handoffAnswerId =
+    chatStage !== null && !chatStage.active ? findHandoffAnswerId(rows, chatStage.userRowId) : null;
   const matchedApprovalRequestIds = new Set<string>();
   for (const row of pendingApprovalRequestIds.size > 0 ? rows : []) {
     const entries =
@@ -1289,16 +1330,74 @@ const ConversationTimeline = memo(function ConversationTimeline({
     const viewport = listRef.current?.getScrollableNode();
     if (!viewport) return;
     viewport.dataset.scrolling = "";
-    // The ladder's CSS reads the flag on `html`: a `:has()` rule on `html` would re-check every
-    // ancestor after each node a commit inserts or removes (see ui/pageSetBack.ts).
-    document.documentElement.setAttribute("data-timeline-scrolling", "");
+    // The ladder's CSS reads the flag on this timeline's own container, so scrolling one timeline
+    // does not show every other timeline's ladder, and no `:has()` rule on `html` is needed.
+    const area = viewport.closest<HTMLElement>("[data-assistant-citation-viewport]");
+    area?.setAttribute("data-timeline-scrolling", "");
     if (scrollingFlagTimerRef.current !== null) window.clearTimeout(scrollingFlagTimerRef.current);
     scrollingFlagTimerRef.current = window.setTimeout(() => {
       delete viewport.dataset.scrolling;
-      document.documentElement.removeAttribute("data-timeline-scrolling");
+      area?.removeAttribute("data-timeline-scrolling");
       scrollingFlagTimerRef.current = null;
     }, 900);
   };
+
+  // The first screen of this thread is ready once its rows (or its empty state, for an empty thread)
+  // are laid out and two frames have been drawn. Thread changes clear it. The same state is on the
+  // timeline root as `data-first-screen-ready` and in `firstScreenReady.ts`, for whatever has to
+  // wait for the thread to be readable. A timeline that never settles reports ready after 90 frames.
+  const rowCount = rows.length;
+  // An empty thread or one still loading has no scroller; its placeholder is the root then.
+  const [placeholderRoot, setPlaceholderRoot] = useState<HTMLDivElement | null>(null);
+  const firstScreenRoot = timelineViewportElement ?? placeholderRoot;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears the first-screen flag when the thread changes or the timeline goes away
+  useEffect(() => {
+    setFirstScreenReady(listIdentityKey, false);
+    return () => setFirstScreenReady(listIdentityKey, false);
+  }, [listIdentityKey]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- waits for the first rows to be laid out and painted, then marks the first screen ready
+  useEffect(() => {
+    const root = firstScreenRoot;
+    // Remembered rows shown while the thread loads are a first screen; an empty list is not.
+    if (!root || (detailLoading && rowCount === 0) || restoringThreadPosition) return;
+    const dropAttribute = () => root.removeAttribute("data-first-screen-ready");
+    if (isFirstScreenReady(listIdentityKey)) {
+      // This thread already reported; only the root it is shown on has changed.
+      root.setAttribute("data-first-screen-ready", "");
+      return dropAttribute;
+    }
+    let frame = 0;
+    let frames = 0;
+    let cancelled = false;
+    const markReady = () => {
+      if (cancelled) return;
+      root.setAttribute("data-first-screen-ready", "");
+      setFirstScreenReady(listIdentityKey, true);
+    };
+    const check = () => {
+      if (cancelled) return;
+      frames += 1;
+      const laidOut =
+        rowCount === 0 ||
+        [...root.querySelectorAll(".messages-timeline-row-frame")].some(
+          (row) => row.getBoundingClientRect().height > 0,
+        );
+      if (laidOut || frames >= 90) {
+        // Two frames: one to draw the rows, one so the draw has reached the screen.
+        frame = requestAnimationFrame(() => {
+          frame = requestAnimationFrame(markReady);
+        });
+        return;
+      }
+      frame = requestAnimationFrame(check);
+    };
+    frame = requestAnimationFrame(check);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      dropAttribute();
+    };
+  }, [detailLoading, firstScreenRoot, listIdentityKey, restoringThreadPosition, rowCount]);
 
   const handleScroll = () => {
     flagScrolling();
@@ -1431,6 +1530,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     pendingApprovals: pendingApprovalsByRequestId,
     leavingApprovals: leavingDecisions,
     onApprovalLeft,
+    approvalChordHints: showApprovalChordHints,
     respondingRequestIds,
     canOperateThread,
     onRespondToApproval,
@@ -1736,19 +1836,21 @@ const ConversationTimeline = memo(function ConversationTimeline({
         >
           <AudioPreviewUnmountContext value={onAudioUnmount}>
             <ChatArrivalContext value={arrival}>
-              <ChatStageContext value={chatStage}>
-                <ChatStageLayerContext value={stageLayer}>
-                  <ChatEndHoldContext value={holdEnd}>
-                    <ApprovalSubjectContext value={approvalSubjects}>
-                      <ChatNoticePlanContext value={noticePlan}>
-                        <ChatFollowUpContext value={followUpTarget}>
-                          <TimelineRowContent row={item} />
-                        </ChatFollowUpContext>
-                      </ChatNoticePlanContext>
-                    </ApprovalSubjectContext>
-                  </ChatEndHoldContext>
-                </ChatStageLayerContext>
-              </ChatStageContext>
+              <ChatHandoffAnswerContext value={handoffAnswerId}>
+                <ChatStageContext value={chatStage}>
+                  <ChatStageLayerContext value={stageLayer}>
+                    <ChatEndHoldContext value={holdEnd}>
+                      <ApprovalSubjectContext value={approvalSubjects}>
+                        <ChatNoticePlanContext value={noticePlan}>
+                          <ChatFollowUpContext value={followUpTarget}>
+                            <TimelineRowContent row={item} />
+                          </ChatFollowUpContext>
+                        </ChatNoticePlanContext>
+                      </ApprovalSubjectContext>
+                    </ChatEndHoldContext>
+                  </ChatStageLayerContext>
+                </ChatStageContext>
+              </ChatHandoffAnswerContext>
             </ChatArrivalContext>
           </AudioPreviewUnmountContext>
         </div>
@@ -1764,6 +1866,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     approvalSubjects,
     noticePlan,
     followUpTarget,
+    handoffAnswerId,
   };
   const timelineListFooter = (
     <TimelineListFooter
@@ -1835,7 +1938,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       return (
         <>
           {activityAnnouncer}
-          <div className="h-full min-h-0" data-timeline-loading="true" />
+          <div ref={setPlaceholderRoot} className="h-full min-h-0" data-timeline-loading="true" />
         </>
       );
     }
@@ -1843,6 +1946,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       <>
         {activityAnnouncer}
         <div
+          ref={setPlaceholderRoot}
           className="flex h-full items-center justify-center ps-(--chat-lane-inset-start) pe-(--chat-lane-inset-end)"
           style={{ paddingBottom: emptyPlaceholderInset }}
         >
@@ -2058,6 +2162,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
   const arrivalProps = useChatArrivalProps(arrival, row.kind === "message" ? row.id : null);
   const followUp = use(ChatFollowUpContext);
   const stage = use(ChatStageContext);
+  const handoffAnswerId = use(ChatHandoffAnswerContext);
   // Chat mode lifts a turn's notices out of its activity rows into one quiet line.
   const noticePlan = use(ChatNoticePlanContext).get(row.id);
   const workEntries =
@@ -2070,11 +2175,11 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
   return (
     <div
       {...arrivalProps}
-      // The first answer waits for the waiting stage's picture to be gone before it appears.
+      // The first answer after the stage cross-fades with its picture; the working line follows.
       data-chat-handoff={
         stage !== null &&
         !stage.active &&
-        (row.kind === "working" || (row.kind === "message" && row.message.role === "assistant"))
+        (row.kind === "working" || (row.kind === "message" && row.id === handoffAnswerId))
           ? ""
           : undefined
       }

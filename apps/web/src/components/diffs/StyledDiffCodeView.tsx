@@ -140,7 +140,7 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 :is([data-separator="line-info"], [data-separator="line-info-basic"]) [data-separator-content] {
   color: color-mix(in srgb, var(--code-foreground) 50%, var(--code-background)) !important;
   font-family: var(--font-sans) !important;
-  font-size: 11px !important;
+  font-size: var(--text-2xs) !important;
   text-decoration: none !important;
 }
 
@@ -178,7 +178,7 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 [data-diffs-header] [data-additions-count],
 [data-diffs-header] [data-deletions-count] {
   font-family: var(--font-mono) !important;
-  font-size: 11px !important;
+  font-size: var(--text-2xs) !important;
   font-variant-numeric: tabular-nums;
   line-height: 1 !important;
 }

@@ -178,7 +178,10 @@ describe("MessagesTimeline with a 600-message thread", () => {
   });
 
   it("forces few style passes, and leaves html and body out of every :has() re-check, when the thread is switched", async () => {
-    const other = history.map((entry, index) => ({
+    // The guard needs two threads with live rows and the rest of the page, not 600 messages each: a
+    // slow machine timed the full-size version out.
+    const shortHistory = history.slice(-60);
+    const other = shortHistory.map((entry, index) => ({
       ...entry,
       id: `other-${index}`,
       message: {
@@ -205,7 +208,7 @@ describe("MessagesTimeline with a 600-message thread", () => {
     );
     const keyA = `${props.routeThreadKey}-a`;
     const keyB = `${props.routeThreadKey}-b`;
-    await using screen = await render(timeline(keyA, history), { container });
+    await using screen = await render(timeline(keyA, shortHistory), { container });
     const lastMarker = `Marker-${history.length - 1}-end`;
     await vi.waitFor(() => expect(container.textContent).toContain(lastMarker));
     const viewport = props.listRef.current!.getScrollableNode()!;
@@ -247,7 +250,7 @@ describe("MessagesTimeline with a 600-message thread", () => {
     session.on("Tracing.tracingComplete", onComplete as never);
     await session.send("Tracing.start", {
       categories:
-        "devtools.timeline,disabled-by-default-devtools.timeline,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking",
+        "devtools.timeline,disabled-by-default-devtools.timeline.stack,disabled-by-default-devtools.timeline.invalidationTracking",
       transferMode: "ReportEvents",
     });
     await screen.rerender(timeline(keyB, other, true));

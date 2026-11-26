@@ -431,7 +431,7 @@
 
       /* The boot screen is a title moment played over the real load, in CSS alone: the ring settles
          into its tilt as a specular sweep crosses it and a warm bloom rises and fades, the name
-         arrives 200ms later, and an arc turns around the ring once it is clear the wait is long.
+         arrives 200ms later, and the ring turns slowly on its vertical axis for as long as the wait lasts.
          The app replaces all of it the moment it mounts. The ring is gold in every theme. */
       #boot-shell-card {
         --boot-gold: #c2973a;
@@ -489,6 +489,7 @@
         position: relative;
         width: 176px;
         height: 176px;
+        perspective: 800px;
       }
 
       /* The ring and its sweep share one box, so they tilt into place together. */
@@ -562,22 +563,6 @@
         );
       }
 
-      /* Progress is an arc around the ring: 270 degrees, 2px, one turn every 1.2s, and it appears
-         only once the title moment is over, so a quick boot never shows it. */
-      #boot-shell-arc {
-        position: absolute;
-        inset: -16px;
-        width: 208px;
-        height: 208px;
-        opacity: 0;
-        color: var(--boot-gold);
-        animation: boot-arc-in 300ms ease-out 1500ms forwards;
-      }
-
-      #boot-shell-arc circle {
-        transform-origin: center;
-      }
-
       #boot-shell-name {
         margin: 34px 0 0;
         font-family:
@@ -610,16 +595,6 @@
         animation: none;
       }
 
-      #boot-shell-card.boot-ghost #boot-shell-arc {
-        display: none;
-      }
-
-      @keyframes boot-arc-in {
-        to {
-          opacity: 1;
-        }
-      }
-
       /* Nothing paints for the first moments, so a boot that finishes at once never flashes. */
       @keyframes boot-fade-in {
         from {
@@ -629,7 +604,9 @@
 
       @media (prefers-reduced-motion: no-preference) {
         #boot-shell-ring {
-          animation: boot-ring-in 700ms var(--boot-ease) 120ms both;
+          animation:
+            boot-ring-in 700ms var(--boot-ease) 120ms both,
+            boot-ring-turn 8s linear 900ms infinite;
         }
 
         #boot-shell-sweep {
@@ -646,10 +623,6 @@
 
         #boot-shell-name {
           animation: boot-name-in 400ms var(--boot-ease) 320ms both;
-        }
-
-        #boot-shell-arc circle {
-          animation: boot-arc-turn 1.2s linear infinite;
         }
       }
 
@@ -706,9 +679,13 @@
         }
       }
 
-      @keyframes boot-arc-turn {
+      /* The ring turns about its vertical axis, one turn in eight seconds, once it has settled. */
+      @keyframes boot-ring-turn {
+        from {
+          rotate: y 0deg;
+        }
         to {
-          transform: rotate(360deg);
+          rotate: y 360deg;
         }
       }
 
@@ -980,11 +957,6 @@
         :is(#boot-shell-ring, #boot-shell-name) {
         visibility: hidden;
       }
-      /* The arc shows during the wait, even while an opening is planned: it is the only sign then.
-         It goes when the opening is armed and takes over the screen. */
-      html[data-one-opening-armed] #boot-shell:not(:has(> #boot-error)) #boot-shell-arc {
-        display: none;
-      }
       html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-card::before {
         display: none;
       }
@@ -1146,17 +1118,6 @@
               </svg>
               <div id="boot-shell-sweep"></div>
             </div>
-            <svg id="boot-shell-arc" aria-hidden="true" viewBox="0 0 208 208" fill="none">
-              <circle
-                cx="104"
-                cy="104"
-                r="102"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-dasharray="480 160"
-              />
-            </svg>
           </div>
           <p id="boot-shell-name">One</p>
           <p id="boot-shell-progress" role="status" aria-live="polite"></p>

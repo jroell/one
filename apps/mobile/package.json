@@ -32,6 +32,7 @@
     "ios:release": "ONE_MOBILE_LOCAL_BUILD=1 APP_VARIANT=production EXPO_NO_GIT_STATUS=1 expo prebuild --clean --platform ios && ONE_MOBILE_LOCAL_BUILD=1 APP_VARIANT=production expo run:ios --configuration Release --no-bundler",
     "eas:ios:dev": "ONE_MOBILE_LOCAL_BUILD=0 eas build --profile development -p ios",
     "eas:ios:preview": "ONE_MOBILE_LOCAL_BUILD=0 eas build --profile preview -p ios",
+    "eas:ios:preview:carplay-voice": "ONE_MOBILE_LOCAL_BUILD=0 eas build --profile preview:carplay-voice -p ios",
     "eas:ios:preview:dev": "ONE_MOBILE_LOCAL_BUILD=0 eas build --profile preview:dev -p ios",
     "eas:ios:prod": "ONE_MOBILE_LOCAL_BUILD=0 eas build --profile production -p ios",
     "eas:dev": "ONE_MOBILE_LOCAL_BUILD=0 eas build --profile development",

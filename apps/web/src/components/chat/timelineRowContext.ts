@@ -52,6 +52,8 @@ export interface TimelineRowSharedState {
   leavingApprovals?: ReadonlyMap<RuntimeRequestId, ProviderApprovalDecision | null>;
   /** The card's exit has finished, so the timeline can drop it. */
   onApprovalLeft?: (requestId: RuntimeRequestId) => void;
+  /** The timeline shows the Approve and Decline chords on the card they answer. */
+  approvalChordHints?: boolean;
   respondingRequestIds: ReadonlyArray<RuntimeRequestId>;
   canOperateThread: boolean;
   onRespondToApproval:

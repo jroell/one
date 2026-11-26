@@ -573,7 +573,11 @@ export function UsagePage() {
                 ) : carried === null ? (
                   <UsageSkeleton
                     providerCount={recalledProviderCount(
-                      selectionKey(selectedEnvironmentIds, hiddenProviders),
+                      selectionKey(
+                        selectedEnvironmentIds,
+                        hiddenProviders,
+                        environments.map((environment) => environment.environmentId),
+                      ),
                       4,
                     )}
                   />
@@ -606,7 +610,11 @@ export function UsagePage() {
                     hiddenProviders={hiddenProviders}
                     refreshingUsage={refreshingUsage}
                     showChatGptSharing={showChatGptSharing}
-                    selectionKey={selectionKey(selectedEnvironmentIds, hiddenProviders)}
+                    selectionKey={selectionKey(
+                      selectedEnvironmentIds,
+                      hiddenProviders,
+                      environments.map((environment) => environment.environmentId),
+                    )}
                     viewKey={viewKey}
                     contributors={contributors}
                     onSelectModel={selectUsageModel}
@@ -693,10 +701,14 @@ function UsageOverview({
   const [hoveredProvider, setHoveredProvider] = useState<UsageProviderKind | null>(null);
   const [pinnedProvider, setPinnedProvider] = useState<UsageProviderKind | null>(null);
   const [focusedRow, setFocusedRow] = useState<UsageProviderKind | null>(null);
+  // The provider a pin was dropped for, until the next pin, so the status line can say so.
+  const [clearedPin, setClearedPin] = useState<UsageProviderKind | null>(null);
   const announcedProvider = pinnedProvider ?? focusedRow;
   const focusedProvider = hoveredProvider ?? announcedProvider;
-  const togglePinned = (provider: UsageProviderKind) =>
+  const togglePinned = (provider: UsageProviderKind) => {
+    setClearedPin(null);
     setPinnedProvider((current) => (current === provider ? null : provider));
+  };
   const shownHourly = shownWindow.resolution === "hour";
   const loading = usageLoading(showingKept, selectedEnvironments, refreshingUsage, hiddenProviders);
   // Copy the primitive; JSX reads of loading.partial would merge all derivations into one compiler cache
@@ -711,6 +723,16 @@ function UsageOverview({
   const activeProviders = [...PROVIDER_ORDER].filter(
     (provider) => providersWithData.has(provider) || loading.providers.has(provider),
   );
+  // A row that left the list (another period or filter) can no longer clear its own pin, hover or
+  // focus, and would leave every other series dimmed.
+  const listed = (provider: UsageProviderKind | null) =>
+    provider === null || activeProviders.includes(provider);
+  if (!listed(pinnedProvider)) {
+    setClearedPin(pinnedProvider);
+    setPinnedProvider(null);
+  }
+  if (!listed(hoveredProvider)) setHoveredProvider(null);
+  if (!listed(focusedRow)) setFocusedRow(null);
   const chartLoadingProviders = new Set(
     activeProviders.filter((provider) => loadingProviders.has(provider)),
   );
@@ -905,7 +927,11 @@ function UsageOverview({
 
         <p role="status" className="sr-only">
           {announcedProvider === null
-            ? ""
+            ? clearedPin === null
+              ? ""
+              : gt("{provider} is not in this view, so no provider is dimmed.", {
+                  provider: PROVIDER_PRESENTATION[clearedPin].label,
+                })
             : gt("Showing {provider} in the chart. Other providers are dimmed.", {
                 provider: PROVIDER_PRESENTATION[announcedProvider].label,
               })}
@@ -1511,7 +1537,7 @@ function UsageProviderFilter({
 function UsageSkeleton({ providerCount }: { readonly providerCount: number }) {
   const gt = useGT();
   return (
-    <div className="usage-stack">
+    <div className="usage-stack usage-skeleton-stack">
       <header className="usage-headline-block" aria-hidden>
         <div className="usage-headline-skeleton">
           <Skeleton className="h-full w-full max-w-xl" />

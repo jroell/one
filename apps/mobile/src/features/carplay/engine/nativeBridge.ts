@@ -3,6 +3,8 @@ import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from "
 import { msg } from "gt-react-native";
 
 import { m } from "../../../i18n/messages";
+import { vibeLabelMessage } from "../ui/driveUiTypes";
+import { buildCarPlayLabels } from "./carplayLabels";
 import type {
   CarPlayActionEvent,
   CarPlayNativeAdapter,
@@ -42,7 +44,7 @@ function mapNativeAction(event: OneCarPlayNative.CarPlayActionEvent): CarPlayAct
   }
 }
 
-function toNativeDashboardState(
+export function toNativeDashboardState(
   payload: CarPlaySyncPayload,
 ): OneCarPlayNative.CarPlayDashboardState {
   const activeThread = payload.threads.find((thread) => thread.isSelected);
@@ -55,14 +57,15 @@ function toNativeDashboardState(
     personaId: payload.activePersonaId,
     personaName: payload.activePersonaName,
     topicTitle: payload.activeTopic,
-    liveCaption: payload.activeCaption,
+    // The voice-based CarPlay category speaks answers; the caption stays on the phone.
+    labels: buildCarPlayLabels(),
     activeThreadId: activeThread?.id ?? null,
     activeThreadTitle: activeThread?.title ?? null,
     voices: payload.voices.map((voice) => ({
       id: voice.id,
       displayName: voice.name,
       subtitle: voice.detail,
-      group: voice.isFavorite ? "Favorites" : voice.vibe[0]!.toUpperCase() + voice.vibe.slice(1),
+      group: voice.isFavorite ? m(msg("Favorites")) : m(vibeLabelMessage(voice.vibe)),
       vibe: voice.vibe,
       isFavorite: voice.isFavorite,
       isSelected: voice.isSelected,

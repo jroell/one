@@ -36,7 +36,6 @@ const SAMPLE_STATE: CarPlayDashboardState = {
   personaId: "copilot",
   personaName: "Road Co-Pilot",
   topicTitle: "Evening Commute",
-  liveCaption: "Listening for your next question.",
   voices: [
     {
       id: "marin",
@@ -91,6 +90,8 @@ describe("@t3tools/mobile-carplay-native", () => {
       audioSessionActive: true,
       muted: true,
       platform: "unsupported",
+      entitlementMode: "none",
+      voiceControlPresented: false,
     });
 
     await expect(enqueuePcmAudio("AAAA")).resolves.toBeUndefined();
@@ -128,6 +129,8 @@ describe("@t3tools/mobile-carplay-native", () => {
       getCarPlayStatus: vi.fn(async () => ({
         available: true,
         connected: true,
+        voiceControlPresented: true,
+        entitlementMode: "voice" as const,
         audioSessionActive: true,
         muted: false,
         platform: "ios" as const,
@@ -168,11 +171,14 @@ describe("@t3tools/mobile-carplay-native", () => {
     await stopFallbackSpeech();
     expect(nativeMock.stopFallbackSpeech).toHaveBeenCalledTimes(1);
 
-    await updateCarPlayState(SAMPLE_STATE);
-    expect(nativeMock.updateCarPlayState).toHaveBeenCalledWith(SAMPLE_STATE);
+    const localized = { ...SAMPLE_STATE, labels: { stateListening: "Escuchando" } };
+    await updateCarPlayState(localized);
+    expect(nativeMock.updateCarPlayState).toHaveBeenCalledWith(localized);
 
     const status = await getCarPlayStatus();
     expect(status.connected).toBe(true);
+    expect(status.entitlementMode).toBe("voice");
+    expect(status.voiceControlPresented).toBe(true);
     expect(status.audioRouteName).toBe("CarPlay");
 
     const sub = addCarPlayActionListener(() => undefined);

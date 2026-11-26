@@ -2,24 +2,53 @@
 const providerCounts = new Map<string, number>();
 
 /**
- * One key per selection: the environments chosen (all, or the sorted ids) and the providers
- * hidden, since both change how many provider rows the page shows.
+ * One key per selection: the machines present, the environments chosen (all, or the sorted ids) and
+ * the providers hidden, since each changes how many provider rows the page shows. The machines
+ * present are in it so another account's list in the same browser profile never recalls this one's.
  */
 export function selectionKey(
   selected: ReadonlySet<string> | null,
   hiddenProviders: ReadonlySet<string>,
+  presentEnvironmentIds: Iterable<string>,
 ): string {
   const environments = selected === null ? "all" : [...selected].toSorted().join(",");
-  return `${environments}|hidden:${[...hiddenProviders].toSorted().join(",")}`;
+  const present = [...presentEnvironmentIds].toSorted().join(",");
+  return `${present}|${environments}|hidden:${[...hiddenProviders].toSorted().join(",")}`;
 }
 
-const COUNT_STORAGE_PREFIX = "one:usage:providers:";
+const COUNT_STORAGE_KEY = "one:usage:providers";
+const LEGACY_COUNT_PREFIX = "one:usage:providers:";
+/** A person flips between a few selections; the oldest go first. */
+const MAX_STORED_COUNTS = 8;
+
+function readStoredCounts(): [string, number][] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(COUNT_STORAGE_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is [string, number] =>
+        Array.isArray(entry) && typeof entry[0] === "string" && Number.isInteger(entry[1]),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function removeLegacyCounts(): void {
+  for (const name of Object.keys(localStorage)) {
+    if (name.startsWith(LEGACY_COUNT_PREFIX)) localStorage.removeItem(name);
+  }
+}
 
 /** A settled answer of zero is remembered like any other count, and kept for the next session. */
 export function rememberProviderCount(key: string, count: number): void {
+  if (providerCounts.get(key) === count) return;
   providerCounts.set(key, count);
   try {
-    localStorage.setItem(COUNT_STORAGE_PREFIX + key, String(count));
+    const kept = readStoredCounts().filter(([stored]) => stored !== key);
+    kept.push([key, count]);
+    localStorage.setItem(COUNT_STORAGE_KEY, JSON.stringify(kept.slice(-MAX_STORED_COUNTS)));
+    removeLegacyCounts();
   } catch {
     // Private windows and blocked storage keep the count for this session only.
   }
@@ -28,15 +57,18 @@ export function rememberProviderCount(key: string, count: number): void {
 export function recalledProviderCount(key: string, fallback: number): number {
   const kept = providerCounts.get(key);
   if (kept !== undefined) return kept;
+  return readStoredCounts().find(([stored]) => stored === key)?.[1] ?? fallback;
+}
+
+/** An environment was removed or the account changed: no count kept for the old machines applies. */
+export function forgetProviderCounts(): void {
+  providerCounts.clear();
   try {
-    const stored = Number(localStorage.getItem(COUNT_STORAGE_PREFIX + key));
-    if (localStorage.getItem(COUNT_STORAGE_PREFIX + key) !== null && Number.isInteger(stored)) {
-      return stored;
-    }
+    localStorage.removeItem(COUNT_STORAGE_KEY);
+    removeLegacyCounts();
   } catch {
-    // Fall through to the default.
+    // Nothing kept in blocked storage.
   }
-  return fallback;
 }
 
 /**

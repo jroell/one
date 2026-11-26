@@ -6,7 +6,7 @@
 
 :root {
   /* Brand color. The standard theme uses One gold; a chosen theme lends its action color. */
-  --one-brand: #b98f1f;
+  --one-brand: var(--gold-fill);
   --one-ring-mid: var(--one-brand);
   --one-ring-hi: color-mix(in oklch, var(--one-brand) 36%, white);
   --one-ring-lo: color-mix(in oklch, var(--one-brand) 60%, black);
@@ -61,7 +61,7 @@
     );
     --one-glass-shadow: 0 1px 1px rgb(0 0 0 / 40%), 0 18px 40px -16px rgb(0 0 0 / 85%);
     --one-reflection: rgb(255 255 255 / 55%);
-    --one-brand: #d9b450;
+    --one-brand: var(--gold-fill);
     --one-brand-glow: color-mix(in oklch, var(--one-brand) 42%, transparent);
   }
 }
@@ -76,9 +76,9 @@ html:not([data-theme-id]),
 html[data-theme-id=""] {
   /* Light surfaces: this gold is deep enough to read as text (labels, links)
      and to carry white text as a fill. The ring keeps the brighter brand gold. */
-  --primary: #7f5f0c;
+  --primary: var(--gold-text);
   --primary-foreground: #ffffff;
-  --ring: #b98f1f;
+  --ring: var(--gold-fill);
   --stage-art-top: oklch(0.8 0.13 82);
   --stage-art-mid: oklch(0.62 0.145 62);
   --stage-art-bottom: oklch(0.4 0.1 48);
@@ -102,9 +102,9 @@ html[data-theme-id=""] {
   --stage-night-sparkle: oklch(0.9 0.06 90);
 
   @variant dark {
-    --primary: #d9b450;
+    --primary: var(--gold-text);
     --primary-foreground: #1a1304;
-    --ring: #d9b450;
+    --ring: var(--gold-fill);
     --stage-art-top: oklch(0.52 0.115 66);
     --stage-art-mid: oklch(0.37 0.095 56);
     --stage-art-bottom: oklch(0.21 0.05 50);
@@ -410,10 +410,18 @@ html[data-one-mode="chat"] {
   --chat-content-max-width: 43rem;
 }
 
+/* The switch between Code and Chat is one motion of --mo-sheet: the sidebar slides out (or back)
+   as its own layer, the column re-centres and the type changes in the cross-fade behind it. */
+html[data-one-mode-transition] [data-slot="sidebar-container"] {
+  view-transition-name: one-sidebar;
+}
+
+html[data-one-mode-transition]::view-transition-group(root),
+html[data-one-mode-transition]::view-transition-group(one-sidebar),
 html[data-one-mode-transition]::view-transition-old(root),
 html[data-one-mode-transition]::view-transition-new(root) {
-  animation-duration: 280ms;
-  animation-timing-function: var(--one-ease-out);
+  animation-duration: var(--mo-sheet, 320ms);
+  animation-timing-function: var(--ease-enter, var(--one-ease-out));
 }
 
 /* Chat mode composer: a rounder, lifted bar, closer to a message field than an editor. */
@@ -712,13 +720,7 @@ html[data-one-opening-cover] .one-chat-welcome-orb {
   width: 220%;
   aspect-ratio: 1;
   translate: -50% -50%;
-  background: conic-gradient(
-    transparent 0deg,
-    transparent 250deg,
-    color-mix(in oklch, var(--one-brand) 55%, transparent) 310deg,
-    var(--one-ring-hi) 345deg,
-    transparent 360deg
-  );
+  background: var(--one-comet);
 }
 
 @media (prefers-reduced-motion: no-preference) {

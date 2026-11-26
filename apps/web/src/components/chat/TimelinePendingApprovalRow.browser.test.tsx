@@ -502,6 +502,8 @@ it("shows the file type a single file carries, which only the list can show", as
 
 function cardWith(options: {
   responding?: boolean;
+  chordHints?: boolean;
+  leaving?: ReadonlyMap<string, unknown>;
   pending?: ReadonlyMap<string, unknown>;
   onRespond?: () => Promise<unknown>;
 }) {
@@ -514,6 +516,8 @@ function cardWith(options: {
     activeThreadEnvironmentId: EnvironmentId.make("environment"),
     turnItemSource: { detail: () => Atom.make(AsyncResult.success({ item: null })) },
     pendingApprovals: options.pending ?? new Map([[requestId, approval({})]]),
+    approvalChordHints: options.chordHints ?? true,
+    ...(options.leaving ? { leavingApprovals: options.leaving, onApprovalLeft: () => {} } : {}),
   } as never;
   return (
     <TimelineRowCtx value={shared}>
@@ -551,6 +555,24 @@ it("shows the Approve and Decline chords on the card the chords act on, and no o
   const other = RuntimeRequestId.make("older");
   await using later = await render(
     cardWith({ pending: new Map([[other, approval({ requestId: other })]]) }),
+    { router: false },
+  );
+  expect(later.container.querySelectorAll("[data-approval-hint]")).toHaveLength(0);
+});
+
+it("shows no chord hint where the chords cannot answer: an embedded timeline, or a card that is leaving", async () => {
+  await using embedded = await render(cardWith({ chordHints: false }), { router: false });
+  expect(embedded.container.querySelectorAll("[data-approval-hint]")).toHaveLength(0);
+  // A leaving request is already answered, so the next waiting card takes the hint, not this one.
+  const next = RuntimeRequestId.make("next");
+  await using later = await render(
+    cardWith({
+      pending: new Map<string, unknown>([
+        [requestId, approval({})],
+        [next, approval({ requestId: next })],
+      ]),
+      leaving: new Map([[requestId, "accept"]]),
+    }),
     { router: false },
   );
   expect(later.container.querySelectorAll("[data-approval-hint]")).toHaveLength(0);
@@ -667,5 +689,21 @@ it("keeps the pressed button reading Approving… at full strength while the car
     );
   } finally {
     clearApprovalDecision(requestId);
+  }
+});
+
+it("names the outcome this client decided, and says Answered when it did not decide", async () => {
+  for (const [decision, label] of [
+    ["accept", "Approved"],
+    ["acceptAlways", "Approved"],
+    ["decline", "Declined"],
+    ["cancel", "Cancelled"],
+    [null, "Answered"],
+  ] as const) {
+    await using screen = await render(leavingCard(decision as never, vi.fn()), { router: false });
+    expect(
+      screen.container.querySelector("[data-approval-outcome]")!.textContent,
+      `${decision}`,
+    ).toBe(label);
   }
 });

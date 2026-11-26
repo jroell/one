@@ -11,8 +11,14 @@ import {
 } from "@t3tools/contracts";
 import * as Equal from "effect/Equal";
 import { useGT } from "gt-react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
-import { createContext, type ComponentPropsWithoutRef, type ReactNode, useContext } from "react";
+import { useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  createContext,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+  useContext,
+  useLayoutEffect,
+} from "react";
 
 import {
   PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE,
@@ -33,6 +39,7 @@ import {
   scopedSettingsSource,
 } from "./scopedSettings";
 import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
+import { releaseOutgoingSettingsPage } from "./settingsPageCrossfade";
 import {
   SettingInheritance,
   type SettingInheritanceState,
@@ -689,6 +696,11 @@ export function SettingsPageContainer({
     select: (location) => location.state.settingsTargetHighlight !== false,
   });
   const targetId = hash.replace(/^#/, "") || null;
+  const resolvedHref = useRouterState({ select: (state) => state.resolvedLocation?.href });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- fades out the held copy of the previous page once this page's DOM is in place
+  useLayoutEffect(() => {
+    if (resolvedHref !== undefined) releaseOutgoingSettingsPage();
+  }, [resolvedHref]);
   const clearTargetHash = () => {
     void navigate({
       hash: "",
@@ -712,7 +724,7 @@ export function SettingsPageContainer({
         <WorkspacePageContainer
           width={width}
           data-settings-page=""
-          className={cn("gap-8", className)}
+          className={cn("gap-8", width === "readable" && "max-w-[45rem]", className)}
         >
           <div data-settings-page-top="" className="flex flex-col gap-3 empty:hidden">
             <SettingsPageHeader />

@@ -4,13 +4,14 @@ import { toastManager } from "~/components/ui/toast";
 import { m } from "~/i18n/messages";
 import { getVoiceBridge, type VoiceBridge } from "./voiceBridge";
 import { dispatchVoiceSession, getVoiceSession } from "./voiceSession";
+import { rememberVoiceLauncher } from "./voiceStageMotion";
 import { getWorkspaceMode, setWorkspaceMode } from "./workspaceMode";
 
 /**
  * Opens voice chat on the composer's thread. A spoken question is sent on its
  * own, so an unfinished draft has to be sent or cleared first.
  */
-export function startVoiceChat(voice: VoiceBridge): void {
+export function startVoiceChat(voice: VoiceBridge, origin: Element | null = null): void {
   // A dictation already under way belongs to the editor; voice chat must not take it over and send it.
   // A recorder stopped by an error is nobody's: the new conversation clears it and starts fresh.
   if (voice.phase !== "idle" && voice.phase !== "error") return;
@@ -35,6 +36,9 @@ export function startVoiceChat(voice: VoiceBridge): void {
     return;
   }
   if (voice.phase === "error") voice.cancel();
+  // The ring flies in from the control that opened this conversation, and from nothing else: a
+  // start that was refused above never reaches here, so it cannot leave its button behind.
+  rememberVoiceLauncher(origin);
   dispatchVoiceSession({ type: "start", threadKey: voice.threadKey, isDraft: voice.isDraft });
 }
 

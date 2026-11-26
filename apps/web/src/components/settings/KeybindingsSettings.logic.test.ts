@@ -590,8 +590,8 @@ describe("spokenShortcutLabel", () => {
     expect(
       group.rows.map((row) => [commandActionLabel(row.command, undefined, "approval"), row.key]),
     ).toEqual([
-      ["Approve", "mod+alt+y"],
-      ["Decline", "mod+alt+d"],
+      ["Approve", "mod+shift+y"],
+      ["Decline", "mod+shift+u"],
     ]);
     // Outside the group the full name stays; a user rule for the command shows as its own row.
     expect(commandLabel("approval.approve" as never)).toBe("Approval: approve");

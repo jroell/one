@@ -10,6 +10,7 @@ import {
   resolveCommandPaletteProject,
   buildThreadActionItems,
   cachedThreadActionItems,
+  itemTimestamp,
   resolveItemContent,
   buildLinkedThreadActionItems,
   filterPinnedBrowseEntries,
@@ -167,6 +168,37 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
 }
 
 describe("buildThreadActionItems", () => {
+  it("shows a cached thread row's time as of each opening, not as of when the row was built", () => {
+    const built = Date.parse("2026-03-20T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(built);
+    try {
+      const thread = makeThread({ updatedAt: new Date(built - 2 * 60_000).toISOString() });
+      const deps = [[thread]];
+      const open = () =>
+        cachedThreadActionItems(deps, () =>
+          buildThreadActionItems({
+            threads: [thread],
+            projectByKey: new Map([
+              [`${thread.environmentId}:${thread.projectId}`, { title: "P" }],
+            ]),
+            icon: null,
+            runThread: async (_thread) => undefined,
+          }),
+        );
+
+      const first = open();
+      expect(itemTimestamp(first[0]!)).toBe("2m ago");
+
+      vi.setSystemTime(built + 60 * 60_000);
+      const second = open();
+      expect(second, "the expensive part is still cached").toBe(first);
+      expect(itemTimestamp(second[0]!)).toBe("1h ago");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps threads apart when two environments share a thread ID", async () => {
     const local = makeThread();
     const remote = makeThread({ environmentId: EnvironmentId.make("remote-copy") });

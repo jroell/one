@@ -46,6 +46,8 @@ export const SCENARIOS = [
   { id: "showcase", name: "Showcase", file: "./dev-replay/showcase_transcript.ndjson" },
   // A long streamed answer in paragraphs: prose, a quote, a list, code, a table and headings.
   { id: "reading", name: "Reading", file: "./dev-replay/reading_transcript.ndjson" },
+  // A plain answer with three headings and bold terms, the first words 1.8 seconds after the ask.
+  { id: "build", name: "Build", file: "./dev-replay/build_transcript.ndjson" },
   // A reply that is one fenced quiz block, streamed in pieces, as "Quiz me on this" asks for.
   { id: "quiz", name: "Quiz", file: "./dev-replay/quiz_transcript.ndjson" },
   // The same ask, answered with a quiz block that cannot be read: the reading view must not show it.

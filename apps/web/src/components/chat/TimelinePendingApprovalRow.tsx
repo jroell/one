@@ -2,6 +2,7 @@ import {
   FULL_ACCESS_OVERRIDE_QUESTION,
   fullAccessOverrideExplanation,
 } from "@t3tools/client-runtime/state/thread-requests";
+import { chordApprovalRequestId } from "./approvalChord";
 import { msg, T, useGT, useMessages } from "gt-react";
 import { CheckIcon, ShieldIcon, XIcon } from "lucide-react";
 import { shortcutLabelForCommand } from "../../keybindings";
@@ -216,8 +217,16 @@ function ApprovalFileList({
   );
 }
 
-function approvalOutcomeApproved(decision: string | null | undefined): boolean {
-  return decision === "accept" || decision === "acceptForSession" || decision === "acceptAlways";
+/** What this client decided, or "answered" when it did not (another device, the provider). */
+function approvalOutcome(
+  decision: string | null | undefined,
+): "approved" | "declined" | "cancelled" | "answered" {
+  if (decision === "accept" || decision === "acceptForSession" || decision === "acceptAlways") {
+    return "approved";
+  }
+  if (decision === "decline") return "declined";
+  if (decision === "cancel") return "cancelled";
+  return "answered";
 }
 
 /** A single file whose type or mime type only the list shows. */
@@ -369,20 +378,26 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
     pendingApprovals,
     leavingApprovals,
     onApprovalLeft,
+    approvalChordHints,
   } = use(TimelineRowCtx);
   const cardRef = useRef<HTMLDivElement>(null);
   const leavingDecision = leavingApprovals?.get(approval.requestId);
+  const outcome = approvalOutcome(leavingDecision);
   const leaving = leavingApprovals?.has(approval.requestId) === true;
   const subject = use(ApprovalSubjectContext).get(approval.requestId);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  // The Approve and Decline chords act on the oldest waiting request, so only its card shows them.
-  const actedOn = pendingApprovals?.keys().next().value === approval.requestId;
-  const shortcuts = actedOn
-    ? {
-        accept: shortcutLabelForCommand(keybindings, "approval.approve"),
-        decline: shortcutLabelForCommand(keybindings, "approval.decline"),
-      }
-    : undefined;
+  // The chords answer the oldest waiting request that is not leaving, and only in the chat view's
+  // own timeline, so only that card shows them, and only while they can answer it.
+  const actedOn =
+    approvalChordHints === true &&
+    chordApprovalRequestId(pendingApprovals?.keys() ?? [], leavingApprovals) === approval.requestId;
+  const shortcuts =
+    actedOn && canOperateThread && approval.responseCapability === "live"
+      ? {
+          accept: shortcutLabelForCommand(keybindings, "approval.approve"),
+          decline: shortcutLabelForCommand(keybindings, "approval.decline"),
+        }
+      : undefined;
   const m = useMessages();
   const gt = useGT();
   // The card leaves over its own animations: when they end, or at once when there are none (reduced
@@ -415,9 +430,7 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
         aria-label={m(presentation.label)}
         data-approval-card=""
         data-leaving={leaving ? "" : undefined}
-        data-outcome={
-          leaving ? (approvalOutcomeApproved(leavingDecision) ? "approved" : "declined") : undefined
-        }
+        data-outcome={leaving ? approvalOutcome(leavingDecision) : undefined}
         data-responding={
           leaving || respondingRequestIds.includes(approval.requestId) ? "" : undefined
         }
@@ -483,12 +496,15 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
           <div data-approval-status="">
             {leaving ? (
               <span data-approval-outcome="">
-                {approvalOutcomeApproved(leavingDecision) ? (
-                  <CheckIcon aria-hidden />
-                ) : (
-                  <XIcon aria-hidden />
-                )}
-                {approvalOutcomeApproved(leavingDecision) ? gt("Approved") : gt("Declined")}
+                {outcome === "approved" ? <CheckIcon aria-hidden /> : null}
+                {outcome === "declined" || outcome === "cancelled" ? <XIcon aria-hidden /> : null}
+                {outcome === "approved"
+                  ? gt("Approved")
+                  : outcome === "declined"
+                    ? gt("Declined")
+                    : outcome === "cancelled"
+                      ? gt("Cancelled")
+                      : gt("Answered")}
               </span>
             ) : canRespond ? (
               <Badge variant="warning">

@@ -114,6 +114,29 @@ const LATE_DEFAULT_KEYBINDINGS: ReadonlyArray<{
   },
 ];
 
+/**
+ * A default that moved to another chord. Startup rewrites a persisted rule that is exactly the old
+ * default, once; a rule the person changed (another key or condition) is theirs and stays.
+ */
+const REKEYED_DEFAULT_KEYBINDINGS: ReadonlyArray<{
+  readonly id: string;
+  readonly from: KeybindingRule;
+  readonly to: KeybindingRule;
+}> = [
+  {
+    // Option-Command-D hides the Dock on macOS, so the app never saw it, and AltGr is Ctrl+Alt on
+    // Windows, so Ctrl+Alt+letter types a character on many layouts.
+    id: "approval.decline:mod+shift+u",
+    from: { key: "mod+alt+d", command: "approval.decline", when: "!terminalFocus" },
+    to: { key: "mod+shift+u", command: "approval.decline", when: "!terminalFocus" },
+  },
+  {
+    id: "approval.approve:mod+shift+y",
+    from: { key: "mod+alt+y", command: "approval.approve", when: "!terminalFocus" },
+    to: { key: "mod+shift+y", command: "approval.approve", when: "!terminalFocus" },
+  },
+];
+
 function keybindingShortcutContext(rule: KeybindingRule): string | null {
   const parsed = parseKeybindingShortcut(rule.key);
   if (!parsed) return null;
@@ -475,13 +498,17 @@ const make = Effect.gen(function* () {
       const pendingLateDefaults = LATE_DEFAULT_KEYBINDINGS.filter(
         (late) => !appliedMigrationIds.has(late.id),
       );
+      const pendingRekeys = REKEYED_DEFAULT_KEYBINDINGS.filter(
+        (rekey) => !appliedMigrationIds.has(rekey.id),
+      );
       const configExists = yield* readConfigExists;
       if (!configExists) {
         yield* writeConfigAtomically(DEFAULT_KEYBINDINGS);
-        if (pendingLateDefaults.length > 0) {
+        if (pendingLateDefaults.length > 0 || pendingRekeys.length > 0) {
           yield* recordAppliedMigrations([
             ...appliedMigrationIds,
             ...LATE_DEFAULT_KEYBINDINGS.map((late) => late.id),
+            ...REKEYED_DEFAULT_KEYBINDINGS.map((rekey) => rekey.id),
           ]);
         }
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
@@ -500,7 +527,15 @@ const make = Effect.gen(function* () {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }
-      const customConfig = runtimeConfig.keybindings;
+      let customConfig = runtimeConfig.keybindings;
+      let rekeyedAny = false;
+      for (const { from, to } of pendingRekeys) {
+        const index = customConfig.findIndex((entry) => isSameKeybindingRule(entry, from));
+        if (index === -1 || customConfig.some((entry) => hasSameShortcutContext(entry, to)))
+          continue;
+        customConfig = customConfig.map((entry, at) => (at === index ? to : entry));
+        rekeyedAny = true;
+      }
       const existingCommands = new Set(customConfig.map((entry) => entry.command));
       const missingDefaults: KeybindingRule[] = [];
       const shortcutConflictWarnings: Array<{
@@ -576,14 +611,17 @@ const make = Effect.gen(function* () {
       }
       if (defaultsToAppend.length > 0) {
         yield* writeConfigAtomically([...defaultsToAppend, ...customConfig]);
+      } else if (rekeyedAny) {
+        yield* writeConfigAtomically(customConfig);
       }
       const settledLateDefaults = pendingLateDefaults.filter(
         (late) => !skippedDefaults.includes(late.rule),
       );
-      if (settledLateDefaults.length > 0) {
+      if (settledLateDefaults.length > 0 || pendingRekeys.length > 0) {
         yield* recordAppliedMigrations([
           ...appliedMigrationIds,
           ...settledLateDefaults.map((late) => late.id),
+          ...pendingRekeys.map((rekey) => rekey.id),
         ]);
       }
       yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);

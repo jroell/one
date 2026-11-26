@@ -3,7 +3,7 @@ import indexHtml from "../../index.html?raw";
 import { expect, it } from "vite-plus/test";
 
 /** Puts the boot screen's styles and markup on the page for one test and takes them off again. */
-function bootScreen(): Disposable & { readonly arc: HTMLElement; readonly host: HTMLElement } {
+function bootScreen(): Disposable & { readonly host: HTMLElement } {
   const parsed = new DOMParser().parseFromString(indexHtml, "text/html");
   const styles = [...parsed.querySelectorAll("style")].map((source) => {
     const style = document.createElement("style");
@@ -15,7 +15,6 @@ function bootScreen(): Disposable & { readonly arc: HTMLElement; readonly host: 
   host.innerHTML = parsed.querySelector("#boot-shell")!.outerHTML;
   document.body.append(host);
   return {
-    arc: host.querySelector<HTMLElement>("#boot-shell-arc")!,
     host,
     [Symbol.dispose]: () => {
       host.remove();
@@ -35,41 +34,26 @@ function atTime(element: Element, ms: number) {
   }
 }
 
-it("shows the progress arc after the title moment while an opening is planned but not armed", () => {
+it("draws no orbit arc around the ring: the ring itself carries the wait", () => {
   using screen = bootScreen();
-  document.documentElement.dataset.oneOpening = "";
-  atTime(screen.arc, 2000);
-  expect(getComputedStyle(screen.arc).display).not.toBe("none");
-  expect(getComputedStyle(screen.arc).opacity).toBe("1");
+  expect(screen.host.querySelector("svg#boot-shell-arc, #boot-shell-arc")).toBeNull();
 });
 
-it("does not show the progress arc during the title moment, so a quick boot never shows it", () => {
+it("turns the ring about its vertical axis once every 8 seconds, after it has settled, without moving layout", () => {
   using screen = bootScreen();
-  atTime(screen.arc, 900);
-  expect(getComputedStyle(screen.arc).opacity).toBe("0");
-});
-
-it("hides the progress arc once the opening is armed", () => {
-  using screen = bootScreen();
-  document.documentElement.dataset.oneOpening = "";
-  document.documentElement.dataset.oneOpeningArmed = "";
-  expect(getComputedStyle(screen.arc).display).toBe("none");
-});
-
-it("turns the arc once every 1.2 seconds with a transform, not by changing layout", () => {
-  using screen = bootScreen();
-  const circle = screen.arc.querySelector("circle")!;
+  const ring = screen.host.querySelector<HTMLElement>("#boot-shell-ring")!;
   const turned = (ms: number) => {
-    atTime(circle, ms);
-    const matrix = /matrix\(([^,]+), ([^,]+),/.exec(getComputedStyle(circle).transform);
-    return Math.round((Math.atan2(Number(matrix?.[2]), Number(matrix?.[1])) * 180) / Math.PI);
+    atTime(ring, ms);
+    const degrees = /(-?\d+(?:\.\d+)?)deg/.exec(getComputedStyle(ring).rotate)?.[1];
+    return Math.round(Number(degrees ?? 0));
   };
-  expect(Math.abs(turned(600))).toBe(180);
-  expect(Math.abs(turned(300))).toBe(90);
-  const names = circle
+  expect(turned(600)).toBe(0);
+  expect(turned(900 + 2000)).toBe(90);
+  expect(turned(900 + 4000)).toBe(180);
+  const animated = ring
     .getAnimations()
     .map((animation) => (animation as CSSAnimation).animationName);
-  expect(names).toEqual(["boot-arc-turn"]);
+  expect(animated).toContain("boot-ring-turn");
 });
 
 it("plays the title moment: the ring settles, the sweep crosses and clears, the name arrives after it", () => {

@@ -533,6 +533,30 @@ describe("EnvironmentProviderSettings page", () => {
 });
 
 describe("EnvironmentProviderSettings status wording", () => {
+  it("claims nothing before the server has reported a provider: a Checking chip, never Needs attention", async () => {
+    await setup();
+    state.settings = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providerInstances: {
+        [customId]: {
+          driver: ProviderDriverKind.make("codex"),
+          enabled: true,
+          displayName: "Work",
+        },
+      },
+    };
+    await setProviders([]);
+    await using _screen = await render(panel(), { router: "/settings/providers" });
+
+    await expect.element(page.getByText("Work", { exact: true })).toBeVisible();
+    const row = document.querySelector("[data-provider-row]")!.parentElement!;
+    expect(row.querySelector("[data-settings-status]")?.getAttribute("data-settings-status")).toBe(
+      "checking",
+    );
+    expect(row.textContent).not.toContain("Needs attention");
+    expect(row.textContent).not.toContain("Waiting for the server to report");
+  });
+
   it("says a ready provider's state once, as a Ready chip, with the plan as plain text and no Available or Authenticated beside it", async () => {
     await setup();
     await setProviders([provider()]);

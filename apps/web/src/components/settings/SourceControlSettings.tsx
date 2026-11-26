@@ -15,13 +15,14 @@ import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { cn } from "../../lib/utils";
 import { useEnvironmentQuery } from "../../state/query";
+import { appAtomRegistry } from "../../rpc/atomRegistry";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { serverEnvironment } from "../../state/server";
 import { sourceControlEnvironment } from "../../state/sourceControl";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsibleContent } from "../ui/collapsible";
 import { SettingsEmptyState } from "./SettingsEmptyState";
-import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { T, useGT, useMessages, Var } from "gt-react";
@@ -358,7 +359,7 @@ interface PendingDiscoveryItem {
 }
 
 /** The tools this page asks about, named while the server checks which are installed. */
-function SourceControlPendingSection({
+export function SourceControlPendingSection({
   title,
   headerAction,
   waiting,
@@ -389,9 +390,16 @@ function SourceControlPendingSection({
             </span>
             <span className="truncate">{item.label}</span>
           </span>
-          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-(--settings-description)">
-            <Spinner size="sm" tone="muted" />
-            {gt("Checking…")}
+          {/* One quiet mark per tool, and only after 250 ms: never a column of "Checking…". */}
+          <span
+            role="status"
+            className="settings-late inline-flex size-5 shrink-0 items-center justify-center"
+          >
+            <span
+              aria-hidden
+              className="size-1.5 rounded-full bg-(--settings-description) motion-safe:animate-pulse"
+            />
+            <span className="sr-only">{gt("Checking")}</span>
           </span>
         </div>
       ))}
@@ -433,6 +441,14 @@ function EmptySourceControlDiscovery({
       />
     </SettingsSection>
   );
+}
+
+/** Starts the environment scan ahead of the page and holds the result for a minute. */
+export function prefetchSourceControlDiscovery(environmentId: EnvironmentId): void {
+  const release = appAtomRegistry.mount(
+    sourceControlEnvironment.discovery({ environmentId, input: {} }),
+  );
+  window.setTimeout(release, 60_000);
 }
 
 export function SourceControlSettingsPanel() {
@@ -595,11 +611,7 @@ export function SourceControlSettingsPanel() {
                     <T>Retry</T>
                   </Button>
                 </>
-              ) : (
-                <span>
-                  <T>Checking Git and the hosting tools installed on this machine…</T>
-                </span>
-              )
+              ) : undefined
             }
           />
           <SourceControlPendingSection

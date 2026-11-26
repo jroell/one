@@ -21,11 +21,12 @@ export function AboutHero({ id }: { readonly id?: string }) {
     <SettingsSearchTarget
       {...(id === undefined ? {} : { id })}
       data-settings-about-hero=""
-      className="flex items-center gap-5 px-3 sm:px-4"
+      className="one-mark-host flex flex-col items-center gap-5 px-3 py-8 text-center sm:px-4"
     >
-      {/* The same lit mark as the boot screen, with no glow disc behind it. */}
-      <OneMark className="size-16 shrink-0" size={64} style={{ filter: "none" }} />
-      <div className="flex min-w-0 flex-col gap-1.5">
+      {/* The page where the ring is the subject: its rest pose at the largest size, alive to the
+          pointer (the sweep on hover, the squash on press). */}
+      <OneMark interactive className="size-44 shrink-0" size={176} />
+      <div className="flex min-w-0 flex-col items-center gap-1.5">
         <p data-settings-about-name="">{APP_BASE_NAME}</p>
         <p data-settings-about-version="">
           <T>Version</T> <span>{APP_VERSION}</span>

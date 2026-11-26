@@ -453,9 +453,9 @@ const STANDARD_WEB_PAINTED_COLORS: Record<ThemeAppearance, Partial<ThemeColors>>
   },
   dark: {
     canvas: "#0a0908",
-    surface: "#17130e",
-    surfaceRaised: "#17130e",
-    messageSurface: "#2b231a",
+    surface: "#17140f",
+    surfaceRaised: "#17140f",
+    messageSurface: "#17140f",
   },
 };
 
@@ -749,6 +749,8 @@ export function contextChipVariables(colors: ThemeColors): Readonly<Record<strin
   const messageMatchesCanvas = isDark(onCanvas(colors.messageSurface)) === isDark(canvas);
   const surfaces = [canvas, onCanvas(colors.surface), onCanvas(colors.surfaceRaised)];
   if (messageMatchesCanvas) surfaces.push(onCanvas(colors.messageSurface));
+  // A chip also sits in a field, whose fill can be lighter than every card.
+  if (isDark(onCanvas(colors.input)) === isDark(canvas)) surfaces.push(onCanvas(colors.input));
   const contrastOnSurfaces = (color: ThemeRgbColor) =>
     Math.min(...surfaces.map((surface) => themeContrastRatio(color, surface)));
   const blackContrast = contrastOnSurfaces(THEME_BLACK_FOREGROUND);

@@ -7,8 +7,8 @@ const DRAW_SETTLE_MS = 1600;
 
 /**
  * Prepares a mounted diagram's SVG for its first drawing: nodes fade in, then each edge is drawn
- * on, a beat after the one before. Only the first render draws; a resize that lays the diagram
- * out again leaves it still. The drawing's own styles live in one-chat.css.
+ * on, a beat after the one before (a dotted edge fades in instead). Only the first render draws; a
+ * resize that lays the diagram out again leaves it still. The styles live in one-chat.css.
  */
 export function drawDiagramOn(container: HTMLElement) {
   let drawn = false;
@@ -23,8 +23,12 @@ export function drawDiagramOn(container: HTMLElement) {
       const labels = container.querySelectorAll<SVGGElement>(".pele-edge-label");
       for (const [index, edge] of edges.entries()) {
         edge.style.setProperty("--edge-i", String(index));
-        for (const path of edge.querySelectorAll("path:not(.pele-marker)")) {
-          path.setAttribute("pathLength", "1");
+        for (const path of edge.querySelectorAll<SVGPathElement>("path:not(.pele-marker)")) {
+          // A dotted or dashed edge keeps its own pattern: pathLength would rescale it into a
+          // solid line, so it fades in instead of being drawn on.
+          const dash = path.getAttribute("stroke-dasharray");
+          if (dash !== null && dash !== "none") path.dataset.dashed = "";
+          else path.setAttribute("pathLength", "1");
         }
         const id = edge.dataset.id;
         for (const label of labels) {

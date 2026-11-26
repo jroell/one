@@ -11,6 +11,9 @@ export const REFLECT_PROXIMITY_PX = 24;
 export const REMEASURE_MS = 250;
 
 const REFLECT_SELECTOR = "[data-one-reflect]";
+/** A gold button's pool of light follows the pointer while it is hovered. */
+const BUTTON_SELECTOR =
+  '[data-button][data-variant="default"], [data-composer-send]:not([data-stage])';
 /** While the agent works the edge light travels around the surface on its own and ignores the pointer. */
 const WORKING_SELECTOR = "[data-one-working]";
 
@@ -45,6 +48,7 @@ export function installOneReflections(): () => void {
   let epoch = 0;
   let frame = 0;
   let active: HTMLElement | null = null;
+  let button: { readonly element: HTMLElement; rect: DOMRectReadOnly | null } | null = null;
   let x = 0;
   let y = 0;
 
@@ -134,9 +138,21 @@ export function installOneReflections(): () => void {
     return true;
   };
 
+  const writeButton = () => {
+    if (!button) return;
+    if (!button.element.isConnected) {
+      button = null;
+      return;
+    }
+    button.rect ??= button.element.getBoundingClientRect();
+    button.element.style.setProperty("--one-mx", `${Math.round(x - button.rect.left)}px`);
+    button.element.style.setProperty("--one-my", `${Math.round(y - button.rect.top)}px`);
+  };
+
   const apply = () => {
     frame = 0;
     if (active && !write(active)) active = null;
+    writeButton();
   };
 
   const sweepDetached = () => {
@@ -150,10 +166,18 @@ export function installOneReflections(): () => void {
     x = event.clientX;
     y = event.clientY;
     active = surfaceAt(event.target);
-    if (active && frame === 0) frame = requestAnimationFrame(apply);
+    const over =
+      event.target instanceof Element ? event.target.closest<HTMLElement>(BUTTON_SELECTOR) : null;
+    if (over?.hasAttribute("disabled")) {
+      button = null;
+    } else if (over !== (button?.element ?? null)) {
+      button = over ? { element: over, rect: null } : null;
+    }
+    if ((active || button) && frame === 0) frame = requestAnimationFrame(apply);
   };
   const onLayoutChange = () => {
     epoch++;
+    if (button) button.rect = null;
   };
 
   document.addEventListener("pointermove", onPointerMove, { passive: true });

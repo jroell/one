@@ -140,8 +140,10 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
   { key: "mod+z", command: "thread.undo", when: "!terminalFocus && !editableFocus" },
   // A request waiting on the person: the card shows both chords. Neither acts when none waits.
-  { key: "mod+alt+y", command: "approval.approve", when: "!terminalFocus" },
-  { key: "mod+alt+d", command: "approval.decline", when: "!terminalFocus" },
+  // Not mod+alt+letter (Option-Command-D hides the Dock; AltGr is Ctrl+Alt on Windows) and not
+  // Cmd+Shift+Backspace (Chrome's Clear browsing data). Known gap: IBus on Linux takes Ctrl+Shift+U.
+  { key: "mod+shift+y", command: "approval.approve", when: "!terminalFocus" },
+  { key: "mod+shift+u", command: "approval.decline", when: "!terminalFocus" },
   ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
     key: `mod+${index + 1}`,
     command,

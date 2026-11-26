@@ -298,3 +298,69 @@ describe("releasing a surface that closed", () => {
     disconnected.mockRestore();
   });
 });
+
+describe("the pointer light on a gold button", () => {
+  const goldButton = (parent: HTMLElement, left: number, top: number) => {
+    const button = document.createElement("button");
+    button.setAttribute("data-button", "");
+    button.dataset.variant = "default";
+    button.style.cssText = `position:fixed;left:${left}px;top:${top}px;width:120px;height:32px`;
+    parent.append(button);
+    return button;
+  };
+
+  it("writes the pointer's place inside the button once per frame however many moves arrive", () => {
+    using page = setup();
+    const button = goldButton(page.elsewhere, 400, 100);
+    const setProperty = vi.spyOn(button.style, "setProperty");
+
+    page.move(button, 410, 110);
+    page.move(button, 430, 112);
+    page.move(button, 460, 120);
+    expect(page.frameRequests).toHaveBeenCalledTimes(1);
+    page.flush();
+
+    expect(button.style.getPropertyValue("--one-mx")).toBe("60px");
+    expect(button.style.getPropertyValue("--one-my")).toBe("20px");
+    expect(setProperty).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps lighting the composer's rim while the pointer is over a gold button inside it", () => {
+    using page = setup();
+    const button = goldButton(page.plain.element, 20, 10);
+
+    page.move(button, 50, 120);
+    page.flush();
+
+    expect(button.style.getPropertyValue("--one-mx")).toBe("30px");
+    expect(page.plain.element.style.getPropertyValue("--one-mx")).toBe("-50px");
+  });
+
+  it("stops writing once the pointer leaves the button, and never writes to a disabled one", () => {
+    using page = setup();
+    const button = goldButton(page.elsewhere, 400, 100);
+    const disabled = goldButton(page.elsewhere, 600, 100);
+    disabled.disabled = true;
+
+    page.move(button, 410, 110);
+    page.flush();
+    const calls = vi.spyOn(button.style, "setProperty");
+    page.move(page.elsewhere, 900, 700);
+    page.flush();
+    page.move(disabled, 610, 110);
+    page.flush();
+
+    expect(calls).not.toHaveBeenCalled();
+    expect(disabled.style.getPropertyValue("--one-mx")).toBe("");
+  });
+
+  it("writes nothing while the user prefers reduced motion", () => {
+    using page = setup({ reduceMotion: true });
+    const button = goldButton(page.elsewhere, 400, 100);
+
+    page.move(button, 410, 110);
+    page.flush();
+
+    expect(button.style.getPropertyValue("--one-mx")).toBe("");
+  });
+});

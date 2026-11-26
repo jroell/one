@@ -103,6 +103,8 @@ public final class OneCarPlayModule: Module {
       return [
         "available": true,
         "connected": OneCarPlayCoordinator.shared.isConnected,
+        "voiceControlPresented": OneCarPlayCoordinator.shared.isVoiceControlPresented,
+        "entitlementMode": OneCarPlayEntitlementMode.current.rawValue,
         "audioSessionActive": self.audioEngine.audioSessionActive,
         "muted": self.audioEngine.muted,
         "platform": "ios",

@@ -80,6 +80,15 @@ type BaseToastManager = ReturnType<typeof Toast.createToastManager<ThreadToastDa
 type BufferedToastManager = BaseToastManager & { readonly queue: ToastQueue | null };
 /** The thread whose scoped toasts may be shown; set by the viewport. */
 let queueActiveThreadRef: ScopedThreadRef | null = null;
+/** While true no toast is shown: new ones wait in the queue, and the one on screen goes back to it. */
+let toastsSuppressed = false;
+
+/** The voice stage turns toasts off while it is open and on again when it closes. */
+export function setToastsSuppressed(suppressed: boolean): void {
+  if (toastsSuppressed === suppressed) return;
+  toastsSuppressed = suppressed;
+  toastManager.queue?.refresh();
+}
 type ToastManagerListener = Parameters<BaseToastManager[" subscribe"]>[0];
 type ToastManagerEvent = Parameters<ToastManagerListener>[0];
 
@@ -93,6 +102,8 @@ function createBufferedToastManager(options: { queued: boolean }): BufferedToast
   const listeners = new Set<ToastManagerListener>();
   const pending: ToastManagerEvent[] = [];
   const deliver = (event: ToastManagerEvent) => {
+    // An anchored confirmation is momentary, so one raised under suppression is not kept.
+    if (toastsSuppressed && !options.queued && event.action === "add") return;
     if (listeners.size === 0) {
       // A queue keeps its own state and re-shows it when a provider mounts.
       if (!options.queued) pending.push(event);
@@ -109,6 +120,7 @@ function createBufferedToastManager(options: { queued: boolean }): BufferedToast
           return viewport !== null && viewport.contains(document.activeElement);
         },
         isRenderable: (toast) =>
+          !toastsSuppressed &&
           shouldRenderThreadScopedToast(
             toast.data as Parameters<typeof shouldRenderThreadScopedToast>[0],
             queueActiveThreadRef,

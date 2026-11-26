@@ -3104,7 +3104,7 @@
     "Add",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3118,7 +3118,7 @@
     "Delete",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3132,7 +3132,7 @@
     "Rename",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3144,7 +3144,7 @@
     "to",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 3,
       "c": {
         "i": 4,
@@ -3158,7 +3158,7 @@
     "Change",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3172,7 +3172,7 @@
     "Change",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3192,7 +3192,7 @@
     "Read",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3214,12 +3214,12 @@
   "fce146a6bd6173bd": "Go deeper",
   "aa5e640b0fd014cb": "Take one part further",
   "4def529d19f0f924": "Go deeper on ",
+  "dc28a7953b23f372": "Go deeper on …",
   "f2de87a0b2906a7f": "Challenge this",
   "3ca68011b267844b": "Argue the other side",
   "32b2fb0e9728bd32": "Challenge this: what is the strongest case against it?",
   "47b12601f025963b": "Quiz me on this",
   "4d451a4192c44561": "Check what stuck",
-  "9fe5e0717fab8edf": "Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {shape}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.",
   "19c6f44bfe07caca": "Follow up",
   "41788188fed4a0bb": "The picture did not load",
   "7285c92333b4c719": "{server} could not start because it needs you to sign in.",
@@ -3331,6 +3331,8 @@
   "b6cdfd12f3fa7050": "{what} · {duration}",
   "4c36ab712143ad31": "Thought for {duration}",
   "6f8651e48261911a": "Thought",
+  "87123760faa9e09a": "Quiz me on what you just explained, with three questions.",
+  "6c7823eb2a01b58f": "Another round of three questions.",
   "a52dae3815612511": "Send or clear your draft first",
   "e9c7a57ae9a3057f": "Voice chat sends what you say on its own, without the draft.",
   "bdaf2c9cd3557fdd": "Voice chat needs a transcription source",
@@ -4790,6 +4792,7 @@
   "a6ef358f3e49fce5": "{count, plural, one {{count} more line} other {{count} more lines}}",
   "f41e28af25aee2b7": "Change preview",
   "901e31add5842c65": "Approved",
+  "c85f3fac8c35dd28": "Answered",
   "28ef57f536c2ecdf": "No newline at end of file",
   "b725c61c6d7808ab": "Loading preview…",
   "48cc07d45e27a5b6": "Couldn't load the preview.",
@@ -8021,9 +8024,9 @@
   "4e690f420bcbdb5d": "Checking connected environments.",
   "69abc8ad47672163": "Archive a thread from its menu in the sidebar to set it aside. It waits here until you restore it.",
   "00bf40a5ae83839c": "Fix the flaky checkout test",
-  "a7039de952a9aefd": "Archived 3 days ago",
+  "b21cf4a8d7772aec": "Archived 3 days ago · Created last week",
   "c201585bf9d70e88": "Try the new export format",
-  "04cf5aa915c54457": "Archived last month",
+  "78dcf3c26135f53b": "Archived last month · Created in October",
   "5d3ed45f43611ff4": [
     "Archived ",
     {
@@ -9595,10 +9598,10 @@
   "7136d0d448fda3ed": "{filtered} of {total}",
   "8c93ed63299ff531": "Search open-source licenses",
   "15e4ee1ea3804857": "Search licenses",
+  "acfa4722f332ea11": "Loading open-source notices",
   "c62b241e92231253": "Third-party notices",
   "c25215fb0fe7b236": "Open-source notices are unavailable",
   "dfabc4c20ab78d41": "No licenses match that search.",
-  "a6f0345697704afa": "Loading open-source notices…",
   "9268a10862868fe5": "Replay panel animation preview",
   "1c16849175c9fdd3": "Send {signal}",
   "3e2c2cacab23110c": [
@@ -10349,8 +10352,10 @@
   "5c409dc9c1c4d976": "A scheduled task runs a prompt on a timer, such as a summary of open work every morning.",
   "c4947921de6b20a0": "Morning summary",
   "1f8ea60b0c3d854a": "Every weekday at 8:00 AM",
+  "93c0e7074c926779": "8:00 AM",
   "3760f0cfac40b29f": "Weekly dependency check",
   "c088a8c871b4f60b": "Every Monday at 9:00 AM",
+  "1997a7837fe49784": "9:00 AM",
   "02a00277f3787f40": "Reconnect {label} to view its scheduled tasks.",
   "90c19958052b0685": "Could not load scheduled tasks",
   "2703e1eca8c287b6": "Loading scheduled tasks…",
@@ -11400,6 +11405,7 @@
   "4f3c3b40b25cac07": "Toggle source control account visibility",
   "16ffdd2f02752973": "Toggle {label} details",
   "b98fef2c26258e7b": "Offer {label} when adding or publishing a project",
+  "79e4d73c1bc8cf45": "Checking",
   "516da46e1bc929e2": "Server environment",
   "c69a143ba3383658": "Could not scan the server environment",
   "6985d8cfe8f3f2f2": "Nothing detected yet",
@@ -11484,7 +11490,6 @@
   "027d70661a6fc7ac": "Rescan Git and hosting integrations",
   "847dfcd39ed0f9a5": "Connect an environment to inspect its version control tools and hosting integrations.",
   "0fe7788c53a3fcfe": "Still checking. A hosting tool on this machine is slow to answer.",
-  "d0722cc46497705e": "Checking Git and the hosting tools installed on this machine…",
   "7b09564f31eb8171": "read and write access to pull requests and contents",
   "8dd881ec9fd8c074": "{host} token",
   "4f7ff2645d23d463": "No token saved; the server uses {envVar} or the {cliName} login.",
@@ -12083,6 +12088,10 @@
   ],
   "879232144b2646c6": "No usage sources configured",
   "31723a5ee9fd5a09": "Add a hub or an HTTP source to see quota from another service, such as a shared proxy.",
+  "9835183b6c841106": "Shared proxy",
+  "3c213fd5cd15204a": "Resets in 3 hours",
+  "762ab3742c81fc2d": "Team gateway",
+  "4786098b5e75b5e8": "Resets Monday",
   "dbd877abdc2c7c81": "HTTP quota source",
   "4cf6a373a7535324": "{name} · Disabled",
   "c792e744936dbe1b": "Add HTTP source",
@@ -12577,6 +12586,7 @@
   "9b4f6ec9e1cd5517": "Coming soon",
   "0de3accd049da90c": "In use",
   "1d2f547f7a5d9c8a": "Desktop only",
+  "240e8762c4e7f028": "Checking",
   "2ed592dc3ae2e382": "Give the host a label.",
   "19d903b8896fe379": "Enter the gateway's origin, such as https://gateway.example.ts.net:4700.",
   "6d5780d28245d946": "Keep the limits within the ranges shown.",
@@ -12964,6 +12974,7 @@
   "61571f4542da9903": "{count, plural, one {{formatted} session} other {{formatted} sessions}}",
   "2a57181a9d128463": "{share} of cost · {tokens} tokens",
   "d8a6a99fbdda0d3e": "{share} of tokens · {cost}",
+  "793f5f9e2f913c89": "{provider} is not in this view, so no provider is dimmed.",
   "f545ea7ecea5bdb6": "Showing {provider} in the chart. Other providers are dimmed.",
   "ae86762909d453d2": "Hourly processed tokens",
   "ef5c1428abcda046": "Hourly cost",

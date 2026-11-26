@@ -93,6 +93,16 @@ T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID=com.example.t3code.dev \
 vp run ios:dev
 ```
 
+CarPlay is off unless the build asks for an entitlement that Apple approved for your team. Set
+`ONE_CARPLAY_ENTITLEMENT` to `voice` (voice-based conversational, `com.apple.developer.carplay-voice-based-conversation`,
+iOS 26.4 or later), `audio`, `communication` or `both`. The voice category allows only the Tab bar, List,
+Information, Alert, Action sheet and Voice control templates, so the app skips Now Playing in that build.
+
+```bash
+ONE_CARPLAY_ENTITLEMENT=voice vp run ios:release
+vp run eas:ios:preview:carplay-voice
+```
+
 Build and install a self-contained Release app that does not need Metro:
 
 ```bash

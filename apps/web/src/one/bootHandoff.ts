@@ -1,8 +1,9 @@
 /**
  * Hands the boot ring to the app as one motion: a copy of the boot card flies to the app's ring
- * (the home ring, else the sidebar lockup) while the name goes. Transform and opacity only, no
+ * (the home ring, else the sidebar lockup with its wordmark). Transform and opacity only, no
  * input taken, and under reduced motion a plain crossfade.
- */ const EASE = "cubic-bezier(0.2, 0.9, 0.1, 1)";
+ */
+const EASE = "cubic-bezier(0.2, 0.9, 0.1, 1)";
 const TRAVEL_MS = 560;
 /** How long to wait for the app to draw a ring to fly to before the boot ring just fades. */
 const WAIT_MS = 500;
@@ -16,6 +17,13 @@ export interface BootGhost {
   readonly ring: HTMLElement;
   readonly name: HTMLElement | null;
   readonly from: DOMRect;
+  /** What the boot ring and name showed when captured: a fast boot hands off almost nothing. */
+  readonly ringShown: {
+    readonly opacity: string;
+    readonly transform: string;
+    readonly rotate: string;
+  };
+  readonly nameOpacity: string;
 }
 
 /** Copies the boot card to a layer above the app, or null when there is nothing to hand off. */
@@ -27,6 +35,14 @@ export function captureBootGhost(): BootGhost | null {
   if (card.closest("#boot-shell")?.querySelector("#boot-error")) return null;
   const from = ring.getBoundingClientRect();
   if (from.width === 0) return null;
+  const ringStyle = getComputedStyle(ring);
+  const ringShown = {
+    opacity: ringStyle.opacity,
+    transform: ringStyle.transform,
+    rotate: ringStyle.rotate,
+  };
+  const nameElement = card.querySelector<HTMLElement>("#boot-shell-name");
+  const nameOpacity = nameElement ? getComputedStyle(nameElement).opacity : "0";
   const box = card.getBoundingClientRect();
   const layer = card.cloneNode(true) as HTMLElement;
   layer.classList.add("boot-ghost");
@@ -39,40 +55,97 @@ export function captureBootGhost(): BootGhost | null {
     layer.remove();
     return null;
   }
-  return {
-    layer,
-    ring: ghostRing,
-    name: layer.querySelector<HTMLElement>("#boot-shell-name"),
-    from,
-  };
+  ghostRing.style.opacity = ringShown.opacity;
+  ghostRing.style.transform = ringShown.transform;
+  ghostRing.style.rotate = ringShown.rotate;
+  const ghostName = layer.querySelector<HTMLElement>("#boot-shell-name");
+  if (ghostName) ghostName.style.opacity = nameOpacity;
+  return { layer, ring: ghostRing, name: ghostName, from, ringShown, nameOpacity };
+}
+
+/** The turn the boot ring is caught in, finished the short way round so it lands face on. */
+function untwistedRotate(rotate: string): string {
+  const degrees = Number(/(-?\d+(?:\.\d+)?)deg/.exec(rotate)?.[1] ?? 0) % 360;
+  return `0 1 0 ${degrees > 180 ? 360 : degrees < -180 ? -360 : 0}deg`;
 }
 
 type Target = { readonly element: HTMLElement; readonly kind: "home" | "lockup" };
 
+/** On screen and drawn: an off-canvas sidebar or a hidden header still has a rect, but nothing to land on. */
+function isOnScreen(element: HTMLElement): boolean {
+  const rect = element.getBoundingClientRect();
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    rect.left >= 0 &&
+    rect.top >= 0 &&
+    rect.right <= window.innerWidth &&
+    rect.bottom <= window.innerHeight &&
+    element.checkVisibility()
+  );
+}
+
 function findTarget(expectHome: boolean): Target | null {
-  const home = document.querySelector<HTMLElement>("[data-one-code-welcome] .one-chat-welcome-orb");
-  if (home && home.getBoundingClientRect().width > 0) return { element: home, kind: "home" };
+  const home = document.querySelector<HTMLElement>(".one-chat-welcome .one-chat-welcome-orb");
+  if (home && isOnScreen(home)) return { element: home, kind: "home" };
   if (expectHome) return null;
+  // The header lockup is a desktop part: on a phone the brand is not drawn where it is measured.
+  if (!window.matchMedia("(min-width: 768px)").matches) return null;
   const lockup = document.querySelector<HTMLElement>("[data-one-brand-glyph]");
-  if (lockup && lockup.getBoundingClientRect().width > 0)
-    return { element: lockup, kind: "lockup" };
+  if (lockup && isOnScreen(lockup)) return { element: lockup, kind: "lockup" };
   return null;
 }
 
-/** Flies the ghost to the app's ring and clears everything it touched, whatever happens. */
-export function playBootHandoff(ghost: BootGhost): void {
+export interface HandoffOptions {
+  /** Longest wait for a thread's first screen of messages. Defaults to the time the boot took, at most four seconds. */
+  readonly holdBoundMs?: number;
+}
+
+/** A thread route: the ring waits for its first screen of messages before it flies. */
+function isThreadRoute(): boolean {
+  const { pathname } = window.location;
+  return /^\/[^/]+\/[^/]+\/?$/.test(pathname) && !pathname.startsWith("/settings");
+}
+
+function firstScreenReady(): boolean {
+  // On the rows, the loading placeholder or the empty state, whichever the timeline shows.
+  return document.querySelector("[data-first-screen-ready]") !== null;
+}
+
+/** Numbers the first turns so each rises 30ms after the one above (see one-pages.css). */
+function stageTurns(): void {
+  const rows = document.querySelectorAll<HTMLElement>(
+    "[data-assistant-citation-viewport] [data-timeline-row-id]",
+  );
+  rows.forEach((row, index) =>
+    row.style.setProperty("--one-arrive-index", String(Math.min(index, 8))),
+  );
+}
+
+/**
+ * Flies the ghost to the app's ring and clears everything it touched, whatever happens. On a thread
+ * the ring first holds at the centre until the first screen of messages is ready, never longer than
+ * the boot took, with the app live underneath. Then ring and wordmark fly to the sidebar lockup
+ * together (or the ring to the home ring while the name leaves) as the app and its turns arrive.
+ */
+export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}): void {
   const html = document.documentElement;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const holdBound = options.holdBoundMs ?? Math.min(4000, Math.max(300, performance.now()));
   let finished = false;
   let target: Target | null = null;
+  let wordmark: HTMLElement | null = null;
   const finish = () => {
     if (finished) return;
     finished = true;
     ghost.layer.remove();
-    if (target) {
-      target.element.style.removeProperty("opacity");
-      target.element.style.removeProperty("transition");
+    for (const element of [target?.element, wordmark]) {
+      element?.style.removeProperty("opacity");
+      element?.style.removeProperty("transition");
     }
+    document
+      .querySelectorAll<HTMLElement>("[data-timeline-row-id]")
+      .forEach((row) => row.style.removeProperty("--one-arrive-index"));
     delete html.dataset.oneHandoff;
   };
   const fade = (element: Element, duration: number) =>
@@ -86,7 +159,7 @@ export function playBootHandoff(ghost: BootGhost): void {
 
   const start = (found: Target | null) => {
     if (finished) return;
-    if (reduced || !found) {
+    if (!found) {
       delete html.dataset.oneHandoff;
       void fade(ghost.layer, 200).finished.then(finish, finish);
       return;
@@ -96,30 +169,65 @@ export function playBootHandoff(ghost: BootGhost): void {
     const scale = to.width / ghost.from.width;
     const dx = to.left + to.width / 2 - (ghost.from.left + ghost.from.width / 2);
     const dy = to.top + to.height / 2 - (ghost.from.top + ghost.from.height / 2);
-    // The ring has its own opacity transition; without this it would fade in after the swap.
+    // The targets have their own opacity transitions; without this they would fade in after the swap.
     found.element.style.transition = "none";
     found.element.style.opacity = "0";
+    stageTurns();
     html.dataset.oneHandoff = "travel";
-    ghost.layer.querySelectorAll("#boot-shell-arc, #boot-shell-sweep").forEach((node) => {
+    ghost.layer.querySelectorAll("#boot-shell-sweep").forEach((node) => {
       (node as HTMLElement).style.display = "none";
     });
-    if (ghost.name) {
+    const nameRect = ghost.name?.getBoundingClientRect();
+    wordmark =
+      found.kind === "lockup" ? document.querySelector<HTMLElement>("[data-one-wordmark]") : null;
+    if (wordmark && !isOnScreen(wordmark)) wordmark = null;
+    const wordRect = wordmark?.getBoundingClientRect();
+    if (ghost.name && nameRect && wordmark && wordRect && wordRect.width > 0) {
+      // The wordmark travels with the ring as one lockup.
+      wordmark.style.transition = "none";
+      wordmark.style.opacity = "0";
+      const nameScale = wordRect.height / Math.max(nameRect.height, 1);
       ghost.name.animate(
         [
-          { opacity: 1, transform: "translateY(0)" },
+          { opacity: ghost.nameOpacity, transform: "none" },
+          {
+            opacity: 1,
+            transform: `translate(${wordRect.left + wordRect.width / 2 - (nameRect.left + nameRect.width / 2)}px, ${
+              wordRect.top + wordRect.height / 2 - (nameRect.top + nameRect.height / 2)
+            }px) scale(${nameScale})`,
+          },
+        ],
+        { duration: TRAVEL_MS, easing: EASE, fill: "forwards" },
+      );
+    } else if (ghost.name) {
+      // On home the name leaves as the ring does.
+      ghost.name.animate(
+        [
+          { opacity: ghost.nameOpacity, transform: "translateY(0)" },
           { opacity: 0, transform: "translateY(8px)" },
         ],
         { duration: 200, easing: "linear", fill: "forwards" },
       );
     }
     const travel = ghost.ring.animate(
-      [{ transform: "none" }, { transform: `translate(${dx}px, ${dy}px) scale(${scale})` }],
+      [
+        {
+          transform: ghost.ringShown.transform,
+          opacity: ghost.ringShown.opacity,
+          rotate: ghost.ringShown.rotate,
+        },
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
+          opacity: 1,
+          rotate: untwistedRotate(ghost.ringShown.rotate),
+        },
+      ],
       { duration: TRAVEL_MS, easing: EASE, fill: "forwards" },
     );
     void travel.finished.then(() => {
       if (finished) return;
-      // The app's ring shows at once under the ghost, which then fades off it: no dip between.
-      found.element.style.removeProperty("opacity");
+      // The app's marks show at once under the ghost, which then fades off them: no dip between.
+      for (const element of [found.element, wordmark]) element?.style.removeProperty("opacity");
       if (found.kind === "home") html.dataset.oneHandoff = "arrive";
       void fade(ghost.layer, 120).finished.then(() => {
         window.setTimeout(finish, 320);
@@ -127,10 +235,11 @@ export function playBootHandoff(ghost: BootGhost): void {
     }, finish);
   };
 
-  // The app fades in under the flying ring instead of cutting in.
+  // The app stays hidden until the ring is ready to fly, then fades in under it.
   html.dataset.oneHandoff = "wait";
   // Wait for the app to replace the boot screen, then give it a moment to draw a ring to fly to.
   const expectHome = window.location.pathname === "/";
+  const expectThread = isThreadRoute();
   let begun: number | null = null;
   const look = () => {
     if (finished) return;
@@ -138,17 +247,31 @@ export function playBootHandoff(ghost: BootGhost): void {
       requestAnimationFrame(look);
       return;
     }
+    begun ??= performance.now();
+    const waited = performance.now() - begun;
     if (reduced) {
-      // A plain crossfade: the app fades in as the boot screen fades out.
+      // A plain crossfade, after the first screen on a thread.
+      if (expectThread && !firstScreenReady() && waited < holdBound) {
+        requestAnimationFrame(look);
+        return;
+      }
       html.dataset.oneHandoff = "fade";
       void fade(ghost.layer, 200).finished.then(finish, finish);
       return;
     }
-    begun ??= performance.now();
-    const waited = performance.now() - begun;
+    const home = findTarget(true);
+    if (home) return start(home);
+    if (expectThread) {
+      // Held at the centre with the app live but unseen, until the turns are on screen.
+      html.dataset.oneHandoff = "hold";
+      if (firstScreenReady() || waited >= holdBound) return start(findTarget(false));
+      requestAnimationFrame(look);
+      return;
+    }
     const found = findTarget(expectHome && waited <= HOME_WAIT_MS);
-    if (waited > SHOW_APP_MS && html.dataset.oneHandoff === "wait")
+    if (waited > SHOW_APP_MS && html.dataset.oneHandoff === "wait") {
       html.dataset.oneHandoff = "settle";
+    }
     if (found || waited > (expectHome ? HOME_WAIT_MS : WAIT_MS)) start(found);
     else requestAnimationFrame(look);
   };

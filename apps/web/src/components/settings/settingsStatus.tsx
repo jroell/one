@@ -5,7 +5,7 @@ import type { ProviderStatusKey } from "./providerStatus";
 
 /**
  * The one set of states a Settings row can be in, as chips: Ready, Needs attention, Failed, Off and
- * Coming soon, Desktop only, plus In use for the device or route a list is using now and Connecting while it
+ * Coming soon, Desktop only, Checking (before the server has reported), plus In use for the device or route a list is using now and Connecting while it
  * is not yet known. The line under the name says why.
  */
 export type SettingsStatus =
@@ -16,7 +16,8 @@ export type SettingsStatus =
   | "soon"
   | "connecting"
   | "inUse"
-  | "desktopOnly";
+  | "desktopOnly"
+  | "checking";
 
 const VARIANTS = {
   ready: "success",
@@ -27,6 +28,7 @@ const VARIANTS = {
   connecting: "secondary",
   inUse: "secondary",
   desktopOnly: "outline",
+  checking: "secondary",
 } as const;
 
 export function SettingsStatusChip({
@@ -46,6 +48,7 @@ export function SettingsStatusChip({
     connecting: gt("Connecting…"),
     inUse: gt("In use", { $context: "status chip: this is the one being used now" }),
     desktopOnly: gt("Desktop only"),
+    checking: gt("Checking", { $context: "status chip: the server has not reported yet" }),
   }[status];
   return (
     <Badge

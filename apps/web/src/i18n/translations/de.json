@@ -3101,7 +3101,7 @@
   ],
   "647e719c47de3e8a": [
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3113,7 +3113,7 @@
   ],
   "de01baf6002c59fc": [
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3125,7 +3125,7 @@
   ],
   "94faac956ced3680": [
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3135,7 +3135,7 @@
     },
     " in ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 3,
       "c": {
         "i": 4,
@@ -3147,7 +3147,7 @@
   ],
   "059faaa64301ebd9": [
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3159,7 +3159,7 @@
   ],
   "da718d2117c26a04": [
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3177,7 +3177,7 @@
   ],
   "33838746bce8ef63": [
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3199,12 +3199,12 @@
   "fce146a6bd6173bd": "Tiefer einsteigen",
   "aa5e640b0fd014cb": "Einen Teil vertiefen",
   "4def529d19f0f924": "Tiefer einsteigen in ",
+  "dc28a7953b23f372": "Tiefer einsteigen in …",
   "f2de87a0b2906a7f": "Infrage stellen",
   "3ca68011b267844b": "Gegenposition vertreten",
   "32b2fb0e9728bd32": "Infrage stellen: Was spricht am stärksten dagegen?",
   "47b12601f025963b": "Quiz zu diesem Thema",
   "4d451a4192c44561": "Prüfen, was hängt",
-  "9fe5e0717fab8edf": "Stell mir ein Quiz zu dem, was du gerade erklärt hast. Stell drei Fragen. Antworte nur mit einem Codeblock mit der Bezeichnung quiz, der JSON in dieser Form enthält: {shape}. Gib zu jeder Frage drei Antwortmöglichkeiten, den Index der richtigen Antwort im Feld correct und einen kurzen Erklärungssatz an.",
   "19c6f44bfe07caca": "Nachfragen",
   "41788188fed4a0bb": "Das Bild konnte nicht geladen werden",
   "7285c92333b4c719": "{server} konnte nicht starten, weil du dich anmelden musst.",
@@ -3316,6 +3316,8 @@
   "b6cdfd12f3fa7050": "{what} · {duration}",
   "4c36ab712143ad31": "Nachgedacht für {duration}",
   "6f8651e48261911a": "Gedanke",
+  "87123760faa9e09a": "Stell mir drei Fragen zu dem, was du gerade erklärt hast.",
+  "6c7823eb2a01b58f": "Noch eine Runde mit drei Fragen.",
   "a52dae3815612511": "Sende oder lösche zuerst deinen Entwurf",
   "e9c7a57ae9a3057f": "Der Sprachchat sendet das Gesagte für sich allein, ohne den Entwurf.",
   "bdaf2c9cd3557fdd": "Der Sprachchat braucht eine Transkriptionsquelle",
@@ -4775,6 +4777,7 @@
   "a6ef358f3e49fce5": "{count, plural, one {{count} weitere Zeile} other {{count} weitere Zeilen}}",
   "f41e28af25aee2b7": "Vorschau ändern",
   "901e31add5842c65": "Genehmigt",
+  "c85f3fac8c35dd28": "Beantwortet",
   "28ef57f536c2ecdf": "Kein Zeilenumbruch am Dateiende",
   "b725c61c6d7808ab": "Vorschau wird geladen…",
   "48cc07d45e27a5b6": "Die Vorschau konnte nicht geladen werden.",
@@ -7997,9 +8000,9 @@
   "4e690f420bcbdb5d": "Verbundene Umgebungen werden geprüft.",
   "69abc8ad47672163": "Archiviere einen Thread über sein Menü in der Seitenleiste, um ihn beiseitezulegen. Er bleibt hier, bis du ihn wiederherstellst.",
   "00bf40a5ae83839c": "Den unzuverlässigen Checkout-Test beheben",
-  "a7039de952a9aefd": "Vor 3 Tagen archiviert",
+  "b21cf4a8d7772aec": "Vor 3 Tagen archiviert · Letzte Woche erstellt",
   "c201585bf9d70e88": "Probier das neue Exportformat aus",
-  "04cf5aa915c54457": "Letzten Monat archiviert",
+  "78dcf3c26135f53b": "Letzten Monat archiviert · Im Oktober erstellt",
   "5d3ed45f43611ff4": [
     "Archiviert ",
     {
@@ -9571,10 +9574,10 @@
   "7136d0d448fda3ed": "{filtered} von {total}",
   "8c93ed63299ff531": "Open-Source-Lizenzen durchsuchen",
   "15e4ee1ea3804857": "Lizenzen durchsuchen",
+  "acfa4722f332ea11": "Open-Source-Hinweise werden geladen",
   "c62b241e92231253": "Hinweise zu Drittanbietern",
   "c25215fb0fe7b236": "Open-Source-Hinweise sind nicht verfügbar",
   "dfabc4c20ab78d41": "Keine Lizenzen entsprechen dieser Suche.",
-  "a6f0345697704afa": "Open-Source-Hinweise werden geladen…",
   "9268a10862868fe5": "Vorschau der Panel-Animation erneut abspielen",
   "1c16849175c9fdd3": "{signal} senden",
   "3e2c2cacab23110c": [
@@ -10325,8 +10328,10 @@
   "5c409dc9c1c4d976": "Eine geplante Aufgabe führt einen Prompt zeitgesteuert aus, zum Beispiel eine Zusammenfassung offener Arbeit jeden Morgen.",
   "c4947921de6b20a0": "Morgendliche Zusammenfassung",
   "1f8ea60b0c3d854a": "Jeden Werktag um 8:00 Uhr",
+  "93c0e7074c926779": "08:00",
   "3760f0cfac40b29f": "Wöchentliche Prüfung der Abhängigkeiten",
   "c088a8c871b4f60b": "Jeden Montag um 9:00 Uhr",
+  "1997a7837fe49784": "09:00",
   "02a00277f3787f40": "Verbinde {label} erneut, um die geplanten Aufgaben zu sehen.",
   "90c19958052b0685": "Geplante Aufgaben konnten nicht geladen werden",
   "2703e1eca8c287b6": "Geplante Aufgaben werden geladen…",
@@ -11376,6 +11381,7 @@
   "4f3c3b40b25cac07": "Sichtbarkeit des Versionskontrollkontos umschalten",
   "16ffdd2f02752973": "Details zu {label} umschalten",
   "b98fef2c26258e7b": "{label} beim Hinzufügen oder Veröffentlichen eines Projekts anbieten",
+  "79e4d73c1bc8cf45": "Wird geprüft",
   "516da46e1bc929e2": "Server-Umgebung",
   "c69a143ba3383658": "Server-Umgebung konnte nicht gescannt werden",
   "6985d8cfe8f3f2f2": "Noch nichts erkannt",
@@ -11459,7 +11465,6 @@
   "027d70661a6fc7ac": "Git- und Hosting-Integrationen erneut scannen",
   "847dfcd39ed0f9a5": "Verbinde eine Umgebung, um ihre Versionskontroll-Tools und Hosting-Integrationen zu untersuchen.",
   "0fe7788c53a3fcfe": "Wird noch geprüft. Ein Hosting-Tool auf diesem Rechner antwortet langsam.",
-  "d0722cc46497705e": "Git und die Hosting-Tools auf diesem Rechner werden geprüft…",
   "7b09564f31eb8171": "Lese- und Schreibzugriff auf Pull Requests und Inhalte",
   "8dd881ec9fd8c074": "{host}-Token",
   "4f7ff2645d23d463": "Kein Token gespeichert; der Server verwendet {envVar} oder die {cliName}-Anmeldung.",
@@ -12058,6 +12063,10 @@
   ],
   "879232144b2646c6": "Keine Nutzungsquellen konfiguriert",
   "31723a5ee9fd5a09": "Einen Hub oder eine HTTP-Quelle hinzufügen, um das Kontingent eines anderen Dienstes zu sehen, etwa eines gemeinsamen Proxys.",
+  "9835183b6c841106": "Geteilter Proxy",
+  "3c213fd5cd15204a": "Wird in 3 Stunden zurückgesetzt",
+  "762ab3742c81fc2d": "Team-Gateway",
+  "4786098b5e75b5e8": "Wird am Montag zurückgesetzt",
   "dbd877abdc2c7c81": "HTTP-Kontingentquelle",
   "4cf6a373a7535324": "{name} · Deaktiviert",
   "c792e744936dbe1b": "HTTP-Quelle hinzufügen",
@@ -12553,6 +12562,7 @@
   "9b4f6ec9e1cd5517": "Demnächst",
   "0de3accd049da90c": "In Verwendung",
   "1d2f547f7a5d9c8a": "Nur Desktop",
+  "240e8762c4e7f028": "Wird geprüft",
   "2ed592dc3ae2e382": "Gib dem Host eine Bezeichnung.",
   "19d903b8896fe379": "Gib den Origin des Gateways ein, etwa https://gateway.example.ts.net:4700.",
   "6d5780d28245d946": "Halte die Limits innerhalb der angezeigten Bereiche.",
@@ -12940,6 +12950,7 @@
   "61571f4542da9903": "{count, plural, one {{formatted} Sitzung} other {{formatted} Sitzungen}}",
   "2a57181a9d128463": "{share} der Kosten · {tokens} Tokens",
   "d8a6a99fbdda0d3e": "{share} der Tokens · {cost}",
+  "793f5f9e2f913c89": "{provider} ist in dieser Ansicht nicht enthalten, deshalb wird kein Anbieter abgeblendet.",
   "f545ea7ecea5bdb6": "{provider} wird im Diagramm angezeigt. Andere Anbieter sind abgeblendet.",
   "ae86762909d453d2": "Verarbeitete Tokens pro Stunde",
   "ef5c1428abcda046": "Kosten pro Stunde",

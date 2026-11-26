@@ -11,12 +11,14 @@ export const OPENING_SECONDS = 3.2;
 
 /**
  * The One ring as a live object: it rocks slowly at rest, faces you while
- * listening, spins while the agent thinks, and swells with sound.
+ * listening, spins while the agent thinks (or, as "waiting", holds edge-on while one sweep of
+ * light crosses it), and swells with sound.
  * Shows the flat mark when WebGL is unavailable, and while a lost context waits to be restored.
  */
 export function OneOrb({
   state = "idle",
   levelRef,
+  glowLevelRef,
   opening = false,
   className,
 }: {
@@ -25,6 +27,11 @@ export function OneOrb({
   readonly state?: OneOrbState;
   /** Live sound level, 0 to 1. Read every frame without re-rendering. */
   readonly levelRef?: { readonly current: number };
+  /**
+   * Rim and halo level, 0 to 1, read every frame. It lights the ring and never changes its
+   * shape, unlike `levelRef`, which swells it.
+   */
+  readonly glowLevelRef?: { readonly current: number };
   readonly className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -46,6 +53,7 @@ export function OneOrb({
     const renderer = startOneOrb(canvas, {
       getState: () => stateRef.current,
       getLevel: () => levelRef?.current ?? 0,
+      getGlowLevel: () => glowLevelRef?.current ?? 0,
       onUnsupported: () => setAvailability("unsupported"),
       onContextLost: () => setAvailability((current) => (current === "live" ? "lost" : current)),
       onContextRestored: () =>
@@ -57,7 +65,7 @@ export function OneOrb({
       rendererRef.current = null;
       renderer?.dispose();
     };
-  }, [levelRef, opening]);
+  }, [glowLevelRef, levelRef, opening]);
 
   return (
     <div className={cn("relative aspect-square", className)} data-one-orb={state}>

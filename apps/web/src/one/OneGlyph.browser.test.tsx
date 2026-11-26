@@ -107,7 +107,7 @@ describe("the flat One glyph", () => {
   );
 
   it.each(["standard", "a chosen theme"] as const)(
-    "is the gold ramp's base, shade and highlight in %s, never a theme color",
+    "is the gold ramp's base, shade and highlight in %s at 24px, never a theme color",
     async (kind) => {
       const html = document.documentElement;
       if (kind === "a chosen theme") {
@@ -115,7 +115,7 @@ describe("the flat One glyph", () => {
         html.style.setProperty("--one-brand", "#2f6fdd");
       }
       try {
-        await using screen = await render(<OneGlyph size={16} />, { router: false });
+        await using screen = await render(<OneGlyph size={24} />, { router: false });
         const svg = glyphIn(screen.container);
         const ramp = (token: string) => colorOf(getComputedStyle(html).getPropertyValue(token));
         expect(colorOf(paintOf(svg, "base"))).toEqual(ramp("--gold-400"));
@@ -128,6 +128,17 @@ describe("the flat One glyph", () => {
     },
   );
 
+  it("draws two tones below 24px, the band and its darker crescent, with no highlight arc to smear", async () => {
+    await using screen = await render(<OneGlyph size={16} />, { router: false });
+    const svg = glyphIn(screen.container);
+    const ramp = (token: string) =>
+      colorOf(getComputedStyle(document.documentElement).getPropertyValue(token));
+    expect(svg.dataset.tones).toBe("two");
+    expect(svg.querySelector('[data-glyph="highlight"]')).toBeNull();
+    expect(colorOf(paintOf(svg, "base"))).toEqual(ramp("--gold-400"));
+    expect(colorOf(paintOf(svg, "shade"))).toEqual(ramp("--gold-600"));
+  });
+
   it("draws one color from currentColor when mono, with no shade or highlight", async () => {
     await using screen = await render(
       <div style={{ color: "rgb(10, 20, 30)" }}>
@@ -138,6 +149,6 @@ describe("the flat One glyph", () => {
     const svg = glyphIn(screen.container);
     expect(colorOf(paintOf(svg, "base"))).toEqual([10, 20, 30]);
     expect(getComputedStyle(svg.querySelector('[data-glyph="shade"]')!).display).toBe("none");
-    expect(getComputedStyle(svg.querySelector('[data-glyph="highlight"]')!).display).toBe("none");
+    expect(svg.querySelector('[data-glyph="highlight"]')).toBeNull();
   });
 });

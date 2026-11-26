@@ -9,8 +9,8 @@ import {
 } from "@t3tools/contracts";
 import { type LegendListRef } from "@legendapp/list/react";
 import { createRef, type ComponentProps } from "react";
-import { expect, it, vi } from "vite-plus/test";
-import { page, userEvent } from "vite-plus/test/browser";
+import { expect, it, onTestFinished, vi } from "vite-plus/test";
+import { cdp, page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -21,6 +21,10 @@ import { act, fakeTimers, render } from "../../test/render";
 import { ComposerHandleContext } from "~/composerHandleContext";
 import { CHAT_STAGE_HOLD_MS } from "./chatStage";
 import { ChatStatusDot } from "./ChatStatusDot";
+import { withQuizInstructions } from "./chatQuiz";
+import { ComposerContextPermissions } from "~/components/ComposerContextPermissions";
+import { ComposerFooterModeControls } from "~/components/chat/ComposerFooterControls";
+import { resolveRuntimeModeOption, runtimeModeOptions } from "~/components/chat/runtimeModeConfig";
 import { setWorkspaceMode } from "./workspaceMode";
 
 type TimelineProps = ComponentProps<typeof MessagesTimeline>;
@@ -369,7 +373,7 @@ it("Chat mode lists one outline entry per user turn and jumps to the turn that i
   });
 });
 
-it("Chat mode shows no outline for two turns, a narrow timeline or a short one, and keeps the minimap there", async () => {
+it("Chat mode shows the outline from the first turn on a wide screen, but none in a narrow timeline or a short one, where the minimap stays", async () => {
   using _motion = motion(true);
   using _mode = inMode("chat");
   await using _viewport = await wideViewport(1440);
@@ -384,7 +388,6 @@ it("Chat mode shows no outline for two turns, a narrow timeline or a short one, 
   };
   const wide = { width: 1184, height: 700 };
   for (const [name, turnCount, size] of [
-    ["two turns", 2, wide],
     ["a narrow timeline", 5, { width: 900, height: 700 }],
     ["a short timeline", 5, { width: 1184, height: 360 }],
   ] as const) {
@@ -400,6 +403,10 @@ it("Chat mode shows no outline for two turns, a narrow timeline or a short one, 
       getComputedStyle(screen.container.querySelector('[data-testid="timeline-minimap"]')!).display,
       name,
     ).not.toBe("none");
+  }
+  {
+    await using single = await outlineIn(1, wide);
+    await expect.element(single.getByRole("navigation", { name: "In this chat" })).toBeVisible();
   }
   {
     await using full = await outlineIn(5, wide);
@@ -769,6 +776,48 @@ it.each(["chat", "code"] as const)(
   },
 );
 
+it("Chat mode takes the permissions chips out of the composer, and Code mode keeps them", async () => {
+  const chip = (screen: { container: HTMLElement }) =>
+    screen.container.querySelector<HTMLElement>("[data-composer-permissions]")!;
+  for (const [mode, shown] of [
+    ["chat", false],
+    ["code", true],
+  ] as const) {
+    using _mode = inMode(mode);
+    await using screen = await render(
+      <ComposerContextPermissions
+        environmentId={null}
+        runtimeMode="approval-required"
+        supportedRuntimeModes={["approval-required", "full-access"]}
+        onRuntimeModeChange={() => {}}
+      />,
+      { router: false },
+    );
+    await vi.waitFor(() => expect(chip(screen)).not.toBeNull());
+    expect(chip(screen).getAttribute("aria-label")).toBe("Permissions: Supervised");
+    expect(getComputedStyle(chip(screen)).display === "none", mode).toBe(!shown);
+  }
+  // The footer's chip (the one that says "Supervised" and opens with the composer) goes too.
+  for (const [mode, shown] of [
+    ["chat", false],
+    ["code", true],
+  ] as const) {
+    using _mode = inMode(mode);
+    await using screen = await render(
+      <ComposerFooterModeControls
+        runtimeMode="approval-required"
+        runtimeModeOptions={runtimeModeOptions.map((option) => resolveRuntimeModeOption(option))}
+        accessDisplay="label"
+        onRuntimeModeChange={() => {}}
+      />,
+      { router: false },
+    );
+    await vi.waitFor(() => expect(chip(screen)).not.toBeNull());
+    expect(chip(screen).textContent).toContain("Supervised");
+    expect(getComputedStyle(chip(screen)).display === "none", mode).toBe(!shown);
+  }
+});
+
 it("Chat mode asks for an approval in one sentence that names what is asked, with Approve and Decline under it at the left edge", async () => {
   const sentenceOf = (screen: { container: HTMLElement }) =>
     screen.container.querySelector<HTMLElement>(".one-chat-approval-sentence")!;
@@ -809,7 +858,13 @@ it("Chat mode asks for an approval in one sentence that names what is asked, wit
       sentenceOf(screen).getBoundingClientRect().bottom,
     );
     const buttons = [...footer.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
-    expect(Math.min(...buttons.map((box) => box.left))).toBeLessThan(left + 160);
+    // Decline starts at the sentence's own left edge: the menu of other answers follows the buttons.
+    expect(Math.abs(Math.min(...buttons.map((box) => box.left)) - left)).toBeLessThanOrEqual(2);
+    // The path is set in the sentence's own serif, in italic, so the line has one face for words.
+    const path = sentenceOf(screen).querySelector<HTMLElement>(".one-chat-approval-path")!;
+    expect(path.textContent).toBe("server/src/math.ts");
+    expect(getComputedStyle(path).fontStyle).toBe("italic");
+    expect(getComputedStyle(path).fontFamily).toBe(getComputedStyle(sentenceOf(screen)).fontFamily);
     expect(
       getComputedStyle(screen.container.querySelector("[data-approval-card]")!).backgroundColor,
     ).toBe("rgba(0, 0, 0, 0)");
@@ -907,7 +962,7 @@ function stageProps() {
   };
 }
 
-it("Chat mode shows the waiting stage under the question, with the question in 28px serif, a 32px arc and three lines", async () => {
+it("Chat mode shows the waiting stage under the question after 250ms, with the question in 28px serif, a 32px arc and no placeholder bars", async () => {
   using _mode = inMode("chat");
   using _motion = motion(false);
   await using _viewport = await wideViewport(1440);
@@ -922,7 +977,11 @@ it("Chat mode shows the waiting stage under the question, with the question in 2
   expect(style.fontFamily).toContain("Iowan Old Style");
   const arc = screen.container.querySelector<HTMLElement>(".one-chat-stage [data-working-arc]")!;
   expect(arc.getBoundingClientRect().width).toBe(32);
-  expect(screen.container.querySelectorAll(".one-chat-stage-lines > span")).toHaveLength(3);
+  // No grey placeholder bars, and nothing is drawn until 250ms: a quick answer shows no stage.
+  expect(screen.container.querySelector(".one-chat-stage-lines")).toBeNull();
+  expect(
+    getComputedStyle(screen.container.querySelector("[data-chat-stage]")!).animationDelay,
+  ).toBe("0.25s");
   // The stage has its own arc and timer, so the quiet working line is not shown beside it.
   expect(
     screen.container.querySelector('[data-timeline-row-kind="working"] .one-working-arc'),
@@ -954,7 +1013,7 @@ it("Chat mode shows no stage in Code mode, none while a request waits on the per
   }
 });
 
-it("Chat mode hands the stage to the answer with nothing moving: the answer sits where it will rest, and the stage leaves after its hold", async () => {
+it("Chat mode hands the stage to the answer by a cross-fade with nothing moving: the answer sits where it will rest, and the stage leaves after its hold", async () => {
   using _mode = inMode("chat");
   using _motion = motion(false);
   await using _viewport = await wideViewport(1440);
@@ -982,8 +1041,10 @@ it("Chat mode hands the stage to the answer with nothing moving: the answer sits
   );
   const stage = () => screen.container.querySelector<HTMLElement>("[data-chat-stage]");
   const ghost = () => screen.container.querySelector<HTMLElement>(".one-chat-stage-ghost");
+  // The stage has begun to show (its 250ms delay has passed); only a shown stage leaves a ghost.
+  await vi.waitFor(() => expect(getComputedStyle(stage()!).opacity).not.toBe("0"));
   const stageTop = stage()!.getBoundingClientRect().top;
-  expect(stage()!.getBoundingClientRect().height).toBeGreaterThan(150);
+  expect(stage()!.getBoundingClientRect().height).toBeGreaterThan(70);
 
   using _timers = fakeTimers();
   await screen.rerender(<MessagesTimeline {...props} timelineEntries={answered} />);
@@ -998,22 +1059,20 @@ it("Chat mode hands the stage to the answer with nothing moving: the answer sits
   expect(ghost()).not.toBeNull();
   expect(Math.abs(ghost()!.getBoundingClientRect().top - stageTop)).toBeLessThan(2);
   expect(getComputedStyle(ghost()!).visibility).toBe("visible");
-  // No text over text: the arc and lines go, then the question goes, and only then does the
-  // answer's first paragraph begin.
-  const seconds = (value: string) => Number.parseFloat(value);
-  const fadeEnd = (selector: string) => {
-    const style = getComputedStyle(ghost()!.querySelector(selector)!);
-    return seconds(style.animationDelay) + seconds(style.animationDuration);
-  };
-  const answerStart = seconds(
-    getComputedStyle(
-      screen.container.querySelector<HTMLElement>(
-        '[data-message-id="answer-stage"] .chat-markdown > p',
-      )!,
-    ).animationDelay,
+  // The picture and the answer's first words cross-fade over the same 180ms, both linear, so at
+  // every frame their opacities add up to one and the column is never empty.
+  const fade = getComputedStyle(ghost()!);
+  const answerFirst = getComputedStyle(
+    screen.container.querySelector<HTMLElement>(
+      '[data-message-id="answer-stage"] .chat-markdown > p',
+    )!,
   );
-  expect(fadeEnd(".one-chat-stage-live")).toBeLessThan(fadeEnd(".one-chat-stage-question"));
-  expect(fadeEnd(".one-chat-stage-question")).toBeLessThan(answerStart);
+  expect(fade.animationName).toBe("one-chat-stage-out");
+  expect(answerFirst.animationName).toBe("one-chat-handoff-in");
+  expect(answerFirst.animationDuration).toBe(fade.animationDuration);
+  expect(answerFirst.animationDelay).toBe(fade.animationDelay);
+  expect(answerFirst.animationTimingFunction).toBe(fade.animationTimingFunction);
+  expect(fade.animationTimingFunction).toBe("linear");
 
   await act(() => vi.advanceTimersByTime(CHAT_STAGE_HOLD_MS / 2));
   expect(stage()).not.toBeNull();
@@ -1022,6 +1081,44 @@ it("Chat mode hands the stage to the answer with nothing moving: the answer sits
   expect(stage()).toBeNull();
   expect(ghost()).toBeNull();
   expect(Math.abs(answerTop(screen) - restingTop)).toBeLessThan(2);
+});
+
+it("Chat mode builds an answer that arrives whole: headings first, then the sections, and a gold line under at most three key terms", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(false);
+  await using _viewport = await wideViewport(1440);
+  const ask = message("ask-build", "user", "How does a Fresnel lens work?");
+  const props = { ...baseProps(), timelineEntries: [ask] };
+  await using screen = await renderTimeline(props);
+  const answer = [
+    "## Why **rings** work",
+    "A **Fresnel lens** bends light by **refraction** at each ring.",
+    "## What changes",
+    "Each zone sets a **slope** and a **pitch**, and nothing more.",
+    "**Rings keep the glass thin.**",
+  ].join("\n\n");
+  await screen.rerender(
+    <MessagesTimeline
+      {...props}
+      timelineEntries={[ask, message("answer-build", "assistant", answer)]}
+    />,
+  );
+  const root = () =>
+    screen.container.querySelector<HTMLElement>('[data-message-id="answer-build"] .chat-markdown');
+  await vi.waitFor(() => expect(root()?.querySelector("strong[data-key-term]")).not.toBeNull());
+  const index = (element: Element) =>
+    Number.parseInt((element as HTMLElement).style.getPropertyValue("--one-reveal-index"), 10);
+  const [first, firstBody, second, secondBody] = [...root()!.children];
+  // Both headings come before any paragraph, and the paragraphs keep their own order.
+  expect([index(first!), index(second!)]).toEqual([0, 1]);
+  expect(index(firstBody!)).toBe(2);
+  expect(index(secondBody!)).toBe(3);
+  // Three terms at most, in the running text: not the heading's bold, not the bold statement.
+  expect(
+    [...root()!.querySelectorAll("strong[data-key-term]")].map((term) => term.textContent),
+  ).toEqual(["Fresnel lens", "refraction", "slope"]);
+  const term = root()!.querySelector<HTMLElement>("strong[data-key-term]")!;
+  expect(getComputedStyle(term).animationName).toBe("one-chat-term-draw");
 });
 
 /** A composer stand-in that records what the follow-up actions put in it. */
@@ -1079,6 +1176,45 @@ it("Chat mode offers follow-ups under the last finished answer only, and a pick 
   await followUps.getByRole("button", { name: /^Go deeper/ }).click();
   expect(composer.state.value).toBe("Challenge this: what is the strongest case against it?");
   expect(composer.state.focused).toBe(2);
+});
+
+it("Chat mode shows the words a follow-up will send, in place of its hint, when it is hovered or focused", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  const composer = composerStandIn("");
+  const props = { ...baseProps(), timelineEntries: turns(2) };
+  const container = document.createElement("div");
+  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+  await using screen = await render(followUpScene(composer, props), { container });
+  const followUps = screen.getByRole("group", { name: "Follow up" });
+  await expect.element(followUps).toBeVisible();
+  const quiz = followUps.getByRole("button", { name: /^Quiz me on this/ });
+  const part = (name: string) =>
+    quiz.element().querySelector<HTMLElement>(`.one-chat-followup-${name}`)!;
+  expect(getComputedStyle(part("hint")).opacity).toBe("1");
+  expect(getComputedStyle(part("preview")).opacity).toBe("0");
+
+  await quiz.hover();
+  await vi.waitFor(() => expect(getComputedStyle(part("preview")).opacity).toBe("1"));
+  expect(getComputedStyle(part("hint")).opacity).toBe("0");
+  // The person reads what they are asking for, not the JSON shape the reading view needs.
+  expect(part("preview").textContent).toBe(
+    "Quiz me on what you just explained, with three questions.",
+  );
+
+  // Keyboard focus shows the same words.
+  await userEvent.unhover(quiz.element());
+  await vi.waitFor(() => expect(getComputedStyle(part("preview")).opacity).toBe("0"));
+  const challenge = followUps.getByRole("button", { name: /^Challenge this/ });
+  quiz.element().focus();
+  await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+  await vi.waitFor(() =>
+    expect(
+      getComputedStyle(
+        challenge.element().querySelector<HTMLElement>(".one-chat-followup-preview")!,
+      ).opacity,
+    ).toBe("1"),
+  );
 });
 
 it("Chat mode shows no follow-ups while a turn runs, while a request waits, or in Code mode", async () => {
@@ -1360,7 +1496,7 @@ it("Chat mode holds the answer still while the follow-ups open, and follows a me
 
 const BROKEN_IMAGE = "![A drawing of the lens from the side](http://localhost:1/lens-side.png)";
 
-it("Chat mode keeps a picture that failed as a 16:9 frame with its alt text as a serif caption and a Retry button, and Code mode keeps its chip", async () => {
+it("Chat mode keeps a picture that failed as a 64px row with its alt text as a serif caption and a Retry button, and Code mode keeps its chip", async () => {
   const entries = [
     message("ask-i", "user", "Show me"),
     message("answer-i", "assistant", BROKEN_IMAGE),
@@ -1374,8 +1510,7 @@ it("Chat mode keeps a picture that failed as a 16:9 frame with its alt text as a
       expect(screen.container.querySelector("[data-chat-image-failure]")).not.toBeNull(),
     );
     const frame = screen.container.querySelector<HTMLElement>(".one-chat-image-failure-frame")!;
-    const box = frame.getBoundingClientRect();
-    expect(box.width / box.height).toBeCloseTo(16 / 9, 1);
+    expect(frame.getBoundingClientRect().height).toBe(64);
     const caption = screen.container.querySelector<HTMLElement>(".one-chat-image-failure-caption")!;
     expect(caption.textContent).toBe("A drawing of the lens from the side");
     expect(getComputedStyle(caption).fontFamily).toContain("Iowan Old Style");
@@ -1438,6 +1573,77 @@ it("Chat mode draws a diagram in the house style: gold 1.5px strokes, serif labe
   );
   expect(edge.getAttribute("pathLength")).toBe("1");
   expect(getComputedStyle(edge).animationName).toBe("one-chat-edge-draw");
+});
+
+const EDGE_KINDS_DIAGRAM =
+  "```mermaid\nflowchart LR\n  A[Solid] --> B[Dotted]\n  B -.-> C[Thick]\n  C ==> D[Open]\n  D --- E[End]\n```";
+
+it("Chat mode keeps a dotted edge dotted and a thick edge thick through the draw-on and after it, with motion and with reduced motion", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(false);
+  await using _viewport = await wideViewport(1440);
+  onTestFinished(async () => {
+    await cdp().send("Emulation.setEmulatedMedia", { features: [] });
+  });
+  for (const reduced of [false, true]) {
+    await cdp().send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: reduced ? "reduce" : "no-preference" }],
+    });
+    await using screen = await renderTimeline({
+      ...baseProps(),
+      timelineEntries: [
+        message("ask-e", "user", "Which steps are optional?"),
+        message("answer-e", "assistant", EDGE_KINDS_DIAGRAM),
+      ],
+    });
+    await vi.waitFor(() => expect(screen.container.querySelector(".pele-edge")).not.toBeNull(), {
+      timeout: 15_000,
+    });
+    const edges = () => [
+      ...screen.container.querySelectorAll<SVGPathElement>(".pele-edge > path:not(.pele-marker)"),
+    ];
+    const dotted = () => edges().filter((path) => path.hasAttribute("stroke-dasharray"));
+    const thick = () => edges().filter((path) => path.hasAttribute("stroke-width"));
+    const solid = () =>
+      edges().filter(
+        (path) => !path.hasAttribute("stroke-dasharray") && !path.hasAttribute("stroke-width"),
+      );
+    expect(dotted().length, `reduced ${reduced}`).toBeGreaterThan(0);
+    expect(thick().length).toBeGreaterThan(0);
+    expect(solid().length).toBeGreaterThan(0);
+    const check = (phase: string) => {
+      for (const path of dotted()) {
+        const own = path.getAttribute("stroke-dasharray")!;
+        // The pattern is the one the diagram drew, whether or not the edge is being drawn on.
+        expect(path.hasAttribute("pathLength"), `${phase} dotted pathLength`).toBe(false);
+        expect(getComputedStyle(path).strokeDasharray, `${phase} dotted dash`).toBe(
+          own.split(" ").join("px, ") + "px",
+        );
+      }
+      for (const path of thick()) {
+        expect(getComputedStyle(path).strokeWidth, `${phase} thick`).toBe(
+          `${path.getAttribute("stroke-width")}px`,
+        );
+      }
+      for (const path of solid()) {
+        expect(getComputedStyle(path).strokeWidth, `${phase} solid`).toBe("1.5px");
+      }
+    };
+    check("at first");
+    if (!reduced) {
+      // The solid edges are drawn on, the dotted ones fade in.
+      expect(getComputedStyle(solid()[0]!).animationName).toBe("one-chat-edge-draw");
+      expect(getComputedStyle(dotted()[0]!).animationName).toBe("one-chat-diagram-in");
+      const host = screen.container.querySelector(".chat-markdown-mermaid")!;
+      await vi.waitFor(() => expect(host.hasAttribute("data-draw")).toBe(false), {
+        timeout: 8_000,
+      });
+      check("after the draw-on");
+    } else {
+      expect(getComputedStyle(solid()[0]!).animationName).toBe("none");
+      expect(getComputedStyle(dotted()[0]!).animationName).toBe("none");
+    }
+  }
 });
 
 const WIDE_DIAGRAM =
@@ -1627,6 +1833,167 @@ it("Chat mode turns a quiz block into cards you answer with the keys 1 to 4 and 
     .toBeVisible();
 });
 
+it("Chat mode makes the quiz a reward: a wrong pick shakes and goes quiet, the right one lifts under a travelling light, and the score is a gold ring drawn on in 600ms", async () => {
+  using _mode = inMode("chat");
+  await using _viewport = await wideViewport(1440);
+  onTestFinished(async () => {
+    await cdp().send("Emulation.setEmulatedMedia", { features: [] });
+  });
+  const style = (element: Element, pseudo?: string) => getComputedStyle(element, pseudo);
+  for (const reduced of [false, true]) {
+    using _storage = quizStorageCleared();
+    // The stylesheet's own media query, which the matchMedia stand-in does not reach.
+    await cdp().send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: reduced ? "reduce" : "no-preference" }],
+    });
+    await using screen = await renderTimeline({
+      ...baseProps(),
+      timelineEntries: quizEntries(QUIZ_BLOCK()),
+    });
+    await expect.element(screen.getByText("Why are the lens's rings thin?")).toBeVisible();
+    (screen.getByRole("radio").first().element() as HTMLElement).focus();
+    await userEvent.keyboard("1");
+    await expect.element(screen.getByText("Less glass to carry.")).toBeVisible();
+    const [wrong, right] = [
+      ...screen.container.querySelectorAll<HTMLElement>(".one-chat-quiz-option"),
+    ];
+    expect(style(wrong!).animationName, `reduced ${reduced}`).toBe(
+      reduced ? "none" : "one-chat-quiz-wrong",
+    );
+    expect(style(right!).animationName).toBe(reduced ? "none" : "one-chat-quiz-rise");
+    expect(style(right!, "::after").animationName).toBe(reduced ? "none" : "one-chat-quiz-travel");
+    // A wrong pick is still marked without colour: a line through it and a cross.
+    expect(style(wrong!).textDecorationLine).toBe("line-through");
+    // The options are lines of the column's own serif, not grey form rows.
+    expect(style(right!).fontFamily).toContain("Iowan Old Style");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("1");
+    await userEvent.keyboard("{Enter}");
+    await expect.element(screen.getByText("You got 1 of 2.")).toBeVisible();
+    const number = screen.container.querySelector<HTMLElement>(".one-chat-quiz-ring-number")!;
+    expect(number.textContent).toBe("1");
+    expect(style(number).fontSize).toBe("48px");
+    expect(style(number).fontFamily).toContain("Iowan Old Style");
+    const ring = screen.container.querySelector<SVGCircleElement>(".one-chat-quiz-ring")!;
+    expect(style(ring).strokeWidth).toBe("2px");
+    // Half the questions right: half the circle, drawn on over 600ms.
+    const circumference = 2 * Math.PI * Number(ring.getAttribute("r"));
+    expect(Number.parseFloat(style(ring).strokeDasharray)).toBeCloseTo(circumference / 2, 1);
+    expect(style(ring).animationDuration).toBe(reduced ? "0s" : "0.6s");
+    // Another round is the card's one filled action.
+    await expect
+      .element(screen.getByRole("button", { name: "Go over the one you missed" }))
+      .toBeVisible();
+  }
+});
+
+it("Chat mode shows a quiz request as the person's short line, and Another round puts that line in the composer, never the instructions", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  using _storage = quizStorageCleared();
+  await using _viewport = await wideViewport(1440);
+  const composer = composerStandIn("");
+  const sent = withQuizInstructions("Another round of three questions.");
+  expect(sent).toContain("fenced code block");
+  const answer = message("answer-round", "assistant", QUIZ_BLOCK());
+  const props = {
+    ...baseProps(),
+    timelineEntries: [message("ask-round", "user", sent), answer],
+  };
+  const container = document.createElement("div");
+  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+  await using screen = await render(followUpScene(composer, props), { container });
+  // The message bubble reads as the short line; the instructions that travel with it are not shown.
+  await expect.element(screen.getByText("Another round of three questions.").first()).toBeVisible();
+  expect(screen.container.textContent).not.toContain("fenced code block");
+  expect(screen.container.textContent).not.toContain("one-instructions");
+  // Finish the quiz, then ask for another round.
+  await screen.getByRole("radio").first().click();
+  await screen.getByRole("button", { name: "Next" }).click();
+  await screen.getByRole("radio").first().click();
+  await screen.getByRole("button", { name: "See how you did" }).click();
+  await screen.getByRole("button", { name: "Another round" }).click();
+  expect(composer.state.value).toBe("Another round of three questions.");
+  // The follow-up asks the same way.
+  composer.state.value = "";
+  await screen.getByRole("button", { name: /^Quiz me on this/ }).click();
+  expect(composer.state.value).toBe("Quiz me on what you just explained, with three questions.");
+  // The outline's entry for the turn is the short line too.
+  const outline = screen.getByRole("navigation", { name: "In this chat" });
+  expect(outline.element().textContent).toContain("Another round of three questions.");
+  expect(outline.element().textContent).not.toContain("fenced code block");
+});
+
+it("a quiz request reads as its short line in Code mode, and one stored with its whole format still reads as a short line", async () => {
+  using _storage = quizStorageCleared();
+  const legacy =
+    'Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
+  for (const [mode, sent, shown] of [
+    [
+      "code",
+      withQuizInstructions("Another round of three questions."),
+      "Another round of three questions.",
+    ],
+    ["chat", legacy, "Quiz me on what you just explained."],
+    ["code", legacy, "Quiz me on what you just explained."],
+  ] as const) {
+    using _mode = inMode(mode);
+    await using screen = await renderTimeline({
+      ...baseProps(),
+      timelineEntries: [
+        message("ask-old", "user", sent),
+        message("answer-old", "assistant", "Sure."),
+      ],
+    });
+    await expect.element(screen.getByText(shown).first()).toBeVisible();
+    for (const hidden of ["fenced code block", "JSON", 'questions":', "one-instructions"]) {
+      expect(screen.container.textContent, `${mode}: ${hidden}`).not.toContain(hidden);
+    }
+  }
+});
+
+it("Chat mode keeps two quizzes in one message apart: their own picks, their own saved state, and element ids that point at their own question", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  using _storage = quizStorageCleared();
+  await using _viewport = await wideViewport(1440);
+  const props = {
+    ...baseProps(),
+    timelineEntries: quizEntries(`${QUIZ_BLOCK()}\n\nAnd the same again.\n\n${QUIZ_BLOCK()}`),
+  };
+  const quizzes = (screen: { container: HTMLElement }) => [
+    ...screen.container.querySelectorAll<HTMLElement>("[data-chat-quiz]"),
+  ];
+  {
+    await using screen = await renderTimeline(props);
+    await vi.waitFor(() => expect(quizzes(screen)).toHaveLength(2));
+    const [first, second] = quizzes(screen);
+    // Each question labels its own group of options.
+    const labelled = (quiz: HTMLElement) =>
+      quiz.querySelector('[role="radiogroup"]')!.getAttribute("aria-labelledby")!;
+    expect(labelled(first!)).not.toBe(labelled(second!));
+    for (const quiz of [first!, second!]) {
+      expect(quiz.querySelector(`#${CSS.escape(labelled(quiz))}`)).toBe(
+        quiz.querySelector(".one-chat-quiz-question"),
+      );
+    }
+    // Answering the first leaves the second untouched.
+    (first!.querySelector('[role="radio"]') as HTMLElement).click();
+    await vi.waitFor(() => expect(first!.querySelector('[data-state="wrong"]')).not.toBeNull());
+    expect(second!.querySelector('[data-state="wrong"]')).toBeNull();
+    expect(second!.querySelector('[data-state="correct"]')).toBeNull();
+  }
+  {
+    // Reopened, the first quiz is where it was left and the second is still on its first question.
+    await using reopened = await renderTimeline(props);
+    await vi.waitFor(() => expect(quizzes(reopened)).toHaveLength(2));
+    const [first, second] = quizzes(reopened);
+    expect(first!.textContent).toContain("Question 2 of 2");
+    expect(second!.textContent).toContain("Question 1 of 2");
+    expect(second!.querySelector('[data-state="wrong"]')).toBeNull();
+  }
+});
+
 it("Chat mode keeps a quiz's picks with its message, so reopening shows it finished, and lets the person go over what they missed", async () => {
   using _mode = inMode("chat");
   using _motion = motion(true);
@@ -1697,7 +2064,7 @@ it.each([1440, 390] as const)(
   },
 );
 
-it("Chat mode never shows a quiz block's JSON: lines hold its place while it streams, one sentence stands in if it cannot be read, and Code mode shows the text", async () => {
+it("Chat mode never shows a quiz block's JSON: the working arc and one line hold its place while it streams, one sentence stands in if it cannot be read, and Code mode shows the text", async () => {
   using _storage = quizStorageCleared();
   const streaming = quizEntries(QUIZ_BLOCK().slice(0, 120), true);
   const broken = quizEntries('```quiz\n{"questions":[{"question":"No options"}]}\n```');
@@ -1708,10 +2075,13 @@ it("Chat mode never shows a quiz block's JSON: lines hold its place while it str
       await vi.waitFor(() =>
         expect(screen.container.querySelector(".one-chat-quiz-pending")).not.toBeNull(),
       );
-      expect(screen.container.textContent).not.toContain("questions");
+      expect(screen.container.textContent).not.toContain('"questions"');
+      expect(screen.container.querySelector(".one-chat-quiz-pending")!.textContent).toBe(
+        "Writing your questions",
+      );
       expect(
-        screen.container.querySelectorAll(".one-chat-quiz-pending .one-chat-stage-lines > span"),
-      ).toHaveLength(3);
+        screen.container.querySelector(".one-chat-quiz-pending [data-working-arc]"),
+      ).not.toBeNull();
     }
     {
       await using screen = await renderTimeline({ ...baseProps(), timelineEntries: broken });

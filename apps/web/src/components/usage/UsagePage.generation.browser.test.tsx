@@ -12,6 +12,7 @@ import "~/index.css";
 import { act, render } from "../../../test/render";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { UsagePage } from "./UsagePage";
+import { prefetchDefaultUsage } from "./usagePrefetch";
 import { saveUsagePagePreferences } from "./usagePagePreferences";
 import { summary } from "./usageFixtures";
 
@@ -515,5 +516,65 @@ describe("Usage figures across a change of authorization", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+/** Every frame the skeleton or its note is in the document, from now until `stop`. */
+function watchSkeleton() {
+  const frames = { seen: false };
+  const check = () => {
+    if (document.querySelector("[class*='usage-skeleton']")) frames.seen = true;
+  };
+  const observer = new MutationObserver(check);
+  observer.observe(document.body, { childList: true, subtree: true });
+  return { frames, [Symbol.dispose]: () => observer.disconnect() };
+}
+
+describe("Usage figures prefetched before the page opens", () => {
+  it("shows prefetched figures on the first frame, with no skeleton", async () => {
+    const { a, b } = pair();
+    saveUsagePagePreferences({ metric: "cost", windowDays: 30, hiddenProviders: [] });
+    setEnvironments([a, b]);
+    connect(a, GRANTED, `first-${a}`);
+    connect(b, GRANTED, `first-${b}`);
+    // The sidebar button is hovered: the query starts and the answers arrive before the click.
+    prefetchDefaultUsage("intent");
+    await act(async () => {
+      settle(a, summary(a, [["codex", 40]]));
+      settle(b, summary(b, [["claude", 60]]));
+    });
+
+    using watch = watchSkeleton();
+    await using _screen = await openPage();
+    await expect.element(page.getByText(/of \$100\.00 in the last/)).toBeVisible();
+    expect(watch.frames.seen, "a skeleton frame while prefetched figures were ready").toBe(false);
+  });
+
+  it("shows no figures for a machine whose credential is not confirmed, prefetched or not", async () => {
+    const { a, b } = pair();
+    saveUsagePagePreferences({ metric: "cost", windowDays: 30, hiddenProviders: [] });
+    setEnvironments([a, b]);
+    // Paired, but its session check has not answered: its grant is not known.
+    for (const id of [a, b]) {
+      set(transport.prepared(id), Option.some(credentials(id, `first-${id}`)));
+      set(transport.session(id), AsyncResult.initial(true));
+    }
+    prefetchDefaultUsage("intent");
+    await act(async () => {
+      settle(a, summary(a, [["codex", 40]]));
+      settle(b, summary(b, [["claude", 60]]));
+    });
+
+    await using _screen = await openPage();
+    await SHOWS_NO_FIGURES();
+    // The check answers: they are confirmed, ask, and the answers that come back show.
+    await act(async () => {
+      for (const id of [a, b]) set(transport.session(id), AsyncResult.success(GRANTED));
+    });
+    await act(async () => {
+      settle(a, summary(a, [["codex", 40]]));
+      settle(b, summary(b, [["claude", 60]]));
+    });
+    await expect.element(page.getByText(/of \$100\.00 in the last/)).toBeVisible();
   });
 });

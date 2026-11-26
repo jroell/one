@@ -1,20 +1,13 @@
 import { useGT } from "gt-react";
-import {
-  HandIcon,
-  MicIcon,
-  MicOffIcon,
-  TriangleAlertIcon,
-  Volume2Icon,
-  WifiOffIcon,
-  XIcon,
-} from "lucide-react";
-import type { ReactNode, RefObject } from "react";
+import { MicIcon, MicOffIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { memo, useState, type ReactNode, type RefObject } from "react";
 
 import { OneOrb, type OneOrbState } from "./OneOrb";
+import { captionWords } from "./voiceCaptionProgress";
 
 /**
- * What the stage shows. Each one has its own shape, label and glyph, so none is told apart by
- * sound or by color alone.
+ * What the stage shows. Each one has its own shape and word, so none is told apart by sound or by
+ * color alone.
  */
 export type VoiceLook =
   | "preparing"
@@ -27,34 +20,20 @@ export type VoiceLook =
   | "failed";
 
 /**
- * The ring is the mark: a rigid gold torus at its fixed tilt. Only thinking leaves that pose, by
- * turning about its own axis, which keeps every frame a clean torus. The listening and speaking
- * poses face the viewer and deform the band with the sound level, so voice chat does not use them.
+ * The ring is the mark: a rigid gold torus. It rests at its fixed tilt, and while the agent works
+ * it is held edge-on with one light sweeping across it. The listening and speaking poses face the
+ * viewer, so voice chat does not use them; sound reaches the ring only through `glowLevelRef`,
+ * which drives its rim and halo and never its shape.
  */
 const ORB_STATE: Record<VoiceLook, OneOrbState> = {
   preparing: "idle",
   listening: "idle",
   muted: "idle",
-  thinking: "thinking",
+  thinking: "waiting",
   speaking: "idle",
   interrupted: "idle",
   notice: "idle",
   failed: "idle",
-};
-
-const GLYPHS: Record<VoiceLook, ReactNode> = {
-  preparing: <MicIcon />,
-  listening: <MicIcon />,
-  muted: <MicOffIcon />,
-  thinking: (
-    <svg viewBox="0 0 16 16" data-glyph="working">
-      <circle cx="8" cy="8" r="6" pathLength="100" strokeDasharray="75 25" />
-    </svg>
-  ),
-  speaking: <Volume2Icon />,
-  interrupted: <HandIcon />,
-  notice: <WifiOffIcon />,
-  failed: <TriangleAlertIcon />,
 };
 
 export type VoiceStageViewProps = {
@@ -65,11 +44,16 @@ export type VoiceStageViewProps = {
   readonly orbDisabled: boolean;
   readonly caption: string;
   readonly captionKind: "heard" | "reply";
+  /** Words are separate elements, so the voice can warm them one by one while it speaks. */
+  readonly captionWords: boolean;
   readonly muted: boolean;
   readonly showRetry: boolean;
   /** What the orb does right now, for the key hint: null when it does nothing. */
   readonly orbAction: "send" | "interrupt" | "unmute" | null;
   readonly glowRef: RefObject<HTMLDivElement | null>;
+  /** The smoothed sound level, 0 to 1, for the ring's own rim and halo glow. */
+  readonly glowLevelRef: { readonly current: number };
+  readonly captionRef: RefObject<HTMLParagraphElement | null>;
   readonly stageRef: RefObject<HTMLDivElement | null>;
   readonly orbButtonRef: RefObject<HTMLButtonElement | null>;
   readonly orbWrapRef: RefObject<HTMLDivElement | null>;
@@ -81,6 +65,89 @@ export type VoiceStageViewProps = {
   readonly onEnd: () => void;
 };
 
+const CaptionText = memo(function CaptionText({
+  text,
+  words,
+}: {
+  readonly text: string;
+  readonly words: boolean;
+}) {
+  if (!words) return text;
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  for (const word of captionWords(text)) {
+    if (word.start > cursor) parts.push(text.slice(cursor, word.start));
+    parts.push(
+      <span key={word.start} className="one-voice-word" data-start={word.start}>
+        {word.text}
+      </span>,
+    );
+    cursor = word.start + word.text.length;
+  }
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return parts;
+});
+
+/**
+ * One serif italic word under the ring. A new word fades in while the old one fades out in the same
+ * place, so a change of state is seen, not swapped. Screen readers get only the current word.
+ */
+function StatusWord({ status }: { readonly status: string }) {
+  const [words, setWords] = useState({ current: status, previous: null as string | null, turn: 0 });
+  if (words.current !== status) {
+    setWords({ current: status, previous: words.current, turn: words.turn + 1 });
+  }
+  return (
+    <div className="one-voice-status-wrap">
+      {words.previous === null ? null : (
+        <span key={`out-${words.turn}`} className="one-voice-status-out" aria-hidden="true">
+          {words.previous}
+        </span>
+      )}
+      {/* One live region for the whole stay, so a new word is announced as a change of its text. */}
+      <p className="one-voice-status-slot" role="status" aria-live="polite">
+        <span key={`in-${words.turn}`} className="one-voice-status">
+          {words.current}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function Control({
+  label,
+  name,
+  shortcut,
+  pressed,
+  onClick,
+  children,
+}: {
+  /** What hovering or focusing shows. */
+  readonly label: string;
+  /** The accessible name; it stays the same when the control is pressed. */
+  readonly name: string;
+  readonly shortcut?: string;
+  readonly pressed?: boolean;
+  readonly onClick: () => void;
+  readonly children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="one-voice-control"
+      aria-label={name}
+      aria-pressed={pressed}
+      aria-keyshortcuts={shortcut}
+      onClick={onClick}
+    >
+      {children}
+      <span className="one-voice-control-label" aria-hidden="true">
+        {label}
+      </span>
+    </button>
+  );
+}
+
 /** The voice stage as drawn: a dark scene, the ring as the orb, its state, the transcript and the controls. */
 export function VoiceStageView({
   look,
@@ -90,10 +157,13 @@ export function VoiceStageView({
   orbDisabled,
   caption,
   captionKind,
+  captionWords: wordsEnabled,
   muted,
   showRetry,
   orbAction,
   glowRef,
+  glowLevelRef,
+  captionRef,
   stageRef,
   orbButtonRef,
   orbWrapRef,
@@ -128,6 +198,7 @@ export function VoiceStageView({
       aria-label={gt("Voice chat")}
       data-one-voice-stage={stage}
       data-look={look}
+      data-hints="on"
       className="one-voice-stage"
     >
       <div className="one-voice-drag" aria-hidden="true" />
@@ -138,13 +209,7 @@ export function VoiceStageView({
           </div>
           <div ref={haloRef} className="one-voice-halo" aria-hidden="true">
             <span className="one-voice-ring" />
-            <span className="one-voice-ring" />
-            <span className="one-voice-ring" />
             <span className="one-voice-ripple" />
-            <span className="one-voice-ripple" />
-            <svg className="one-voice-arc" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="48" pathLength="100" strokeDasharray="75 25" />
-            </svg>
           </div>
           <div ref={swellRef} className="one-voice-orb-swell">
             <button
@@ -155,18 +220,11 @@ export function VoiceStageView({
               aria-disabled={orbDisabled}
               onClick={onOrb}
             >
-              <OneOrb state={ORB_STATE[look]} className="w-full" />
+              <OneOrb state={ORB_STATE[look]} glowLevelRef={glowLevelRef} className="w-full" />
             </button>
           </div>
         </div>
-        <p className="one-voice-status" role="status" aria-live="polite">
-          <span className="one-voice-status-glyph" aria-hidden="true">
-            {GLYPHS[look]}
-          </span>
-          <span key={look} className="one-voice-status-text">
-            {status}
-          </span>
-        </p>
+        <StatusWord status={status} />
         <span
           key={captionKind}
           className="one-voice-eyebrow one-voice-caption-line"
@@ -175,34 +233,43 @@ export function VoiceStageView({
           {eyebrow}
         </span>
         <p
+          ref={captionRef}
           className="one-voice-caption"
           data-kind={captionKind}
           role="region"
           aria-label={gt("Voice chat transcript")}
           tabIndex={hasCaption ? 0 : undefined}
         >
-          {caption}
+          <CaptionText text={caption} words={wordsEnabled} />
         </p>
       </div>
       <div className="one-voice-stage-actions">
         {showRetry ? (
-          <button type="button" className="one-voice-action" onClick={onRetry}>
-            {gt("Try the microphone again")}
-          </button>
+          <Control
+            name={gt("Try the microphone again")}
+            label={gt("Try the microphone again")}
+            onClick={onRetry}
+          >
+            <RotateCcwIcon aria-hidden="true" />
+          </Control>
         ) : null}
-        <button
-          type="button"
-          className="one-voice-action"
-          aria-pressed={muted}
+        <Control
+          name={gt("Mute microphone")}
+          label={muted ? gt("Unmute microphone") : gt("Mute microphone")}
+          shortcut="M"
+          pressed={muted}
           onClick={onToggleMute}
         >
-          {muted ? <MicIcon aria-hidden="true" /> : <MicOffIcon aria-hidden="true" />}
-          {gt("Mute microphone")}
-        </button>
-        <button type="button" className="one-voice-action" onClick={onEnd}>
+          {muted ? <MicOffIcon aria-hidden="true" /> : <MicIcon aria-hidden="true" />}
+        </Control>
+        <Control
+          name={gt("End voice chat")}
+          label={gt("End voice chat")}
+          shortcut="Escape"
+          onClick={onEnd}
+        >
           <XIcon aria-hidden="true" />
-          {gt("End voice chat")}
-        </button>
+        </Control>
       </div>
       <ul className="one-voice-hints" aria-label={gt("Keyboard shortcuts")}>
         {orbHint === null ? null : (

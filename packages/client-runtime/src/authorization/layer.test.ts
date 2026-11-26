@@ -444,6 +444,51 @@ describe("RemoteEnvironmentAuthorization", () => {
   );
 
   it.effect(
+    "gives a direct link paired again a new credential id, and keeps it through a renewal",
+    () =>
+      Effect.gen(function* () {
+        const credential = (accessToken: string, pairedAtEpochMs: number) =>
+          new DpopConnectionCredential({
+            accessToken,
+            expiresAtEpochMs: Number.MAX_SAFE_INTEGER,
+            pairedAtEpochMs,
+          });
+        const harness = yield* makeHarness({
+          responses: [
+            websocketTicket("direct-ticket-1"),
+            websocketTicket("direct-ticket-2"),
+            websocketTicket("direct-ticket-3"),
+          ],
+          descriptor: DESCRIPTOR,
+          credentials: [["direct-1", credential("direct-token-1", 1_000)]],
+        });
+        const connect = Effect.gen(function* () {
+          const remote = yield* RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization;
+          return yield* remote.authorizeDirectDpop({
+            expectedEnvironmentId: ENVIRONMENT_ID,
+            connectionId: "direct-1",
+            httpBaseUrl: ENDPOINT.httpBaseUrl,
+            wsBaseUrl: ENDPOINT.wsBaseUrl,
+          });
+        });
+        // One layer build, so the credential store the test writes is the one the service reads.
+        yield* Effect.gen(function* () {
+          const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore;
+          const first = yield* connect;
+          expect(first.credentialId).toMatch(/^dpop:thumbprint-1:[0-9a-f]+$/);
+          expect(first.credentialId).not.toContain("1000");
+
+          yield* credentials.put("direct-1", credential("direct-token-2", 1_000));
+          expect((yield* connect).credentialId, "renewed, same pairing").toBe(first.credentialId);
+
+          // The same device key and host, paired again: the stored credential is replaced in place.
+          yield* credentials.put("direct-1", credential("direct-token-3", 9_000));
+          expect((yield* connect).credentialId, "paired again").not.toBe(first.credentialId);
+        }).pipe(Effect.provide(harness.layer));
+      }),
+  );
+
+  it.effect(
     "names a T3 Connect connection by the signer and a digest of the account, never the token",
     () =>
       Effect.gen(function* () {

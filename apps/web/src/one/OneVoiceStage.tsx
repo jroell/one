@@ -2,7 +2,7 @@ import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useGT } from "gt-react";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { toastManager } from "~/components/ui/toast";
+import { setToastsSuppressed, toastManager } from "~/components/ui/toast";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import {
   useQuietThreadProjection,
@@ -12,6 +12,11 @@ import {
 import { threadTranscriptMayLag } from "~/threadSync";
 import { OneVoiceGhost } from "./OneVoiceGhost";
 import { VoiceStageView, type VoiceLook } from "./OneVoiceStageView";
+import {
+  createCaptionProgress,
+  estimatedSentenceTimesMs,
+  sentenceStarts,
+} from "./voiceCaptionProgress";
 import {
   getCommittedVoiceThreadKey,
   useVoiceBridge,
@@ -48,7 +53,9 @@ import {
   motionMs,
   motionToken,
   prefersReducedMotion,
-  recordVoiceExit,
+  expireVoiceExit,
+  holdVoiceExit,
+  preloadExitMark,
   getVoiceExit,
   smoothSwell,
   subscribeVoiceExit,
@@ -59,6 +66,12 @@ import { useWorkspaceMode } from "./workspaceMode";
 
 export type VoiceStageMessage = VoiceMessage;
 
+/** How long without a word timing event before the caption is warmed a sentence at a time instead. */
+const NO_TIMING_WAIT_MS = 1_200;
+/** How long the key hints stay after the last key or pointer move, and how many sessions show them at first. */
+const HINTS_VISIBLE_MS = 3_000;
+const HINT_SESSIONS_KEY = "one:voice-hint-sessions";
+const HINT_SESSIONS_SHOWN = 3;
 /** How long the "Interrupted" state shows before the stage listens again. */
 const INTERRUPTED_MS = 900;
 
@@ -214,6 +227,7 @@ function ActiveVoiceStage({
   const swellRef = useRef<HTMLDivElement | null>(null);
   const haloRef = useRef<HTMLDivElement | null>(null);
   const glowRef = useRef<HTMLDivElement | null>(null);
+  const captionRef = useRef<HTMLParagraphElement | null>(null);
   /** The smoothed sound level the ring and halo follow; it carries across states so nothing jumps. */
   const swellValueRef = useRef(0);
   const originRef = useRef<Element | null | undefined>(undefined);
@@ -632,6 +646,21 @@ function ActiveVoiceStage({
     let deadline: number | undefined;
     let voicesWait: number | undefined;
     let onVoices: (() => void) | undefined;
+    let sawBoundary = false;
+    const sentenceTimers: number[] = [];
+    const clearSentenceTimers = () => {
+      for (const timer of sentenceTimers.splice(0)) window.clearTimeout(timer);
+    };
+    // Each word of the caption warms as the voice reaches it, and a long reply scrolls to keep it mid-box.
+    const progress = captionRef.current
+      ? createCaptionProgress(captionRef.current, (word) => {
+          const box = captionRef.current;
+          if (!box || box.scrollHeight <= box.clientHeight) return;
+          const top =
+            word.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+          box.scrollTop = Math.max(0, top - box.clientHeight / 2);
+        })
+      : null;
     const finish = () => {
       // A late event of this reading must not end another turn's.
       if (finished) return;
@@ -656,6 +685,24 @@ function ActiveVoiceStage({
         window.clearTimeout(startWatch);
         window.clearTimeout(startDeadline);
         deadline = window.setTimeout(finish, speechDeadlineMs(spoken.text));
+        // An engine that reports no word timing gets the caption warmed a sentence at a time.
+        sentenceTimers.push(
+          window.setTimeout(() => {
+            if (sawBoundary) return;
+            const starts = sentenceStarts(spoken.text);
+            const times = estimatedSentenceTimesMs(spoken.text);
+            starts.forEach((start, index) => {
+              const wait = (times[index] ?? 0) - NO_TIMING_WAIT_MS;
+              // A sentence the estimate says is already under way is warmed at once.
+              if (wait <= 0) progress?.reachSentence(start, spoken.text);
+              else {
+                sentenceTimers.push(
+                  window.setTimeout(() => progress?.reachSentence(start, spoken.text), wait),
+                );
+              }
+            });
+          }, NO_TIMING_WAIT_MS),
+        );
       };
       const end = () => {
         if (active === utterance) finish();
@@ -664,13 +711,9 @@ function ActiveVoiceStage({
       utterance.onboundary = (event) => {
         if (active !== utterance) return;
         speechPulseRef.current = 0.62;
-        // A long reply scrolls its transcript to keep the spoken line near the middle of the box.
-        const caption = stageRef.current?.querySelector<HTMLElement>(".one-voice-caption");
-        if (caption && caption.scrollHeight > caption.clientHeight) {
-          const spokenAt =
-            (event.charIndex / Math.max(1, spoken.text.length)) * caption.scrollHeight;
-          caption.scrollTop = Math.max(0, spokenAt - caption.clientHeight / 2);
-        }
+        sawBoundary = true;
+        clearSentenceTimers();
+        progress?.reach(event.charIndex);
         begin();
       };
       utterance.onend = end;
@@ -721,6 +764,7 @@ function ActiveVoiceStage({
       window.clearTimeout(startDeadline);
       window.clearTimeout(deadline);
       window.clearTimeout(voicesWait);
+      clearSentenceTimers();
       if (onVoices) synthesis.removeEventListener("voiceschanged", onVoices);
       synthesis.cancel();
     };
@@ -761,6 +805,11 @@ function ActiveVoiceStage({
     }
     for (const element of covered) element.inert = true;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      // One press, one action: a held key repeats keydown, and a repeat must not mute and unmute.
+      if (event.repeat && (event.key === "m" || event.key === "M" || event.key === "Escape")) {
+        event.preventDefault();
+        return;
+      }
       if (event.key === "m" || event.key === "M") {
         const target = event.target;
         const typing =
@@ -772,16 +821,8 @@ function ActiveVoiceStage({
         return;
       }
       if (event.key !== "Escape") return;
-      // A menu, select or dialog opened over voice chat closes first.
-      const layers = document.querySelectorAll(
-        "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]",
-      );
-      // A closed sheet elsewhere in the page (the phone's sidebar) keeps its dialog role but is inert.
-      const open = [...layers].some(
-        (layer) =>
-          layer !== stageElement && layer.closest("[inert], [aria-hidden='true']") === null,
-      );
-      if (open) return;
+      // Escape always ends voice chat: the stage covers the window and makes the page behind inert,
+      // so nothing else on screen is open for it to close first.
       event.preventDefault();
       event.stopPropagation();
       dispatchVoiceSession({ type: "stop" });
@@ -834,6 +875,61 @@ function ActiveVoiceStage({
     return () => window.clearTimeout(timer);
   }, [interrupted]);
 
+  // No toast shows over the stage, whatever it is: they wait in the queue and come when it closes.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- holds the shared toast queue while this stage is open
+  useEffect(() => {
+    setToastsSuppressed(true);
+    return () => {
+      // The exit beat is still on screen: its ghost lets the toasts go when it ends. This is the
+      // fallback for a screen that left with no ghost to do it.
+      const timer = window.setTimeout(() => {
+        if (getVoiceSession().stage === "off" && getVoiceExit() === null)
+          setToastsSuppressed(false);
+      }, 1_500);
+      if (getVoiceExit() === null) {
+        window.clearTimeout(timer);
+        setToastsSuppressed(false);
+      }
+    };
+  }, []);
+
+  // The key hints show faintly, fade after a few seconds without input, and return on any key or
+  // pointer move. After a few sessions they stay hidden until the person reaches for the keys or
+  // the pointer. The count is local to this browser. The attribute is written directly: a change of
+  // it is a fade, and no React render should wait on a timer.
+  const hintsCountedRef = useRef(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- fades the key hints on a timer and brings them back on input; the attribute lives on the stage element
+  useEffect(() => {
+    const stageElement = stageRef.current;
+    if (!stageRendered || !stageElement) return;
+    let seen = 0;
+    try {
+      seen = Number(window.localStorage.getItem(HINT_SESSIONS_KEY) ?? 0) || 0;
+      if (!hintsCountedRef.current) {
+        hintsCountedRef.current = true;
+        window.localStorage.setItem(HINT_SESSIONS_KEY, String(seen + 1));
+      }
+    } catch {
+      // Without storage the hints behave like the first session.
+    }
+    let timer: number | undefined;
+    const show = () => {
+      stageElement.dataset.hints = "on";
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        stageElement.dataset.hints = "off";
+      }, HINTS_VISIBLE_MS);
+    };
+    if (seen >= HINT_SESSIONS_SHOWN) stageElement.dataset.hints = "off";
+    else show();
+    const events = ["keydown", "pointermove", "pointerdown"] as const;
+    for (const type of events) window.addEventListener(type, show, true);
+    return () => {
+      window.clearTimeout(timer);
+      for (const type of events) window.removeEventListener(type, show, true);
+    };
+  }, [stageRendered]);
+
   // The ring arrives from the control that opened voice chat and, when voice chat ends, flies back:
   // one motion each way. A layout effect, so the first painted frame is already the start of it.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the arrival animation on the committed ring and records where to fly back to on exit
@@ -853,6 +949,7 @@ function ActiveVoiceStage({
     }
     const origin = originRef.current;
     clearVoiceExit();
+    preloadExitMark(256);
     const stageBox = boxOf(stageElement);
     const fallback = {
       left: stageBox.left + stageBox.width / 2 - 24,
@@ -860,9 +957,19 @@ function ActiveVoiceStage({
       width: 48,
       height: 48,
     };
+    const reduced = prefersReducedMotion();
+    // Where the ring rests and where it came from, kept current while the stage is open: the exit
+    // then renders in the very commit that closes the stage, with no frame between the two.
+    let resting = boxOf(orbWrap);
+    const keepPlan = () => {
+      if (reduced) return;
+      const returnTo = origin?.isConnected === true ? boxOf(origin) : null;
+      holdVoiceExit({ orb: resting, origin: returnTo });
+    };
+    keepPlan();
     let arrival: Animation | null = null;
-    if (!prefersReducedMotion()) {
-      const flight = flightTransform(flightTo(boxOf(orbWrap), origin ? boxOf(origin) : fallback));
+    if (!reduced) {
+      const flight = flightTransform(flightTo(resting, origin ? boxOf(origin) : fallback));
       arrival = orbWrap.animate(
         [
           { transform: flight, opacity: 0 },
@@ -875,12 +982,18 @@ function ActiveVoiceStage({
         },
       );
     }
+    const remeasure = () => {
+      if (arrival?.playState === "running") return;
+      resting = boxOf(orbWrap);
+      keepPlan();
+    };
+    window.addEventListener("resize", remeasure);
     return () => {
       arrival?.cancel();
-      const resting = orbWrapRef.current;
-      if (getVoiceSession().stage !== "off" || prefersReducedMotion() || !resting) return;
-      const returnTo = origin?.isConnected === true ? boxOf(origin) : null;
-      recordVoiceExit({ orb: boxOf(resting), origin: returnTo });
+      window.removeEventListener("resize", remeasure);
+      // Left the screen with voice chat still on: there is nothing to fly back from.
+      if (getVoiceSession().stage !== "off") clearVoiceExit();
+      else expireVoiceExit();
     };
   }, [stageRendered]);
 
@@ -998,6 +1111,9 @@ function ActiveVoiceStage({
       showRetry={micFailed}
       orbAction={orbAction}
       glowRef={glowRef}
+      glowLevelRef={swellValueRef}
+      captionRef={captionRef}
+      captionWords={stage === "speaking"}
       stageRef={stageRef}
       orbButtonRef={orbButtonRef}
       orbWrapRef={orbWrapRef}

@@ -4,6 +4,8 @@ import { ComposerContextId, GuestMessageId, ScheduledTaskId } from "@t3tools/con
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
 
 import {
+  withAgentInstructions,
+  withoutAgentInstructions,
   resolveUserMessageFileCards,
   resolveUserMessageGrouping,
   resolveUserMessagePresentation,
@@ -232,5 +234,36 @@ describe("resolveUserMessagePresentation", () => {
         scheduledTaskId: "task:daily-audit",
       });
     }
+  });
+});
+
+describe("agent instructions that travel with a message", () => {
+  it("are not part of the message a person reads, and the words before and after them are", () => {
+    const sent = withAgentInstructions(
+      "Another round of three questions.",
+      "Reply with only JSON.",
+    );
+    expect(sent).toContain("Reply with only JSON.");
+    expect(resolveUserMessagePresentation({ role: "user", text: sent }).text).toBe(
+      "Another round of three questions.",
+    );
+    // Text added after the instructions (a context block) is still the sender's.
+    expect(withoutAgentInstructions(`${sent}\n\nNote: see attached`)).toBe(
+      "Another round of three questions.\n\nNote: see attached",
+    );
+  });
+
+  it("are not shown from a quiz request already stored with its whole format in the visible text", () => {
+    const stored =
+      'Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
+    expect(resolveUserMessagePresentation({ role: "user", text: stored }).text).toBe(
+      "Quiz me on what you just explained.",
+    );
+  });
+
+  it("leave other text alone, including an opening tag that is never closed", () => {
+    expect(withoutAgentInstructions("Plain words")).toBe("Plain words");
+    const open = "Words <one-instructions> never closed";
+    expect(withoutAgentInstructions(open)).toBe(open);
   });
 });

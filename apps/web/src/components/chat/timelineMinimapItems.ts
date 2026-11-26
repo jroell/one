@@ -7,6 +7,7 @@ import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
 } from "@t3tools/shared/composerContextReferences";
+import { withoutAgentInstructions } from "@t3tools/client-runtime/user-message";
 import type { Nodes } from "hast";
 
 import { markdownTree } from "~/markdown/wordsHast";
@@ -33,7 +34,9 @@ export function deriveTimelineMinimapItems(
     items.push({
       id: row.id,
       rowIndex: index,
-      userText: isAttachmentOnlyBootstrapPrompt(row.message.text) ? "" : row.message.text,
+      userText: isAttachmentOnlyBootstrapPrompt(row.message.text)
+        ? ""
+        : withoutAgentInstructions(row.message.text),
       assistantText: resolveFinalAssistantTextForTurn(rows, index),
     });
   }

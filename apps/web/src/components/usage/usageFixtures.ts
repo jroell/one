@@ -87,7 +87,7 @@ export function status(
 export function freshProviderCounts(): Disposable {
   const clear = () => {
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith("one:usage:providers:")) localStorage.removeItem(key);
+      if (key.startsWith("one:usage:providers")) localStorage.removeItem(key);
     }
   };
   clear();

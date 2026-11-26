@@ -220,6 +220,7 @@ import {
   MainConversationContext,
   ReviewChangesContext,
 } from "~/one/OneEmptyState";
+import { ChatStatusScope } from "~/one/ChatStatusScope";
 import { OneVoiceStage } from "~/one/OneVoiceStage";
 import { useThreadPanelInlineOpen, useThreadPanelView } from "~/one/chatThreadPanel";
 import { useWorkspaceMode } from "~/one/workspaceMode";
@@ -420,7 +421,8 @@ import {
 import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransition";
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
-import { noteApprovalDecision } from "~/one/approvalDecision";
+import { answerApproval } from "~/one/approvalDecision";
+import { chordApprovalRequestId } from "./chat/approvalChord";
 import {
   isCompactCommandMessage,
   type LocalThreadErrorEntry,
@@ -2938,12 +2940,22 @@ function ChatView(props: ChatViewProps) {
     isDesktop: isElectron,
   });
   const getShortcutContextStable = useStableCallback(getShortcutContext);
-  // Approve and Decline chords act only on a request that can still be answered.
-  const canRespondToActiveApproval =
+  // Approve and Decline chords answer only the request whose card shows the chord hint: the oldest
+  // one the typing guard is not holding hidden, in the thread's own timeline.
+  const chordApprovalId = chordApprovalRequestId(
+    pendingApprovals.map((approval) => approval.requestId),
+    heldApprovalRequestIds,
+  );
+  const chordApproval =
+    chordApprovalId === null
+      ? null
+      : (pendingApprovals.find((approval) => approval.requestId === chordApprovalId) ?? null);
+  const canRespondToChordApproval =
+    !embedded &&
     canOperateThread &&
-    activePendingApproval !== null &&
-    activePendingApproval.responseCapability === "live" &&
-    !respondingRequestIds.includes(activePendingApproval.requestId);
+    chordApproval !== null &&
+    chordApproval.responseCapability === "live" &&
+    !respondingRequestIds.includes(chordApproval.requestId);
   const timelineSkills = activeProviderStatus
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
@@ -3004,21 +3016,19 @@ function ChatView(props: ChatViewProps) {
         queuedRunsControlRef.current?.editLatest(event.repeat) === true,
       "approval.approve": {
         run: ({ event }) => {
-          if (!canRespondToActiveApproval) return false;
+          if (!canRespondToChordApproval) return false;
           if (event.repeat) return;
-          noteApprovalDecision(activePendingApproval!.requestId, "accept");
-          void onRespondToApprovalStable(activePendingApproval!.requestId, "accept");
+          void answerApproval(chordApproval!.requestId, "accept", onRespondToApprovalStable);
         },
-        canRun: () => canRespondToActiveApproval,
+        canRun: () => canRespondToChordApproval,
       },
       "approval.decline": {
         run: ({ event }) => {
-          if (!canRespondToActiveApproval) return false;
+          if (!canRespondToChordApproval) return false;
           if (event.repeat) return;
-          noteApprovalDecision(activePendingApproval!.requestId, "decline");
-          void onRespondToApprovalStable(activePendingApproval!.requestId, "decline");
+          void answerApproval(chordApproval!.requestId, "decline", onRespondToApprovalStable);
         },
-        canRun: () => canRespondToActiveApproval,
+        canRun: () => canRespondToChordApproval,
       },
       "thread.stop": {
         run: ({ event }) => {
@@ -3727,6 +3737,7 @@ function ChatView(props: ChatViewProps) {
                       <ThreadTimeline
                         pendingApprovals={pendingApprovals}
                         heldApprovalRequestIds={heldApprovalRequestIds}
+                        showApprovalChordHints={!embedded}
                         respondingRequestIds={respondingRequestIds}
                         onRespondToApproval={onRespondToApprovalStable}
                         canOperateThread={canOperateThread}
@@ -4406,14 +4417,16 @@ function ChatView(props: ChatViewProps) {
     </div>
   );
   return (
-    <FileMetadataThreadProvider
-      threadRef={activeThreadRef}
-      cwd={activeWorkspaceRoot}
-      checkpoints={serverProjection?.checkpoints}
-      checkpointScopes={serverProjection?.checkpointScopes}
-    >
-      {content}
-    </FileMetadataThreadProvider>
+    <ChatStatusScope>
+      <FileMetadataThreadProvider
+        threadRef={activeThreadRef}
+        cwd={activeWorkspaceRoot}
+        checkpoints={serverProjection?.checkpoints}
+        checkpointScopes={serverProjection?.checkpointScopes}
+      >
+        {content}
+      </FileMetadataThreadProvider>
+    </ChatStatusScope>
   );
 }
 

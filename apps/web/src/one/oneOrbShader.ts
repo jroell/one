@@ -20,6 +20,7 @@ uniform float uEnergy;
 uniform float uSpin;
 uniform float uTilt;
 uniform float uPulse;
+uniform float uLevel;
 uniform float uDark;
 uniform float uAura;
 uniform float uReveal;
@@ -194,7 +195,8 @@ void main() {
     vec3 through = studio(refract(rd, n, 0.69)) * tint;
     vec3 depth = mix(uLo * 0.5, uMid * 0.6, facing * facing);
     color = depth * 0.5 + mirrored * 0.9 + through * 0.22;
-    color += uHi * pow(1.0 - facing, 3.0) * (0.3 + 0.6 * uEnergy);
+    // uLevel lights the rim and halo only: the ring stays a rigid torus at every level.
+    color += uHi * pow(1.0 - facing, 3.0) * (0.3 + 0.6 * uEnergy + 0.9 * uLevel);
     vec3 keyHalf = normalize(normalize(vec3(0.35, 0.9, 0.55)) + v);
     // A soft key light, not a pin: a tight exponent sparkles along the rim as the normal turns.
     color += mix(uHi, vec3(1.0), 0.6) * pow(max(dot(n, keyHalf), 0.0), 36.0) * 0.9;
@@ -255,7 +257,7 @@ void main() {
   float halo;
   float alive = smoothstep(0.35, 0.6, uAura);
   float contact = exp(-max(nearest, 0.0) * 16.0) * 0.07 * uGlow;
-  float spread = exp(-max(nearest, 0.0) * (7.5 - 3.0 * uEnergy)) * (0.1 * uEnergy + 0.1 * uPulse + 0.16 * alive);
+  float spread = exp(-max(nearest, 0.0) * (7.5 - 3.0 * uEnergy - 2.0 * uLevel)) * (0.1 * uEnergy + 0.1 * uPulse + 0.16 * alive + 0.14 * uLevel);
   halo = contact + spread * uGlow;
   // A corona that moves like slow smoke: light drawn up and off the band.
   // Two layers sliding past each other, so the smoke curls instead of scrolling.

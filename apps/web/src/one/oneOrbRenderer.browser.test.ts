@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  IDLE_PARK_MS,
   RESTING_FRAME_MS,
   SLOW_FRAMES_BEFORE_STEP_DOWN,
   startOneOrb,
   type OneOrbState,
 } from "./oneOrbRenderer";
-import { ORB_SUPERSAMPLE } from "./oneOrbRest";
+import { ORB_OPEN_ANGLE, ORB_REST, ORB_SUPERSAMPLE } from "./oneOrbRest";
 
 /** Just enough of a WebGL context for the ring: every call is recorded, nothing is drawn. */
 function createStubGl() {
@@ -151,6 +152,10 @@ function setup(
 
   const media = own(createMedia({ reducedMotion: options.reducedMotion ?? false }));
 
+  let focused = true;
+  const hasFocus = vi.spyOn(document, "hasFocus").mockImplementation(() => focused);
+  cleanups.push(() => hasFocus.mockRestore());
+
   const canvas = document.createElement("canvas");
   const size = options.size ?? 400;
   canvas.style.cssText = `position:fixed;left:0;top:0;width:${size}px;height:${size}px`;
@@ -171,6 +176,11 @@ function setup(
     canvas,
     media,
     setPixelRatio: (value: number) => pixelRatio.mockReturnValue(value),
+    /** The window gains or loses focus, with the event the browser sends. */
+    setFocused: (value: boolean) => {
+      focused = value;
+      window.dispatchEvent(new Event(value ? "focus" : "blur"));
+    },
     /** Tells the ring whether it is on screen, as the intersection observer would. */
     intersect: (isIntersecting: boolean) =>
       report([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver),
@@ -472,14 +482,70 @@ describe("the ring at rest", () => {
       .filter(([location]) => (location as { name?: string } | undefined)?.name === "uOrbit")
       .map(([, value]) => value as number);
 
-  it("keeps drawing a settled idle ring at the resting pace for a whole minute, and never goes to sleep", () => {
+  it("draws a settled idle ring at the resting pace while the person is active", () => {
     using env = setup();
     const orb = startResting(env);
-    env.run(Math.ceil(60_000 / 10), 10);
+    env.run(Math.ceil(20_000 / 10), 10);
     const drawn = drawCount(env);
-    expect(drawn).toBeGreaterThan(60_000 / RESTING_FRAME_MS / 1.5);
-    expect(drawn).toBeLessThan(60_000 / RESTING_FRAME_MS + 20);
+    expect(drawn).toBeGreaterThan(20_000 / RESTING_FRAME_MS / 1.5);
+    expect(drawn).toBeLessThan(20_000 / RESTING_FRAME_MS + 20);
     expect(env.pendingWork()).toBeGreaterThan(0);
+    orb.dispose();
+  });
+
+  it("finishes the turn of its catch-light 30 seconds after the last input, stops at the still picture's place and draws nothing more", () => {
+    using env = setup();
+    const orb = startResting(env);
+    env.run(Math.ceil((IDLE_PARK_MS + 13_000) / 10), 10);
+    expect(env.pendingWork()).toBe(0);
+    expect(orbitValues(env).at(-1)).toBe(ORB_REST.orbit);
+    const parked = drawCount(env);
+    env.run(1000, 10);
+    expect(drawCount(env)).toBe(parked);
+    orb.dispose();
+  });
+
+  it("starts drawing again on pointer movement and parks again after 30 more seconds", () => {
+    using env = setup();
+    const orb = startResting(env);
+    env.run(Math.ceil((IDLE_PARK_MS + 13_000) / 10), 10);
+    const parked = drawCount(env);
+    window.dispatchEvent(new Event("pointermove"));
+    env.run(100, 10);
+    expect(drawCount(env)).toBeGreaterThan(parked);
+    env.run(Math.ceil((IDLE_PARK_MS + 13_000) / 10), 10);
+    expect(env.pendingWork()).toBe(0);
+    orb.dispose();
+  });
+
+  it("keeps the frame it has while the window is not focused, and draws again when focus returns", () => {
+    using env = setup();
+    const orb = startResting(env);
+    env.run(20, 10);
+    env.setFocused(false);
+    env.run(20, 10);
+    const paused = drawCount(env);
+    env.run(500, 10);
+    expect(drawCount(env)).toBe(paused);
+    expect(env.pendingWork()).toBe(0);
+    env.setFocused(true);
+    env.run(40, 10);
+    expect(drawCount(env)).toBeGreaterThan(paused);
+    orb.dispose();
+  });
+
+  it("holds a waiting ring edge-on and rigid, with its light sweeping on every frame", () => {
+    using env = setup();
+    const orb = startResting(env, () => "waiting");
+    env.run(300, 16);
+    const spins = env.gl.uniform1f.mock.calls
+      .filter(([location]) => (location as { name?: string } | undefined)?.name === "uSpin")
+      .map(([, value]) => value as number);
+    expect(spins.at(-1)).toBeCloseTo(ORB_OPEN_ANGLE + Math.PI / 2, 2);
+    expect(Math.abs((spins.at(-1) ?? 0) - (spins.at(-10) ?? 0))).toBeLessThan(0.0001);
+    const before = drawCount(env);
+    env.run(60, 16);
+    expect(drawCount(env) - before).toBe(60);
     orb.dispose();
   });
 

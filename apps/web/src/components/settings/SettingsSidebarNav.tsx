@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type KeyboardEvent } from "react";
+import type { EnvironmentId } from "@t3tools/contracts";
 import {
   ArchiveIcon,
   FlaskConicalIcon,
@@ -26,7 +27,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { resolveEventKeys } from "@t3tools/shared/keybindings";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { T, useGT, useMessages } from "gt-react";
 
 import { cn } from "../../lib/utils";
@@ -56,8 +57,8 @@ import {
   useHasSecretProvidersEnvironment,
 } from "./useAvailableSettingsSearchItems";
 import { SETTINGS_DETAIL_PAGE_PARENTS } from "./settingsDetailPages";
+import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
-import { SETTINGS_PAGE_TRANSITION } from "./settingsPageTransition";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
 const SnapShotIcon = createLucideIcon("snap-shot", [
@@ -199,13 +200,37 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     if (compactSearchOpen) searchInputRef.current?.focus();
   }, [compactSearchOpen, searchInputRef]);
 
+  const router = useRouter();
+  const scope = useOptionalSettingsScope();
+  const scanEnvironmentId =
+    scope?.environment?.connection.phase === "connected" ? scope.environment.environmentId : null;
+  // A page's code and data are fetched as the pointer or focus nears its rail item, and every
+  // page's code once the sheet is idle, so the change itself finds them ready.
+  const prefetchPage = (to: SettingsPath) => {
+    void router.preloadRoute({ to }).catch(() => undefined);
+    if (to === "/settings/about") {
+      void router.preloadRoute({ to: "/settings/open-source-licenses" }).catch(() => undefined);
+    }
+    prefetchSettingsPageData(to, scanEnvironmentId);
+  };
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- loads every page's route code while the sheet is idle, one page per idle slice
+  useEffect(
+    () =>
+      runWhenIdleInTurn(
+        navGroups.flatMap((group) => group.paths),
+        (to) => void router.preloadRoute({ to }).catch(() => undefined),
+      ),
+    // The page list is fixed for the sheet's life apart from Secrets, which the next idle slice sees.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
+    [router],
+  );
+
   const handleSectionClick = (to: SettingsPath) => {
     void navigate({
       to,
       hash: "",
       replace: true,
       hashScrollIntoView: false,
-      viewTransition: SETTINGS_PAGE_TRANSITION,
     });
   };
 
@@ -228,7 +253,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       replace: true,
       hashScrollIntoView: false,
       state: { settingsTargetHighlight: true },
-      viewTransition: SETTINGS_PAGE_TRANSITION,
     });
   };
 
@@ -414,6 +438,8 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                                   aria-current={isActive ? "page" : undefined}
                                   isActive={isActive}
                                   onClick={() => handleSectionClick(to)}
+                                  onPointerEnter={() => prefetchPage(to)}
+                                  onFocus={() => prefetchPage(to)}
                                 >
                                   <Icon />
                                   <span
@@ -448,4 +474,39 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       </SidebarFooter>
     </nav>
   );
+}
+
+// Dynamic, so the rail does not pull these pages' code into itself. About leads to the licenses,
+// which fetch a large manifest.
+function prefetchSettingsPageData(to: SettingsPath, scanEnvironmentId: EnvironmentId | null): void {
+  if (to === "/settings/about") {
+    void import("./OpenSourceLicenses").then((page) => page.prefetchLicenseManifest());
+  }
+  if (to === "/settings/source-control" && scanEnvironmentId !== null) {
+    void import("./SourceControlSettings").then((page) =>
+      page.prefetchSourceControlDiscovery(scanEnvironmentId),
+    );
+  }
+}
+
+/** Runs `run` for each item, one per idle slice, and returns the cancel. */
+function runWhenIdleInTurn<A>(items: ReadonlyArray<A>, run: (item: A) => void): () => void {
+  const idle = (step: () => void): number =>
+    typeof requestIdleCallback === "function"
+      ? requestIdleCallback(step, { timeout: 2000 })
+      : window.setTimeout(step, 200);
+  let index = 0;
+  let handle = 0;
+  const step = () => {
+    const item = items[index];
+    index += 1;
+    if (item === undefined) return;
+    run(item);
+    handle = idle(step);
+  };
+  handle = idle(step);
+  return () => {
+    if (typeof cancelIdleCallback === "function") cancelIdleCallback(handle);
+    window.clearTimeout(handle);
+  };
 }

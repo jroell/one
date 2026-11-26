@@ -15,7 +15,9 @@ export interface ChatSection {
 }
 
 const HEADING = /^ {0,3}(#{1,3})[ \t]+(.+?)[ \t#]*$/;
-const FENCE = /^ {0,3}(```|~~~)/;
+/** A fence opens with three or more backticks or tildes, at most three spaces in (CommonMark). */
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 const SECTION_CACHE_LIMIT = 2000;
 
 interface Parsed {
@@ -40,14 +42,22 @@ function plainHeading(source: string): string {
 export function parseChatHeadings(text: string, streaming: boolean): string[] {
   const lines = text.split("\n");
   const headings: string[] = [];
-  let fence: string | null = null;
+  let fence: { readonly char: string; readonly length: number } | null = null;
   for (const [index, line] of lines.entries()) {
-    const marker = FENCE.exec(line)?.[1];
-    if (marker !== undefined) {
-      fence = fence === null ? marker : fence === marker ? null : fence;
+    if (fence !== null) {
+      // Only a fence of the same character, at least as long, and nothing after it, closes.
+      const closing = FENCE_CLOSE.exec(line)?.[1];
+      if (closing !== undefined && closing[0] === fence.char && closing.length >= fence.length) {
+        fence = null;
+      }
       continue;
     }
-    if (fence !== null) continue;
+    const opening = FENCE_OPEN.exec(line);
+    // A backtick fence's info string cannot hold a backtick: "```js code```" is inline code.
+    if (opening !== null && !(opening[1]![0] === "`" && opening[2]!.includes("`"))) {
+      fence = { char: opening[1]![0]!, length: opening[1]!.length };
+      continue;
+    }
     const heading = HEADING.exec(line);
     if (heading === null) continue;
     if (streaming && index === lines.length - 1) continue;

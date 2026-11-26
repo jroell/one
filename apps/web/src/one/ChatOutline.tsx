@@ -12,8 +12,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 
 import type { ChatSection } from "./chatSections";
 
-/** An outline of one or two turns is shorter than the screen it sits beside. */
-export const CHAT_OUTLINE_MIN_TURNS = 3;
+/** On a screen wide enough for it, the outline is there from the first turn. */
+export const CHAT_OUTLINE_MIN_TURNS = 1;
 const LABEL_SOURCE_LENGTH = 240;
 // Leading markdown markers that read as noise in a one-line label.
 const LEADING_MARKERS = /^(?:#{1,6}|>|[-*+]|\d+[.)])\s+/;
@@ -216,9 +216,7 @@ export function ChatOutline({
     }
   }, [current]);
 
-  const sectionTotal = [...sections.values()].reduce((total, list) => total + list.length, 0);
-  if (items.length < CHAT_OUTLINE_MIN_TURNS && !(items.length > 0 && sectionTotal >= 1))
-    return null;
+  if (items.length < CHAT_OUTLINE_MIN_TURNS) return null;
 
   const title = gt("In this chat");
   const fallback = gt("User message");

@@ -299,6 +299,57 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
+  it.effect("moves the old Approve and Decline defaults to their new chords, once", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      const keybindings = yield* Keybindings.Keybindings;
+      const when = "!terminalFocus";
+      const approvalRules = Effect.map(readKeybindingsConfig(keybindingsConfigPath), (rules) =>
+        rules.filter((entry) => entry.command.startsWith("approval.")),
+      );
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [
+        { key: "mod+alt+y", command: "approval.approve", when },
+        { key: "mod+alt+d", command: "approval.decline", when },
+      ]);
+
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      assert.deepStrictEqual(yield* approvalRules, [
+        { key: "mod+shift+y", command: "approval.approve", when },
+        { key: "mod+shift+u", command: "approval.decline", when },
+      ]);
+
+      // A person who later binds the old chord again keeps it: the move ran once.
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [
+        { key: "mod+alt+d", command: "approval.decline", when },
+      ]);
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      assert.deepStrictEqual(yield* approvalRules, [
+        { key: "mod+shift+y", command: "approval.approve", when },
+        { key: "mod+alt+d", command: "approval.decline", when },
+      ]);
+    }).pipe(Effect.provide(layerKeybindings())),
+  );
+
+  it.effect("leaves a customized Decline chord where the person put it", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      const keybindings = yield* Keybindings.Keybindings;
+      const custom = {
+        key: "mod+alt+d",
+        command: "approval.decline",
+        when: "editableFocus",
+      } as const;
+      yield* writeKeybindingsConfig(keybindingsConfigPath, [custom]);
+
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
+      assert.deepStrictEqual(
+        persisted.filter((entry) => entry.command === "approval.decline"),
+        [custom],
+      );
+    }).pipe(Effect.provide(layerKeybindings())),
+  );
+
   it.effect("leaves a customized command without the late default", () =>
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;

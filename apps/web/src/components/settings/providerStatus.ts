@@ -61,7 +61,8 @@ function isAntigravitySignInUnchecked(provider: ServerProvider): boolean {
 export function getProviderStatusKey(provider: ServerProvider | undefined): ProviderStatusKey {
   if (provider && !provider.enabled) return "disabled";
   if (provider && isAntigravitySignInUnchecked(provider)) return "neutral";
-  return provider?.status ?? "warning";
+  // Before the server has reported, nothing is known: that is not a warning.
+  return provider?.status ?? "neutral";
 }
 
 export function getProviderSummary(

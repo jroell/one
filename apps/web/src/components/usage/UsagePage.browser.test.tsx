@@ -128,6 +128,37 @@ describe("UsagePage reopening", () => {
     }
   });
 
+  it("lets go of a pinned provider that has no data in the new period, and says nothing is dimmed", async () => {
+    view.partial = false;
+    view.environments = [
+      status("desk", {
+        summary: summary("desk", [
+          ["codex", 40],
+          ["claude", 60],
+        ]),
+      }),
+    ];
+    await using screen = await open(30);
+    const rows = await vi.waitFor(() => {
+      const found = [...document.querySelectorAll<HTMLElement>(".usage-provider")];
+      expect(found).toHaveLength(2);
+      return found;
+    });
+    const dimmed = () => document.querySelectorAll(".usage-provider[data-dim]").length;
+    const line = () => document.querySelector('[role="status"].sr-only')?.textContent ?? "";
+    const pinned = rows.find((row) => row.textContent?.startsWith("Codex"))!;
+    pinned.click();
+    await vi.waitFor(() => expect(dimmed()).toBeGreaterThan(0));
+    expect(line()).toMatch(/^Showing Codex in the chart\./);
+
+    // Another period where Codex has nothing: its row is gone, so nothing may stay dimmed.
+    view.environments = [status("desk", { summary: summary("desk", [["claude", 60]]) })];
+    await screen.rerender(<UsagePage />);
+    await vi.waitFor(() => expect(document.querySelectorAll(".usage-provider")).toHaveLength(1));
+    expect(dimmed()).toBe(0);
+    expect(line()).toBe("Codex is not in this view, so no provider is dimmed.");
+  });
+
   it("lights a provider's series on a tap or on keyboard focus, clears it on a second tap or Escape, and says so", async () => {
     view.partial = false;
     view.environments = [
@@ -277,6 +308,28 @@ describe("UsagePage reopening", () => {
     await using _coldEmpty = await open(7, all);
     await expect.element(page.getByText("Reading usage…")).toBeVisible();
     expect(document.querySelectorAll(".usage-summary-side .usage-provider")).toHaveLength(0);
+  });
+
+  it("does not size the cold skeleton by the providers another account's machines showed", async () => {
+    using _counts = freshProviderCounts();
+    view.partial = false;
+    view.environments = [
+      status("acctA", {
+        summary: summary("acctA", [
+          ["codex", 40],
+          ["claude", 60],
+        ]),
+      }),
+    ];
+    const settled = await open(30);
+    await expect.element(page.getByText(/of \$100\.00 in the last/)).toBeVisible();
+    await settled[Symbol.asyncDispose]();
+
+    // Another account in the same browser profile: its machine is not acctA, so there is no count.
+    view.environments = [status("acctB", { isPending: true })];
+    await using _cold = await open(30);
+    await expect.element(page.getByText("Reading usage…")).toBeVisible();
+    expect(document.querySelectorAll(".usage-summary-side .usage-provider")).toHaveLength(4);
   });
 
   it("holds the sessions line at 4.5:1 or better on the light panel and the dark one", async () => {

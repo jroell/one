@@ -1,5 +1,5 @@
 import { useGT } from "gt-react";
-import { use, useLayoutEffect, useRef } from "react";
+import { use, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatWorkingTimerNow } from "~/components/chat/TimelineWorkGroupRows.logic";
@@ -36,26 +36,22 @@ function StageBody({ stage }: { readonly stage: ChatStage }) {
           ) : null}
         </span>
       </div>
-      <div className="one-chat-stage-lines" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
     </>
   );
 }
 
 /**
- * The first seconds of a turn: the question restated, the working arc, and three lines where the
- * answer will go. It takes the room the answer will take. When the answer starts, the stage keeps
- * no room (so the answer is already where it will rest) and its picture fades out on a layer
- * over the timeline, drawn where it stood, because a row clips whatever leaves its own box.
+ * The first seconds of a turn: the question restated and the working arc, drawn only if no answer
+ * has started after 250ms. When the answer starts, the stub keeps no room and
+ * a ghost fades out on a layer over the timeline, because a row clips what leaves its own box.
  */
 export function ChatStageBlock({ stage }: { readonly stage: ChatStage }) {
   const gt = useGT();
   const layer = use(ChatStageLayerContext);
   const stubRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
+  // Set when the entrance (after its delay) begins: a stage that never showed leaves no ghost.
+  const [shown, setShown] = useState(false);
   const leaving = !stage.active;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- places the fading picture where the stage stood; only layout knows that
   useLayoutEffect(() => {
@@ -77,9 +73,12 @@ export function ChatStageBlock({ stage }: { readonly stage: ChatStage }) {
       data-leaving={leaving ? "" : undefined}
       role={leaving ? undefined : "status"}
       aria-label={leaving ? undefined : gt("Working on an answer")}
+      onAnimationStart={(event) => {
+        if (event.target === event.currentTarget) setShown(true);
+      }}
     >
       {leaving ? null : <StageBody stage={stage} />}
-      {leaving && layer !== null
+      {leaving && shown && layer !== null
         ? createPortal(
             <div ref={ghostRef} className="one-chat-stage one-chat-stage-ghost" aria-hidden="true">
               <StageBody stage={stage} />

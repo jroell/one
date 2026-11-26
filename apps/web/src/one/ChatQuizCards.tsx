@@ -3,14 +3,17 @@ import { CheckIcon, XIcon } from "lucide-react";
 import { use, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import { Button, InlineButton } from "~/components/ui/button";
+import { m } from "~/i18n/messages";
 
+import { WorkingArc } from "./WorkingArc";
 import { ChatFollowUpContext } from "./chatFollowUpTarget";
 import { ChatEndHoldContext } from "./chatStage";
 import {
   ChatQuizMessageContext,
   parseQuiz,
+  quizKey,
   quizScore,
-  quizStem,
+  QUIZ_ROUND_REQUEST,
   readQuizPicks,
   writeQuizPicks,
   type Quiz,
@@ -18,7 +21,6 @@ import {
 
 /** Puts the quiz prompt in the composer, as the follow-up does, and moves there. */
 function useAskForQuiz() {
-  const gt = useGT();
   const { composerRef } = use(ChatFollowUpContext);
   if (composerRef === null) return null;
   return () => {
@@ -26,38 +28,40 @@ function useAskForQuiz() {
     if (!handle) return;
     // Text already in the composer is the person's own: only take them there.
     const empty = handle.readSnapshot().value.trim().length === 0;
-    if (empty && handle.insertTextAtEnd(quizStem(gt)) === false) return;
+    if (empty && handle.insertTextAtEnd(m(QUIZ_ROUND_REQUEST)) === false) return;
     handle.focusAtEnd();
   };
 }
 
 /**
  * A `quiz` fence in Chat mode. While it streams, or if it never turns out whole, the person never
- * sees its JSON: lines hold its place, then (if it cannot be read) one calm sentence.
+ * sees its JSON: the working arc and one line hold its place, then (if it cannot be read) one
+ * calm sentence.
  */
 export function ChatQuizBlock({
   code,
   streaming,
+  blockIndex,
 }: {
   readonly code: string;
   readonly streaming: boolean;
+  /** Which `quiz` block of its message this is, counting from 0. */
+  readonly blockIndex: number;
 }) {
   const messageId = use(ChatQuizMessageContext);
+  const key = messageId === null ? null : quizKey(messageId, blockIndex);
   const quiz = parseQuiz(code);
   if (streaming) return <ChatQuizPending />;
   if (quiz === null) return <ChatQuizUnreadable />;
-  return <ChatQuiz key={messageId ?? "quiz"} quiz={quiz} messageId={messageId} />;
+  return <ChatQuiz key={key ?? "quiz"} quiz={quiz} quizId={key} />;
 }
 
 function ChatQuizPending() {
   const gt = useGT();
   return (
-    <div className="one-chat-quiz-pending" role="status" aria-label={gt("Writing your questions")}>
-      <div className="one-chat-stage-lines" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </div>
+    <div className="one-chat-quiz-pending" role="status">
+      <WorkingArc size={20} />
+      <span>{gt("Writing your questions")}</span>
     </div>
   );
 }
@@ -78,14 +82,12 @@ function firstOpen(picks: ReadonlyArray<number | null>, from = 0): number {
   return at === -1 ? picks.length : at;
 }
 
-function ChatQuiz({ quiz, messageId }: { readonly quiz: Quiz; readonly messageId: string | null }) {
+function ChatQuiz({ quiz, quizId }: { readonly quiz: Quiz; readonly quizId: string | null }) {
   const gt = useGT();
   const ask = useAskForQuiz();
   const holdEnd = use(ChatEndHoldContext);
   const [picks, setPicks] = useState<Array<number | null>>(
-    () =>
-      (messageId === null ? null : readQuizPicks(messageId, quiz)) ??
-      quiz.questions.map(() => null),
+    () => (quizId === null ? null : readQuizPicks(quizId, quiz)) ?? quiz.questions.map(() => null),
   );
   // Reopening a thread shows the quiz where it was left: the first question still open, or the end.
   const [index, setIndex] = useState(() => firstOpen(picks));
@@ -107,7 +109,7 @@ function ChatQuiz({ quiz, messageId }: { readonly quiz: Quiz; readonly messageId
     // The card is about to grow: the list must not scroll away from the question being read.
     holdEnd();
     setPicks(next);
-    if (messageId !== null) writeQuizPicks(messageId, next);
+    if (quizId !== null) writeQuizPicks(quizId, next);
   };
   const choose = (option: number) => {
     if (question === undefined || revealed || option >= question.options.length) return;
@@ -125,26 +127,32 @@ function ChatQuiz({ quiz, messageId }: { readonly quiz: Quiz; readonly messageId
   if (finished) {
     const score = quizScore(quiz, picks);
     const missed = picks.flatMap((pick, at) => (pick === quiz.questions[at]!.correct ? [] : [at]));
-    const radius = 26;
+    const radius = 50;
     const circumference = 2 * Math.PI * radius;
+    const arc = (circumference * score) / total;
     return (
       <section className="one-chat-quiz" data-chat-quiz="" data-finished="" aria-label={gt("Quiz")}>
         <div className="one-chat-quiz-done">
-          <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
-            <circle cx="32" cy="32" r={radius} className="one-chat-quiz-ring-track" />
-            <circle
-              cx="32"
-              cy="32"
-              r={radius}
-              className="one-chat-quiz-ring"
-              style={
-                {
-                  strokeDasharray: `${(circumference * score) / total} ${circumference}`,
-                  "--ring-len": (circumference * score) / total,
-                } as CSSProperties
-              }
-            />
-          </svg>
+          <div className="one-chat-quiz-ring-wrap" aria-hidden="true">
+            <svg viewBox="0 0 104 104" width="104" height="104">
+              <circle cx="52" cy="52" r={radius} className="one-chat-quiz-ring-track" />
+              {score > 0 ? (
+                <circle
+                  cx="52"
+                  cy="52"
+                  r={radius}
+                  className="one-chat-quiz-ring"
+                  style={
+                    {
+                      strokeDasharray: `${arc} ${circumference}`,
+                      "--ring-len": arc,
+                    } as CSSProperties
+                  }
+                />
+              ) : null}
+            </svg>
+            <span className="one-chat-quiz-ring-number">{score}</span>
+          </div>
           <p className="one-chat-quiz-score" role="status">
             {gt("You got {score} of {total}.", { score: String(score), total: String(total) })}
           </p>
@@ -199,12 +207,12 @@ function ChatQuiz({ quiz, messageId }: { readonly quiz: Quiz; readonly messageId
         <p className="one-chat-quiz-progress">
           {gt("Question {number} of {total}", { number: String(index + 1), total: String(total) })}
         </p>
-        <h3 className="one-chat-quiz-question" id={`quiz-q-${messageId ?? "x"}-${index}`}>
+        <h3 className="one-chat-quiz-question" id={`quiz-q-${quizId ?? "x"}-${index}`}>
           {q.question}
         </h3>
         <div
           role="radiogroup"
-          aria-labelledby={`quiz-q-${messageId ?? "x"}-${index}`}
+          aria-labelledby={`quiz-q-${quizId ?? "x"}-${index}`}
           className="one-chat-quiz-options"
         >
           {q.options.map((option, at) => {

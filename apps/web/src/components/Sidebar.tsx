@@ -1474,7 +1474,26 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setActiveSearchResultIndex((activeSearchResultIndex + step + count) % count);
   };
 
-  const orderedThreadKeysRef = useRef(orderedThreadKeys);
+  // The rows that wait on the person, by the rule each row's mark uses. In the flat list they are
+  // drawn first under one header; everything positional below reads that drawn order.
+  const needsYouEntries = orderedThreadKeys.flatMap((key) => {
+    const thread = threadByKey.get(key);
+    const status = thread ? resolveSidebarThreadStatus(thread) : null;
+    return thread && (status === "approval" || status === "input" || status === "request")
+      ? [{ thread, key, section: sectionByThreadKey.get(key) ?? "active" }]
+      : [];
+  });
+  const regroupNeedsYou = projectFolders === null && needsYouEntries.length > 0;
+  const regroupedKeys = new Set(regroupNeedsYou ? needsYouEntries.map((entry) => entry.key) : []);
+  const drawnThreadKeys = useStableArray(
+    regroupNeedsYou
+      ? [
+          ...needsYouEntries.map((entry) => entry.key),
+          ...orderedThreadKeys.filter((key) => !regroupedKeys.has(key)),
+        ]
+      : orderedThreadKeys,
+  );
+  const orderedThreadKeysRef = useRef(drawnThreadKeys);
   // Read changing maps/sets through refs so streamed events preserve row callbacks.
   const threadByKeyRef = useRef(threadByKey);
   const settledThreadKeysRef = useRef(settledThreadKeys);
@@ -1489,7 +1508,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // Search hides them, so they drop out while it is open.
   const listedDraftIds = isSearchingThreads ? EMPTY_DRAFT_IDS : draftIds;
   const draftIdByRowKey = new Map<string, DraftId>(listedDraftIds.map((id) => [`draft:${id}`, id]));
-  const orderedRowKeys = [...draftIdByRowKey.keys(), ...orderedThreadKeys];
+  const orderedRowKeys = [...draftIdByRowKey.keys(), ...drawnThreadKeys];
   const routeDraftRowKey = `draft:${routeDraftIdForRows}`;
   const routeRowKey = draftIdByRowKey.has(routeDraftRowKey) ? routeDraftRowKey : routeRowThreadKey;
 
@@ -1876,7 +1895,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes committed list data to refs read by stable drag and sweep callbacks
   useLayoutEffect(() => {
     projectGroupsRef.current = projectGroups;
-    orderedThreadKeysRef.current = orderedThreadKeys;
+    orderedThreadKeysRef.current = drawnThreadKeys;
     threadByKeyRef.current = threadByKey;
     settledThreadKeysRef.current = settledThreadKeys;
     snoozedThreadKeysRef.current = snoozedThreadKeys;
@@ -2013,9 +2032,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       list: readonly EnvironmentThreadShell[],
       section: SidebarSection,
     ): SidebarListItem[] =>
-      list.map((thread) => {
+      list.flatMap((thread) => {
         const key = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
-        return { kind: "thread", key, section };
+        // Rows drawn in the need-you group are not in the sortable list: nothing about a drag
+        // moves them, and dropping beside one means nothing.
+        return regroupedKeys.has(key) ? [] : [{ kind: "thread" as const, key, section }];
       });
     // Boring mode keeps a pinned open project or one the user filtered to, so it can start a thread.
     if (
@@ -2080,6 +2101,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       .join("\n") ?? "",
     visibleDraftSessionCount,
     routeDraftIdForRows ?? "",
+    // Rows move when a thread starts or stops waiting, with no change to the sortable list.
+    drawnThreadKeys.join("\n"),
   ].join("\0");
   const listMotionAnimate =
     dragState === null && sidebarListItems.length + visibleDraftSessionCount > 0;
@@ -3583,6 +3606,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         section: SidebarSection,
                         // The tree row of the project folder this row sits in.
                         folderRow?: string,
+                        // Drawn in the need-you group, outside the sortable list.
+                        aside = false,
                       ) => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
@@ -3603,6 +3628,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             contextDrag={isContextDrag}
                             sortableDisabled={
                               renamingThreadKey === threadKey ||
+                              aside ||
                               !draggableThreadKeys.has(threadKey) ||
                               optimisticDrop !== null
                             }
@@ -3709,25 +3735,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           />
                         );
                       };
-                      // The rows drawn that wait on the person, by the same rule each row's mark uses.
-                      const needsYouItems = sidebarListItems.flatMap((item) => {
-                        const thread =
-                          item.kind === "thread" ? threadByKey.get(item.key) : undefined;
-                        const status = thread ? resolveSidebarThreadStatus(thread) : null;
-                        return item.kind === "thread" &&
-                          thread &&
-                          (status === "approval" || status === "input" || status === "request")
-                          ? [{ thread, section: item.section, key: item.key }]
-                          : [];
-                      });
-                      const needsYou = needsYouItems.map((entry) => entry.thread);
-                      // In the flat list they sit together under the header, so the count is
-                      // the rows below it. A drag keeps the natural order the sorting expects.
-                      const regroupNeedsYou =
-                        projectFolders === null && dragState === null && needsYouItems.length > 0;
-                      const regrouped = new Set(
-                        regroupNeedsYou ? needsYouItems.map((entry) => entry.key) : [],
-                      );
+                      const needsYou = needsYouEntries.map((entry) => entry.thread);
                       const from = isContextDrag ? null : (dragState?.activeSection ?? null);
                       const items: ReactNode[] = [
                         <SidebarDraftBlock
@@ -3764,8 +3772,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             ]
                           : []),
                         ...(regroupNeedsYou
-                          ? needsYouItems.map((entry) =>
-                              renderThreadRow(entry.thread, entry.section),
+                          ? needsYouEntries.map((entry) =>
+                              renderThreadRow(entry.thread, entry.section, undefined, true),
                             )
                           : []),
                         ...(soleProject?.name
@@ -3790,7 +3798,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         if (item.kind === "thread") {
                           // Folders draw active rows in their own place below.
                           if (projectFolders !== null && item.section === "active") continue;
-                          if (regrouped.has(item.key)) continue;
                           items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
                           continue;
                         }

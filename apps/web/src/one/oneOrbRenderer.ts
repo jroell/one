@@ -2,12 +2,18 @@ import { observeResize } from "~/lib/observeResize";
 import { ORB_OPEN_ANGLE, ORB_REST, ORB_SUPERSAMPLE, glowForSize } from "./oneOrbRest";
 import { ONE_ORB_FRAGMENT_SHADER, ONE_ORB_VERTEX_SHADER } from "./oneOrbShader";
 
-export type OneOrbState = "idle" | "listening" | "thinking" | "speaking";
+/**
+ * "waiting" is a rigid ring held edge-on with one sweep of light crossing it: the same waiting
+ * the voice stage shows while thinking, without the turning.
+ */
+export type OneOrbState = "idle" | "listening" | "thinking" | "waiting" | "speaking";
 
 type OrbPose = Readonly<{
   tilt: number;
-  /** Continuous turning, in radians per second. Zero means the ring rests at its open angle. */
+  /** Continuous turning, in radians per second. Zero means the ring holds `spinOffset` from its open angle. */
   spinSpeed: number;
+  /** Where a ring that is not turning holds, in radians from its open angle. Half a pi is edge-on. */
+  spinOffset: number;
   /** How far the resting ring rocks from side to side, in radians. */
   sway: number;
   pulse: number;
@@ -21,14 +27,48 @@ const POSES: Record<OneOrbState, OrbPose> = {
   idle: {
     tilt: ORB_REST.tilt,
     spinSpeed: 0,
+    spinOffset: 0,
     sway: 0,
     pulse: 0,
     baseEnergy: 0,
     aura: ORB_REST.aura,
   },
-  listening: { tilt: 1.46, spinSpeed: 0, sway: 0.12, pulse: 0, baseEnergy: 0.12, aura: 0.5 },
-  thinking: { tilt: 1.12, spinSpeed: 1.9, sway: 0, pulse: 1, baseEnergy: 0.06, aura: 0.75 },
-  speaking: { tilt: 1.26, spinSpeed: 0, sway: 0.24, pulse: 0, baseEnergy: 0.1, aura: 0.55 },
+  listening: {
+    tilt: 1.46,
+    spinSpeed: 0,
+    spinOffset: 0,
+    sway: 0.12,
+    pulse: 0,
+    baseEnergy: 0.12,
+    aura: 0.5,
+  },
+  thinking: {
+    tilt: 1.12,
+    spinSpeed: 1.9,
+    spinOffset: 0,
+    sway: 0,
+    pulse: 1,
+    baseEnergy: 0.06,
+    aura: 0.75,
+  },
+  waiting: {
+    tilt: 1.12,
+    spinSpeed: 0,
+    spinOffset: Math.PI / 2,
+    sway: 0,
+    pulse: 1,
+    baseEnergy: 0.06,
+    aura: 0.75,
+  },
+  speaking: {
+    tilt: 1.26,
+    spinSpeed: 0,
+    spinOffset: 0,
+    sway: 0.24,
+    pulse: 0,
+    baseEnergy: 0.1,
+    aura: 0.55,
+  },
 };
 
 /** Seconds the catch-light takes to go once around the band. */
@@ -47,6 +87,12 @@ export const LARGE_RING_PIXEL_RATIOS = [1.5, 1.25, 1] as const;
  * resting ring keeps this pace while it can be seen, and draws nothing while it cannot.
  */
 export const RESTING_FRAME_MS = 50;
+/**
+ * Without input for this long, a resting ring finishes the turn of its catch-light, stops at the
+ * place the still picture has it, and draws nothing more until the pointer, keyboard or focus
+ * return. An idle app must not keep the GPU busy.
+ */
+export const IDLE_PARK_MS = 30_000;
 /** Longest step of the animation clock. A frame that arrives late must not make the ring jump. */
 const MAX_FRAME_SECONDS = 0.05;
 /** The same limit for a resting frame, which arrives `RESTING_FRAME_MS` after the last one. */
@@ -74,9 +120,10 @@ export type OrbMotion = Readonly<{
   reveal: number;
 }>;
 
-/** The nearest angle where the ring rests open; the band looks the same every half turn. */
-function restAngle(spin: number): number {
-  return ORB_OPEN_ANGLE + Math.PI * Math.round((spin - ORB_OPEN_ANGLE) / Math.PI);
+/** The nearest angle where the ring holds `offset` from open; the band looks the same every half turn. */
+function restAngle(spin: number, offset = 0): number {
+  const origin = ORB_OPEN_ANGLE + offset;
+  return origin + Math.PI * Math.round((spin - origin) / Math.PI);
 }
 
 /**
@@ -94,7 +141,7 @@ function isOrbSettled(motion: OrbMotion, state: OneOrbState, time: number, level
     motion.reveal >= 1 &&
     level <= 0 &&
     pose.spinSpeed === 0 &&
-    Math.abs(restAngle(motion.spin) - motion.spin) < SETTLED_ANGLE &&
+    Math.abs(restAngle(motion.spin, pose.spinOffset) - motion.spin) < SETTLED_ANGLE &&
     Math.abs(motion.sway - pose.sway) < SETTLED_ANGLE &&
     Math.abs(motion.tilt - pose.tilt) < SETTLED_ANGLE &&
     Math.abs(motion.pulse - pose.pulse) < SETTLED_LEVEL &&
@@ -109,8 +156,11 @@ export function frameIntervalMs(
   state: OneOrbState,
   time: number,
   level: number,
+  glowActive = false,
 ): number {
-  return state === "idle" && isOrbSettled(motion, state, time, level) ? RESTING_FRAME_MS : 0;
+  return state === "idle" && !glowActive && isOrbSettled(motion, state, time, level)
+    ? RESTING_FRAME_MS
+    : 0;
 }
 
 /** What the next frame does. */
@@ -127,8 +177,9 @@ export function restingPlan(
   state: OneOrbState,
   time: number,
   level: number,
+  glowActive = false,
 ): FramePlan {
-  const intervalMs = frameIntervalMs(motion, state, time, level);
+  const intervalMs = frameIntervalMs(motion, state, time, level, glowActive);
   return { intervalMs, resting: intervalMs > 0 };
 }
 
@@ -224,6 +275,7 @@ const UNIFORM_NAMES = {
   spin: "uSpin",
   tilt: "uTilt",
   pulse: "uPulse",
+  level: "uLevel",
   dark: "uDark",
   aura: "uAura",
   reveal: "uReveal",
@@ -286,8 +338,13 @@ export function startOneOrb(
   canvas: HTMLCanvasElement,
   input: {
     readonly getState: () => OneOrbState;
-    /** Live sound level, 0 to 1, read every frame. */
+    /** Live sound level, 0 to 1, read every frame. It swells the whole ring (ripple and band). */
     readonly getLevel: () => number;
+    /**
+     * Rim and halo level, 0 to 1, read every frame. It lights the ring without changing its
+     * shape: the silhouette is the same at every level.
+     */
+    readonly getGlowLevel?: () => number;
     /** WebGL is missing, or the shaders would not compile or link. The canvas will not draw. */
     readonly onUnsupported: () => void;
     /** The GPU context was lost. Show a stand-in until `onContextRestored`; the canvas stays mounted. */
@@ -358,12 +415,14 @@ export function startOneOrb(
   let tilt = POSES[input.getState()].tilt;
   let pulse = 0;
   let energy = 0;
+  let glowLevel = 0;
   const openingSeconds = input.openingSeconds ?? 0;
   let reveal = openingSeconds > 0 ? 0 : 1;
   const openingStarted = performance.now();
   let aura = openingSeconds > 0 ? 1 : POSES[input.getState()].aura;
   const motion = (): OrbMotion => ({ spin, sway, tilt, pulse, energy, aura, reveal });
 
+  let lastActivity = performance.now();
   let lastDrawn = Number.NEGATIVE_INFINITY;
   /** When the previous full-speed frame started, or null when the loop was not running at full speed. */
   let lastFullSpeedFrame: number | null = null;
@@ -405,9 +464,13 @@ export function startOneOrb(
       return;
     }
     const state = input.getState();
+    const previousTurns = time / ORBIT_SECONDS;
     const level = Math.min(1, Math.max(0, input.getLevel()));
+    const glowTarget = Math.min(1, Math.max(0, input.getGlowLevel?.() ?? 0));
     const still = reducedMotion.matches;
-    const plan = still ? STILL_PLAN : restingPlan(motion(), state, time, level);
+    const plan = still
+      ? STILL_PLAN
+      : restingPlan(motion(), state, time, level, glowTarget > 0 || glowLevel > SETTLED_LEVEL);
     const interval = plan.intervalMs;
     const wait = interval - (now - lastDrawn);
     if (interval > 0 && wait > 0) {
@@ -438,6 +501,8 @@ export function startOneOrb(
     if (still) {
       tilt = pose.tilt;
       pulse = 0;
+      spin = ORB_OPEN_ANGLE + pose.spinOffset;
+      glowLevel = glowTarget;
       energy = pose.baseEnergy;
       reveal = 1;
       aura = pose.aura;
@@ -447,7 +512,7 @@ export function startOneOrb(
       if (pose.spinSpeed > 0) {
         spin += delta * pose.spinSpeed;
       } else {
-        spin += (restAngle(spin) - spin) * (1 - Math.exp(-delta * 3));
+        spin += (restAngle(spin, pose.spinOffset) - spin) * (1 - Math.exp(-delta * 3));
       }
       // The opening runs on the wall clock, so a slow first frame cannot leave the ring half lit
       // when the cover lifts.
@@ -461,6 +526,8 @@ export function startOneOrb(
       const target = energyTarget(state, time, level);
       // Rise fast, fall slowly, so speech reads as a swell rather than a flicker.
       energy += (target - energy) * (1 - Math.exp(-delta * (target > energy ? 18 : 5)));
+      glowLevel +=
+        (glowTarget - glowLevel) * (1 - Math.exp(-delta * (glowTarget > glowLevel ? 18 : 5)));
     }
     const { uniforms } = resources;
     gl.uniform1f(uniforms.time, time);
@@ -468,14 +535,32 @@ export function startOneOrb(
     gl.uniform1f(uniforms.tilt, tilt);
     gl.uniform1f(uniforms.pulse, pulse);
     gl.uniform1f(uniforms.energy, energy);
+    gl.uniform1f(uniforms.level, glowLevel);
     gl.uniform1f(uniforms.aura, aura);
     gl.uniform1f(uniforms.reveal, reveal);
-    gl.uniform1f(uniforms.orbit, still ? ORB_REST.orbit : (time / ORBIT_SECONDS) % 1);
+    // Parks on the turn that brings the catch-light to the still picture's place, so the stop is
+    // not a jump.
+    const turns = time / ORBIT_SECONDS;
+    const park =
+      !still &&
+      plan.resting &&
+      now - lastActivity > IDLE_PARK_MS &&
+      Math.floor(turns - ORB_REST.orbit) > Math.floor(previousTurns - ORB_REST.orbit);
+    gl.uniform1f(uniforms.orbit, still || park ? ORB_REST.orbit : turns % 1);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    if (still) return;
-    schedule(restingPlan(motion(), input.getState(), time, level).intervalMs);
+    if (still || park) return;
+    const next = restingPlan(
+      motion(),
+      input.getState(),
+      time,
+      level,
+      glowTarget > 0 || glowLevel > SETTLED_LEVEL,
+    );
+    // A resting ring in a window nobody is looking at keeps the frame it has; focus brings it back.
+    if (next.resting && !document.hasFocus()) return;
+    schedule(next.intervalMs);
   };
   const wake = () => {
     last = performance.now();
@@ -485,6 +570,15 @@ export function startOneOrb(
     timer = undefined;
     schedule();
   };
+  // Input and focus end a pause or a park. Only a ring that stopped has anything to wake.
+  const onActivity = () => {
+    lastActivity = performance.now();
+    if (frame === 0 && timer === undefined) wake();
+  };
+  const activityEvents = ["pointermove", "pointerdown", "keydown", "wheel", "focus"] as const;
+  for (const name of activityEvents) {
+    window.addEventListener(name, onActivity, { passive: true, capture: true });
+  }
   /** Draws when the ring can be seen again, and stops the queued frame when it cannot. */
   const syncWithVisibility = () => {
     if (visible === true && !document.hidden) wake();
@@ -535,6 +629,7 @@ export function startOneOrb(
     themeObserver.disconnect();
     densityQuery?.removeEventListener("change", onDensityChange);
     document.removeEventListener("visibilitychange", syncWithVisibility);
+    for (const name of activityEvents) window.removeEventListener(name, onActivity, true);
     reducedMotion.removeEventListener("change", wake);
     canvas.removeEventListener("webglcontextlost", onContextLost);
     canvas.removeEventListener("webglcontextrestored", onContextRestored);

@@ -827,7 +827,7 @@
 
 [data-settings-about-name] {
   font-family: var(--one-serif);
-  font-size: 2.5rem;
+  font-size: 3rem;
   line-height: 1;
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -921,68 +921,27 @@
 
 /* ------------------------------------------------------------------- motion */
 
-/* A page opens inside the sheet with a short rise and fade, so changing page is never a cut. Only
-   transform and opacity move; unless motion is allowed it is a plain fade. */
-@keyframes settings-page-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
+/* A page change keeps the page being left on screen as a still copy (settingsPageCrossfade.ts)
+   and fades it out over the page that has mounted underneath, so the new page is never dimmed
+   and the two never add up to less than full strength. */
 @keyframes settings-fade-in {
   from {
     opacity: 0;
   }
 }
 
-[data-settings-page] {
-  animation: settings-fade-in var(--mo-quick) var(--ease-enter) both;
-}
-
-/* Changing page from the rail or a provider row cross-fades the page body as one piece: old and
-   new run the same curve, one out and one in, so together they always add up to full strength.
-   The page's own entrance would double it, so it stands down while that transition plays. */
-:root:active-view-transition-type(settings-page) [data-settings-page-scroll] {
-  view-transition-name: settings-body;
-}
-
-:root:active-view-transition-type(settings-page) [data-settings-page] {
-  animation: none;
-}
-
-:root:active-view-transition-type(settings-page)::view-transition-group(root),
-:root:active-view-transition-type(settings-page)::view-transition-old(root),
-:root:active-view-transition-type(settings-page)::view-transition-new(root) {
-  animation: none;
-}
-
-:root:active-view-transition-type(settings-page)::view-transition-old(settings-body) {
-  animation: settings-body-out var(--mo-surface) var(--ease-enter) both;
-}
-
-:root:active-view-transition-type(settings-page)::view-transition-new(settings-body) {
-  animation: settings-body-in var(--mo-surface) var(--ease-enter) both;
-}
-
-@keyframes settings-body-out {
+@keyframes settings-fade-out {
   to {
     opacity: 0;
   }
 }
 
-@keyframes settings-body-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
+[data-settings-outgoing] {
+  z-index: 1;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root:active-view-transition-type(settings-page)::view-transition-old(settings-body),
-  :root:active-view-transition-type(settings-page)::view-transition-new(settings-body) {
-    animation: none;
-  }
+[data-settings-outgoing][data-settings-leaving] {
+  animation: settings-fade-out var(--mo-quick) var(--ease-enter) both;
 }
 
 /* A confirmation takes the place of the action it asks about: it arrives from the side the
@@ -992,10 +951,6 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [data-settings-page] {
-    animation-name: settings-page-in;
-  }
-
   [data-settings-swap] {
     animation-name: settings-swap-in;
   }
@@ -1036,5 +991,25 @@
   [data-settings-reveal],
   [data-settings-reveal] > * {
     transition: none;
+  }
+}
+
+/* An outline that stands in for a sheet's page, or a mark for a value still being checked, appears
+   only if the wait takes over 250 ms. */
+@keyframes app-route-modal-late {
+  from {
+    opacity: 0;
+  }
+}
+
+.app-route-modal-late,
+.settings-late {
+  animation: app-route-modal-late var(--mo-quick) var(--ease-enter) 250ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-route-modal-late,
+  .settings-late {
+    animation-duration: 1ms;
   }
 }

@@ -3,7 +3,6 @@ import type { ContextMenuSource } from "@t3tools/contracts";
 import { contextMenuSourceOf } from "../../contextMenuSource";
 import { m as resolveMessage } from "~/i18n/messages";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
-import { Spinner } from "~/components/ui/spinner";
 import { useCloseAppModal } from "../sidebar/mainAppLocation";
 import { ArchiveIcon, ArchiveX, Trash2Icon } from "lucide-react";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
@@ -21,7 +20,8 @@ import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
 import { RelativeTime } from "../RelativeTime";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { EmptyGhostRows, SettingsEmptyState } from "./SettingsEmptyState";
+import { ArchiveGhost } from "./EmptyGhosts";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
@@ -326,53 +326,54 @@ export function ArchivedThreadsPanel() {
           hideTitle
           variant="plain"
         >
-          <SettingsEmptyState
-            icon={isLoadingArchive ? <Spinner size="sm" tone="muted" /> : <ArchiveIcon />}
-            title={
-              isLoadingArchive
-                ? gt("Loading archived threads")
-                : archiveError
-                  ? gt("Could not load archived threads")
-                  : gt("No archived threads")
-            }
-            description={
-              isLoadingArchive
-                ? gt("Checking connected environments.")
-                : (archiveError ??
-                  gt(
-                    "Archive a thread from its menu in the sidebar to set it aside. It waits here until you restore it.",
-                  ))
-            }
-            preview={
-              isLoadingArchive || archiveError ? undefined : (
-                <EmptyGhostRows
-                  rows={[
-                    {
-                      icon: <ArchiveIcon />,
-                      title: gt("Fix the flaky checkout test"),
-                      meta: gt("Archived 3 days ago"),
-                    },
-                    {
-                      icon: <ArchiveIcon />,
-                      title: gt("Try the new export format"),
-                      meta: gt("Archived last month"),
-                    },
-                  ]}
-                />
-              )
-            }
-            action={
-              isLoadingArchive ? undefined : archiveError ? (
-                <Button onClick={refreshArchivedThreads}>
-                  <T>Retry</T>
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={() => void closeAppModal()}>
-                  <T>Go to threads</T>
-                </Button>
-              )
-            }
-          />
+          {/* Loading shows nothing for 250 ms, then this card, where the answer will be. */}
+          <div className={isLoadingArchive ? "settings-late" : undefined}>
+            <SettingsEmptyState
+              icon={isLoadingArchive ? undefined : <ArchiveIcon />}
+              title={
+                isLoadingArchive
+                  ? gt("Loading archived threads")
+                  : archiveError
+                    ? gt("Could not load archived threads")
+                    : gt("No archived threads")
+              }
+              description={
+                isLoadingArchive
+                  ? gt("Checking connected environments.")
+                  : (archiveError ??
+                    gt(
+                      "Archive a thread from its menu in the sidebar to set it aside. It waits here until you restore it.",
+                    ))
+              }
+              preview={
+                isLoadingArchive || archiveError ? undefined : (
+                  <ArchiveGhost
+                    rows={[
+                      {
+                        title: gt("Fix the flaky checkout test"),
+                        meta: gt("Archived 3 days ago · Created last week"),
+                      },
+                      {
+                        title: gt("Try the new export format"),
+                        meta: gt("Archived last month · Created in October"),
+                      },
+                    ]}
+                  />
+                )
+              }
+              action={
+                isLoadingArchive ? undefined : archiveError ? (
+                  <Button onClick={refreshArchivedThreads}>
+                    <T>Retry</T>
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => void closeAppModal()}>
+                    <T>Go to threads</T>
+                  </Button>
+                )
+              }
+            />
+          </div>
         </SettingsSection>
       ) : (
         archivedGroups.map(({ key, project, title, firstRow, threads: projectThreads }, index) => (

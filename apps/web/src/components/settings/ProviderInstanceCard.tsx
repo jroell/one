@@ -1016,7 +1016,8 @@ export function ProviderInstanceCard({
     <code className="font-sans text-xs tabular-nums text-muted-foreground">{versionLabel}</code>
   ) : null;
 
-  const chipStatus = providerStatusChip(statusKey);
+  const chipStatus =
+    enabled && liveProvider === undefined ? "checking" : providerStatusChip(statusKey);
   const needsAttention = statusKey === "warning" || statusKey === "error";
   const statusDiagnostic = hasCompatibilityWarning && needsAttention ? summary.detail : null;
   const inlineStatusDetail = hasCompatibilityWarning

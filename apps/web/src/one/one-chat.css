@@ -854,17 +854,34 @@ html[data-one-mode="chat"]
   }
 }
 
-/* After the stage, the answer waits for the picture to be gone: the arc and lines (126ms), then
-   the question (60ms later, 126ms), so nothing overlaps. */
+/* The answer takes over from the stage by a cross-fade: its first block fades in over the same
+   180ms the picture fades out (linear, so the two add up to one at every frame). The quiet
+   working line waits until the picture is gone. */
 [data-chat-handoff] {
-  --one-reveal-base: 200ms;
+  --one-reveal-base: 0ms;
+}
+
+@keyframes one-chat-handoff-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   /* The quiet working line that follows the stage fades in after the picture has gone too. */
   html[data-one-mode="chat"] [data-chat-handoff][data-timeline-row-kind="working"] {
     animation: one-chat-stage-in var(--mo-quick, 180ms) var(--ease-enter, ease-out)
-      var(--one-reveal-base) both;
+      var(--mo-quick, 180ms) both;
+  }
+
+  /* The first block of the answer is the picture's other half of the cross-fade. */
+  html[data-one-mode="chat"] [data-chat-handoff] .chat-markdown > :first-child,
+  html[data-one-mode="chat"]
+    [data-chat-handoff][data-chat-arrival]
+    .chat-markdown:not([data-streaming])
+    > :first-child {
+    animation: one-chat-handoff-in var(--mo-quick, 180ms) linear both;
+    transition: none;
   }
 
   html[data-one-mode="chat"] [data-chat-arrival] {
@@ -914,6 +931,42 @@ html[data-one-mode="chat"]
       opacity: 0;
       transform: translateY(4px);
     }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A heading that streams in is the outline of the answer taking shape: it arrives with a longer
+     rise than the paragraphs, which then fill in beneath it. */
+  html[data-one-mode="chat"] .chat-markdown[data-streaming] > :is(h1, h2, h3, h4) {
+    transition-duration: 640ms;
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+}
+
+/* A key term of a finished answer gets a gold line that draws in once, after its block has
+   appeared. It is never on code, and an answer has three at most (chatBuild.ts). */
+html[data-one-mode="chat"] .chat-markdown strong[data-key-term] {
+  background: linear-gradient(var(--gold-400, var(--one-brand)), var(--gold-400, var(--one-brand)))
+    no-repeat 0 100% / 100% 1px;
+  box-decoration-break: clone;
+  padding-bottom: 1px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-one-mode="chat"] .chat-markdown strong[data-key-term] {
+    background-size: 0% 1px;
+    animation: one-chat-term-draw 560ms var(--ease-enter, ease-out)
+      calc(700ms + var(--one-term-index, 0) * 240ms) forwards;
+  }
+}
+
+@keyframes one-chat-term-draw {
+  to {
+    background-size: 100% 1px;
   }
 }
 
@@ -984,6 +1037,12 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   border-radius: 1.625rem;
 }
 
+/* Chat has no permission chip in its composer: the setting still applies, and the question it
+   governs is asked at the approval. */
+html[data-one-mode="chat"] [data-composer-permissions] {
+  display: none;
+}
+
 /* ------------------------------------------------------------ waiting stage */
 
 /* The first seconds of a turn. The question is restated large and quiet, the gold arc turns, and
@@ -994,7 +1053,9 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   position: relative;
   max-width: var(--one-chat-measure, 66ch);
   margin: 0.25rem 0.25rem 0;
-  animation: one-chat-stage-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) both;
+  /* Nothing is drawn until 250ms: an answer that starts sooner shows no
+     stage at all. */
+  animation: one-chat-stage-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) 250ms both;
 }
 
 .one-chat-stage-question {
@@ -1024,66 +1085,6 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   color: color-mix(in srgb, var(--foreground) 55%, transparent);
   font-family: var(--font-sans);
   font-size: 0.875rem;
-}
-
-.one-chat-stage-lines {
-  display: grid;
-  gap: 0.875rem;
-}
-
-.one-chat-stage-lines > span {
-  position: relative;
-  display: block;
-  height: 0.875rem;
-  overflow: hidden;
-  border-radius: 0.4375rem;
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
-}
-
-.one-chat-stage-lines > span:nth-child(1) {
-  width: 100%;
-}
-
-.one-chat-stage-lines > span:nth-child(2) {
-  width: 93%;
-}
-
-.one-chat-stage-lines > span:nth-child(3) {
-  width: 58%;
-}
-
-/* A slow light crosses each line by transform, a beat apart, so nothing repaints. */
-.one-chat-stage-lines > span::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    color-mix(in srgb, var(--foreground) 9%, transparent),
-    transparent
-  );
-  transform: translateX(-100%);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .one-chat-stage-lines > span::after {
-    animation: one-chat-stage-sweep 1800ms var(--ease-hover, ease-in-out) infinite;
-  }
-
-  .one-chat-stage-lines > span:nth-child(2)::after {
-    animation-delay: 160ms;
-  }
-
-  .one-chat-stage-lines > span:nth-child(3)::after {
-    animation-delay: 320ms;
-  }
-}
-
-@keyframes one-chat-stage-sweep {
-  to {
-    transform: translateX(100%);
-  }
 }
 
 @keyframes one-chat-stage-in {
@@ -1123,28 +1124,17 @@ html[data-one-mode="chat"] [data-slot="composer-host"]::after {
   animation: none;
 }
 
-/* The picture leaves in two beats, and no text is ever on screen over other text: the arc, the
-   timer and the lines fade first, then the restated question (the bridge) fades, and only then
-   does the answer begin (--one-reveal-base under [data-chat-handoff]). */
-.one-chat-stage-ghost :is(.one-chat-stage-live, .one-chat-stage-lines) {
-  animation: one-chat-stage-out calc(var(--mo-quick, 180ms) * var(--mo-exit, 0.7))
-    var(--ease-exit, ease-in) both;
-}
-
-.one-chat-stage-ghost .one-chat-stage-question {
-  animation: one-chat-stage-out calc(var(--mo-quick, 180ms) * var(--mo-exit, 0.7))
-    var(--ease-exit, ease-in) calc(var(--mo-content-delay, 60ms)) both;
+/* The picture and the answer's first words cross-fade over the same 180ms, both linear, so at
+   every frame the two opacities add up to one and the column is never empty. */
+.one-chat-stage-ghost {
+  animation: one-chat-stage-out var(--mo-quick, 180ms) linear both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Without motion the picture is simply replaced, so nothing overlaps. */
+  /* Without motion the picture is simply replaced in one frame. */
   .one-chat-stage-ghost {
     display: none;
   }
-}
-
-.one-chat-stage-ghost .one-chat-stage-lines > span::after {
-  animation-play-state: paused;
 }
 
 @media (max-width: 40rem) {
@@ -1161,14 +1151,7 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
 }
 
 html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflection::before {
-  background: conic-gradient(
-    transparent 0deg,
-    transparent 230deg,
-    color-mix(in oklch, var(--one-brand) 22%, transparent) 285deg,
-    color-mix(in oklch, var(--one-brand) 40%, transparent) 325deg,
-    color-mix(in oklch, var(--one-ring-hi) 75%, transparent) 352deg,
-    transparent 360deg
-  );
+  background: var(--one-comet);
 }
 
 /* ------------------------------------------------------- reading position */
@@ -1292,8 +1275,43 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
   line-height: 1.4;
 }
 
+/* The hint and the words that will be sent share one cell: hovering or focusing swaps them. */
+.one-chat-followup-lines {
+  display: grid;
+  width: 100%;
+}
+
+.one-chat-followup-lines > span {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--mo-quick, 180ms) var(--ease-enter, ease-out),
+    transform var(--mo-quick, 180ms) var(--ease-enter, ease-out);
+}
+
+.one-chat-followup-preview {
+  color: color-mix(in srgb, var(--foreground) 82%, transparent);
+  font-family: var(--one-serif);
+  font-size: 0.9375rem;
+  font-style: italic;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(3px);
+  text-wrap: pretty;
+}
+
 .one-chat-followup:is(:hover, :focus-visible) {
+  border-top-color: color-mix(in srgb, var(--gold-400, var(--one-brand)) 60%, transparent);
   background: var(--one-row-hover, color-mix(in srgb, var(--foreground) 5%, transparent));
+}
+
+.one-chat-followup:is(:hover, :focus-visible) .one-chat-followup-hint {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.one-chat-followup:is(:hover, :focus-visible) .one-chat-followup-preview {
+  opacity: 1;
+  transform: none;
 }
 
 .one-chat-followup:focus-visible {
@@ -1312,6 +1330,12 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
     opacity: 1;
     transform: none;
     transition: none;
+  }
+
+  .one-chat-followup-lines > span,
+  .one-chat-followup:is(:hover, :focus-visible)
+    :is(.one-chat-followup-hint, .one-chat-followup-preview) {
+    transform: none;
   }
 
   .one-chat-outline-list::after,
@@ -1377,8 +1401,8 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
 
 /* ----------------------------------------------------------- failed picture */
 
-/* A picture that would not load keeps the page's shape: a 16:9 frame, the alt text under it in
-   the serif, and a way to try again. */
+/* A picture that would not load is one 64px row: an icon, the alt text in the serif with what
+   went wrong beneath it, and Retry. */
 .one-chat-image-failure {
   display: block;
   max-width: min(100%, 36rem);
@@ -1387,28 +1411,34 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
 
 .one-chat-image-failure-frame {
   display: flex;
-  flex-direction: column;
+  height: 4rem;
   align-items: center;
-  justify-content: center;
-  gap: 0.625rem;
-  aspect-ratio: 16 / 9;
+  gap: 0.75rem;
   border-radius: var(--m-radius-floating, 12px);
   background: color-mix(in srgb, var(--foreground) 4%, transparent);
   box-shadow: inset 0 0 0 1px var(--one-hairline);
-  padding: 1rem;
-  text-align: center;
+  padding-inline: 1rem 0.75rem;
 }
 
 .one-chat-image-failure-icon {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: color-mix(in srgb, var(--foreground) 38%, transparent);
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+.one-chat-image-failure-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .one-chat-image-failure-text {
   color: var(--muted-foreground);
   font-family: var(--font-sans);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
 /* The failure draws its own caption; the figure's would say the same thing twice. */
@@ -1422,13 +1452,14 @@ html[data-one-mode="chat"]
 
 .one-chat-image-failure-caption {
   display: block;
-  margin-top: 0.625rem;
-  color: color-mix(in srgb, var(--foreground) 70%, transparent);
+  overflow: hidden;
+  color: color-mix(in srgb, var(--foreground) 75%, transparent);
   font-family: var(--one-serif);
   font-size: 0.9375rem;
   font-style: italic;
-  line-height: 1.45;
-  text-wrap: pretty;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ diagrams */
@@ -1458,7 +1489,8 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
     margin-inline: auto;
   }
 
-  & .pele-edge > path:not(.pele-marker),
+  /* A thick edge keeps the width the diagram gave it. */
+  & .pele-edge > path:not(.pele-marker):not([stroke-width]),
   & .pele-node :is(rect, polygon, ellipse, circle, path):not(.pele-marker) {
     stroke-width: 1.5;
   }
@@ -1479,10 +1511,15 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
       animation: one-chat-diagram-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) both;
     }
 
-    & .pele-edge > path:not(.pele-marker) {
+    & .pele-edge > path:not(.pele-marker):not([data-dashed]) {
       stroke-dasharray: 1;
       stroke-dashoffset: 1;
       animation: one-chat-edge-draw 500ms var(--ease-enter, ease-out) both;
+      animation-delay: calc(var(--mo-surface, 240ms) + var(--edge-i, 0) * 80ms);
+    }
+
+    & .pele-edge > path[data-dashed] {
+      animation: one-chat-diagram-in 500ms var(--ease-enter, ease-out) both;
       animation-delay: calc(var(--mo-surface, 240ms) + var(--edge-i, 0) * 80ms);
     }
 
@@ -1532,6 +1569,11 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   font-size: 0.86em;
 }
 
+.one-chat-approval-path {
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
 .one-chat-approval:not([data-open]) :is([data-approval-header], [data-approval-body]) {
   display: none;
 }
@@ -1559,13 +1601,19 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   padding: 0;
 }
 
-.one-chat-approval:not([data-open]) [data-approval-status]:empty {
+.one-chat-approval:not([data-open])
+  [data-approval-status]:is(:empty, :has(> :only-child[data-slot="badge"])) {
   display: none;
 }
 
 .one-chat-approval:not([data-open]) [data-approval-actions] {
   margin-inline-start: 0;
   justify-content: flex-start;
+}
+
+/* Decline and Approve start at the sentence's left edge; the menu of other answers follows them. */
+.one-chat-approval:not([data-open]) [data-approval-actions] > [aria-haspopup="menu"] {
+  order: 1;
 }
 
 .one-chat-approval-toggle {
@@ -1596,15 +1644,14 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 
 /* -------------------------------------------------------------------- quiz */
 
-/* A quiz in the reading column: one question to a card, the options as quiet rows, a gold tick on
-   the right one, and the explanation turning down from the top edge. */
+/* A quiz in the reading column: one question at a time, set in the column's own serif. The
+   options are lines of text, not form rows; the right one takes a gold rim that a light travels
+   once, a wrong pick shakes twice and goes quiet, and the score is a gold ring drawn on. */
 .one-chat-quiz {
   max-width: var(--one-chat-measure, 66ch);
   margin: 2rem 0.25rem;
-  border-radius: var(--m-radius-raised, 16px);
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
-  box-shadow: inset 0 0 0 1px var(--one-hairline);
-  padding: 1.5rem 1.5rem 1.375rem;
+  border-block: 1px solid var(--one-hairline);
+  padding: 1.5rem 0 1.25rem;
 }
 
 .one-chat-quiz-card {
@@ -1631,24 +1678,24 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 
 .one-chat-quiz-options {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .one-chat-quiz-option {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  min-height: 2.75rem;
+  align-items: baseline;
+  gap: 1rem;
+  min-height: 3rem;
   margin: 0;
   border: 0;
   border-radius: var(--m-radius-floating, 12px);
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
-  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  background: none;
   padding: 0.625rem 0.875rem;
   color: var(--foreground);
   font: inherit;
   font-family: var(--one-serif);
-  font-size: 1.0625rem;
+  font-size: 1.1875rem;
   line-height: 1.4;
   text-align: start;
   cursor: pointer;
@@ -1659,7 +1706,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 }
 
 .one-chat-quiz-option[data-state="open"]:hover {
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .one-chat-quiz-option:focus-visible {
@@ -1671,13 +1718,14 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   cursor: default;
 }
 
-.one-chat-quiz-option:is([data-state="dim"], [data-state="wrong"]) {
+.one-chat-quiz-option[data-state="dim"] {
   opacity: 0.45;
 }
 
-/* A wrong pick is marked by its cross as well as by dimming, so colour is never the only cue. */
+/* A wrong pick is marked by its cross and a line through it as well as by going quiet, so colour
+   is never the only cue. */
 .one-chat-quiz-option[data-state="wrong"] {
-  opacity: 0.7;
+  opacity: 0.55;
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--foreground) 45%, transparent);
 }
@@ -1687,17 +1735,104 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   box-shadow: inset 0 0 0 1.5px var(--gold-400, var(--one-brand));
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  /* The right answer lifts 4px and settles; a light travels its rim once. */
+  .one-chat-quiz-option[data-state="correct"] {
+    animation: one-chat-quiz-rise 520ms var(--ease-enter, ease-out) both;
+  }
+
+  .one-chat-quiz-option[data-state="correct"]::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4rem;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklch, var(--gold-400, var(--one-brand)) 60%, transparent) 60%,
+      var(--one-ring-hi, var(--gold-400, var(--one-brand)))
+    );
+    box-shadow: 0 0 10px var(--gold-400, var(--one-brand));
+    offset-path: inset(0 round var(--m-radius-floating, 12px));
+    offset-anchor: 100% 50%;
+    offset-rotate: auto;
+    pointer-events: none;
+    animation: one-chat-quiz-travel 1100ms var(--ease-enter, ease-out) both;
+  }
+
+  /* The wrong pick is chosen in gold for a moment, shakes twice by 3px, and loses its colour. */
+  .one-chat-quiz-option[data-state="wrong"] {
+    animation: one-chat-quiz-wrong 640ms var(--ease-enter, ease-out) both;
+  }
+}
+
+@keyframes one-chat-quiz-rise {
+  40% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes one-chat-quiz-travel {
+  from {
+    offset-distance: 0%;
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  to {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes one-chat-quiz-wrong {
+  from,
+  8% {
+    background: color-mix(in srgb, var(--gold-400, var(--one-brand)) 9%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--gold-400, var(--one-brand));
+    opacity: 1;
+  }
+
+  40% {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px transparent;
+  }
+
+  16% {
+    transform: translateX(-3px);
+  }
+
+  28% {
+    transform: translateX(3px);
+  }
+
+  40% {
+    transform: translateX(-3px);
+  }
+
+  52% {
+    transform: translateX(3px);
+  }
+
+  64% {
+    transform: none;
+  }
+}
+
 .one-chat-quiz-key {
-  display: grid;
   flex: none;
-  place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.375rem;
-  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  width: 1rem;
   color: var(--muted-foreground);
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
+  font-family: var(--one-serif);
+  font-size: 0.9375rem;
+  font-style: italic;
+  text-align: end;
 }
 
 .one-chat-quiz-option-text {
@@ -1752,7 +1887,16 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 .one-chat-quiz-done {
   display: flex;
   align-items: center;
-  gap: 1.125rem;
+  gap: 1.5rem;
+}
+
+/* The score: a 2px gold ring drawn in proportion to it, with the number inside in the serif. It is
+   a ring of its own, never the mark. */
+.one-chat-quiz-ring-wrap {
+  position: relative;
+  flex: none;
+  width: 6.5rem;
+  height: 6.5rem;
 }
 
 .one-chat-quiz-ring-track,
@@ -1766,15 +1910,32 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 }
 
 .one-chat-quiz-ring {
-  stroke: var(--gold-400, var(--one-brand));
+  stroke: light-dark(#86661a, var(--gold-400, var(--one-brand)));
   stroke-linecap: round;
   transform: rotate(-90deg);
-  transform-origin: 32px 32px;
+  transform-origin: 52px 52px;
+}
+
+.one-chat-quiz-ring-number {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--one-serif);
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .one-chat-quiz-ring {
-    animation: one-chat-quiz-draw 700ms var(--ease-enter, ease-out) both;
+    animation: one-chat-quiz-draw 600ms var(--ease-enter, ease-out) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-chat-quiz-ring-wrap {
+    animation: one-chat-stage-in var(--mo-quick, 180ms) linear both;
   }
 }
 
@@ -1800,8 +1961,19 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 }
 
 .one-chat-quiz-pending {
+  display: flex;
   max-width: var(--one-chat-measure, 66ch);
+  align-items: center;
+  gap: 0.75rem;
   margin: 1.5rem 0.25rem;
+  color: var(--st-working, var(--one-brand));
+}
+
+.one-chat-quiz-pending > span:not([data-working-arc]) {
+  color: var(--muted-foreground);
+  font-family: var(--one-serif);
+  font-size: 1.0625rem;
+  font-style: italic;
 }
 
 .one-chat-quiz-note {

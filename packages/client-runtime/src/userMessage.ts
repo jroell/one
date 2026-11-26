@@ -30,6 +30,32 @@ export const IDLE_COMPACTION_TITLES = {
   onReturn: msg("Context compacted before sending"),
 } satisfies Record<OrchestrationV2IdleCompaction, string>;
 
+const INSTRUCTIONS_OPEN = "<one-instructions>";
+const INSTRUCTIONS_CLOSE = "</one-instructions>";
+
+/**
+ * Adds instructions the agent needs but the person should not read: a one-tap request such as a
+ * quiz sends a short line the person sees, and the format the reply must take travels with it.
+ */
+export function withAgentInstructions(text: string, instructions: string): string {
+  return `${text.trimEnd()}\n\n${INSTRUCTIONS_OPEN}\n${instructions.trim()}\n${INSTRUCTIONS_CLOSE}`;
+}
+
+/** The quiz request as it was first sent, with its whole format in the visible text (English). */
+const LEGACY_QUIZ_REQUEST =
+  /^(Quiz me on what you just explained\.) Ask three questions\. Reply with only a fenced code block labelled quiz that holds JSON in this shape: [\s\S]*$/;
+
+/** The message as its sender wrote it: the instructions that travelled with it are left out. */
+export function withoutAgentInstructions(text: string): string {
+  const legacy = LEGACY_QUIZ_REQUEST.exec(text);
+  if (legacy !== null) return legacy[1]!;
+  const start = text.indexOf(INSTRUCTIONS_OPEN);
+  if (start < 0) return text;
+  const end = text.indexOf(INSTRUCTIONS_CLOSE, start);
+  if (end < 0) return text;
+  return `${text.slice(0, start).trimEnd()}${text.slice(end + INSTRUCTIONS_CLOSE.length)}`.trim();
+}
+
 const LEGACY_AUTOMATION_PREFIX = /^\[Triggered by schedule task: [^\r\n]+\]\r?\n\r?\n/;
 const LEGACY_AUTOMATION_MESSAGE_ID = /^scheduled-task-message:(.+):\d+:(?:scheduled|manual)$/;
 
@@ -107,7 +133,9 @@ export function resolveUserMessagePresentation(message: {
   }
   return {
     // The agent needs words to start a turn; people sent only the attachments.
-    text: isAttachmentOnlyBootstrapPrompt(message.text) ? "" : message.text,
+    text: isAttachmentOnlyBootstrapPrompt(message.text)
+      ? ""
+      : withoutAgentInstructions(message.text),
     attribution:
       message.createdBy !== "agent"
         ? null

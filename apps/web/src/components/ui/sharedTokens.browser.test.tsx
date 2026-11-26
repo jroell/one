@@ -72,8 +72,9 @@ function surface(attributes: Record<string, string>, className = "") {
 }
 
 describe("motion tokens", () => {
-  it("define one ladder: press 100ms, small enter 180ms, surface 240ms, sheet 320ms, exits at 0.7", () => {
-    expect(token("--mo-press")).toBe("100ms");
+  it("define one ladder: press 90ms, small enter 180ms, surface 240ms, sheet 320ms, release 240ms, exits at 0.7", () => {
+    expect(token("--mo-press")).toBe("90ms");
+    expect(token("--mo-release")).toBe("240ms");
     expect(token("--mo-quick")).toBe("180ms");
     expect(token("--mo-surface")).toBe("240ms");
     expect(token("--mo-sheet")).toBe("320ms");
@@ -81,6 +82,20 @@ describe("motion tokens", () => {
     expect(token("--mo-spring")).toBe("160ms");
     expect(token("--ease-enter")).toBe("cubic-bezier(0.2, 0.9, 0.1, 1)");
     expect(token("--ease-exit")).toBe("cubic-bezier(0.4, 0, 1, 1)");
+  });
+
+  it("the release spring takes a pressed .97 button to 1.01 and settles on 1", () => {
+    const curve = token("--ease-release");
+    expect(curve.startsWith("linear(")).toBe(true);
+    const values = curve
+      .slice("linear(".length, -1)
+      .split(",")
+      .map((stop) => Number.parseFloat(stop));
+    // Scale runs .97 + .03 * progress, so a progress of 1.33 is a scale of about 1.01.
+    const peakScale = 0.97 + 0.03 * Math.max(...values);
+    expect(peakScale).toBeGreaterThan(1.008);
+    expect(peakScale).toBeLessThan(1.012);
+    expect(values.at(-1)).toBe(1);
   });
 
   it("the spring is a linear() curve that passes its mark by under 3% and ends on 1", () => {
@@ -132,11 +147,11 @@ describe("motion tokens", () => {
     try {
       const style = getComputedStyle(palette);
       expect(style.opacity).toBe("1");
-      expect(style.scale).toBe("0.96");
+      expect(style.scale).toBe("0.97");
       expect(style.translate).toBe("0px 8px");
       expect(getComputedStyle(sheet).opacity).toBe("1");
-      expect(getComputedStyle(sheet).scale).toBe("0.985");
-      expect(getComputedStyle(sheet).translate).toBe("0px 12px");
+      expect(getComputedStyle(sheet).scale).toBe("0.97");
+      expect(getComputedStyle(sheet).translate).toBe("0px 8px");
       expect(getComputedStyle(glass).opacity).toBe("1");
     } finally {
       palette.remove();
@@ -145,20 +160,77 @@ describe("motion tokens", () => {
     }
   });
 
-  it("content waits 60ms for its surface: children start at opacity 0, including the children of a display:contents wrapper", () => {
-    const palette = surface({ "data-slot": "command-dialog-popup", "data-starting-style": "" });
+  it("an overlay's content is painted with its panel from the first frame: children start at opacity 1 with no delay, including the children of a display:contents wrapper", () => {
+    const slots = ["command-dialog-popup", "menu-popup", "popover-popup", "dialog-popup"];
+    const overlays = slots.map((slot) => surface({ "data-slot": slot, "data-starting-style": "" }));
     const wrapper = document.createElement("div");
     wrapper.className = "contents";
     const inner = document.createElement("div");
     wrapper.append(inner);
     const direct = document.createElement("div");
-    palette.append(wrapper, direct);
+    overlays[0]!.append(wrapper, direct);
+    const select = surface({ "data-slot": "select-popup", "data-starting-style": "" });
+    const glass = document.createElement("div");
+    glass.className = "dropdown-glass";
+    const row = document.createElement("div");
+    glass.append(row);
+    select.append(glass);
     try {
-      expect(getComputedStyle(direct).opacity).toBe("0");
-      expect(getComputedStyle(inner).opacity).toBe("0");
-      expect(getComputedStyle(inner).transitionDelay).toBe("0.06s");
+      for (const element of [direct, inner, row]) {
+        expect(getComputedStyle(element).opacity).toBe("1");
+        expect(getComputedStyle(element).transitionDelay).toBe("0s");
+      }
+      expect(getComputedStyle(glass).opacity).toBe("1");
     } finally {
+      for (const overlay of overlays) overlay.remove();
+      select.remove();
+    }
+  });
+
+  it("a context menu's items and a toast's content have no animation or delay of their own: they arrive with the panel", () => {
+    const menu = surface({ "data-context-menu": "true" }, "dropdown-glass");
+    const item = document.createElement("div");
+    menu.append(item);
+    const viewport = surface({ "data-slot": "toast-viewport" });
+    const toast = document.createElement("div");
+    toast.setAttribute("data-type", "info");
+    toast.setAttribute("data-starting-style", "");
+    const toastBody = document.createElement("div");
+    toast.append(toastBody);
+    viewport.append(toast);
+    try {
+      expect(getComputedStyle(item).animationName).toBe("none");
+      expect(getComputedStyle(toastBody).opacity).toBe("1");
+      expect(getComputedStyle(toastBody).transitionDelay).toBe("0s");
+      expect(getComputedStyle(toast).opacity).toBe("1");
+    } finally {
+      menu.remove();
+      viewport.remove();
+    }
+  });
+
+  it("a menu and a popover grow from their trigger, the palette from its top centre and a dialog from its centre", () => {
+    const origin = (slot: string) => {
+      const element = surface({ "data-slot": slot });
+      element.style.setProperty("--transform-origin", "12px 34px");
+      element.style.width = "200px";
+      element.style.height = "100px";
+      return element;
+    };
+    const menu = origin("menu-popup");
+    const popover = origin("popover-popup");
+    const palette = origin("command-dialog-popup");
+    const dialog = origin("dialog-popup");
+    try {
+      expect(getComputedStyle(menu).transformOrigin).toBe("12px 34px");
+      expect(getComputedStyle(popover).transformOrigin).toBe("12px 34px");
+      expect(getComputedStyle(palette).transformOrigin).toBe("100px 0px");
+      expect(getComputedStyle(dialog).transformOrigin).toBe("100px 50px");
+    } finally {
+      menu.remove();
+      popover.remove();
       palette.remove();
+      dialog.remove();
     }
   });
 });
@@ -170,7 +242,7 @@ describe("material tiers", () => {
     thick: "blur(60px) saturate(1.6)",
   };
 
-  it("menus, tooltips and toasts are thin; the palette, popovers and selects regular; sheets and dialogs thick", () => {
+  it("in light, menus, tooltips and toasts are thin; the palette, popovers and selects regular; sheets and dialogs thick", () => {
     const toastViewport = surface({ "data-slot": "toast-viewport" });
     const toast = document.createElement("div");
     toast.className = "dropdown-glass";
@@ -205,27 +277,111 @@ describe("material tiers", () => {
     }
   });
 
+  it("in light, a thicker tier is more opaque, and every tier shares one edge and one drop", () =>
+    inScheme("light", () => {
+      const thin = surface({}, "m-thin");
+      const regular = surface({}, "m-regular");
+      const thick = surface({}, "m-thick");
+      try {
+        const alpha = (element: Element) =>
+          channelsWithAlpha(getComputedStyle(element).backgroundColor)[3];
+        expect(alpha(thick)).toBeGreaterThan(alpha(regular));
+        expect(alpha(thin)).toBeGreaterThan(alpha(regular) - 0.2);
+        const shadows = [thin, regular, thick].map(
+          (element) => getComputedStyle(element).boxShadow,
+        );
+        expect(new Set(shadows).size).toBe(1);
+        expect(shadows[0]).toContain("inset");
+      } finally {
+        thin.remove();
+        regular.remove();
+        thick.remove();
+      }
+    }));
+
+  it("in dark, floating glass is one material: one fill (18, 16, 13 at 72%), one 24px blur, one highlight, one hairline and one shadow, whatever the tier", () =>
+    inScheme("dark", () => {
+      const toastViewport = surface({ "data-slot": "toast-viewport" });
+      const toast = document.createElement("div");
+      toast.className = "dropdown-glass";
+      toastViewport.append(toast);
+      const elements = [
+        surface({ "data-slot": "menu-popup" }, "dropdown-glass"),
+        surface({ "data-slot": "command-dialog-popup" }, "dialog-glass"),
+        surface({ "data-slot": "popover-popup" }, "dropdown-glass"),
+        surface({ "data-app-modal": "" }),
+        surface({ "data-slot": "dialog-popup" }, "dialog-glass"),
+        surface({ "data-slot": "sheet-popup" }),
+        surface({}, "m-thin"),
+        surface({}, "m-regular"),
+        surface({}, "m-thick"),
+        toast,
+      ];
+      try {
+        for (const element of elements) {
+          const style = getComputedStyle(element);
+          const label = element.getAttribute("data-slot") ?? element.className;
+          expect(style.backdropFilter, label).toBe("blur(24px) saturate(1.4)");
+          const [r, g, b, a] = channelsWithAlpha(style.backgroundColor);
+          // Canvas premultiplies alpha, so an 8-bit channel can land one step off.
+          for (const [channel, expected] of [
+            [r, 18],
+            [g, 16],
+            [b, 13],
+          ] as const) {
+            expect(Math.abs(channel - expected), label).toBeLessThanOrEqual(1);
+          }
+          expect(a, label).toBeCloseTo(0.72, 1);
+          expect(style.boxShadow, label).toContain("rgba(255, 240, 210, 0.1)");
+          expect(style.boxShadow, label).toContain("rgba(0, 0, 0, 0.5) 0px 24px 60px");
+        }
+      } finally {
+        for (const element of elements) element.remove();
+        toastViewport.remove();
+      }
+    }));
+
+  it("in dark, every solid card is one value, #17140f, and chrome is the app black", () =>
+    inScheme("dark", () => {
+      expect(resolved("var(--m-raised)")).toBe("rgb(23, 20, 15)");
+      expect(resolved("var(--m-card)")).toBe("rgb(23, 20, 15)");
+      expect(resolved("var(--m-field-fill)")).toBe("rgb(23, 20, 15)");
+      expect(resolved("var(--message-surface)")).toBe("rgb(23, 20, 15)");
+      expect(resolved("var(--m-base)")).toBe("rgb(10, 9, 8)");
+      expect(resolved("var(--sidebar)")).toBe("rgb(10, 9, 8)");
+    }));
+
+  it("in dark, a sheet's warm light is a glow along its top edge, never a wash down its face", () =>
+    inScheme("dark", () => {
+      const sheet = surface({ "data-app-modal": "" });
+      try {
+        expect(getComputedStyle(sheet).backgroundImage).toContain("120px at 50% 0");
+        expect(getComputedStyle(sheet).backgroundImage).not.toContain("16rem");
+      } finally {
+        sheet.remove();
+      }
+    }));
+
   it.each(["light", "dark"] as const)(
-    "a thicker tier is more opaque, and every tier shares one edge and one drop in %s",
+    "floating text keeps 4.5:1 over the worst backdrop in %s",
     (scheme) =>
       inScheme(scheme, () => {
-        const thin = surface({}, "m-thin");
-        const regular = surface({}, "m-regular");
-        const thick = surface({}, "m-thick");
+        const glass = surface({ "data-slot": "menu-popup" }, "dropdown-glass");
         try {
-          const alpha = (element: Element) =>
-            channelsWithAlpha(getComputedStyle(element).backgroundColor)[3];
-          expect(alpha(thick)).toBeGreaterThan(alpha(regular));
-          expect(alpha(thin)).toBeGreaterThan(alpha(regular) - 0.2);
-          const shadows = [thin, regular, thick].map(
-            (element) => getComputedStyle(element).boxShadow,
-          );
-          expect(new Set(shadows).size).toBe(1);
-          expect(shadows[0]).toContain("inset");
+          const fill = channelsWithAlpha(getComputedStyle(glass).backgroundColor);
+          // The worst backdrop is the opposite extreme of the page: white under dark glass, the
+          // page's own ink colour under light glass. The blur averages content toward its mean, so
+          // the extreme itself is the bound.
+          const backdrop: [number, number, number] =
+            scheme === "dark" ? [255, 255, 255] : [0, 0, 0];
+          const mixed = fill
+            .slice(0, 3)
+            .map((channel, index) => channel * fill[3] + backdrop[index]! * (1 - fill[3]));
+          const ink = resolved("var(--popover-foreground)", "color");
+          const ratio = contrast(ink, `rgb(${mixed.join(",")})`);
+          expect(ratio, `${scheme}: text over the worst backdrop`).toBeGreaterThanOrEqual(4.5);
         } finally {
-          thin.remove();
-          regular.remove();
-          thick.remove();
+          glass.remove();
         }
       }),
   );
@@ -291,11 +447,43 @@ describe("status tokens", () => {
 
   it("working is gold, done is bone, attention is ember and error is oxblood, in dark", () =>
     inScheme("dark", () => {
-      expect(resolved("var(--st-working)")).toBe(resolved("var(--gold-400)"));
+      expect(resolved("var(--st-working)")).toBe(resolved("var(--gold-text)"));
       expect(resolved("var(--st-done)")).toBe("rgb(207, 198, 182)");
-      expect(resolved("var(--st-attention)")).toBe("rgb(224, 138, 60)");
+      expect(resolved("var(--st-attention)")).toBe("rgb(232, 121, 58)");
       expect(resolved("var(--st-error)")).toBe("rgb(212, 87, 74)");
     }));
+
+  it.each(["light", "dark"] as const)(
+    "attention is ember, at least 15 degrees of hue from gold and from failure, and its chip, dot and header count read the same color in %s",
+    (scheme) =>
+      inScheme(scheme, () => {
+        const hueOf = (value: string) => hue(channels(resolved(value)));
+        const ember = hueOf("var(--st-attention)");
+        expect(Math.abs(ember - hueOf("var(--gold-fill)"))).toBeGreaterThanOrEqual(15);
+        expect(Math.abs(ember - hueOf("var(--st-error)"))).toBeGreaterThanOrEqual(15);
+
+        const status = surface({ "data-approval-status": "" });
+        const chip = document.createElement("span");
+        chip.setAttribute("data-slot", "badge");
+        status.append(chip);
+        const header = surface({ "data-sidebar-needs-you": "" });
+        const button = document.createElement("button");
+        header.append(button);
+        const dot = surface({}, "one-status-dot");
+        try {
+          const attention = resolved("var(--st-attention-fg)", "color");
+          expect(getComputedStyle(chip).color, "chip text, no peach mix").toBe(attention);
+          expect(getComputedStyle(button).color, "header count").toBe(attention);
+          expect(getComputedStyle(dot).backgroundColor, "dot").toBe(
+            resolved("var(--st-attention)"),
+          );
+        } finally {
+          status.remove();
+          header.remove();
+          dot.remove();
+        }
+      }),
+  );
 
   it.each(["light", "dark"] as const)(
     "no status or shared-control status color is blue or green in %s: success and info are the bone check",
@@ -371,6 +559,56 @@ describe("primary controls", () => {
           enabled.remove();
           disabled.remove();
         }
+      }),
+  );
+
+  it.each(["light", "dark"] as const)(
+    "Approve and Send are one gold: the same fill, and Send is 30% when empty, in %s",
+    (scheme) =>
+      inScheme(scheme, async () => {
+        await using screen = await render(<Button>Approve</Button>, { router: false });
+        const approve = getComputedStyle(screen.container.querySelector("[data-slot=button]")!);
+        const send = document.createElement("button");
+        send.setAttribute("data-composer-send", "");
+        const empty = document.createElement("button");
+        empty.setAttribute("data-composer-send", "");
+        empty.disabled = true;
+        document.body.append(send, empty);
+        try {
+          expect(getComputedStyle(send).backgroundColor).toBe(approve.backgroundColor);
+          expect(approve.backgroundColor).toBe(resolved("var(--gold-fill)"));
+          expect(getComputedStyle(empty).opacity).toBe("0.3");
+        } finally {
+          send.remove();
+          empty.remove();
+        }
+      }),
+  );
+
+  it.each(["light", "dark"] as const)(
+    "a pressed primary button drops its top highlight to a third, gathers a 1px inner bottom shadow and keeps its hover glow in %s",
+    (scheme) =>
+      inScheme(scheme, async () => {
+        await using screen = await render(
+          <>
+            <Button>Rest</Button>
+            <Button data-pressed="">Pressed</Button>
+          </>,
+          { router: false },
+        );
+        const [rest, pressed] = [...screen.container.querySelectorAll("[data-slot=button]")].map(
+          (element) => getComputedStyle(element).boxShadow,
+        );
+        const topHighlightAlpha = (shadow: string | undefined) => {
+          const color = /((?:rgba?|color|oklab|oklch)\([^)]*\))\s+0px 1px 0px 0px inset/.exec(
+            shadow ?? "",
+          )?.[1];
+          return color === undefined ? null : channelsWithAlpha(color)[3];
+        };
+        const restAlpha = topHighlightAlpha(rest);
+        expect(restAlpha, "rest has an inner top highlight").not.toBeNull();
+        expect(pressed).toContain("0px -1px 0px 0px inset");
+        expect(topHighlightAlpha(pressed)!).toBeLessThan(restAlpha! * 0.5);
       }),
   );
 

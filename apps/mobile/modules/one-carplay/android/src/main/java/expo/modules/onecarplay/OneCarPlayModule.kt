@@ -88,6 +88,8 @@ class OneCarPlayModule : Module() {
       mapOf(
         "available" to true,
         "connected" to false,
+        "voiceControlPresented" to false,
+        "entitlementMode" to "none",
         "audioSessionActive" to (engine?.isAudioSessionActive ?: false),
         "muted" to (engine?.isMuted ?: false),
         "platform" to "android",

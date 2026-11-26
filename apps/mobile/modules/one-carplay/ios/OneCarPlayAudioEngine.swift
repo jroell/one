@@ -33,6 +33,9 @@ internal final class OneCarPlayAudioEngine: NSObject, AVSpeechSynthesizerDelegat
 
   private var isSessionActive = false
   private var isPlaybackOnlyActive = false
+  private var playbackBuffersInFlight = 0
+  private var playbackEpoch = 0
+  private var idleReleaseToken = 0
   private var isMutedState = false
   private var activeSampleRate: Double = 24_000
   private var chunkByteTarget = 4_800
@@ -227,6 +230,8 @@ internal final class OneCarPlayAudioEngine: NSObject, AVSpeechSynthesizerDelegat
         return
       }
       guard let player = self.playerNode else { return }
+      self.playbackEpoch += 1
+      self.playbackBuffersInFlight = 0
       player.stop()
       player.reset()
       if self.engine?.isRunning == true {
@@ -496,7 +501,12 @@ internal final class OneCarPlayAudioEngine: NSObject, AVSpeechSynthesizerDelegat
     if !playerNode.isPlaying {
       playerNode.play()
     }
-    playerNode.scheduleBuffer(buffer, completionHandler: nil)
+    idleReleaseToken += 1
+    playbackBuffersInFlight += 1
+    let epoch = playbackEpoch
+    playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+      self?.audioQueue.async { self?.playbackBufferDidFinish(epoch: epoch) }
+    }
 
     let nowMs = currentTimestampMs()
     if nowMs - lastOutputLevelSentMs >= 50 {
@@ -505,6 +515,42 @@ internal final class OneCarPlayAudioEngine: NSObject, AVSpeechSynthesizerDelegat
       let peak = min(1.0, maxAbs)
       emitLevel(source: "output", level: rms, peak: peak, timestampMs: nowMs)
     }
+  }
+
+  /// Playback without a started voice session holds the audio session only while audio plays.
+  /// Once the last queued buffer has played, the session is released after a short pause.
+  private func playbackBufferDidFinish(epoch: Int) {
+    guard epoch == playbackEpoch else { return }
+    playbackBuffersInFlight = max(0, playbackBuffersInFlight - 1)
+    guard playbackBuffersInFlight == 0, isPlaybackOnlyActive else { return }
+    idleReleaseToken += 1
+    let token = idleReleaseToken
+    audioQueue.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+      guard let self, token == self.idleReleaseToken, self.playbackBuffersInFlight == 0,
+        self.isPlaybackOnlyActive
+      else { return }
+      self.stopLocked()
+      self.emitLevel(source: "output", level: 0, peak: 0)
+    }
+  }
+
+  /// Text-to-speech fallback also takes the audio session, so it gives it back when it is done.
+  private func releaseSessionAfterFallbackSpeech() {
+    DispatchQueue.main.async { [weak self] in
+      guard let self, !self.speechSynthesizer.isSpeaking else { return }
+      self.audioQueue.async { [weak self] in
+        guard let self, !self.audioSessionActive, !self.isPlaybackOnlyActive else { return }
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+      }
+    }
+  }
+
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+    releaseSessionAfterFallbackSpeech()
+  }
+
+  func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+    releaseSessionAfterFallbackSpeech()
   }
 
   private func stopLocked() {
@@ -523,6 +569,9 @@ internal final class OneCarPlayAudioEngine: NSObject, AVSpeechSynthesizerDelegat
     targetCaptureFormat = nil
     playbackFormat = nil
     isPlaybackOnlyActive = false
+    playbackEpoch += 1
+    playbackBuffersInFlight = 0
+    idleReleaseToken += 1
     pendingCaptureBytes.removeAll(keepingCapacity: false)
 
     withStateLock {

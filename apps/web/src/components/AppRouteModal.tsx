@@ -31,9 +31,12 @@ export function AppRouteModal({
   label,
   actionsRef,
   onEscape,
+  skeleton,
   children,
 }: {
   label: string;
+  /** The outline shown, only if the page takes over 250 ms, in the page's own layout. */
+  skeleton?: ReactNode;
   actionsRef?: RefObject<DialogPrimitive.Root.Actions | null>;
   /** Runs on Esc after nested popups had their chance; return true to keep the modal open. */
   onEscape?: () => boolean;
@@ -161,7 +164,15 @@ export function AppRouteModal({
               aria-hidden
               className="absolute inset-x-0 top-0 hidden h-(--app-modal-titlebar-height) [-webkit-app-region:drag] max-sm:block"
             />
-            {pageReady ? children : <AppRouteModalSkeleton />}
+            {pageReady ? (
+              children
+            ) : (
+              // Under 250 ms the sheet is simply empty for a moment; an outline that flashes and
+              // is replaced reads as scaffolding.
+              <div className="app-route-modal-late flex min-h-0 flex-1">
+                {skeleton ?? <AppRouteModalSkeleton />}
+              </div>
+            )}
             <GlobalVoiceInputIndicator />
           </DialogPrimitive.Popup>
         </DialogPrimitive.Viewport>

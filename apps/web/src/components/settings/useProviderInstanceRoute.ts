@@ -2,7 +2,6 @@ import type { ProviderInstanceId } from "@t3tools/contracts";
 import { useBlocker, useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 
 import { commitFocusedField } from "./providerInstanceFocus";
-import { SETTINGS_PAGE_TRANSITION } from "./settingsPageTransition";
 
 /** What a history entry of the list remembers: the provider it was left through. */
 interface ProviderListEntryState {
@@ -62,7 +61,6 @@ export function useProviderInstanceRoute() {
         ? { state: { providerFocusRow: instanceId } as never }
         : {}),
       resetScroll: true,
-      viewTransition: SETTINGS_PAGE_TRANSITION,
     });
   };
   return { instanceId, onSelectInstance, returnFocusRow };

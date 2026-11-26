@@ -64,6 +64,7 @@ import {
   useSidebarVisibility,
 } from "./ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { ModeSidebar } from "../one/chatSidebar";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { registerCommandHandlers } from "../shortcuts/commandRegistry";
 import { isShortcutsSheetOnScreen } from "../shortcuts/shortcutsSheet";
@@ -525,6 +526,7 @@ export function AppSidebarLayout({
         ) : null}
         {children}
         <BackgroundThreadAnnouncer />
+        <ModeSidebar />
         <SidebarControl showSidebar={showSidebar} />
         {isElectron ? <HistorySwipeNavigation /> : null}
       </SidebarProvider>

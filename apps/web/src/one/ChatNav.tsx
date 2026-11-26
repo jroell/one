@@ -51,12 +51,8 @@ export function ChatNav({
     measure();
     return observeResize(node, measure);
   };
-  const hasSections = [...sections.values()].reduce((total, list) => total + list.length, 0) >= 1;
   const showsOutline =
-    fits &&
-    (items.length >= CHAT_OUTLINE_MIN_TURNS || (items.length > 0 && hasSections)) &&
-    chatWidth !== "wide" &&
-    chatWidth !== "full";
+    fits && items.length >= CHAT_OUTLINE_MIN_TURNS && chatWidth !== "wide" && chatWidth !== "full";
   const reportShown = useStableCallback(onShownChange);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the timeline's scroll loop, which holds no render state, whether it must measure turns
   useLayoutEffect(() => {

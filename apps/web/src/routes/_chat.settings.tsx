@@ -9,6 +9,7 @@ import { useSettingsRestore } from "../components/settings/SettingsPanels";
 import { AppRouteModal, AppRouteModalClose } from "../components/AppRouteModal";
 import { SettingsBreadcrumb } from "../components/settings/SettingsBreadcrumb";
 import { SettingsSidebarNav } from "../components/settings/SettingsSidebarNav";
+import { SettingsSheetSkeleton } from "../components/settings/SettingsSheetSkeleton";
 import {
   SettingsScopeProvider,
   useSettingsScope,
@@ -27,6 +28,7 @@ import {
 } from "../components/settings/useSettingsPathname";
 import { SETTINGS_DEVICE_ONLY_PATHS } from "../components/settings/SettingsScopeSentence";
 import { SettingsPageContainer } from "../components/settings/settingsLayout";
+import { useHoldOutgoingSettingsPage } from "../components/settings/settingsPageCrossfade";
 import {
   retainSettingsScope,
   validateSettingsRouteSearch,
@@ -168,11 +170,16 @@ function SettingsContentLayout() {
       ? environment?.environmentId
       : JSON.stringify(search);
   const [restoreSignal, setRestoreSignal] = useState(0);
+  useHoldOutgoingSettingsPage();
   const searchHasNoResults = useSettingsSearchHasNoResults();
   const clearSearchOnEscape = useClearNoMatchSearchOnEscape();
 
   return (
-    <AppRouteModal label={gt("Settings")} onEscape={clearSearchOnEscape}>
+    <AppRouteModal
+      label={gt("Settings")}
+      onEscape={clearSearchOnEscape}
+      skeleton={<SettingsSheetSkeleton />}
+    >
       <div className="relative flex min-h-0 flex-1">
         <SettingsSidebarNav pathname={pathname} />
         <div {...contentArea} className="flex min-h-0 min-w-0 flex-1 flex-col">

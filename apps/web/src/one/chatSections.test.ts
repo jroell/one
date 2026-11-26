@@ -18,6 +18,51 @@ describe("parseChatHeadings", () => {
     expect(parseChatHeadings(text, false)).toEqual(["The idea", "A link and code", "Third"]);
   });
 
+  it("keeps a longer outer fence open through the shorter fences inside it", () => {
+    const text = [
+      "## Setup",
+      "````markdown",
+      "# Project",
+      "```bash",
+      "# install the dependencies",
+      "```",
+      "## still inside",
+      "````",
+      "## Next steps",
+    ].join("\n");
+    expect(parseChatHeadings(text, false)).toEqual(["Setup", "Next steps"]);
+  });
+
+  it("closes a tilde fence only with tildes, and a backtick fence only with backticks", () => {
+    const tilde = ["~~~", "```", "# inside", "```", "# also inside", "~~~", "## After"].join("\n");
+    expect(parseChatHeadings(tilde, false)).toEqual(["After"]);
+    const tick = ["```", "~~~", "# inside", "~~~", "```", "## After"].join("\n");
+    expect(parseChatHeadings(tick, false)).toEqual(["After"]);
+  });
+
+  it("does not close a fence with a shorter one, or with a line that has text after it", () => {
+    const text = ["````", "```", "# inside", "```js", "# still inside", "````", "## After"].join(
+      "\n",
+    );
+    expect(parseChatHeadings(text, false)).toEqual(["After"]);
+  });
+
+  it("opens a fence indented up to three spaces and not one indented four", () => {
+    const indented = ["   ```bash", "   # a comment", "   ```", "## After"].join("\n");
+    expect(parseChatHeadings(indented, false)).toEqual(["After"]);
+    // Four spaces make an indented code block: no fence opens, so the next heading counts.
+    const code = ["    ```", "## Real"].join("\n");
+    expect(parseChatHeadings(code, false)).toEqual(["Real"]);
+  });
+
+  it("does not open a fence on a backtick line whose info string holds a backtick", () => {
+    expect(parseChatHeadings("```js code```\n## Real", false)).toEqual(["Real"]);
+  });
+
+  it("keeps an unclosed fence open to the end of a streaming answer", () => {
+    expect(parseChatHeadings("## One\n````md\n```\n## inside", true)).toEqual(["One"]);
+  });
+
   it("holds back a heading whose line is still being typed while the answer streams", () => {
     expect(parseChatHeadings("## One\n\ntext\n\n## Tw", true)).toEqual(["One"]);
     expect(parseChatHeadings("## One\n\ntext\n\n## Tw", false)).toEqual(["One", "Tw"]);

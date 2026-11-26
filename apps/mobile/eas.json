@@ -38,6 +38,12 @@
         "image": "macos-tahoe-26.6-xcode-27.1"
       }
     },
+    "preview:carplay-voice": {
+      "extends": "preview",
+      "env": {
+        "ONE_CARPLAY_ENTITLEMENT": "voice"
+      }
+    },
     "preview:dev": {
       "corepack": true,
       "env": {

@@ -7,6 +7,7 @@ import {
   toComposerContextId,
 } from "@t3tools/shared/composerContextReferences";
 
+import { withAgentInstructions } from "@t3tools/client-runtime/user-message";
 import { deriveTimelineMinimapItems, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 
 describe("deriveTimelineMinimapItems", () => {
@@ -90,5 +91,29 @@ describe("resolveTimelineMinimapPreview", () => {
       assistantText: null,
     });
     expect(preview?.userText).toBe("Build log");
+  });
+
+  it("labels a turn by the words the person sent, not the instructions that travelled with them", () => {
+    const at = "2026-10-01T00:00:00Z";
+    const items = deriveTimelineMinimapItems([
+      {
+        kind: "message",
+        id: "quiz-request",
+        createdAt: at,
+        showAssistantMeta: false,
+        showAssistantCopyButton: false,
+        assistantCopyStreaming: false,
+        message: {
+          id: MessageId.make("quiz-request"),
+          role: "user",
+          text: withAgentInstructions("Another round of three questions.", "Reply with only JSON."),
+          runId: null,
+          streaming: false,
+          createdAt: at,
+          updatedAt: at,
+        },
+      },
+    ]);
+    expect(items[0]!.userText).toBe("Another round of three questions.");
   });
 });

@@ -208,6 +208,8 @@ import { matchInlineSkills } from "@t3tools/shared/inlineSkills";
 import { collectComposerModelMentions } from "@t3tools/client-runtime/composer-model-mentions";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
+import { useChatBuild } from "~/one/chatBuild";
+import { quizBlockIndex } from "~/one/chatQuiz";
 import { ChatQuizBlock } from "~/one/ChatQuizCards";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 import { MarkdownTable, markdownTableShape } from "./chat/MarkdownTable";
@@ -1880,6 +1882,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       return (
         <ChatQuizBlock
           code={codeBlock.code}
+          blockIndex={quizBlockIndex(text, node?.position?.start.offset ?? 0)}
           streaming={isStreaming && !isClosedCodeFence(node, text, codeBlock.code)}
         />
       );
@@ -2128,6 +2131,7 @@ function ChatMarkdown({
   const { componentState, handleCopy, markdownRef, localMediaPreview, closeLocalMediaPreview } =
     useChatMarkdownState({ text, inline, ...props }, streamingBlocks);
   const Root = inline ? "span" : "div";
+  useChatBuild(markdownRef, componentState.isStreaming);
   const bindMarkdownRef = (node: HTMLElement | null) => {
     markdownRef.current = node;
   };

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { fakeTimers, render } from "../../../test/render";
-import { AnchoredToastProvider, ToastProvider, toastManager } from "./toast";
+import { AnchoredToastProvider, ToastProvider, setToastsSuppressed, toastManager } from "./toast";
 
 /** Empties the module-level toast queue when the test ends, so the next test starts clean. */
 function emptyToastQueue(): Disposable {
@@ -182,5 +182,97 @@ describe("the toast queue in the running provider", () => {
     await userEvent.click(page.getByText("Waiting two"));
 
     await vi.waitFor(() => expect(shownTitles()).toContain("Waiting two"));
+  });
+});
+
+describe("toasts while the voice stage has them suppressed", () => {
+  const suppressed = (): Disposable => {
+    setToastsSuppressed(true);
+    return { [Symbol.dispose]: () => setToastsSuppressed(false) };
+  };
+  const viewportText = () =>
+    document.querySelector('[data-slot="toast-viewport"]')?.textContent ?? "";
+
+  it("holds a toast raised during suppression with no timer and no announcement, then shows it with its time starting then", async () => {
+    const onClose = vi.fn();
+    await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
+    using _queue = emptyToastQueue();
+    using _clock = fakeTimers();
+    {
+      using _suppressed = suppressed();
+      toastManager.add({ type: "info", title: "Raised under suppression", timeout: 3000, onClose });
+      await settle();
+      expect(viewportText()).not.toContain("Raised under suppression");
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(onClose, "a held toast has no timer to run out").not.toHaveBeenCalled();
+    }
+    await settle();
+    expect(shownTitles()).toEqual(["Raised under suppression"]);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(onClose).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("sends the toast on screen back to the queue without running its callbacks, and shows it again afterwards", async () => {
+    const onClose = vi.fn();
+    const onRemove = vi.fn();
+    await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
+    using _queue = emptyToastQueue();
+    toastManager.add({ type: "info", title: "On screen", timeout: 0, onClose, onRemove });
+    await expect.element(page.getByText("On screen")).toBeVisible();
+
+    {
+      using _suppressed = suppressed();
+      await vi.waitFor(() => expect(viewportText()).not.toContain("On screen"));
+      expect(onClose).not.toHaveBeenCalled();
+      expect(onRemove).not.toHaveBeenCalled();
+    }
+
+    await expect.element(page.getByText("On screen")).toBeVisible();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps an error with an action through suppression, with its Retry button working afterwards", async () => {
+    const retry = vi.fn();
+    await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
+    using _queue = emptyToastQueue();
+    using _clock = fakeTimers();
+    {
+      using _suppressed = suppressed();
+      toastManager.add({ type: "error", title: "Could not save", data: { onRetry: retry } });
+      await settle();
+      expect(viewportText()).not.toContain("Could not save");
+    }
+    await settle();
+    expect(shownTitles()).toEqual(["Could not save"]);
+    vi.useRealTimers();
+    document.querySelector<HTMLElement>('[data-slot="toast-retry"]')!.click();
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("releases the thread's toast padding while suppressed and takes it again afterwards", async () => {
+    await using screen = await render(
+      <ToastProvider>
+        <div
+          className="messages-timeline-scroll"
+          data-testid="timeline"
+          style={{ height: 200, overflow: "auto" }}
+        >
+          <div style={{ height: 800 }}>messages</div>
+        </div>
+      </ToastProvider>,
+    );
+    using _queue = emptyToastQueue();
+    const timeline = screen.getByTestId("timeline").element() as HTMLElement;
+    toastManager.add({ type: "info", title: "Lane toast", timeout: 0 });
+    await expect.element(page.getByText("Lane toast")).toBeVisible();
+    expect(timeline.style.paddingBottom).not.toBe("");
+
+    {
+      using _suppressed = suppressed();
+      await vi.waitFor(() => expect(timeline.style.paddingBottom).toBe(""));
+    }
+    await vi.waitFor(() => expect(timeline.style.paddingBottom).not.toBe(""));
   });
 });

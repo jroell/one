@@ -45,14 +45,14 @@ export const STANDARD_TILE_MATERIAL = {
     raised: "#fffaf0",
     card: "#fffbf2",
     floating: "#fbf8f0",
-    brand: "#b98f1f",
+    brand: "#c2973a",
   },
   dark: {
     base: "#0a0908",
-    raised: "#17130e",
-    card: "#2b231a",
-    floating: "#211c14",
-    brand: "#d9b450",
+    raised: "#17140f",
+    card: "#17140f",
+    floating: "#12100d",
+    brand: "#d4af5a",
   },
 } as const satisfies Record<ThemeAppearance, Record<string, string>>;
 

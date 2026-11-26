@@ -1,6 +1,8 @@
 import type { OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import { useSyncExternalStore } from "react";
 
+import { getVoiceExit, subscribeVoiceExit } from "./voiceStageMotion";
+
 /**
  * A spoken conversation, one turn at a time:
  * listening -> sending -> thinking -> speaking -> listening ...
@@ -356,33 +358,105 @@ export function speechDeadlineMs(text: string): number {
   return 10_000 + text.length * 120;
 }
 
-/** Removes markup so a reply can be read aloud: no code, links become their text. */
-export function speakableText(markdown: string): string {
-  return (
-    markdown
-      .replace(/```[\s\S]*?(```|$)/g, " ")
-      .replace(/`([^`]*)`/g, "$1")
-      .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, "")
-      .replace(/^\s*\|?[\s:|-]+\|[\s:|-]*$/gm, " ")
-      // A table row is read as a short sentence: its cells separated by commas, closed by a stop.
-      .replace(
-        /^[ \t]*\|(.+)\|[ \t]*$/gm,
-        (_row, cells: string) =>
-          `${cells
-            .split("|")
-            .map((cell) => cell.trim())
-            .filter(Boolean)
-            .join(", ")}.`,
-      )
-      .replace(/\|/g, ", ")
-      .replace(/(\*\*|__|\*|_|~~)/g, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/[ \t]+/g, " ")
-      .replace(/\s*\n\s*/g, "\n")
+const NUMBER_WORDS = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+];
+const CODE_MARK = "\u0001";
+const CODE_SAYING = "The code is in the thread.";
+const TABLE_MARK = "\u0002";
+
+function countWord(count: number): string {
+  return NUMBER_WORDS[count] ?? String(count);
+}
+
+function joinWithAnd(items: ReadonlyArray<string>): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
+/** What a person would say about a table: its columns and how many rows it has, not its cells. */
+function describeTable(lines: ReadonlyArray<string>): string {
+  const cells = (line: string) =>
+    line
       .trim()
-  );
+      .replace(/^\||\|$/g, "")
+      .split("|")
+      .map((cell) => cell.replace(/(\*\*|__|\*|_|`)/g, "").trim())
+      .filter(Boolean);
+  const header = cells(lines[0] ?? "");
+  const rows = Math.max(0, lines.length - 2);
+  const rowsText = rows === 1 ? "one row" : `${countWord(rows)} rows`;
+  return header.length === 0
+    ? `A table with ${rowsText}.`
+    : `A table with ${rowsText} and columns ${joinWithAnd(header)}.`;
+}
+
+/**
+ * Turns a reply into what a person would say aloud: link text without addresses, a table as one
+ * sentence about its columns and rows, a code block as a pointer to the thread, headings as their
+ * own sentences. The thread keeps the full reply; this is only what is read and shown on the stage.
+ */
+export function speakableText(markdown: string): string {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let inFence = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (/^\s{0,3}(```|~~~)/.test(line)) {
+      if (!inFence) blocks.push(CODE_MARK);
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const next = lines[index + 1] ?? "";
+    if (
+      /^\s*\|.*\|?\s*$/.test(line) &&
+      /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(next) &&
+      next.includes("-")
+    ) {
+      const table = [line, next];
+      index += 2;
+      while (index < lines.length && /^\s*\|/.test(lines[index] ?? "")) {
+        table.push(lines[index] ?? "");
+        index += 1;
+      }
+      index -= 1;
+      blocks.push(TABLE_MARK + describeTable(table));
+      continue;
+    }
+    blocks.push(line);
+  }
+  const text = blocks
+    .join("\n")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    // A heading is a sentence of its own, so the voice stops after it.
+    .replace(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/gm, (_line, title: string) =>
+      /[.!?:]$/.test(title) ? title : `${title}.`,
+    )
+    .replace(/^\s{0,3}(>|[-*+]|\d+[.)])\s+/gm, "")
+    .replace(new RegExp(TABLE_MARK, "g"), "")
+    .replace(/(\*\*|__|\*|_|~~)/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\s*\n\s*/g, "\n")
+    .trim();
+  // Several code blocks in a row are one pointer.
+  return text
+    .replace(new RegExp(`(?:${CODE_MARK}\\s*)+`, "g"), `${CODE_SAYING}\n`)
+    .replace(/\s*\n\s*/g, "\n")
+    .trim();
 }
 
 export type SilenceDetectorOptions = Readonly<{
@@ -517,11 +591,24 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** Whether voice chat covers the conversation. A boolean snapshot, so it re-renders only when voice chat opens or closes. */
+function subscribeStageOpen(listener: () => void): () => void {
+  const stopSession = subscribe(listener);
+  const stopExit = subscribeVoiceExit(listener);
+  return () => {
+    stopSession();
+    stopExit();
+  };
+}
+
+/**
+ * Whether voice chat still covers the conversation: while the stage is open, and through the exit
+ * beat after it, so the page behind is not brought up to date in the middle of the ring's flight.
+ * A boolean snapshot, so it re-renders only when voice chat opens or its exit ends.
+ */
 export function useVoiceStageOpen(): boolean {
   return useSyncExternalStore(
-    subscribe,
-    () => getVoiceSession().stage !== "off",
+    subscribeStageOpen,
+    () => getVoiceSession().stage !== "off" || getVoiceExit() !== null,
     () => false,
   );
 }

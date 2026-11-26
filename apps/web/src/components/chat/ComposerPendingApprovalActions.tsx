@@ -8,11 +8,7 @@ import { memo } from "react";
 import { ChevronDownIcon, EllipsisIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
-import {
-  clearApprovalDecision,
-  noteApprovalDecision,
-  useApprovalDecision,
-} from "~/one/approvalDecision";
+import { answerApproval, useApprovalDecision } from "~/one/approvalDecision";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
@@ -85,16 +81,16 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
     const buttonProps = {
       disabled: pending ? false : disabled || isResponding || !canRespond,
       ...(pending ? { "aria-disabled": true, "data-pending": "" } : {}),
+      // The other action dims at once, from the press, not when the answer is on its way back.
+      ...(card && pressed !== undefined && pressed !== option.decision && !pending
+        ? { "data-dimmed": "" }
+        : {}),
       "aria-description": option.warning,
       // The visible key hint is decoration, so the button keeps its plain name.
       ...(hint ? { "aria-label": optionLabel(option.label) } : {}),
       onClick: () => {
         if (!disabled && !isResponding && canRespond) {
-          noteApprovalDecision(requestId, option.decision);
-          // A refused answer leaves the card pending, so it must not stay marked as pressed.
-          void Promise.resolve(onRespondToApproval(requestId, option.decision)).catch(() =>
-            clearApprovalDecision(requestId),
-          );
+          void answerApproval(requestId, option.decision, onRespondToApproval);
         }
       },
     };

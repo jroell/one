@@ -3,7 +3,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
 import { act, fakeTimers, render, stubGlobal } from "../../test/render";
-import { ToastProvider } from "../components/ui/toast";
+import { ToastProvider, toastManager } from "../components/ui/toast";
 import { OneVoiceStage, type VoiceStageMessage } from "./OneVoiceStage";
 import { startVoiceChat } from "./startVoiceChat";
 import {
@@ -70,6 +70,9 @@ const NEW_REPLY: VoiceStageMessage = {
   text: "Light **bends** inside each drop.\n```js\nrefract()\n```",
   streaming: false,
 };
+
+/** What voice chat says for NEW_REPLY: its code block is left in the thread. */
+const NEW_REPLY_SPOKEN = "Light bends inside each drop.\nThe code is in the thread.";
 
 const QUESTION: VoiceStageMessage = {
   id: "u2",
@@ -310,10 +313,8 @@ it("voice chat sends the spoken question, reads only the new reply aloud, then r
   await screen.rerender(voice.stage(true, [OLD_REPLY]));
   await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
-  await expect.element(screen.getByText("Light bends inside each drop.")).toBeVisible();
-  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
-    "Light bends inside each drop.",
-  ]);
+  expect(stageOf(screen).querySelector(".one-voice-caption")?.textContent).toBe(NEW_REPLY_SPOKEN);
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
 
   await act(() => voice.spoken[0]?.onend?.(new Event("end") as SpeechSynthesisEvent));
   await expect.element(screen.getByText("why is the sky blue")).toBeVisible();
@@ -339,9 +340,7 @@ it("voice chat waits for a reply that is still streaming and reads it once, in f
 
   await screen.rerender(voice.stage(false, [QUESTION, NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
-  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
-    "Light bends inside each drop.",
-  ]);
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
 });
 
 it("voice chat closes and releases the microphone when the composer moves to another thread", async () => {
@@ -527,9 +526,7 @@ it("a finished reply seen without any frame showing the thread working is read a
   await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
 
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
-  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
-    "Light bends inside each drop.",
-  ]);
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
 });
 
 it("a later message in the conversation does not restart or replace the reply being read", async () => {
@@ -553,10 +550,8 @@ it("a later message in the conversation does not restart or replace the reply be
     voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY, followUp, laterAnswer]),
   );
 
-  await expect.element(screen.getByText("Light bends inside each drop.")).toBeVisible();
-  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
-    "Light bends inside each drop.",
-  ]);
+  expect(stageOf(screen).querySelector(".one-voice-caption")?.textContent).toBe(NEW_REPLY_SPOKEN);
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
 });
 
 it("voice chat shows that voice input is unavailable when the destination is lost while the agent answers, then closes with a notice", async () => {
@@ -646,7 +641,7 @@ it("voice chat moves on from a reply the speech engine keeps speaking past its d
   await voice.finishTranscribing();
   await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, NEW_REPLY]));
   expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
-  const deadline = speechDeadlineMs("Light bends inside each drop.");
+  const deadline = speechDeadlineMs(NEW_REPLY_SPOKEN);
 
   // The engine reports speaking without any start event, so the length-based deadline counts
   // from the 4 second check that saw it speak. The checks read the page directly: waiting for it
@@ -824,9 +819,7 @@ it("voice chat does not read the answer to another prompt that landed first, and
     voice.stage(false, [OLD_REPLY, OTHER_QUESTION, OTHER_REPLY, SPOKEN_QUESTION, SPOKEN_REPLY]),
   );
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
-  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
-    "Light bends inside each drop.",
-  ]);
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
 });
 
 /** A saved thread's user message, whose item id differs from the id the composer gave it. */
@@ -1250,9 +1243,7 @@ it("voice chat does not read a later row from a run it already read, and listens
 
   await act(() => vi.advanceTimersByTime(4_000));
   expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
-  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
-    "Light bends inside each drop.",
-  ]);
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
 });
 
 it("voice chat gives up 60 seconds after the question was sent even when the recorder changed phase at 59 seconds", async () => {
@@ -1338,7 +1329,7 @@ it("voice chat keeps reading a reply the engine began between the 4 and 6 second
   expect(screen.getByRole("status").element()).toHaveTextContent("Speaking");
 
   // The length-based deadline now counts from the 6 second check that saw it speak.
-  await act(() => vi.advanceTimersByTime(speechDeadlineMs("Light bends inside each drop.")));
+  await act(() => vi.advanceTimersByTime(speechDeadlineMs(NEW_REPLY_SPOKEN)));
   expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
   expect(voice.spoken).toHaveLength(1);
 });
@@ -1597,4 +1588,217 @@ it("the question stays on screen while the agent works, even when the thread's r
   saved.rows = [];
   await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
   expect(screen.getByText("Why is the sky blue?").element()).toBeVisible();
+});
+
+/** Brings the stage to Speaking with `reply` as the answer, the way the first test in this file does. */
+async function speakReply(
+  voice: ReturnType<typeof setup>,
+  screen: Awaited<ReturnType<typeof render>>,
+  reply: VoiceStageMessage,
+) {
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, [OLD_REPLY]));
+  await screen.rerender(voice.stage(false, [OLD_REPLY, QUESTION, reply]));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "speaking");
+}
+
+const warmWords = (screen: Awaited<ReturnType<typeof render>>) =>
+  [...(screenCaption(screen)?.querySelectorAll(".one-voice-word.is-spoken") ?? [])].map(
+    (word) => word.textContent,
+  );
+
+function screenCaption(screen: Awaited<ReturnType<typeof render>>): HTMLElement | null {
+  return stageOf(screen).querySelector<HTMLElement>(".one-voice-caption");
+}
+
+it("each word of the reply warms from bone to gold as the speech engine reaches it, and none ahead of it", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+  const reply = { ...NEW_REPLY, text: "Light bends. It splits into colors." };
+  const text = "Light bends. It splits into colors.";
+
+  await speakReply(voice, screen, reply);
+  expect(warmWords(screen)).toEqual([]);
+
+  const boundary = (charIndex: number) =>
+    act(() => voice.spoken[0]?.onboundary?.({ name: "word", charIndex } as SpeechSynthesisEvent));
+  await boundary(0);
+  expect(warmWords(screen)).toEqual(["Light"]);
+  await boundary(text.indexOf("It"));
+  expect(warmWords(screen)).toEqual(["Light", "bends.", "It"]);
+  await boundary(text.indexOf("colors"));
+  expect(warmWords(screen)).toEqual(["Light", "bends.", "It", "splits", "into", "colors."]);
+});
+
+it("when the engine gives no word timing, the caption warms one sentence at a time, by an estimate of the speaking time", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+  const text = "Light bends. It splits into colors. Then it fades.";
+  const reply = { ...NEW_REPLY, text };
+
+  await speakReply(voice, screen, reply);
+  // The engine starts the utterance but never reports a word boundary.
+  await act(() => voice.spoken[0]?.onstart?.(new Event("start") as SpeechSynthesisEvent));
+  expect(warmWords(screen)).toEqual([]);
+
+  // After the wait, the sentences the estimate says are under way warm at once: the first starts at 0 s
+  // and the second about 13 characters in, which is 0.93 s at 14 characters a second.
+  await act(() => vi.advanceTimersByTime(1_200));
+  expect(warmWords(screen)).toEqual(["Light", "bends.", "It", "splits", "into", "colors."]);
+  // The third starts 36 characters in, which is 2.57 s.
+  await act(() => vi.advanceTimersByTime(1_300));
+  expect(warmWords(screen)).toHaveLength(6);
+  await act(() => vi.advanceTimersByTime(100));
+  expect(warmWords(screen)).toHaveLength(text.split(" ").length);
+});
+
+it("the status is the one current word for screen readers, with the previous word fading out beside it", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  const status = screen.getByRole("status").element();
+  expect(status).toHaveTextContent("Thinking");
+  const fading = stageOf(screen).querySelector(".one-voice-status-out");
+  expect(fading).toHaveTextContent("Listening");
+  expect(fading).toHaveAttribute("aria-hidden", "true");
+  // The screen reader's status holds one word only.
+  expect(status.textContent).toBe("Thinking");
+});
+
+it("no toast shows over the stage, however it was raised, and it appears once voice chat closes", async () => {
+  using voice = setup();
+  await using screen = await render(<ToastProvider>{voice.stage(false, [])}</ToastProvider>);
+
+  await voice.start();
+  // A promotional prompt and an ordinary notice, raised while the stage is open.
+  await act(() => {
+    toastManager.add({ type: "info", title: "Enjoying One?", description: "Give us a star" });
+    toastManager.add({ type: "info", title: "Settings saved" });
+  });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+  expect(page.getByText("Enjoying One?").query()).toBeNull();
+  expect(page.getByText("Settings saved").query()).toBeNull();
+
+  await act(() => dispatchVoiceSession({ type: "stop" }));
+  await expect.element(page.getByText("Enjoying One?")).toBeVisible();
+});
+
+const keydown = (init: KeyboardEventInit): Promise<void> =>
+  act(() => void window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init })));
+
+it("holding M mutes once, however many key repeats arrive, and the microphone is started and stopped once", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 1 });
+
+  await keydown({ key: "m" });
+  for (let repeat = 0; repeat < 15; repeat += 1) await keydown({ key: "m", repeat: true });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "muted");
+  expect(voice.microphone).toMatchObject({ phase: "idle", recordings: 1 });
+
+  // Released and pressed again: that is a new press, and it unmutes once.
+  for (let repeat = 0; repeat < 15; repeat += 1) await keydown({ key: "M", repeat: true });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "muted");
+  await keydown({ key: "m" });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+  expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 });
+});
+
+it("a held Escape that repeats before its first press was seen does not end voice chat", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await keydown({ key: "Escape", repeat: true });
+  expect(stageOf(screen)).toHaveAttribute("data-look", "listening");
+  await keydown({ key: "Escape" });
+  expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
+});
+
+it("Escape ends voice chat with a toast waiting in the queue and another dialog open on the page", async () => {
+  using voice = setup();
+  await using screen = await render(
+    <ToastProvider>
+      <div role="dialog" aria-label="Something else" />
+      {voice.stage(false, [])}
+    </ToastProvider>,
+  );
+
+  await voice.start();
+  await act(() => {
+    toastManager.add({ id: "held-for-escape", type: "info", title: "Held for Escape" });
+  });
+  expect(page.getByText("Held for Escape").query()).toBeNull();
+  await keydown({ key: "Escape" });
+
+  expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
+  await expect.element(page.getByText("Held for Escape")).toBeVisible();
+  toastManager.close("held-for-escape");
+});
+
+const raiseHeldToast = (id: string) =>
+  act(() => {
+    toastManager.add({ id, type: "info", title: `Held ${id}` });
+  });
+
+it.each([
+  [
+    "Escape",
+    async (): Promise<void> => {
+      await keydown({ key: "Escape" });
+    },
+  ],
+  [
+    "the End voice chat button",
+    async (): Promise<void> => {
+      await press(page.getByRole("button", { name: "End voice chat" }));
+    },
+  ],
+] as const)(
+  "a toast raised during voice chat appears when it is ended by %s, not before",
+  async (name, end) => {
+    using voice = setup();
+    await using screen = await render(<ToastProvider>{voice.stage(false, [])}</ToastProvider>);
+    const id = `held-by-${name.replaceAll(" ", "-")}`;
+
+    await voice.start();
+    await raiseHeldToast(id);
+    expect(page.getByText(`Held ${id}`).query()).toBeNull();
+    await end();
+
+    expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
+    await expect.element(page.getByText(`Held ${id}`)).toBeVisible();
+    toastManager.close(id);
+  },
+);
+
+it("a toast raised during voice chat appears when the whole screen unmounts under it", async () => {
+  using voice = setup();
+  await using screen = await render(<ToastProvider>{voice.stage(false, [])}</ToastProvider>);
+
+  await voice.start();
+  await raiseHeldToast("held-by-unmount");
+  expect(page.getByText("Held held-by-unmount").query()).toBeNull();
+  await screen.rerender(<ToastProvider>{null}</ToastProvider>);
+
+  await expect.element(page.getByText("Held held-by-unmount")).toBeVisible();
+  toastManager.close("held-by-unmount");
 });

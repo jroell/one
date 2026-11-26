@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../test/render";
 import { status, summary } from "../components/usage/usageFixtures";
-import { type EnvironmentUsageStatus, useUsage } from "./usage";
+import { AsyncResult } from "effect/reactivity";
+
+import { type EnvironmentUsageStatus, settledSummaryCount, summaryUnder, useUsage } from "./usage";
 
 const live = vi.hoisted(() => ({ environments: [] as unknown[] }));
 
@@ -56,5 +58,23 @@ describe("useUsage carried figures", () => {
     ];
     await screen.rerender(<Probe />);
     await expect.element(screen.getByLabelText("figures")).toHaveTextContent("$100");
+  });
+});
+
+describe("settled usage summaries", () => {
+  it("keeps the view being read under its generation while views from other minutes age out", () => {
+    const keep = summary("aging", [["codex", 5]]);
+    const keepResult = AsyncResult.success(keep);
+    expect(summaryUnder("aging|view", "g1", keepResult)).toBe(keep);
+    // The past-24-hours view asks under a new key every minute.
+    for (let minute = 0; minute < 300; minute++) {
+      summaryUnder(`aging|past-24h-${minute}`, "g1", AsyncResult.success(summary("aging", [])));
+      expect(summaryUnder("aging|view", "g1", keepResult)).toBe(keep);
+    }
+    expect(settledSummaryCount(), "summaries kept after 300 distinct views").toBeLessThanOrEqual(
+      64,
+    );
+    // Figures that settled under another generation never show for this one.
+    expect(summaryUnder("aging|view", "g2", AsyncResult.waiting(keepResult))).toBeNull();
   });
 });

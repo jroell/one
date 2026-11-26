@@ -20,6 +20,8 @@ export interface RestRingJob {
     Record<"time" | "spin" | "tilt" | "pulse" | "energy" | "aura" | "reveal" | "orbit", number>
   >;
   readonly quality: number;
+  /** Rim and halo level, 0 to 1. Absent means 0, the shipped picture. */
+  readonly level?: number;
 }
 
 export async function renderRestRing(job: RestRingJob): Promise<Blob> {
@@ -72,6 +74,7 @@ export async function renderRestRing(job: RestRingJob): Promise<Blob> {
     gl.uniform1f(at("uTilt"), job.rest.tilt);
     gl.uniform1f(at("uPulse"), job.rest.pulse);
     gl.uniform1f(at("uEnergy"), job.rest.energy);
+    gl.uniform1f(at("uLevel"), job.level ?? 0);
     gl.uniform1f(at("uAura"), job.rest.aura);
     gl.uniform1f(at("uReveal"), job.rest.reveal);
     gl.uniform1f(at("uOrbit"), job.rest.orbit);

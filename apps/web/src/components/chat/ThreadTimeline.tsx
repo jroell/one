@@ -55,6 +55,11 @@ export function ThreadTimeline({
     rememberReadyThreadTimeline({ threadKey: activeThreadKey, entries });
   }, [activeThreadKey, detailLoading, entries]);
   return (
-    <MessagesTimeline {...timelineProps} syncing={syncing} timelineEntries={displayedEntries} />
+    <MessagesTimeline
+      {...timelineProps}
+      syncing={syncing}
+      detailLoading={detailLoading}
+      timelineEntries={displayedEntries}
+    />
   );
 }

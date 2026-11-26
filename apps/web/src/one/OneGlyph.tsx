@@ -5,8 +5,12 @@ import { oneGlyphGeometry } from "./oneGlyphGeometry";
 
 /**
  * The One mark as a flat ring, for sizes below 28 pixels (larger, use OneMark): gold in every
- * theme, one highlight arc. `mono` draws one color, `currentColor`, for small system uses.
+ * theme. From 24 pixels it carries one highlight arc; below that the arc would smear, so the
+ * glyph is two tones, the band and its darker lower crescent. `mono` draws one color,
+ * `currentColor`, for small system uses.
  */
+const HIGHLIGHT_FROM = 24;
+
 export function OneGlyph({
   size = 16,
   mono = false,
@@ -26,6 +30,7 @@ export function OneGlyph({
       aria-hidden="true"
       {...props}
       data-one-glyph={size}
+      data-tones={size >= HIGHLIGHT_FROM ? "three" : "two"}
       data-mono={mono ? "" : undefined}
       className={cn("one-glyph", className)}
       width={size}
@@ -44,13 +49,15 @@ export function OneGlyph({
         <g clipPath={`url(#${clip})`}>
           <path data-glyph="shade" fillRule="evenodd" d={geometry.paths.shade} />
         </g>
-        <path
-          data-glyph="highlight"
-          d={geometry.paths.highlight}
-          fill="none"
-          strokeWidth={geometry.highlightWidth}
-          strokeLinecap="round"
-        />
+        {size >= HIGHLIGHT_FROM ? (
+          <path
+            data-glyph="highlight"
+            d={geometry.paths.highlight}
+            fill="none"
+            strokeWidth={geometry.highlightWidth}
+            strokeLinecap="round"
+          />
+        ) : null}
       </g>
     </svg>
   );

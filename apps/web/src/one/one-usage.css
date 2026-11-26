@@ -709,6 +709,24 @@ button.usage-legend:active {
 
 /* ---------------------------------------------------------------- loading */
 
+/*
+ * The skeleton holds the page's layout from the first frame but only shows after a quarter second:
+ * most opens answer sooner and never flash a placeholder. Reduced motion keeps the wait and drops
+ * the fade.
+ */
+.usage-skeleton-stack {
+  animation: usage-skeleton-in var(--mo-quick) var(--ease-enter) 250ms both;
+}
+
+@keyframes usage-skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* The one line that says what is happening, laid over the skeleton so nothing moves when it goes. */
 .usage-skeleton-note {
   position: absolute;
@@ -1577,6 +1595,10 @@ html[data-usage-switch]::view-transition-new(usage-body) {
 @media (prefers-reduced-motion: reduce) {
   .usage-bars-day {
     animation: none;
+  }
+
+  .usage-skeleton-stack {
+    animation-duration: 0.01ms;
   }
 
   /* The tooltip keeps a plain fade, so it still has an exit to wait for. */

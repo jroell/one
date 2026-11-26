@@ -32,6 +32,8 @@ vi.mock("@t3tools/mobile-carplay-native", () => {
     getCarPlayStatus: vi.fn(async () => ({
       available: false,
       connected: false,
+      voiceControlPresented: false,
+      entitlementMode: "none",
       audioSessionActive: false,
       muted: false,
       platform: "unsupported",

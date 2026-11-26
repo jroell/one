@@ -14,6 +14,7 @@ import {
   type CommandPaletteGroup,
   type CommandPaletteRow,
   type CommandPaletteSubmenuItem,
+  itemTimestamp,
   resolveItemContent,
 } from "./CommandPalette.logic";
 import {
@@ -266,6 +267,7 @@ function CommandPaletteResultRow(props: {
   onExecuteItem: (item: CommandPaletteActionItem | CommandPaletteSubmenuItem) => void;
 }) {
   const content = resolveItemContent(props.item);
+  const timestamp = itemTimestamp(props.item);
   const shortcutLabel = props.item.shortcutCommand
     ? shortcutLabelForCommand(props.keybindings, props.item.shortcutCommand)
     : null;
@@ -328,9 +330,9 @@ function CommandPaletteResultRow(props: {
           shortcutLabel={shortcutLabelForCommand(props.keybindings, "thread.pin")}
         />
       ) : null}
-      {props.item.timestamp ? (
+      {timestamp ? (
         <span className="min-w-12 shrink-0 text-right text-xs tabular-nums text-muted-foreground/70">
-          {props.item.timestamp}
+          {timestamp}
         </span>
       ) : null}
       {shortcutLabel ? <CommandShortcut>{shortcutLabel}</CommandShortcut> : null}

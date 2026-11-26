@@ -186,6 +186,7 @@ export const preparePairingRegistration = Effect.fn(
       credential: new DpopConnectionCredential({
         accessToken: access.access_token,
         expiresAtEpochMs: (yield* Clock.currentTimeMillis) + access.expires_in * 1_000,
+        pairedAtEpochMs: yield* Clock.currentTimeMillis,
       }),
     });
   }

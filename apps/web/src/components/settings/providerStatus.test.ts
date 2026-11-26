@@ -21,6 +21,12 @@ const provider: ServerProvider = {
   skills: [],
 };
 
+describe("getProviderStatusKey", () => {
+  it("is neutral, not a warning, for a provider the server has not reported", () => {
+    expect(getProviderStatusKey(undefined)).toBe("neutral");
+  });
+});
+
 describe("getProviderSummary", () => {
   it("does not hide a provider error behind a previous authenticated state", () => {
     expect(

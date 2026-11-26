@@ -1,7 +1,9 @@
+import { ORB_MARK_DENSITIES, orbMarkUrl } from "./oneOrbRest";
+
 /** How far the ring swells at full sound, as a scale added to 1. */
 export const SWELL_REACH = 0.08;
-/** How far each halo ring follows the swell, innermost first. */
-export const HALO_REACH = [0.05, 0.09, 0.14] as const;
+/** How far the halo hairline follows the swell. */
+export const HALO_REACH = [0.09] as const;
 /**
  * Seconds the swell takes to rise toward a louder sound, and to fall back after it. The microphone
  * level is already smoothed and arrives 20 times a second; this carries it between samples.
@@ -80,11 +82,16 @@ function setExit(plan: VoiceExitPlan | null): void {
   for (const listener of exitListeners) listener();
 }
 
-/** Keeps the plan for the exit beat; a plan nobody picks up (the whole screen left) expires. */
-export function recordVoiceExit(plan: VoiceExitPlan): void {
+/** Holds the plan for the exit beat while the stage is open, so the exit renders in the commit that closes it. */
+export function holdVoiceExit(plan: VoiceExitPlan): void {
+  clearTimeout(expiry);
+  setExit(plan);
+}
+
+/** The stage is gone and the exit beat has begun or will not: a plan nobody picks up expires. */
+export function expireVoiceExit(): void {
   clearTimeout(expiry);
   expiry = setTimeout(() => setExit(null), 1_000);
-  setExit(plan);
 }
 
 export function clearVoiceExit(): void {
@@ -99,6 +106,23 @@ export function subscribeVoiceExit(listener: () => void): () => void {
 
 export function getVoiceExit(): VoiceExitPlan | null {
   return pendingExit;
+}
+
+let preloaded: HTMLImageElement | null = null;
+
+/**
+ * Fetches and decodes the flat ring the exit flies home with while the stage is still open, so the
+ * ghost paints it in its first frame instead of fetching it mid-exit.
+ */
+export function preloadExitMark(size: 256): void {
+  if (preloaded !== null) return;
+  const image = new Image();
+  image.srcset = ORB_MARK_DENSITIES.map(
+    (density) => `${orbMarkUrl("dark", size, density)} ${density}x`,
+  ).join(", ");
+  image.src = orbMarkUrl("dark", size, 1);
+  preloaded = image;
+  void image.decode().catch(() => undefined);
 }
 
 let launcher: Element | null = null;

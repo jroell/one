@@ -1,3 +1,4 @@
+import { prefetchDefaultUsage } from "../usage/usagePrefetch";
 import { ArrowLeftIcon, ArrowRightIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { T, useGT } from "gt-react";
@@ -262,7 +263,10 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
   const router = useRouter();
   const preloadSettings = () => void router.preloadRoute({ to: "/settings/general" });
-  const preloadUsage = () => void router.preloadRoute({ to: "/usage" });
+  const preloadUsage = () => {
+    void router.preloadRoute({ to: "/usage" });
+    prefetchDefaultUsage("intent");
+  };
   // The two sheets' code loads once the app is idle after boot, and sooner on hover or focus.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the idle preload of the Settings and Usage route chunks once
   useEffect(() => {
@@ -271,6 +275,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     const handle = idle(() => {
       void router.preloadRoute({ to: "/settings/general" });
       void router.preloadRoute({ to: "/usage" });
+      prefetchDefaultUsage("idle");
     });
     return () => cancel(handle);
   }, [router]);

@@ -309,7 +309,7 @@ html:not([data-one-mode="chat"]) .chat-markdown .chat-markdown-codeblock-header 
 html:not([data-one-mode="chat"]) [data-one-code-lang],
 html:not([data-one-mode="chat"]) [data-one-table-label] {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.03em;
   color: color-mix(in srgb, var(--foreground) 64%, transparent);
 }
@@ -569,7 +569,7 @@ html:not([data-one-mode="chat"]) [data-one-exit-code] {
 /* ===================================================================== launcher */
 
 html:not([data-one-mode="chat"]) [data-one-launcher-title] {
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -905,6 +905,25 @@ html:not([data-one-mode="chat"]) [data-timeline-row-kind="message"][data-message
   padding-block-start: 0;
 }
 
+/* A Code thread's answer reads at the section size with the leading and the wrapping the Chat
+   column takes, in the same sans, so a long thread has weight and not only length. */
+html:not([data-one-mode="chat"])
+  [data-timeline-row-kind="message"][data-message-role="assistant"]
+  .chat-markdown {
+  font-size: var(--text-section);
+  line-height: 1.62;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures;
+
+  & :is(p, li, blockquote) {
+    text-wrap: pretty;
+  }
+
+  & > * + * {
+    margin-top: 0.9em;
+  }
+}
+
 html:not([data-one-mode="chat"])
   [data-timeline-row-kind="message"][data-message-role="user"][data-one-after="long"] {
   padding-block-start: 1.5rem;
@@ -965,9 +984,20 @@ html:not([data-one-mode="chat"]) [data-testid="timeline-minimap"][data-persisten
 
 html:not([data-one-mode="chat"])
   [data-testid="timeline-minimap"][data-persistent-gutter="true"]:is(:hover, :focus-within),
-html:not([data-one-mode="chat"])[data-timeline-scrolling]
+html:not([data-one-mode="chat"])
+  [data-timeline-scrolling]
   [data-testid="timeline-minimap"][data-persistent-gutter="true"] {
   opacity: 1;
+}
+
+/* The ticks read as strongly on the light surface as on the dark one: a grey at the dark theme's
+   strength nearly vanishes on paper, so the light theme takes the text color at a higher mix. */
+html:not(.dark) [data-minimap-strip] {
+  background-color: color-mix(in srgb, var(--foreground) 32%, transparent);
+}
+
+html:not(.dark) [data-minimap-strip]::after {
+  background-color: color-mix(in srgb, var(--foreground) 72%, transparent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1105,7 +1135,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 
 /* Attention is ember, on the chip alone. */
 [data-approval-status] [data-slot="badge"] {
-  color: color-mix(in srgb, var(--st-attention) 55%, var(--foreground));
+  color: var(--st-attention-fg);
   background-color: color-mix(in srgb, var(--st-attention) 14%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-attention) 32%, transparent);
 }
@@ -1477,7 +1507,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 [data-approval-hunk-lines] > [data-kind="label"] {
   padding: 0.25rem 1rem 0;
   font-family: var(--font-sans);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--muted-foreground);
@@ -1491,7 +1521,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 [data-approval-no-newline] {
   margin-inline-start: 0.75rem;
   font-family: var(--font-sans);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   color: var(--muted-foreground);
 }
 
@@ -1582,13 +1612,18 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 /* ===================================================== the card's answer and its exit */
 
 /*
- * A press holds the pressed button for the press animation's own length. Then the change folds
- * away, the answer is named in the footer (gold check for Approve, none for Decline), and the
- * card settles to nothing so the resolved row stands in its place. The timeline drops the card when
- * all of these have ended, so nothing here is timed in script.
+ * The answer plays in four steps, each starting when the one before ends, so height and content
+ * never disagree: the pressed button's label gives way to a check (120ms), the change fades while
+ * it still holds its height (90ms), the height folds to the one-line receipt (220ms), and after a
+ * beat the receipt settles so the resolved row stands in. The timeline drops the card when all of
+ * these have ended, so nothing here is timed in script.
  */
 [data-approval-host] {
-  --one-leave: calc(var(--mo-surface) * var(--mo-exit));
+  --one-morph: 120ms;
+  --one-fade: 90ms;
+  --one-fold: 220ms;
+  --one-hold: 120ms;
+  --one-settle: 140ms;
   display: grid;
   grid-template-rows: 1fr;
 }
@@ -1604,28 +1639,72 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 
   [data-approval-host][data-leaving] {
     overflow: hidden;
-    animation: one-approval-settle calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit)
-      calc(var(--mo-press) + var(--one-leave) * 0.6) both;
+    animation: one-approval-settle var(--one-settle) var(--ease-exit)
+      calc(var(--one-morph) + var(--one-fade) + var(--one-fold) + var(--one-hold)) both;
+  }
+
+  [data-approval-card][data-leaving] [data-approval-body-inner] {
+    animation: one-approval-fade-out var(--one-fade) var(--ease-exit) var(--one-morph) both;
   }
 
   [data-approval-card][data-leaving] [data-approval-body] {
-    transition-duration: var(--one-leave);
-    transition-delay: var(--mo-press);
-    transition-timing-function: var(--ease-exit);
+    transition-duration: var(--one-fold);
+    transition-delay: calc(var(--one-morph) + var(--one-fade));
+    transition-timing-function: var(--ease-enter);
   }
 
-  [data-approval-card][data-leaving] [data-approval-actions] {
-    animation: one-approval-fade-out calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit)
-      var(--mo-press) both;
+  /* The other actions go with the change; the pressed one keeps its place and shows the check. */
+  [data-approval-card][data-leaving] [data-approval-actions] button:not([data-pending]) {
+    animation: one-approval-fade-out var(--one-fade) var(--ease-exit) 0ms both;
+  }
+
+  [data-approval-card][data-leaving] [data-approval-actions] button[data-pending] {
+    position: relative;
+    animation: one-approval-press var(--mo-press) var(--ease-spring);
+  }
+
+  [data-approval-card][data-leaving] [data-approval-actions] button[data-pending] > span {
+    opacity: 0;
+    transition: opacity var(--one-morph) var(--ease-enter);
+  }
+
+  [data-approval-card][data-leaving] [data-approval-actions] button[data-pending]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1rem;
+    height: 1rem;
+    background-color: currentColor;
+    -webkit-mask: var(--one-outcome-glyph) center / contain no-repeat;
+    mask: var(--one-outcome-glyph) center / contain no-repeat;
+    animation: one-approval-fade-in var(--one-morph) var(--ease-enter) both;
   }
 
   [data-approval-card][data-leaving] [data-approval-outcome] {
-    animation: one-approval-fade-in var(--mo-quick) var(--ease-enter) var(--mo-press) both;
+    animation: one-approval-fade-in var(--one-fade) var(--ease-enter) var(--one-morph) both;
   }
 }
 
 [data-approval-card][data-leaving] {
   pointer-events: none;
+  --one-outcome-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E");
+}
+
+[data-approval-card][data-leaving][data-outcome="declined"],
+[data-approval-card][data-leaving][data-outcome="cancelled"] {
+  --one-outcome-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");
+}
+
+/* A preview still loading when the answer arrives has nothing left to say. */
+[data-approval-card][data-leaving] [data-approval-preview-state] {
+  visibility: hidden;
+}
+
+/* The unpressed button dims the moment another is pressed, not a frame later. */
+[data-approval-actions] button[data-dimmed] {
+  opacity: 0.5;
+  transition: none;
 }
 
 [data-approval-card][data-leaving] [data-approval-body] {

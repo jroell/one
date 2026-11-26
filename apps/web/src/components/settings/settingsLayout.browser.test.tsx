@@ -318,7 +318,28 @@ describe("settings layout", () => {
     expect(mask.opacity).toBe(getComputedStyle(icon).opacity);
   });
 
-  it("opens a page, a swapped confirmation and a revealed line with the shared motion tokens, never a cut", async () => {
+  it("centers the page column in the space beside the rail and stops it at 720 px", async () => {
+    const pane = document.createElement("div");
+    pane.style.width = "1150px";
+    await using screen = await render(
+      <div data-app-modal="">
+        <SettingsPageContainer>
+          <SettingsSection title="Section">
+            <div>Row</div>
+          </SettingsSection>
+        </SettingsPageContainer>
+      </div>,
+      { container: pane, router: "/settings/general" },
+    );
+    const column = screen.container.querySelector<HTMLElement>("[data-settings-page]")!;
+    const scroller = screen.container.querySelector<HTMLElement>("[data-settings-page-scroll]")!;
+    const box = column.getBoundingClientRect();
+    const space = scroller.getBoundingClientRect();
+    expect(box.width).toBeLessThanOrEqual(720);
+    expect(Math.abs(box.left - space.left - (space.right - box.right))).toBeLessThanOrEqual(1);
+  });
+
+  it("opens a swapped confirmation and a revealed line with the shared motion tokens, never a cut", async () => {
     await using screen = await render(
       <div data-app-modal="">
         <SettingsPageContainer>
@@ -334,9 +355,10 @@ describe("settings layout", () => {
     const seconds = (value: string) =>
       value.endsWith("ms") ? Number.parseFloat(value) / 1000 : Number.parseFloat(value);
 
+    // A page has no entrance animation of its own: opened with the sheet, it is simply there,
+    // and a page change fades the previous page out over it (settingsPageCrossfade.browser.test).
     const pageStyle = getComputedStyle(screen.container.querySelector("[data-settings-page]")!);
-    expect(pageStyle.animationName).toBe("settings-page-in");
-    expect(Number.parseFloat(pageStyle.animationDuration)).toBe(seconds(quick));
+    expect(pageStyle.animationName).toBe("none");
 
     const swap = getComputedStyle(screen.container.querySelector("[data-settings-swap]")!);
     expect(swap.animationName).toBe("settings-swap-in");

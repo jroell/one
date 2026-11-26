@@ -2,7 +2,11 @@ import { injectHtmlRenderBootstrap } from "@t3tools/shared/htmlRender";
 import { HtmlRenderDocument } from "../files/BrowserDocumentFrame";
 import { AudioPreview } from "../files/AudioPreview";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
-import { noteApprovalDecision } from "~/one/approvalDecision";
+import {
+  clearApprovalDecision,
+  noteApprovalDecision,
+  peekApprovalDecision,
+} from "~/one/approvalDecision";
 import {
   ComposerContextId,
   EnvironmentId,
@@ -53,6 +57,7 @@ import { searchableMessageSegments } from "@t3tools/shared/threadFindText";
 import { countThreadSearchOccurrences } from "@t3tools/shared/threadSearch";
 import { collectThreadFindRanges } from "./threadFindHighlights";
 import { toastManager } from "../ui/toast";
+import { isFirstScreenReady, whenFirstScreenReady } from "./firstScreenReady";
 import type { CitedHistory } from "./citationProcedure";
 import type { TimelineNavigation } from "./timelineViewport";
 import { rememberTimelinePosition } from "./timelineScrollAnchoring";
@@ -591,6 +596,332 @@ describe("MessagesTimeline work rows", () => {
     const card = () => screen.container.querySelector("[data-approval-card]");
     expect(card()?.hasAttribute("data-leaving")).toBe(true);
     await vi.waitFor(() => expect(card()).toBeNull());
+  });
+
+  it("ends a leaving card whose animations never report, instead of keeping the request leaving", async () => {
+    const approvalId = RuntimeRequestId.make("edit-approval");
+    const item = (id: string, ordinal: number, type: string, extra: object) =>
+      ({
+        id: TurnItemId.make(id),
+        threadId: ThreadId.make("thread"),
+        runId: RunId.make("run"),
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: ProviderTurnId.make("turn"),
+        nativeItemRef: {
+          driver: ProviderDriverKind.make("acp"),
+          nativeId: "edit-1",
+          strength: "strong" as const,
+        },
+        parentItemId: null,
+        ordinal,
+        title: null,
+        startedAt: DateTime.makeUnsafe(CREATED_AT),
+        completedAt: null,
+        updatedAt: DateTime.makeUnsafe(CREATED_AT),
+        status: "waiting" as const,
+        type,
+        ...extra,
+      }) as OrchestrationV2TurnItem;
+    const entries = deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        item("edit", 1, "file_change", {
+          fileName: "src/unique-name.ts",
+          changes: [
+            { operation: "update", path: "src/unique-name.ts" },
+            { operation: "rename", oldPath: "src/before-name.ts", path: "src/after-name.ts" },
+            { operation: "delete", path: "src/removed-name.ts" },
+          ],
+        }),
+        item("ask", 2, "approval_request", {
+          requestId: approvalId,
+          requestKind: "file-change",
+          prompt: "Edit src/unique-name.ts",
+        }),
+      ].map((it) => ({
+        position: it.ordinal,
+        visibility: "local" as const,
+        sourceThreadId: it.threadId,
+        sourceItemId: it.id,
+        item: it,
+      })),
+      optimisticMessages: [],
+    });
+    const props = baseProps();
+    const pending = [
+      {
+        requestId: approvalId,
+        requestKind: "file-change",
+        createdAt: CREATED_AT,
+        detail: "Changed files",
+        responseCapability: "live",
+      } as never,
+    ];
+    const timeline = (approvals: unknown[]) => (
+      <MessagesTimeline
+        {...props}
+        timelineEntries={entries as Entry[]}
+        isWorking
+        runningRunId={RunId.make("run")}
+        latestRun={
+          {
+            runId: RunId.make("run"),
+            status: "running",
+            startedAt: CREATED_AT,
+            completedAt: null,
+          } as never
+        }
+        pendingApprovals={approvals as never}
+        canOperateThread
+        onRespondToApproval={async () => {}}
+      />
+    );
+    // The card's animations never finish (an element removed, a hidden tab): the exit must not
+    // depend on them.
+    using _stuck = vi
+      .spyOn(HTMLElement.prototype, "getAnimations")
+      .mockReturnValue([{ finished: new Promise(() => {}) } as never]);
+    await using screen = await renderElement(timeline(pending));
+    await expect.element(screen.getByRole("group", { name: "File change approval" })).toBeVisible();
+    await screen.rerender(timeline([]));
+    const card = () => screen.container.querySelector("[data-approval-card]");
+    expect(card()?.hasAttribute("data-leaving")).toBe(true);
+    await vi.waitFor(() => expect(card()).toBeNull(), { timeout: 4000 });
+  });
+
+  it("drops the recorded answer of a request that left under reduced motion, where no card leaves", async () => {
+    const approvalId = RuntimeRequestId.make("edit-approval");
+    const item = (id: string, ordinal: number, type: string, extra: object) =>
+      ({
+        id: TurnItemId.make(id),
+        threadId: ThreadId.make("thread"),
+        runId: RunId.make("run"),
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: ProviderTurnId.make("turn"),
+        nativeItemRef: {
+          driver: ProviderDriverKind.make("acp"),
+          nativeId: "edit-1",
+          strength: "strong" as const,
+        },
+        parentItemId: null,
+        ordinal,
+        title: null,
+        startedAt: DateTime.makeUnsafe(CREATED_AT),
+        completedAt: null,
+        updatedAt: DateTime.makeUnsafe(CREATED_AT),
+        status: "waiting" as const,
+        type,
+        ...extra,
+      }) as OrchestrationV2TurnItem;
+    const entries = deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        item("edit", 1, "file_change", {
+          fileName: "src/unique-name.ts",
+          changes: [
+            { operation: "update", path: "src/unique-name.ts" },
+            { operation: "rename", oldPath: "src/before-name.ts", path: "src/after-name.ts" },
+            { operation: "delete", path: "src/removed-name.ts" },
+          ],
+        }),
+        item("ask", 2, "approval_request", {
+          requestId: approvalId,
+          requestKind: "file-change",
+          prompt: "Edit src/unique-name.ts",
+        }),
+      ].map((it) => ({
+        position: it.ordinal,
+        visibility: "local" as const,
+        sourceThreadId: it.threadId,
+        sourceItemId: it.id,
+        item: it,
+      })),
+      optimisticMessages: [],
+    });
+    const props = baseProps();
+    const pending = [
+      {
+        requestId: approvalId,
+        requestKind: "file-change",
+        createdAt: CREATED_AT,
+        detail: "Changed files",
+        responseCapability: "live",
+      } as never,
+    ];
+    const timeline = (approvals: unknown[]) => (
+      <MessagesTimeline
+        {...props}
+        timelineEntries={entries as Entry[]}
+        isWorking
+        runningRunId={RunId.make("run")}
+        latestRun={
+          {
+            runId: RunId.make("run"),
+            status: "running",
+            startedAt: CREATED_AT,
+            completedAt: null,
+          } as never
+        }
+        pendingApprovals={approvals as never}
+        canOperateThread
+        onRespondToApproval={async () => {}}
+      />
+    );
+    const session = cdp();
+    await session.send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+    });
+    try {
+      await using screen = await renderElement(timeline(pending));
+      await expect
+        .element(screen.getByRole("group", { name: "File change approval" }))
+        .toBeVisible();
+      noteApprovalDecision(approvalId, "accept");
+      await screen.rerender(timeline([]));
+      await vi.waitFor(() =>
+        expect(screen.container.querySelector("[data-approval-card]")).toBeNull(),
+      );
+      await vi.waitFor(() => expect(peekApprovalDecision(approvalId)).toBeUndefined());
+    } finally {
+      await session.send("Emulation.setEmulatedMedia", { features: [] });
+      clearApprovalDecision(approvalId);
+    }
+  });
+
+  it("flags the timeline that scrolls for its own turn map, not the page and not another timeline", async () => {
+    const first = baseProps();
+    const second = baseProps();
+    const entries = Array.from({ length: 30 }, (_, index) =>
+      message(`Turn ${index}\n\n${"Long paragraph. ".repeat(60)}`, {}, `turn-${index}`),
+    );
+    await using screen = await renderElement(
+      <div style={{ display: "flex", gap: 16 }}>
+        {[first, second].map((props) => (
+          <div
+            key={props.routeThreadKey}
+            style={{ height: 500, width: 700, display: "flex", flexDirection: "column" }}
+          >
+            <MessagesTimeline {...props} timelineEntries={entries as Entry[]} />
+          </div>
+        ))}
+      </div>,
+    );
+    const areas = () => [
+      ...screen.container.querySelectorAll<HTMLElement>("[data-assistant-citation-viewport]"),
+    ];
+    await vi.waitFor(() => expect(areas()).toHaveLength(2));
+    await vi.waitFor(() => expect(first.listRef.current?.getScrollableNode()).toBeTruthy());
+    // Opening a thread scrolls it to the end, which flags it for a moment: wait that out, so the
+    // flags read below come from the scroll this test makes.
+    await vi.waitFor(
+      () =>
+        expect(areas().some((area) => area.hasAttribute("data-timeline-scrolling"))).toBe(false),
+      { timeout: 5000 },
+    );
+    const scroller = () => first.listRef.current!.getScrollableNode()!;
+    await vi.waitFor(() =>
+      expect(scroller().scrollHeight).toBeGreaterThan(scroller().clientHeight + 300),
+    );
+    await act(() => {
+      scroller().scrollTop = 300;
+    });
+    await vi.waitFor(() => expect(areas()[0]!.hasAttribute("data-timeline-scrolling")).toBe(true));
+    expect(areas()[1]!.hasAttribute("data-timeline-scrolling")).toBe(false);
+    // A flag on the root would show every timeline's map, and would need a `:has()` rule on it.
+    expect(document.documentElement.hasAttribute("data-timeline-scrolling")).toBe(false);
+    // The ladder sits inside the container the flag is on, so the CSS can reach it.
+    expect(areas()[0]!.querySelector('[data-testid="timeline-minimap"]')).not.toBeNull();
+  });
+
+  describe("first screen ready", () => {
+    const turns = () =>
+      Array.from({ length: 6 }, (_, index) => message(`Turn ${index}`, {}, `turn-${index}`));
+    const timelineFor = (props: ReturnType<typeof baseProps>) =>
+      function ui(key: string, rows: Entry[], detailLoading = false) {
+        return (
+          <MessagesTimeline
+            {...props}
+            routeThreadKey={key}
+            timelineEntries={rows}
+            detailLoading={detailLoading}
+          />
+        );
+      };
+    const rootReady = (screen: { container: HTMLElement }) =>
+      screen.container.querySelector("[data-first-screen-ready]") !== null;
+
+    it("is ready once the rows have painted, on the timeline root and for whoever awaits it", async () => {
+      const props = baseProps();
+      const ui = timelineFor(props);
+      await using screen = await renderElement(ui(props.routeThreadKey, turns()));
+      await vi.waitFor(() => expect(rootReady(screen)).toBe(true));
+      expect(
+        screen.container
+          .querySelector("[data-first-screen-ready]")!
+          .hasAttribute("data-assistant-citation-viewport"),
+      ).toBe(true);
+      expect(isFirstScreenReady(props.routeThreadKey)).toBe(true);
+      // Already ready: the promise settles at once, well inside a tight timeout.
+      await expect(whenFirstScreenReady(props.routeThreadKey, 5000)).resolves.toBeUndefined();
+    });
+
+    it("is cleared when the thread changes, and is not ready while the new thread loads with no rows", async () => {
+      const props = baseProps();
+      const ui = timelineFor(props);
+      const keyA = `${props.routeThreadKey}-a`;
+      const keyB = `${props.routeThreadKey}-b`;
+      await using screen = await renderElement(ui(keyA, turns()));
+      await vi.waitFor(() => expect(rootReady(screen)).toBe(true));
+      await screen.rerender(ui(keyB, [], true));
+      expect(isFirstScreenReady(keyA)).toBe(false);
+      expect(rootReady(screen)).toBe(false);
+      // Never ready: the promise settles at its timeout and the flag is still down.
+      await whenFirstScreenReady(keyB, 400);
+      expect(isFirstScreenReady(keyB)).toBe(false);
+      expect(rootReady(screen)).toBe(false);
+      // The messages arrive: ready.
+      await screen.rerender(ui(keyB, turns()));
+      await vi.waitFor(() => expect(isFirstScreenReady(keyB)).toBe(true));
+      expect(rootReady(screen)).toBe(true);
+    });
+
+    it("is ready for an empty thread that has loaded", async () => {
+      const props = baseProps();
+      const ui = timelineFor(props);
+      const key = `${props.routeThreadKey}-empty`;
+      await using screen = await renderElement(ui(key, [], false));
+      await vi.waitFor(() => expect(isFirstScreenReady(key)).toBe(true));
+      expect(rootReady(screen)).toBe(true);
+    });
+
+    it("is ready under reduced motion too", async () => {
+      const session = cdp();
+      await session.send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+      });
+      try {
+        const props = baseProps();
+        const ui = timelineFor(props);
+        await using screen = await renderElement(ui(props.routeThreadKey, turns()));
+        await vi.waitFor(() => expect(rootReady(screen)).toBe(true));
+        expect(isFirstScreenReady(props.routeThreadKey)).toBe(true);
+      } finally {
+        await session.send("Emulation.setEmulatedMedia", { features: [] });
+      }
+    });
+
+    it("reports ready after 90 frames when no row ever gets a height", async () => {
+      const props = baseProps();
+      const ui = timelineFor(props);
+      // Hidden, so no row is laid out: only the frame limit can end the wait.
+      await using screen = await renderElement(
+        <div style={{ display: "none" }}>{ui(props.routeThreadKey, turns())}</div>,
+      );
+      expect(isFirstScreenReady(props.routeThreadKey)).toBe(false);
+      await expect(whenFirstScreenReady(props.routeThreadKey, 10_000)).resolves.toBeUndefined();
+      expect(isFirstScreenReady(props.routeThreadKey)).toBe(true);
+      expect(rootReady(screen)).toBe(true);
+    });
   });
 
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
@@ -2765,6 +3096,7 @@ it("answers one of two pending approvals: only that card leaves, the other stays
       pendingApprovals={approvals}
       canOperateThread
       onRespondToApproval={onRespondToApproval}
+      showApprovalChordHints
       isWorking
       runningRunId={fixture.runId}
       {...overrides}

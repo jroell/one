@@ -1,34 +1,29 @@
 /* Voice chat: a dark stage with the ring as the voice orb. It is a dark scene in every theme, like
    the opening: the ring makes its own light, so nothing here reads the theme's colors. Only
-   transform and opacity ever animate, and each state changes shape (halo, ripples, arc) as well
-   as color, so no state depends on sound or on telling two golds apart. */
+   transform and opacity ever animate, and each state changes shape (hairline, ripple, pose) as well
+   as word and color, so no state depends on sound or on telling two golds apart. */
 
 .one-voice-stage,
 .one-voice-ghost {
   --vs-gold: #d9b35a;
+  --vs-gold-warm: #ebc66f;
   --vs-bone: #ece5d8;
   --vs-bone-soft: rgb(236 229 216 / 68%);
-  --vs-hairline: rgb(255 255 255 / 14%);
-  --vs-ember: var(--st-attention, #e08a3c);
+  --vs-hairline: rgb(255 236 200 / 14%);
+  --vs-ember: var(--st-attention, #e8793a);
   --vs-oxblood: var(--st-error, #d4574a);
   --vs-orb: min(52vw, 30vh, 17rem);
-  /* The whole window, header and sidebar too: a stage, not a panel over one column. */
+  --vs-ease: var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
+  --vs-backdrop: radial-gradient(120% 90% at 50% 40%, #15110b 0%, #070605 60%, #030302 100%);
+}
+
+/* The whole window, header and sidebar too: a stage, not a panel over one column. */
+.one-voice-stage {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: radial-gradient(120% 90% at 50% 40%, #15110b 0%, #070605 60%, #030302 100%);
+  background: var(--vs-backdrop);
   color: var(--vs-bone);
-}
-
-/* The window's drag handle where the title bar was; the stage's own controls stay clickable. */
-.one-voice-drag {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 2.75rem;
-  -webkit-app-region: drag;
-}
-
-.one-voice-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -40,46 +35,12 @@
   color-scheme: dark;
 }
 
-/* A warm light field behind the ring. Two opacities multiply: the look sets the outer one, and the
-   sound level moves the inner one each frame. Nothing about the ring's shape changes with sound. */
-.one-voice-glow {
+/* The window's drag handle where the title bar was; the stage's own controls stay clickable. */
+.one-voice-drag {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 320%;
-  aspect-ratio: 1;
-  translate: -50% -50%;
-  opacity: 0.4;
-  pointer-events: none;
-  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
-}
-
-.one-voice-glow-pulse {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: radial-gradient(
-    closest-side,
-    rgb(217 179 90 / 30%),
-    rgb(217 179 90 / 7%),
-    transparent
-  );
-  opacity: 0.55;
-  will-change: opacity;
-}
-
-.one-voice-stage[data-look="listening"] .one-voice-glow {
-  opacity: 0.8;
-}
-
-.one-voice-stage[data-look="speaking"] .one-voice-glow {
-  opacity: 1;
-}
-
-.one-voice-stage[data-look="muted"] .one-voice-glow,
-.one-voice-stage[data-look="notice"] .one-voice-glow,
-.one-voice-stage[data-look="failed"] .one-voice-glow {
-  opacity: 0.16;
+  inset: 0 0 auto;
+  height: 2.75rem;
+  -webkit-app-region: drag;
 }
 
 .one-voice-stage > :not(.one-voice-drag) {
@@ -108,18 +69,59 @@
   place-items: center;
 }
 
+/* A warm light field behind the ring. Two opacities multiply: the look sets the outer one, and the
+   sound level moves the inner one each frame. Nothing about the ring's shape changes with sound. */
+.one-voice-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 320%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity var(--mo-surface, 240ms) var(--vs-ease);
+}
+
+.one-voice-glow-pulse {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(217 179 90 / 30%),
+    rgb(217 179 90 / 7%),
+    transparent
+  );
+  opacity: 0.55;
+  will-change: opacity;
+}
+
+.one-voice-stage[data-look="listening"] .one-voice-glow {
+  opacity: 0.8;
+}
+
+.one-voice-stage[data-look="speaking"] .one-voice-glow {
+  opacity: 1;
+}
+
+.one-voice-stage:is([data-look="muted"], [data-look="notice"], [data-look="failed"])
+  .one-voice-glow {
+  opacity: 0.16;
+}
+
 .one-voice-orb-swell {
+  position: relative;
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
   border-radius: 50%;
   will-change: transform;
-  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
+  transition: opacity var(--mo-surface, 240ms) var(--vs-ease);
 }
 
-.one-voice-stage[data-look="muted"] .one-voice-orb-swell,
-.one-voice-stage[data-look="notice"] .one-voice-orb-swell,
-.one-voice-stage[data-look="failed"] .one-voice-orb-swell {
+.one-voice-stage:is([data-look="muted"], [data-look="notice"], [data-look="failed"])
+  .one-voice-orb-swell {
   opacity: 0.45;
 }
 
@@ -150,9 +152,9 @@
   box-shadow: 0 0 0 2px var(--vs-gold);
 }
 
-/* Interrupted: the ring recoils and its inner halo flashes once. */
+/* Interrupted: the ring recoils and its hairline flashes once. */
 .one-voice-stage[data-look="interrupted"] .one-voice-orb-swell {
-  animation: one-voice-recoil 360ms var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+  animation: one-voice-recoil 360ms var(--vs-ease) both;
 }
 
 @keyframes one-voice-recoil {
@@ -163,9 +165,9 @@
 
 /* ----------------------------------------------------------------- halo */
 
-/* Three hairline rings follow the swell by transform. Their shape says what the stage is doing:
-   listening holds them still around the orb, speaking sends ripples outward, thinking replaces
-   them with one turning arc. */
+/* One hairline around the ring, following the swell by transform. Its shape says what the stage
+   is doing: still while listening, with a ripple leaving it while speaking, dashed when muted,
+   absent while thinking, because then the ring itself carries the state. */
 .one-voice-halo {
   position: absolute;
   inset: 0;
@@ -174,27 +176,14 @@
 
 .one-voice-ring {
   position: absolute;
+  inset: -12%;
   border-radius: 50%;
   border: 1px solid rgb(217 179 90 / 24%);
   opacity: 0;
   will-change: transform;
   transition:
-    opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)),
-    border-color var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
-}
-
-.one-voice-ring:nth-child(1) {
-  inset: -8%;
-}
-
-.one-voice-ring:nth-child(2) {
-  inset: -20%;
-  border-color: rgb(217 179 90 / 15%);
-}
-
-.one-voice-ring:nth-child(3) {
-  inset: -34%;
-  border-color: rgb(217 179 90 / 8%);
+    opacity var(--mo-surface, 240ms) var(--vs-ease),
+    border-color var(--mo-surface, 240ms) var(--vs-ease);
 }
 
 .one-voice-stage:is([data-look="listening"], [data-look="speaking"], [data-look="interrupted"])
@@ -202,75 +191,40 @@
   opacity: 1;
 }
 
-.one-voice-stage[data-look="preparing"] .one-voice-ring:nth-child(1) {
+.one-voice-stage[data-look="preparing"] .one-voice-ring {
   opacity: 0.6;
 }
 
-.one-voice-stage[data-look="notice"] .one-voice-ring:nth-child(1) {
+.one-voice-stage[data-look="notice"] .one-voice-ring {
   opacity: 1;
   border-color: color-mix(in srgb, var(--vs-ember) 70%, transparent);
 }
 
-.one-voice-stage[data-look="failed"] .one-voice-ring:nth-child(1) {
+.one-voice-stage[data-look="failed"] .one-voice-ring {
   opacity: 1;
   border-color: color-mix(in srgb, var(--vs-oxblood) 70%, transparent);
 }
 
-.one-voice-stage[data-look="muted"] .one-voice-ring:nth-child(1) {
+.one-voice-stage[data-look="muted"] .one-voice-ring {
   opacity: 0.5;
   border-style: dashed;
 }
 
 .one-voice-ripple {
   position: absolute;
-  inset: 0;
+  inset: -12%;
   border-radius: 50%;
   border: 1px solid rgb(217 179 90 / 45%);
   opacity: 0;
 }
 
-.one-voice-arc {
-  position: absolute;
-  inset: -6%;
-  width: 112%;
-  height: 112%;
-  opacity: 0;
-  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
-}
-
-.one-voice-arc circle {
-  fill: none;
-  stroke: var(--st-working, var(--vs-gold));
-  stroke-width: 2;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.one-voice-stage[data-look="thinking"] .one-voice-arc {
-  opacity: 1;
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  .one-voice-stage[data-look="thinking"] .one-voice-arc {
-    animation: one-voice-turn 1.2s linear infinite;
-  }
-
   .one-voice-stage[data-look="speaking"] .one-voice-ripple {
-    animation: one-voice-ripple 2.6s var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) infinite;
+    animation: one-voice-ripple 2.6s var(--vs-ease) infinite;
   }
 
-  .one-voice-stage[data-look="speaking"] .one-voice-ripple + .one-voice-ripple {
-    animation-delay: 1.3s;
-  }
-
-  .one-voice-stage[data-look="interrupted"] .one-voice-ring:nth-child(1) {
-    animation: one-voice-flash 420ms var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
-  }
-}
-
-@keyframes one-voice-turn {
-  to {
-    transform: rotate(1turn);
+  .one-voice-stage[data-look="interrupted"] .one-voice-ring {
+    animation: one-voice-flash 420ms var(--vs-ease) both;
   }
 }
 
@@ -282,7 +236,7 @@
 
   to {
     opacity: 0;
-    transform: scale(1.75);
+    transform: scale(1.5);
   }
 }
 
@@ -294,57 +248,62 @@
 
 /* --------------------------------------------------------------- status */
 
-.one-voice-status {
-  display: inline-flex;
-  min-height: 2rem;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  padding: 0 0.875rem 0 0.625rem;
-  border: 0.5px solid var(--vs-hairline);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 5%);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--vs-bone);
-}
-
-.one-voice-status-glyph {
+/* One serif italic word under the ring. A new word fades in over the old one, which fades out in
+   the same place; the box is one line tall, so nothing below it moves. */
+.one-voice-status-wrap {
   display: grid;
-  width: 1rem;
-  height: 1rem;
+  height: 2.25rem;
+  /* Clear of the hairline, which stands about 12 percent of the ring's size outside it. */
+  margin-top: calc(var(--vs-orb) * 0.14);
   place-items: center;
-  color: var(--vs-gold);
 }
 
-.one-voice-status-glyph svg {
-  width: 100%;
-  height: 100%;
+.one-voice-status-slot,
+.one-voice-status-out {
+  grid-area: 1 / 1;
+  margin: 0;
 }
 
-.one-voice-stage[data-look="notice"] .one-voice-status-glyph {
+.one-voice-status,
+.one-voice-status-out {
+  font-family: var(--one-serif);
+  font-size: 1.375rem;
+  font-style: italic;
+  line-height: 1.6;
+  letter-spacing: 0.005em;
+  color: var(--vs-bone);
+  white-space: nowrap;
+}
+
+.one-voice-stage[data-look="notice"] .one-voice-status {
   color: var(--vs-ember);
 }
 
-.one-voice-stage[data-look="failed"] .one-voice-status-glyph {
-  color: var(--vs-oxblood);
+.one-voice-stage[data-look="failed"] .one-voice-status {
+  color: color-mix(in srgb, var(--vs-oxblood) 70%, var(--vs-bone));
 }
 
-.one-voice-stage:is([data-look="muted"], [data-look="preparing"]) .one-voice-status-glyph {
+.one-voice-stage:is([data-look="muted"], [data-look="preparing"]) .one-voice-status {
   color: var(--vs-bone-soft);
 }
 
-.one-voice-status-glyph svg[data-glyph="working"] circle {
-  fill: none;
-  stroke: var(--st-working, var(--vs-gold));
-  stroke-width: 2;
-  stroke-linecap: round;
+.one-voice-status {
+  animation: one-voice-word-in var(--mo-quick, 180ms) var(--vs-ease) 60ms both;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .one-voice-status-glyph svg[data-glyph="working"] {
-    animation: one-voice-turn 1.2s linear infinite;
+.one-voice-status-out {
+  animation: one-voice-word-out var(--mo-quick, 180ms) var(--ease-exit, linear) both;
+}
+
+@keyframes one-voice-word-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes one-voice-word-out {
+  to {
+    opacity: 0;
   }
 }
 
@@ -355,7 +314,7 @@
 .one-voice-eyebrow {
   display: block;
   height: 1.25em;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--vs-bone-soft);
@@ -399,59 +358,98 @@
   border-radius: 4px;
 }
 
+/* Each word warms from bone to gold as the voice reaches it. */
+.one-voice-word {
+  transition: color 150ms ease-out;
+}
+
+.one-voice-word.is-spoken {
+  color: var(--vs-gold-warm);
+}
+
 /* -------------------------------------------------------------- actions */
 
 .one-voice-stage-actions {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 1.25rem;
+  /* Room for the label that appears under a control. */
+  margin-bottom: 1.5rem;
 }
 
-.one-voice-action {
-  display: inline-flex;
-  min-height: 2.5rem;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 1.125rem;
-  border: 0.5px solid var(--vs-hairline);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 7%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
+/* Round glass: the thin material's blur and edge, in the dark scene's own colors. */
+.one-voice-control {
+  position: relative;
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgb(255 244 220 / 13%), rgb(255 244 220 / 4%) 60%);
+  -webkit-backdrop-filter: var(--m-blur-thin, blur(24px) saturate(1.7));
+  backdrop-filter: var(--m-blur-thin, blur(24px) saturate(1.7));
+  box-shadow:
+    inset 0 1px 0 rgb(255 236 200 / 24%),
+    inset 0 -1px 0 rgb(0 0 0 / 45%),
+    0 0 0 0.5px rgb(255 236 200 / 16%),
+    0 14px 30px -12px rgb(0 0 0 / 80%);
   color: var(--vs-bone);
   cursor: pointer;
   transition:
-    background-color var(--mo-quick, 180ms) var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)),
+    background-color var(--mo-quick, 180ms) var(--vs-ease),
+    box-shadow var(--mo-quick, 180ms) var(--vs-ease),
     scale var(--mo-quick, 180ms) var(--ease-spring, var(--one-ease-spring));
 }
 
-.one-voice-action svg {
-  width: 1rem;
-  height: 1rem;
+.one-voice-control svg {
+  width: 1.375rem;
+  height: 1.375rem;
 }
 
-.one-voice-action:hover {
-  background: rgb(255 255 255 / 12%);
+.one-voice-control:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 236 200 / 34%),
+    inset 0 -1px 0 rgb(0 0 0 / 45%),
+    0 0 0 0.5px rgb(217 179 90 / 45%),
+    0 14px 30px -12px rgb(0 0 0 / 80%);
 }
 
-.one-voice-action:active {
-  scale: 0.97;
+.one-voice-control:active {
+  scale: 0.94;
   transition-duration: var(--mo-press, 100ms);
 }
 
-.one-voice-action:focus-visible {
+.one-voice-control:focus-visible {
   outline: 2px solid var(--vs-gold);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
-.one-voice-action[aria-pressed="true"] {
-  border-color: rgb(217 179 90 / 55%);
-  background: rgb(217 179 90 / 14%);
+.one-voice-control[aria-pressed="true"] {
+  color: var(--vs-gold-warm);
+  background: linear-gradient(145deg, rgb(217 179 90 / 26%), rgb(217 179 90 / 8%) 60%);
 }
 
+/* The label belongs to hover and focus; the accessible name is on the button. */
+.one-voice-control-label {
+  position: absolute;
+  top: calc(100% + 0.625rem);
+  left: 50%;
+  translate: -50% 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--vs-bone-soft);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--mo-quick, 180ms) var(--vs-ease);
+}
+
+.one-voice-control:is(:hover, :focus-visible) .one-voice-control-label {
+  opacity: 1;
+}
+
+/* Key hints: faint, and gone after a few seconds without input; any key or pointer move brings them back. */
 .one-voice-hints {
   display: flex;
   flex-wrap: wrap;
@@ -461,7 +459,13 @@
   padding: 0;
   list-style: none;
   font-size: 0.75rem;
-  color: var(--vs-bone-soft);
+  color: var(--vs-bone);
+  opacity: 0.4;
+  transition: opacity var(--mo-surface, 240ms) var(--vs-ease);
+}
+
+.one-voice-stage[data-hints="off"] .one-voice-hints {
+  opacity: 0;
 }
 
 .one-voice-hints li {
@@ -479,17 +483,16 @@
   font: inherit;
   font-weight: 600;
   text-align: center;
-  color: var(--vs-bone);
 }
 
-/* A phone has no keys to hint at. */
+/* A phone has no keys to hint at, and no hover to show a label. */
 @media (hover: none) and (pointer: coarse) {
   .one-voice-hints {
     display: none;
   }
 
-  .one-voice-action {
-    min-height: 2.75rem;
+  .one-voice-stage-actions {
+    margin-bottom: 0;
   }
 }
 
@@ -497,23 +500,19 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .one-voice-stage {
-    animation: one-voice-stage-in var(--mo-surface, 240ms)
-      var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+    animation: one-voice-stage-in var(--mo-surface, 240ms) var(--vs-ease) both;
   }
 
   /* The stage reaches full opacity first; its words and controls follow 60ms later. */
   .one-voice-stage-body > :not(.one-voice-orb-wrap),
   .one-voice-stage-actions,
   .one-voice-hints {
-    animation: one-voice-content-in var(--mo-surface, 240ms)
-      var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) 60ms both;
+    animation: one-voice-content-in var(--mo-surface, 240ms) var(--vs-ease) 60ms both;
   }
 
-  /* A new label or transcript line arrives the same way, so a change of state is seen, not swapped. */
-  .one-voice-status-text,
+  /* A new transcript label arrives the same way, so a change of state is seen, not swapped. */
   .one-voice-caption-line {
-    animation: one-voice-content-in var(--mo-quick, 180ms)
-      var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1)) both;
+    animation: one-voice-content-in var(--mo-quick, 180ms) var(--vs-ease) both;
   }
 }
 
@@ -540,17 +539,40 @@
   }
 }
 
+/* What stays after voice chat ends: the dark backdrop fading, the ring flying home, and a glint. */
 .one-voice-ghost {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
   pointer-events: none;
+}
+
+.one-voice-ghost-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--vs-backdrop);
 }
 
 .one-voice-ghost-orb {
   position: absolute;
 }
 
+.one-voice-ghost-glint {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 244 214 / 95%),
+    rgb(240 200 110 / 45%) 40%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
 @media (forced-colors: active) {
   .one-voice-orb-button:focus-visible,
-  .one-voice-action:focus-visible {
+  .one-voice-control:focus-visible {
     outline: 2px solid Highlight;
     outline-offset: 2px;
   }
@@ -567,21 +589,17 @@ html .one-voice-ghost .one-mark > img[data-mark-theme="light"] {
   display: none;
 }
 
-/* Without motion, each state keeps its own shape: speaking holds two outer rings where the ripples
-   would travel, interrupted holds one bright ring where the flash would be, and thinking holds its
-   gold arc, which is a partial circle no other state draws. */
+/* Without motion, each state keeps its own shape: speaking holds an outer ring where the ripple
+   would travel, interrupted holds one bright hairline where the flash would be, and thinking has
+   no hairline at all, which no other state shows. */
 @media (prefers-reduced-motion: reduce) {
   .one-voice-stage[data-look="speaking"] .one-voice-ripple {
     opacity: 0.4;
-    transform: scale(1.5);
+    /* Out to the edge of a phone at most, not past it. */
+    transform: scale(1.3);
   }
 
-  .one-voice-stage[data-look="speaking"] .one-voice-ripple + .one-voice-ripple {
-    opacity: 0.2;
-    transform: scale(1.75);
-  }
-
-  .one-voice-stage[data-look="interrupted"] .one-voice-ring:nth-child(1) {
+  .one-voice-stage[data-look="interrupted"] .one-voice-ring {
     border-color: rgb(217 179 90 / 90%);
   }
 }

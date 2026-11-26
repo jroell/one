@@ -1,9 +1,10 @@
 import { useGT } from "gt-react";
+import { use } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
 
-import { useChatStatus } from "./chatStatus";
+import { ChatStatusScopeContext, useChatStatus } from "./chatStatus";
 
 /**
  * Everything quiet in Chat mode lives behind one dot in the header: it is gold while something
@@ -11,7 +12,7 @@ import { useChatStatus } from "./chatStatus";
  */
 export function ChatStatusDot() {
   const gt = useGT();
-  const items = useChatStatus();
+  const items = useChatStatus(use(ChatStatusScopeContext));
   if (items.length === 0) return null;
   const working = items.some((item) => item.kind === "working");
   return (

@@ -44,6 +44,11 @@ function Code({ children }: { readonly children: ReactNode }) {
   return <code className="one-chat-approval-code">{children}</code>;
 }
 
+/** A file path in the sentence's own serif, in italic, so the line has one face for words. */
+function Path({ children }: { readonly children: ReactNode }) {
+  return <em className="one-chat-approval-path">{children}</em>;
+}
+
 /**
  * What is being asked, in plain words and from the same data the Code card's title reads: the
  * command itself, the file and how many lines change, or the number of files.
@@ -103,9 +108,9 @@ function ApprovalSentence({
       return (
         <T>
           Add{" "}
-          <Code>
+          <Path>
             <Var>{path}</Var>
-          </Code>
+          </Path>
           ?
         </T>
       );
@@ -114,9 +119,9 @@ function ApprovalSentence({
       return (
         <T>
           Delete{" "}
-          <Code>
+          <Path>
             <Var>{path}</Var>
-          </Code>
+          </Path>
           ?
         </T>
       );
@@ -126,13 +131,13 @@ function ApprovalSentence({
       return (
         <T>
           Rename{" "}
-          <Code>
+          <Path>
             <Var>{from}</Var>
-          </Code>{" "}
+          </Path>{" "}
           to{" "}
-          <Code>
+          <Path>
             <Var>{path}</Var>
-          </Code>
+          </Path>
           ?
         </T>
       );
@@ -153,17 +158,17 @@ function ApprovalSentence({
     return counts === null ? (
       <T>
         Change{" "}
-        <Code>
+        <Path>
           <Var>{path}</Var>
-        </Code>
+        </Path>
         ?
       </T>
     ) : (
       <T>
         Change{" "}
-        <Code>
+        <Path>
           <Var>{path}</Var>
-        </Code>
+        </Path>
         : <Var>{counts}</Var>?
       </T>
     );
@@ -173,9 +178,9 @@ function ApprovalSentence({
     return path.length > 0 ? (
       <T>
         Read{" "}
-        <Code>
+        <Path>
           <Var>{path}</Var>
-        </Code>
+        </Path>
         ?
       </T>
     ) : (

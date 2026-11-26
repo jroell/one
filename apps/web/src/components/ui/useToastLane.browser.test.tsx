@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { render } from "../../../test/render";
+import { fakeTimers, render } from "../../../test/render";
 import { useToastLane } from "./useComposerAnchor";
 
 function Timeline({ active }: { readonly active: boolean }) {
@@ -82,5 +82,46 @@ describe("a toast's lane in the thread", () => {
     expect(timeline.scrollTop + timeline.clientHeight).toBeGreaterThanOrEqual(
       timeline.scrollHeight - 4,
     );
+  });
+
+  it("keeps the padding for a second toast that arrives 100ms after the first one left, and leaves none behind once it goes", async () => {
+    using _motion = reducedMotion();
+    await using screen = await render(<Timeline active />, { router: false });
+    const timeline = screen.getByTestId("timeline").element() as HTMLElement;
+    toEnd(timeline);
+    using _clock = fakeTimers();
+
+    await screen.rerender(<Timeline active={false} />);
+    await vi.advanceTimersByTimeAsync(100);
+    await screen.rerender(<Timeline active />);
+    // Past the first toast's 320ms release: its timer must not take the padding away.
+    await vi.advanceTimersByTimeAsync(450);
+
+    expect(timeline.style.paddingBottom, "the toast on screen still has its lane").toBe("120px");
+    expect(timeline.scrollTop + timeline.clientHeight).toBeGreaterThanOrEqual(
+      timeline.scrollHeight - 4,
+    );
+
+    await screen.rerender(<Timeline active={false} />);
+    await vi.advanceTimersByTimeAsync(450);
+    expect(timeline.style.paddingBottom, "no padding stays behind").toBe("");
+  });
+
+  it("restores the padding the timeline had before the first toast", async () => {
+    using _motion = reducedMotion();
+    await using screen = await render(<Timeline active={false} />, { router: false });
+    const timeline = screen.getByTestId("timeline").element() as HTMLElement;
+    timeline.style.paddingBottom = "16px";
+    toEnd(timeline);
+    using _clock = fakeTimers();
+
+    await screen.rerender(<Timeline active />);
+    await screen.rerender(<Timeline active={false} />);
+    await vi.advanceTimersByTimeAsync(50);
+    await screen.rerender(<Timeline active />);
+    await screen.rerender(<Timeline active={false} />);
+    await vi.advanceTimersByTimeAsync(450);
+
+    expect(timeline.style.paddingBottom, "the original padding returns").toBe("16px");
   });
 });

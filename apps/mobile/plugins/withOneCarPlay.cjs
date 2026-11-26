@@ -16,6 +16,7 @@ const CARPLAY_SCENE_CONFIG = {
 
 const CARPLAY_COMMUNICATION_ENTITLEMENT = "com.apple.developer.carplay-communication";
 const CARPLAY_AUDIO_ENTITLEMENT = "com.apple.developer.carplay-audio";
+const CARPLAY_VOICE_ENTITLEMENT = "com.apple.developer.carplay-voice-based-conversation";
 
 function resolveCarPlayEntitlementMode(options) {
   const isPersonalTeam =
@@ -38,10 +39,14 @@ function resolveCarPlayEntitlementMode(options) {
   if (rawValue === "both") {
     return "both";
   }
+  if (rawValue === "voice" || rawValue === "voice-based-conversation") {
+    return "voice";
+  }
   return "none";
 }
 
-function applyCarPlayInfoPlist(infoPlist, entitlementEnabled) {
+// Apple forbids combining CarPlay categories, so "voice" never shares a build with the others.
+function applyCarPlayInfoPlist(infoPlist, entitlementMode) {
   const next = { ...infoPlist };
 
   const existingModes = Array.isArray(next.UIBackgroundModes)
@@ -77,7 +82,9 @@ function applyCarPlayInfoPlist(infoPlist, entitlementEnabled) {
   existingManifest.UISceneConfigurations = existingConfigurations;
 
   next.UIApplicationSceneManifest = existingManifest;
-  next.OneCarPlayEntitlementExpected = Boolean(entitlementEnabled);
+  // The native scene reads the mode so one binary never builds a template its entitlement forbids.
+  next.OneCarPlayEntitlementMode = entitlementMode;
+  next.OneCarPlayEntitlementExpected = entitlementMode !== "none";
   return next;
 }
 
@@ -85,6 +92,7 @@ function applyCarPlayEntitlements(entitlements, mode) {
   const next = { ...entitlements };
   delete next[CARPLAY_COMMUNICATION_ENTITLEMENT];
   delete next[CARPLAY_AUDIO_ENTITLEMENT];
+  delete next[CARPLAY_VOICE_ENTITLEMENT];
 
   if (mode === "communication" || mode === "both") {
     next[CARPLAY_COMMUNICATION_ENTITLEMENT] = true;
@@ -92,15 +100,17 @@ function applyCarPlayEntitlements(entitlements, mode) {
   if (mode === "audio" || mode === "both") {
     next[CARPLAY_AUDIO_ENTITLEMENT] = true;
   }
+  if (mode === "voice") {
+    next[CARPLAY_VOICE_ENTITLEMENT] = true;
+  }
   return next;
 }
 
 function withOneCarPlay(config, options = {}) {
   const entitlementMode = resolveCarPlayEntitlementMode(options);
-  const entitlementEnabled = entitlementMode !== "none";
 
   let updated = withInfoPlist(config, (modConfig) => {
-    modConfig.modResults = applyCarPlayInfoPlist(modConfig.modResults, entitlementEnabled);
+    modConfig.modResults = applyCarPlayInfoPlist(modConfig.modResults, entitlementMode);
     return modConfig;
   });
 
@@ -124,6 +134,7 @@ withOneCarPlay.CARPLAY_SCENE_ROLE = CARPLAY_SCENE_ROLE;
 withOneCarPlay.CARPLAY_SCENE_CONFIG = CARPLAY_SCENE_CONFIG;
 withOneCarPlay.CARPLAY_COMMUNICATION_ENTITLEMENT = CARPLAY_COMMUNICATION_ENTITLEMENT;
 withOneCarPlay.CARPLAY_AUDIO_ENTITLEMENT = CARPLAY_AUDIO_ENTITLEMENT;
+withOneCarPlay.CARPLAY_VOICE_ENTITLEMENT = CARPLAY_VOICE_ENTITLEMENT;
 withOneCarPlay.applyCarPlayInfoPlist = applyCarPlayInfoPlist;
 withOneCarPlay.applyCarPlayEntitlements = applyCarPlayEntitlements;
 withOneCarPlay.resolveCarPlayEntitlementMode = resolveCarPlayEntitlementMode;

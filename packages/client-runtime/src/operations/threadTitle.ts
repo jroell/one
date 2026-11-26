@@ -7,6 +7,7 @@ import { composerFileLinksToPlainText } from "@t3tools/shared/composerInlineToke
 import { truncate } from "@t3tools/shared/String";
 
 import { collectComposerModelMentions } from "../composerModelMentions.ts";
+import { withoutAgentInstructions } from "../userMessage.ts";
 
 export interface ThreadTitleSeedInput {
   readonly text: string;
@@ -55,7 +56,7 @@ export function deriveThreadTitleSeed(
   input: ThreadTitleSeedInput,
   resolve: MFunctionType = mFallback,
 ): string {
-  const text = threadTitleTextFromPrompt(input.text, resolve);
+  const text = threadTitleTextFromPrompt(withoutAgentInstructions(input.text), resolve);
   if (text.length > 0) {
     return truncate(text);
   }

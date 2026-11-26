@@ -994,7 +994,7 @@ describe("composer and pull request shortcuts", () => {
       ["k", "pullRequest.copyNumber"],
       ["8", "thread.copyReference"],
       ["c", null],
-      ["y", null],
+      ["y", "approval.approve"],
     ] as const) {
       assert.strictEqual(
         resolveShortcutCommand(event({ key, metaKey: true, shiftKey: true }), bindings, {

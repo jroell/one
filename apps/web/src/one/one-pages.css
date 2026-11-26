@@ -516,6 +516,32 @@
   white-space: nowrap;
 }
 
+/* The starters are quiet hints, not suggestion chips: no outline or glass, muted text, one soft
+   wash on hover. The four stay an even row, and each keeps its 36px height and its tap target. */
+[data-one-code-welcome] .one-chip {
+  color: var(--muted-foreground);
+  background: none;
+  background-image: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@media (hover: hover) {
+  [data-one-code-welcome] .one-chip:hover {
+    color: var(--foreground);
+    background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+    box-shadow: none;
+  }
+}
+
+/* The welcome sits low in the pane, so ring, headline and composer read as one composition
+   instead of a block floating in the middle with a hand's width of empty space above the input. */
+[data-one-code-welcome] {
+  align-self: flex-end;
+  margin-bottom: clamp(1rem, 12vh, 7rem);
+}
+
 /* A still warm glow behind the ring in the dark theme. Its alpha follows an eased curve to zero
    through a mask, so no circular edge shows. Light has none: its light field is --m-ambient. */
 html.dark [data-one-code-welcome]::before {
@@ -828,18 +854,66 @@ html[data-one-handoff="arrive"] #root {
 }
 
 html[data-one-handoff]:not([data-one-handoff="fade"])
-  [data-one-code-welcome]
+  .one-chat-welcome
   > :not(.one-chat-welcome-orb) {
   opacity: 0;
-  translate: 0 6px;
+  translate: 0 8px;
 }
 
-html[data-one-handoff="arrive"] [data-one-code-welcome] > :not(.one-chat-welcome-orb) {
+/* After the ring settles: the headline rises 8px over 200ms 120ms later, then the project chip and
+   the starters follow at 40ms steps. Opacity and translate only. */
+html[data-one-handoff="arrive"] .one-chat-welcome > :not(.one-chat-welcome-orb) {
   opacity: 1;
   translate: 0 0;
   transition:
-    opacity var(--mo-surface, 240ms) var(--ease-enter, ease-out) 60ms,
-    translate var(--mo-surface, 240ms) var(--ease-enter, ease-out) 60ms;
+    opacity 200ms var(--ease-enter, ease-out) var(--one-arrive-delay, 120ms),
+    translate 200ms var(--ease-enter, ease-out) var(--one-arrive-delay, 120ms);
+}
+
+/* A thread that is still loading when the ring flies shows no "Loading messages" under it: the
+   placeholder stays clear for the handoff and fades in after it. */
+[data-timeline-loading] {
+  transition: opacity 200ms var(--ease-enter, ease-out);
+}
+
+html[data-one-handoff] [data-timeline-loading] {
+  opacity: 0;
+}
+
+/* A thread's turns wait out of sight, then rise 12px and fade in, 30ms apart, over 220ms. The
+   sidebar arrives 40ms behind the header. Opacity and translate only. */
+html[data-one-handoff]:not([data-one-handoff="fade"]) [data-timeline-row-id] {
+  opacity: 0;
+  translate: 0 12px;
+}
+
+html[data-one-handoff="travel"] [data-timeline-row-id],
+html[data-one-handoff="arrive"] [data-timeline-row-id] {
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity 220ms var(--ease-enter, ease-out) calc(var(--one-arrive-index, 0) * 30ms),
+    translate 220ms var(--ease-enter, ease-out) calc(var(--one-arrive-index, 0) * 30ms);
+}
+
+html[data-one-handoff="wait"] [data-slot="sidebar"],
+html[data-one-handoff="hold"] [data-slot="sidebar"],
+html[data-one-handoff="settle"] [data-slot="sidebar"] {
+  opacity: 0;
+}
+
+html[data-one-handoff="travel"] [data-slot="sidebar"],
+html[data-one-handoff="arrive"] [data-slot="sidebar"] {
+  opacity: 1;
+  transition: opacity var(--mo-surface, 240ms) var(--ease-enter, ease-out) 40ms;
+}
+
+html[data-one-handoff="arrive"] .one-chat-welcome > :nth-child(3) {
+  --one-arrive-delay: 160ms;
+}
+
+html[data-one-handoff="arrive"] .one-chat-welcome > :nth-child(n + 4) {
+  --one-arrive-delay: 200ms;
 }
 
 /* ------------------------------------------------------------------- the working arc */
@@ -873,7 +947,7 @@ html[data-one-handoff="arrive"] [data-one-code-welcome] > :not(.one-chat-welcome
   height: 0.375rem;
   flex-shrink: 0;
   border-radius: 9999px;
-  background: var(--st-attention, #e08a3c);
+  background: var(--st-attention, #e8793a);
 }
 
 [data-sidebar-status-word="failed"] {
@@ -903,12 +977,12 @@ html[data-one-handoff="arrive"] [data-one-code-welcome] > :not(.one-chat-welcome
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.25rem;
-  color: var(--st-attention, #e08a3c);
+  color: var(--st-attention-fg, #e8793a);
   text-align: start;
 }
 
 [data-sidebar-needs-you] button:hover {
-  background: color-mix(in oklab, var(--st-attention, #e08a3c) 10%, transparent);
+  background: color-mix(in oklab, var(--st-attention, #e8793a) 10%, transparent);
 }
 
 /* ----------------------------------------------------------------- the wordmark */

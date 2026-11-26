@@ -1,6 +1,6 @@
 import type { EnvironmentId, UnifiedSettings } from "@t3tools/contracts";
 import { T, useGT, Var } from "gt-react";
-import { GaugeIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { SettingsEmptyState } from "./SettingsEmptyState";
 
 import { useState } from "react";
@@ -18,6 +18,7 @@ import {
 import { Button } from "../ui/button";
 import { AddUsageLimitSourceDialog } from "./AddUsageLimitSourceDialog";
 import { useSearchableSetting } from "./settingsSearch";
+import { QuotaGhost } from "./EmptyGhosts";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 
 const CLI_PROXY_NAME = "CLI Proxy";
@@ -61,11 +62,18 @@ export function UsageProviderSettings({
         {entries.length === 0 ? (
           <SettingsEmptyState
             className="min-h-40"
-            icon={<GaugeIcon />}
             title={gt("No usage sources configured")}
             description={gt(
               "Add a hub or an HTTP source to see quota from another service, such as a shared proxy.",
             )}
+            preview={
+              <QuotaGhost
+                sources={[
+                  { name: gt("Shared proxy"), window: gt("Resets in 3 hours"), used: 62 },
+                  { name: gt("Team gateway"), window: gt("Resets Monday"), used: 31 },
+                ]}
+              />
+            }
           />
         ) : (
           entries.map(([id, source]) => {

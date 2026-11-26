@@ -507,10 +507,15 @@ describe("the composer's message id reaches the conversation that is waiting for
 });
 
 describe("text read aloud in voice chat", () => {
-  it("drops code blocks and keeps the prose around them", () => {
+  it("replaces a code block with a pointer to the thread and keeps the prose around it", () => {
     expect(speakableText("Use this:\n```ts\nconst a = 1;\n```\nThen run it.")).toBe(
-      "Use this:\nThen run it.",
+      "Use this:\nThe code is in the thread.\nThen run it.",
     );
+  });
+
+  it("points to the thread once for code blocks in a row, and also for a reply that is only code", () => {
+    expect(speakableText("```sh\nls\n```\n\n```sh\npwd\n```")).toBe("The code is in the thread.");
+    expect(speakableText("```sh\nls\n```")).toBe("The code is in the thread.");
   });
 
   it("reads link text, not the address", () => {
@@ -519,22 +524,43 @@ describe("text read aloud in voice chat", () => {
     );
   });
 
-  it("removes headings, list markers and emphasis marks", () => {
+  it("removes list markers and emphasis marks, and ends a heading like a sentence", () => {
     expect(speakableText("## Light\n- **Refraction** bends it\n1. _Then_ it splits")).toBe(
-      "Light\nRefraction bends it\nThen it splits",
+      "Light.\nRefraction bends it\nThen it splits",
     );
+    expect(speakableText("## Why?\nBecause.")).toBe("Why?\nBecause.");
   });
 
-  it("reads a table row as a short sentence, without stray commas and spaces before them", () => {
+  it("says what a table is instead of reading its cells", () => {
     expect(
       speakableText(
-        "| Order | Focal length |\n| --- | --- |\n| First | 920 mm |\n| Third | 500 mm |",
+        "Orders:\n| Order | Focal length | Typical use |\n| --- | --- | --- |\n| First | 920 mm | Major light |\n| Third | 500 mm | Regional |\n| Sixth | 150 mm | Harbour |\nThat is all.",
       ),
-    ).toBe("Order, Focal length.\nFirst, 920 mm.\nThird, 500 mm.");
+    ).toBe(
+      "Orders:\nA table with three rows and columns Order, Focal length and Typical use.\nThat is all.",
+    );
+    expect(speakableText("| A |\n|---|\n| 1 |")).toBe("A table with one row and columns A.");
   });
 
-  it("returns an empty string for a reply that is only code", () => {
-    expect(speakableText("```sh\nls\n```")).toBe("");
+  it("reads a reply with a table, code, a list and a link as sentences, with no markup or commas left over", () => {
+    const reply = [
+      "## Lens orders",
+      "A **table** first:",
+      "| Order | Use |",
+      "| --- | --- |",
+      "| First | Coast |",
+      "Then the code:",
+      "```js",
+      "refract()",
+      "```",
+      "- bends light",
+      "- see [the guide](https://example.com)",
+    ].join("\n");
+    const spoken = speakableText(reply);
+    expect(spoken).toBe(
+      "Lens orders.\nA table first:\nA table with one row and columns Order and Use.\nThen the code:\nThe code is in the thread.\nbends light\nsee the guide",
+    );
+    expect(spoken).not.toMatch(/[|*`#]|https?:|, ,| ,/);
   });
 });
 

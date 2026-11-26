@@ -200,6 +200,11 @@ export interface PaletteItemContent {
   readonly titleTrailingContent?: ReactNode;
 }
 
+/** The time a row shows: a relative one is worked out now, not when the item was built. */
+export function itemTimestamp(item: CommandPaletteItem): string | undefined {
+  return item.relativeTimestamp?.() ?? item.timestamp;
+}
+
 const resolvedContent = new WeakMap<object, PaletteItemContent>();
 
 /** The row content of an item, built once on first use when the item carries `lazyContent`. */
@@ -229,6 +234,11 @@ export interface CommandPaletteItem {
   readonly lazyContent?: () => PaletteItemContent;
   readonly threadContentMatch?: CommandPaletteThreadContentMatch;
   readonly timestamp?: string;
+  /**
+   * A relative time ("2m ago") read when the row is drawn, so an item that is cached across
+   * openings never shows the time it was built at. Read it through `itemTimestamp`.
+   */
+  readonly relativeTimestamp?: () => string;
   /** Thread rows rank by this, with use history, instead of by `searchTerms`. */
   readonly threadSearch?: ThreadSearchSubject;
   readonly threadRef?: ScopedThreadRef;
@@ -566,11 +576,12 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
         ),
         title: thread.title,
         ...(description !== undefined ? { description } : {}),
-        timestamp: formatRelativeTimeLabel(
-          thread.latestUserMessageAt ?? thread.updatedAt ?? thread.createdAt,
-          undefined,
-          resolve,
-        ),
+        relativeTimestamp: () =>
+          formatRelativeTimeLabel(
+            thread.latestUserMessageAt ?? thread.updatedAt ?? thread.createdAt,
+            undefined,
+            resolve,
+          ),
         icon: input.icon,
       },
       context ? { context } : {},

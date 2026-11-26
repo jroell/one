@@ -60,6 +60,41 @@ export interface CarPlayThreadItem {
   readonly isSelected?: boolean;
 }
 
+/** Localized CarPlay text. Native Swift cannot reach the app's translations, so JS sends it. */
+export interface CarPlayLabels {
+  readonly talkTab: string;
+  readonly voicesTab: string;
+  readonly modesTab: string;
+  readonly threadsTab: string;
+  readonly talkTitle: string;
+  readonly statusRow: string;
+  readonly voiceAndModeRow: string;
+  readonly topicRow: string;
+  readonly defaultTopic: string;
+  readonly startTalking: string;
+  readonly nowPlaying: string;
+  readonly mute: string;
+  readonly unmute: string;
+  readonly interrupt: string;
+  readonly end: string;
+  readonly stateReady: string;
+  readonly stateConnecting: string;
+  readonly stateListening: string;
+  readonly stateThinking: string;
+  readonly stateSpeaking: string;
+  readonly stateMuted: string;
+  readonly stateError: string;
+  readonly stateActive: string;
+  readonly activeSuffix: string;
+  readonly voicesEmpty: string;
+  readonly voicesEmptyDetail: string;
+  readonly modesHeader: string;
+  readonly modesFallbackDetail: string;
+  readonly threadsHeader: string;
+  readonly threadsEmpty: string;
+  readonly threadsEmptyDetail: string;
+}
+
 export interface CarPlayDashboardState {
   readonly sessionActive: boolean;
   readonly phase: VoiceSessionPhase;
@@ -69,7 +104,10 @@ export interface CarPlayDashboardState {
   readonly personaId: string;
   readonly personaName: string;
   readonly topicTitle: string;
-  readonly liveCaption: string;
+  /** Not shown in CarPlay: the voice-based category speaks answers instead of displaying them. */
+  readonly liveCaption?: string;
+  /** Native text falls back to English for any label that is missing. */
+  readonly labels?: Partial<CarPlayLabels>;
   readonly activeThreadId?: string | null;
   readonly activeThreadTitle?: string | null;
   readonly voices: ReadonlyArray<CarPlayVoiceItem>;
@@ -77,9 +115,15 @@ export interface CarPlayDashboardState {
   readonly threads: ReadonlyArray<CarPlayThreadItem>;
 }
 
+/** The CarPlay category the build was signed for, written to Info.plist by the config plugin. */
+export type CarPlayEntitlementMode = "none" | "communication" | "audio" | "both" | "voice";
+
 export interface CarPlayStatus {
   readonly available: boolean;
   readonly connected: boolean;
+  /** True while the CarPlay voice control template is on screen (voice entitlement, iOS 26.4+). */
+  readonly voiceControlPresented: boolean;
+  readonly entitlementMode: CarPlayEntitlementMode;
   readonly audioSessionActive: boolean;
   readonly muted: boolean;
   readonly platform: "ios" | "android" | "unsupported";
@@ -295,6 +339,8 @@ export async function getCarPlayStatus(): Promise<CarPlayStatus> {
     return {
       available: false,
       connected: false,
+      voiceControlPresented: false,
+      entitlementMode: "none",
       audioSessionActive: fallbackSessionActive,
       muted: fallbackMuted,
       platform: "unsupported",

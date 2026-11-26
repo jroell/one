@@ -309,28 +309,6 @@ it("spells the snapshots section in one case in the rail", async () => {
   await expect.element(page.getByRole("button", { name: "Snapshots", exact: true })).toBeVisible();
 });
 
-it("changes the page from the rail inside a view transition typed settings-page, so the body cross-fades", async () => {
-  const start = vi.spyOn(document, "startViewTransition");
-  try {
-    await using screen = await render(
-      <SidebarProvider defaultOpen>
-        <SettingsSidebarNav pathname="/settings/general" />
-      </SidebarProvider>,
-      { router: "/settings/general" },
-    );
-    await userEvent.click(
-      page.getByRole("button", { name: SETTINGS_SECTION_LABELS["/settings/appearance"] }),
-    );
-    await vi.waitFor(() =>
-      expect(screen.router?.state.location.pathname).toBe("/settings/appearance"),
-    );
-    expect(start).toHaveBeenCalledTimes(1);
-    expect(start.mock.calls[0]![0]).toMatchObject({ types: ["settings-page"] });
-  } finally {
-    start.mockRestore();
-  }
-});
-
 it("scrolls the open section into view after the first paint, not while the sheet is mounting", async () => {
   const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
   try {
@@ -348,4 +326,30 @@ it("scrolls the open section into view after the first paint, not while the shee
   } finally {
     scroll.mockRestore();
   }
+});
+
+it("loads a page's route as the pointer reaches its rail item, and every page once the sheet is idle", async () => {
+  await using screen = await render(
+    <SidebarProvider defaultOpen>
+      <SettingsSidebarNav pathname="/settings/general" />
+    </SidebarProvider>,
+    { router: "/settings/general" },
+  );
+  const preload = vi.spyOn(screen.router!, "preloadRoute").mockResolvedValue(undefined);
+  await userEvent.hover(
+    page.getByRole("button", { name: SETTINGS_SECTION_LABELS["/settings/appearance"] }),
+  );
+  expect(preload).toHaveBeenCalledWith({ to: "/settings/appearance" });
+  // About leads to the licenses, so its rail item also warms that page.
+  await userEvent.hover(
+    page.getByRole("button", { name: SETTINGS_SECTION_LABELS["/settings/about"] }),
+  );
+  expect(preload).toHaveBeenCalledWith({ to: "/settings/open-source-licenses" });
+
+  // Idle: each page's route is asked for, one per idle slice, with no hover at all.
+  const pages = settingsNavGroups(false).flatMap((group) => group.paths);
+  await vi.waitFor(() => {
+    const asked = new Set(preload.mock.calls.map(([options]) => options.to));
+    expect(pages.every((path) => asked.has(path))).toBe(true);
+  });
 });

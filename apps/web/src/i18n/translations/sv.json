@@ -3104,7 +3104,7 @@
     "Lägga till",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3118,7 +3118,7 @@
     "Ta bort",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3132,7 +3132,7 @@
     "Byta namn på",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3144,7 +3144,7 @@
     "till",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 3,
       "c": {
         "i": 4,
@@ -3158,7 +3158,7 @@
     "Ändra",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3172,7 +3172,7 @@
     "Ändra",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3192,7 +3192,7 @@
     "Läsa",
     " ",
     {
-      "t": "Code",
+      "t": "Path",
       "i": 1,
       "c": {
         "i": 2,
@@ -3214,12 +3214,12 @@
   "fce146a6bd6173bd": "Gå djupare",
   "aa5e640b0fd014cb": "Fördjupa en del",
   "4def529d19f0f924": "Gå djupare på ",
+  "dc28a7953b23f372": "Fördjupa dig i …",
   "f2de87a0b2906a7f": "Utmana detta",
   "3ca68011b267844b": "Argumentera för den andra sidan",
   "32b2fb0e9728bd32": "Utmana detta: vad är det starkaste argumentet mot det?",
   "47b12601f025963b": "Quiz om detta",
   "4d451a4192c44561": "Kolla vad som har fastnat",
-  "9fe5e0717fab8edf": "Testa mig på det du just förklarade. Ställ tre frågor. Svara bara med ett kodblock märkt quiz som innehåller JSON i följande form: {shape}. Ge tre alternativ till varje fråga, index för det rätta alternativet i fältet correct och en mening med förklaring.",
   "19c6f44bfe07caca": "Följ upp",
   "41788188fed4a0bb": "Bilden kunde inte läsas in",
   "7285c92333b4c719": "{server} kunde inte starta eftersom du behöver logga in.",
@@ -3331,6 +3331,8 @@
   "b6cdfd12f3fa7050": "{what} · {duration}",
   "4c36ab712143ad31": "Tänkte i {duration}",
   "6f8651e48261911a": "Tanke",
+  "87123760faa9e09a": "Testa mig på det du just förklarade, med tre frågor.",
+  "6c7823eb2a01b58f": "En omgång till med tre frågor.",
   "a52dae3815612511": "Skicka eller rensa ditt utkast först",
   "e9c7a57ae9a3057f": "Röstchatten skickar det du säger för sig, utan utkastet.",
   "bdaf2c9cd3557fdd": "Röstchatten behöver en transkriberingskälla",
@@ -4789,6 +4791,7 @@
   "a6ef358f3e49fce5": "{count, plural, one {ytterligare {count} rad} other {ytterligare {count} rader}}",
   "f41e28af25aee2b7": "Ändra förhandsvisning",
   "901e31add5842c65": "Godkänd",
+  "c85f3fac8c35dd28": "Besvarad",
   "28ef57f536c2ecdf": "Ingen radbrytning i slutet av filen",
   "b725c61c6d7808ab": "Läser in förhandsvisning…",
   "48cc07d45e27a5b6": "Förhandsvisningen kunde inte läsas in.",
@@ -8020,9 +8023,9 @@
   "4e690f420bcbdb5d": "Kontrollerar anslutna miljöer.",
   "69abc8ad47672163": "Arkivera en konversation via menyn i sidopanelen för att lägga den åt sidan. Den finns kvar här tills du återställer den.",
   "00bf40a5ae83839c": "Åtgärda det ostabila kassatestet",
-  "a7039de952a9aefd": "Arkiverad för 3 dagar sedan",
+  "b21cf4a8d7772aec": "Arkiverad för 3 dagar sedan · Skapad förra veckan",
   "c201585bf9d70e88": "Prova det nya exportformatet",
-  "04cf5aa915c54457": "Arkiverad förra månaden",
+  "78dcf3c26135f53b": "Arkiverad förra månaden · Skapad i oktober",
   "5d3ed45f43611ff4": [
     "Arkiverad ",
     {
@@ -9593,10 +9596,10 @@
   "7136d0d448fda3ed": "{filtered} av {total}",
   "8c93ed63299ff531": "Sök licenser för öppen källkod",
   "15e4ee1ea3804857": "Sök licenser",
+  "acfa4722f332ea11": "Läser in licensinformation för öppen källkod",
   "c62b241e92231253": "Meddelanden från tredje part",
   "c25215fb0fe7b236": "Meddelanden om öppen källkod är inte tillgängliga",
   "dfabc4c20ab78d41": "Inga licenser matchar sökningen.",
-  "a6f0345697704afa": "Läser in meddelanden om öppen källkod…",
   "9268a10862868fe5": "Spela upp förhandsvisningen av panelanimeringen igen",
   "1c16849175c9fdd3": "Skicka {signal}",
   "3e2c2cacab23110c": [
@@ -10347,8 +10350,10 @@
   "5c409dc9c1c4d976": "En schemalagd uppgift kör en prompt med jämna mellanrum, till exempel en sammanfattning av öppet arbete varje morgon.",
   "c4947921de6b20a0": "Morgonsammanfattning",
   "1f8ea60b0c3d854a": "Varje vardag kl. 8:00 på morgonen",
+  "93c0e7074c926779": "08:00",
   "3760f0cfac40b29f": "Veckovis kontroll av beroenden",
   "c088a8c871b4f60b": "Varje måndag kl. 9:00 på morgonen",
+  "1997a7837fe49784": "09:00",
   "02a00277f3787f40": "Återanslut {label} för att se dess schemalagda uppgifter.",
   "90c19958052b0685": "Kunde inte läsa in schemalagda uppgifter",
   "2703e1eca8c287b6": "Läser in schemalagda uppgifter…",
@@ -11398,6 +11403,7 @@
   "4f3c3b40b25cac07": "Växla synlighet för versionshanteringskonton",
   "16ffdd2f02752973": "Växla detaljer för {label}",
   "b98fef2c26258e7b": "Erbjud {label} när ett projekt läggs till eller publiceras",
+  "79e4d73c1bc8cf45": "Kontrollerar",
   "516da46e1bc929e2": "Servermiljö",
   "c69a143ba3383658": "Kunde inte genomsöka servermiljön",
   "6985d8cfe8f3f2f2": "Inget har identifierats än",
@@ -11482,7 +11488,6 @@
   "027d70661a6fc7ac": "Genomsök Git- och värdintegrationer igen",
   "847dfcd39ed0f9a5": "Anslut en miljö för att granska dess versionshanteringsverktyg och värdintegrationer.",
   "0fe7788c53a3fcfe": "Kontrollerar fortfarande. Ett hostingverktyg på den här datorn svarar långsamt.",
-  "d0722cc46497705e": "Kontrollerar Git och hostingverktygen som är installerade på den här datorn…",
   "7b09564f31eb8171": "läs- och skrivåtkomst till pull requests och innehåll",
   "8dd881ec9fd8c074": "Token för {host}",
   "4f7ff2645d23d463": "Ingen token sparad; servern använder {envVar} eller {cliName}-inloggningen.",
@@ -12081,6 +12086,10 @@
   ],
   "879232144b2646c6": "Inga användningskällor har konfigurerats",
   "31723a5ee9fd5a09": "Lägg till en hub eller en HTTP-källa för att se kvoten från en annan tjänst, till exempel en delad proxy.",
+  "9835183b6c841106": "Delad proxy",
+  "3c213fd5cd15204a": "Återställs om 3 timmar",
+  "762ab3742c81fc2d": "Teamgateway",
+  "4786098b5e75b5e8": "Återställs på måndag",
   "dbd877abdc2c7c81": "HTTP-källa för kvoter",
   "4cf6a373a7535324": "{name} · Inaktiverad",
   "c792e744936dbe1b": "Lägg till HTTP-källa",
@@ -12575,6 +12584,7 @@
   "9b4f6ec9e1cd5517": "Kommer snart",
   "0de3accd049da90c": "I bruk",
   "1d2f547f7a5d9c8a": "Endast skrivbord",
+  "240e8762c4e7f028": "Kontrollerar",
   "2ed592dc3ae2e382": "Ge värden en etikett.",
   "19d903b8896fe379": "Ange gatewayens ursprung, till exempel https://gateway.example.ts.net:4700.",
   "6d5780d28245d946": "Håll gränserna inom de visade intervallen.",
@@ -12962,6 +12972,7 @@
   "61571f4542da9903": "{count, plural, one {{formatted} session} other {{formatted} sessioner}}",
   "2a57181a9d128463": "{share} av kostnaden · {tokens} token",
   "d8a6a99fbdda0d3e": "{share} av token · {cost}",
+  "793f5f9e2f913c89": "{provider} finns inte i den här vyn, så ingen leverantör är nedtonad.",
   "f545ea7ecea5bdb6": "Visar {provider} i diagrammet. Andra leverantörer är nedtonade.",
   "ae86762909d453d2": "Bearbetade token per timme",
   "ef5c1428abcda046": "Kostnad per timme",

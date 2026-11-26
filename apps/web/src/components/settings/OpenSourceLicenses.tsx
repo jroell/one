@@ -19,10 +19,12 @@ import {
 } from "@t3tools/shared/thirdPartyLicenses";
 
 import { m } from "../../i18n/messages";
+import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { licenseLabel } from "./licenseLabel";
+import { Skeleton } from "../ui/skeleton";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
 
 class LicenseManifestLoadError extends Schema.TaggedError<LicenseManifestLoadError>()(
@@ -226,6 +228,44 @@ function LicenseManifestError({ message, onRetry }: { message: string; onRetry: 
   );
 }
 
+const OUTLINE_ROWS = Array.from({ length: 14 }, (_, row) => `outline-${row}`);
+
+/**
+ * The list's rows at their real height while the manifest loads. Empty for the first 250 ms (a
+ * quick load shows no scaffolding at all) and then faintly drawn; the space is held throughout, so
+ * the list arrives without moving anything.
+ */
+function LicenseRowsOutline() {
+  const gt = useGT();
+  return (
+    <div role="status" aria-label={gt("Loading open-source notices")}>
+      {OUTLINE_ROWS.map((key, row) => (
+        <div
+          key={key}
+          aria-hidden
+          className="flex min-h-10 items-center gap-2.5 px-3 sm:min-h-9 sm:px-4"
+        >
+          <div className="settings-late">
+            {row % 3 === 0 ? (
+              <Skeleton className="h-3 w-40" />
+            ) : row % 3 === 1 ? (
+              <Skeleton className="h-3 w-28" />
+            ) : (
+              <Skeleton className="h-3 w-52" />
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Starts the manifest load ahead of the page and holds the result for a minute. */
+export function prefetchLicenseManifest(): void {
+  const release = appAtomRegistry.mount(licenseManifestAtom);
+  window.setTimeout(release, 60_000);
+}
+
 export function OpenSourceLicensesPanel() {
   const gt = useGT();
   const result = useAtomValue(licenseManifestAtom);
@@ -281,9 +321,7 @@ export function OpenSourceLicensesPanel() {
         ) : errorMessage !== null ? (
           <LicenseManifestError message={errorMessage} onRetry={retry} />
         ) : (
-          <p className="px-3 py-5 text-sm/6 text-muted-foreground sm:px-4">
-            <T>Loading open-source notices…</T>
-          </p>
+          <LicenseRowsOutline />
         )}
       </SettingsSection>
     </SettingsPageContainer>

@@ -100,3 +100,39 @@ describe("the static mark and the live ring at rest", () => {
     },
   );
 });
+
+describe("the ring's glow level", () => {
+  async function drawAtLevel(level: number) {
+    using _still = stillMotion();
+    using _readable = readableWebgl();
+    using _mode = themeMode("dark");
+    await using screen = await render(
+      <div style={{ width: 320 }}>
+        <OneOrb glowLevelRef={{ current: level }} />
+      </div>,
+      { router: false },
+    );
+    const canvas = screen.container.querySelector("canvas");
+    if (!canvas) throw new Error("the ring has no canvas");
+    await vi.waitFor(
+      () =>
+        expect(premultiplied(canvas, 320).some((value, at) => at % 4 === 3 && value > 0)).toBe(
+          true,
+        ),
+      { timeout: 8000 },
+    );
+    return premultiplied(canvas, 320);
+  }
+  const solid = (pixels: Uint8ClampedArray) =>
+    Array.from({ length: pixels.length / 4 }, (_, index) => (pixels[index * 4 + 3] ?? 0) >= 250);
+  const light = (pixels: Uint8ClampedArray) =>
+    pixels.reduce((sum, value, at) => (at % 4 === 3 ? sum : sum + value), 0);
+
+  it("lights the rim and halo and leaves the ring's silhouette exactly as it was", async () => {
+    const quiet = await drawAtLevel(0);
+    const loud = await drawAtLevel(1);
+    expect(solid(loud)).toEqual(solid(quiet));
+    expect(solid(quiet).filter(Boolean).length).toBeGreaterThan(1000);
+    expect(light(loud)).toBeGreaterThan(light(quiet) * 1.02);
+  });
+});

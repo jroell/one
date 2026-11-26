@@ -17,11 +17,26 @@ export interface ChatStage extends ChatStageTarget {
 
 export const ChatStageContext = createContext<ChatStage | null>(null);
 
+/** The first answer after the stage's question, while the stage hands over to it; else null. */
+export const ChatHandoffAnswerContext = createContext<string | null>(null);
+
+export function findHandoffAnswerId(
+  rows: ReadonlyArray<MessagesTimelineRow>,
+  userRowId: string,
+): string | null {
+  const from = rows.findIndex((row) => row.id === userRowId);
+  if (from < 0) return null;
+  for (const row of rows.slice(from + 1)) {
+    if (row.kind === "message" && row.message.role === "assistant") return row.id;
+  }
+  return null;
+}
+
 /** An unclipped layer over the timeline, where a stage that is handing over fades out. */
 export const ChatStageLayerContext = createContext<HTMLElement | null>(null);
 
-/** The fade-out outlasts the answer's first reveal frame, then the stage is removed. */
-export const CHAT_STAGE_HOLD_MS = 300;
+/** The picture fades out as the answer's first words fade in (180ms), then it is removed. */
+export const CHAT_STAGE_HOLD_MS = 240;
 
 /**
  * The stage shows while a turn works and nothing of its answer has arrived: the rows end on the
@@ -39,6 +54,8 @@ export function findChatStageTarget(
     if (row.kind === "working") since ??= row.createdAt ?? null;
     if (row.kind !== "message" && row.kind !== "assistant-meta") continue;
     if (row.message.role === "system") continue;
+    // An answer with no words yet has nothing to show: the stage stays until its first words.
+    if (row.message.role === "assistant" && row.message.text.trim().length === 0) continue;
     if (row.message.role !== "user") return null;
     return { userRowId: row.id, question: row.message.text.trim(), since };
   }

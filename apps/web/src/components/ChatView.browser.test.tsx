@@ -771,6 +771,43 @@ it("a rejected send leaves the timeline when a new draft was typed meanwhile", a
   expect(editor.element().textContent).toContain("Next draft");
 });
 
+it("a quiz request sends the reply's format with the person's short line, and the thread shows only the line", async () => {
+  const thread = threadWithHistory("quiz-request", 1);
+  using _environment = installFakeEnvironment([thread], { acceptCommands: true });
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  await expect.element(page.getByText(`Answer 0 for ${thread.id}.`)).toBeVisible();
+
+  const request = "Another round of three questions.";
+  await userEvent.click(page.getByTestId("composer-editor"));
+  await userEvent.keyboard(`${request}{Enter}`);
+  await vi.waitFor(() =>
+    expect(dispatchedCommands()).toContainEqual(
+      expect.objectContaining({
+        type: "message.dispatch",
+        text: expect.stringContaining("fenced code block labelled quiz"),
+      }),
+    ),
+  );
+  const sent = dispatchedCommands().find(
+    (command) => command.type === "message.dispatch" && command.text.includes(request),
+  );
+  expect(sent).toBeDefined();
+  // The person's own bubble reads as the line they sent; the format is not on screen.
+  await expect.element(page.getByText(request).first()).toBeVisible();
+  expect(document.body.textContent).not.toContain("fenced code block");
+});
+
 it("Enter on an empty prompt resumes an interrupted thread", async () => {
   const history = threadWithHistory("interrupted", 1);
   const interruptedRun = { ...history.runs[0]!, status: "interrupted" as const };

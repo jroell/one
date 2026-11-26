@@ -1,4 +1,8 @@
+import { withAgentInstructions } from "@t3tools/client-runtime/user-message";
+import { msg } from "gt-react";
 import { createContext } from "react";
+
+import { m } from "~/i18n/messages";
 
 /** One question of a quiz the reply carries in a fenced `quiz` block. */
 export interface QuizQuestion {
@@ -77,12 +81,27 @@ export function quizScore(quiz: Quiz, picks: ReadonlyArray<number | null>): numb
   return quiz.questions.filter((question, index) => picks[index] === question.correct).length;
 }
 
-const storageKey = (messageId: string) => `one:quiz:${messageId}`;
+/**
+ * The key a quiz keeps its picks and its element ids under: the message, and which `quiz` block of
+ * it this is. The first block keeps the message's own key, so picks saved before a message could
+ * hold two quizzes still belong to it.
+ */
+export function quizKey(messageId: string, blockIndex: number): string {
+  return blockIndex === 0 ? messageId : `${messageId}:${blockIndex}`;
+}
 
-/** The picks kept for a message, one per question; null when none fit this quiz. */
-export function readQuizPicks(messageId: string, quiz: Quiz): Array<number | null> | null {
+/** How many `quiz` fences open in `text` before `offset`: this block's place among its message's. */
+export function quizBlockIndex(text: string, offset: number): number {
+  const before = text.slice(0, Math.max(0, offset));
+  return before.match(/^ {0,3}(?:`{3,}|~{3,})[ \t]*quiz\b/gm)?.length ?? 0;
+}
+
+const storageKey = (key: string) => `one:quiz:${key}`;
+
+/** The picks kept for a quiz, one per question; null when none fit this quiz. */
+export function readQuizPicks(key: string, quiz: Quiz): Array<number | null> | null {
   try {
-    const raw = window.localStorage.getItem(storageKey(messageId));
+    const raw = window.localStorage.getItem(storageKey(key));
     if (raw === null) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length !== quiz.questions.length) return null;
@@ -99,20 +118,29 @@ export function readQuizPicks(messageId: string, quiz: Quiz): Array<number | nul
   }
 }
 
-export function writeQuizPicks(messageId: string, picks: ReadonlyArray<number | null>): void {
+export function writeQuizPicks(key: string, picks: ReadonlyArray<number | null>): void {
   try {
-    window.localStorage.setItem(storageKey(messageId), JSON.stringify(picks));
+    window.localStorage.setItem(storageKey(key), JSON.stringify(picks));
   } catch {
     // Picks are a convenience: the quiz still works for this visit without them.
   }
 }
 
-/** The prompt that asks for a quiz: three questions, as one fenced block the reading view reads. */
-export function quizStem(
-  gt: (message: string, options?: Record<string, string>) => string,
-): string {
-  return gt(
-    "Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {shape}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.",
-    { shape: QUIZ_SHAPE },
-  );
+/** The two requests the person sees and sends: the follow-up's, and the one after a quiz. */
+export const QUIZ_REQUEST = msg("Quiz me on what you just explained, with three questions.");
+export const QUIZ_ROUND_REQUEST = msg("Another round of three questions.");
+
+/** What the reply must look like for the reading view to turn it into cards. */
+const QUIZ_INSTRUCTIONS = `The person asked for a quiz. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: ${QUIZ_SHAPE}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.`;
+
+/**
+ * A quiz request that is exactly one of the two lines above carries the reply's format with it,
+ * out of sight: the person sees their own short line, never the JSON shape. Anything else they
+ * write is sent as written.
+ */
+export function withQuizInstructions(prompt: string): string {
+  const trimmed = prompt.trim();
+  return trimmed === m(QUIZ_REQUEST) || trimmed === m(QUIZ_ROUND_REQUEST)
+    ? withAgentInstructions(prompt, QUIZ_INSTRUCTIONS)
+    : prompt;
 }
