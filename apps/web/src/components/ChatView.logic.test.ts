@@ -989,6 +989,39 @@ describe("waitForRevertedMessage", () => {
     });
   });
 
+  it("refuses to rewind to a message that carried the app's hidden notes, before it reverts or touches the draft", async () => {
+    const { projection } = projectionAtom();
+    useComposerDraftStore.setState({ draftsByThreadKey: {}, draftThreadsByThreadKey: {} });
+    const revertThreadCheckpoint = vi.fn();
+    const result = await rewindToMessage({
+      message: {
+        id: messageId,
+        role: "user",
+        runId: projection.messages[0]!.runId,
+        streaming: false,
+        createdAt: "2026-03-29T00:00:10.000Z",
+        updatedAt: "2026-03-29T00:00:10.000Z",
+        text: "What is a hub?",
+        context: { version: 1, records: [], agentContext: "Reference notes." },
+      },
+      environmentId: threadRef.environmentId,
+      routeThreadRef: threadRef,
+      threadId: threadRef.threadId,
+      turnCount: 1,
+      restoreFiles: false,
+      checkpoint: undefined,
+      draftTarget: threadRef,
+      composerHasPendingAttachments: false,
+      createAssetUrl: async () => {
+        throw new Error("No attachment expected");
+      },
+      revertThreadCheckpoint,
+    });
+    expect(result.error).toContain("background notes from the app");
+    expect(revertThreadCheckpoint).not.toHaveBeenCalled();
+    expect(useComposerDraftStore.getState().getComposerDraft(threadRef)?.prompt ?? "").toBe("");
+  });
+
   it("rejects with the projected reason when the rollback fails for good", async () => {
     const { state, projection } = projectionAtom();
     const waiting = waitForRevertedMessage(threadRef, 1, requestId, async () => {});

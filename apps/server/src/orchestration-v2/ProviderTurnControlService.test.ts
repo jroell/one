@@ -545,8 +545,8 @@ it.effect(
       assert.equal(steered.length, 1);
       assert.equal(steered.length, 1);
       const text = steered[0]!.message.text;
-      assert.isTrue(text.startsWith("What is this?\n\n[One app context."));
-      assert.include(text, "The user did not write this and cannot see it");
+      assert.isTrue(text.startsWith("What is this?\n\n[One app notes "));
+      assert.include(text, "The person did not write the notes below and cannot see them");
       assert.include(text, "Explain the Providers page.");
     }),
 );

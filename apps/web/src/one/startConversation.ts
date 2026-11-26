@@ -54,6 +54,8 @@ export interface StartConversationInput {
 export type GuidedConversationInput = StartConversationInput & {
   /** Send into the thread the main composer shows, instead of opening a new one. */
   readonly into?: "current-thread";
+  /** With `into`: the thread the caller is showing; a composer on another thread is refused. */
+  readonly expectThreadKey?: string | undefined;
 };
 
 export type GuidedConversationFailure =
@@ -65,6 +67,7 @@ export type GuidedConversationFailure =
   | "context-too-long"
   | "empty-message"
   | "no-composer"
+  | "wrong-thread"
   | "send-failed";
 
 export type GuidedConversationResult =
@@ -113,6 +116,9 @@ const REASONS = {
   "context-too-long": msg("That question carries too much background to send."),
   "empty-message": msg("There is nothing to send."),
   "no-composer": msg("Open a thread you can write in first."),
+  "wrong-thread": msg(
+    "That thread is not the one in the main view. Open it there, then ask again.",
+  ),
   "send-failed": msg("The question did not go through. Try again."),
 } satisfies Record<Exclude<GuidedConversationFailure, "usage-limit">, string>;
 
@@ -152,6 +158,9 @@ export async function startGuidedConversation(
   if (input.into === "current-thread") {
     const bridge = deps.composer();
     if (bridge === null) return { ok: false, reason: "no-composer" };
+    if (input.expectThreadKey !== undefined && bridge.threadKey !== input.expectThreadKey) {
+      return { ok: false, reason: "wrong-thread" };
+    }
     if (!deps.supportsAgentContext(bridge.environmentId)) {
       return { ok: false, reason: "server-too-old" };
     }
@@ -362,7 +371,7 @@ export function useStartConversation(): (input: StartConversationInput) => Promi
 
 /** For callers that send into the thread on screen and show a failure themselves. */
 export function useSendGuidedMessage(): (
-  input: StartConversationInput,
+  input: StartConversationInput & { readonly expectThreadKey?: string | undefined },
 ) => Promise<GuidedConversationResult> {
   const { deps } = useGuidedConversationDeps();
   return (input) => startGuidedConversation({ ...input, into: "current-thread" }, deps);

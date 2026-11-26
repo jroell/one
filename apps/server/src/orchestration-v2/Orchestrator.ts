@@ -16031,7 +16031,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         const initialMessage = threadCreateInitialMessage(command);
         if (initialMessage !== undefined) {
           cancelUnsettledEffects = yield* dispatchMessage(
-            withoutGuestAttribution(initialMessage),
+            withAgentContextFromFirstParty(withoutGuestAttribution(initialMessage), initialMessage),
             events,
             effects,
           );

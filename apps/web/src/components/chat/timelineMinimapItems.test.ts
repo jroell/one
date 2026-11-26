@@ -92,29 +92,33 @@ describe("resolveTimelineMinimapPreview", () => {
     expect(preview?.userText).toBe("Build log");
   });
 
-  it("labels an old turn by the words the person sent, without the instructions an earlier build wrote into its text", () => {
-    const label = (createdAt: string) =>
+  it("labels a turn by the words the person sent, without the exact instructions an earlier build wrote into its text", () => {
+    const shipped =
+      'The person asked for a quiz. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
+    const label = (text: string) =>
       deriveTimelineMinimapItems([
         {
           kind: "message",
           id: "quiz-request",
-          createdAt,
+          createdAt: "2026-11-26T09:30:00.000Z",
           showAssistantMeta: false,
           showAssistantCopyButton: false,
           assistantCopyStreaming: false,
           message: {
             id: MessageId.make("quiz-request"),
             role: "user",
-            text: "Another round of three questions.\n\n<one-instructions>\nReply with only JSON.\n</one-instructions>",
+            text,
             runId: null,
             streaming: false,
-            createdAt,
-            updatedAt: createdAt,
+            createdAt: "2026-11-26T09:30:00.000Z",
+            updatedAt: "2026-11-26T09:30:00.000Z",
           },
         },
       ])[0]!.userText;
-    expect(label("2026-11-26T09:30:00.000Z")).toBe("Another round of three questions.");
-    // After that, text that looks like the tags is what the person typed.
-    expect(label("2026-11-28T09:30:00.000Z")).toContain("<one-instructions>");
+    const block = (instructions: string) =>
+      `Another round of three questions.\n\n<one-instructions>\n${instructions}\n</one-instructions>`;
+    expect(label(block(shipped))).toBe("Another round of three questions.");
+    // Tags with any other content are what the person typed.
+    expect(label(block("Reply with only JSON."))).toContain("<one-instructions>");
   });
 });

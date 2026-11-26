@@ -4,7 +4,6 @@ import {
   retractComposerSend,
   type GuidedSendResult,
 } from "~/one/composerSendBridge";
-import { setPendingAgentContext, takePendingAgentContext } from "~/one/pendingAgentContext";
 import { VoiceInputSetup } from "./VoiceInputSetup";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -2513,12 +2512,23 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current(undefined, undefined, { voice: report });
   });
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
-  // Sends one message for the app through the same send as a typed one. It never overwrites a
-  // draft; the notes ride beside the text and are taken by exactly this send.
+  // Sends one message for the app through the same send as a typed one. It needs an empty
+  // composer in every slot, carries its notes on its own report so no later message can take
+  // them, and succeeds only once the server accepted the turn. Any other outcome leaves the
+  // composer empty, as the person had it.
   const sendForApp = useStableCallback(
     (input: { readonly text: string; readonly agentContext: string }) =>
       new Promise<GuidedSendResult>((resolve) => {
-        if (prompt.trim().length > 0) {
+        const composerEmpty =
+          prompt.trim().length === 0 &&
+          composerImages.length + composerFiles.length === 0 &&
+          composerSendState.sendableTerminalContexts.length === 0 &&
+          composerPreviewAnnotations.length === 0 &&
+          composerReviewComments.length === 0 &&
+          composerThreadContexts.length === 0 &&
+          composerEnvironmentContexts.length === 0 &&
+          (composerDraft?.replyTo ?? null) === null;
+        if (!composerEmpty) {
           resolve({ ok: false, reason: "draft-in-the-way" });
           return;
         }
@@ -2529,19 +2539,27 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           resolve({ ok: false, reason: "no-provider" });
           return;
         }
-        setPendingAgentContext(composerDraftTargetKey, input.agentContext);
         setComposerDraftPrompt(composerDraftTarget, input.text);
         promptRef.current = input.text;
-        const done = (result: GuidedSendResult) => {
-          // Whatever happened, no later message from this composer carries these notes.
-          takePendingAgentContext(composerDraftTargetKey);
+        let settled = false;
+        const settle = (result: GuidedSendResult) => {
+          if (settled) return;
+          settled = true;
+          const draft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
+          if (!result.ok && draft?.prompt === input.text) {
+            setComposerDraftPrompt(composerDraftTarget, "");
+            promptRef.current = "";
+          }
           resolve(result);
         };
         submitComposerRef.current(undefined, undefined, {
           voice: {
-            sent: (messageId) => done({ ok: true, messageId }),
-            rejected: (message) => done({ ok: false, reason: "rejected", message }),
-            notSent: () => done({ ok: false, reason: "not-sent" }),
+            agentContext: input.agentContext,
+            // The request going out is not yet an answer from the server.
+            sent: () => {},
+            accepted: (messageId) => settle({ ok: true, messageId }),
+            rejected: (message) => settle({ ok: false, reason: "rejected", message }),
+            notSent: () => settle({ ok: false, reason: "not-sent" }),
           },
         });
       }),

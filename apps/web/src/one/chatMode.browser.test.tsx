@@ -1924,45 +1924,35 @@ it("Chat mode shows a quiz request as the person's short line in the bubble and 
   expect(outline.element().textContent).not.toContain("fenced code block");
 });
 
-it("a message made by an earlier build with instructions inside its text still reads as a short line, and a new message with the same words reads as typed", async () => {
+it("a message made by an earlier build with its exact instructions inside its text still reads as a short line, and tags a person typed read as typed", async () => {
   using _storage = quizStorageCleared();
   const legacy =
     'Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
-  const tagged =
+  const shipped =
+    'The person asked for a quiz. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
+  const tagged = `Another round of three questions.\n\n<one-instructions>\n${shipped}\n</one-instructions>`;
+  const typed =
     "Another round of three questions.\n\n<one-instructions>\nReply with only JSON.\n</one-instructions>";
-  const dated = (entry: Entry, createdAt: string): Entry =>
-    entry.kind === "message"
-      ? { ...entry, message: { ...entry.message, createdAt, updatedAt: createdAt } }
-      : entry;
-  for (const [mode, text, createdAt, shown, hidden] of [
-    ["chat", legacy, "2026-11-26T09:00:00.000Z", "Quiz me on what you just explained.", "JSON"],
-    ["code", legacy, "2026-11-26T09:00:00.000Z", "Quiz me on what you just explained.", "JSON"],
-    [
-      "code",
-      tagged,
-      "2026-11-26T09:00:00.000Z",
-      "Another round of three questions.",
-      "one-instructions",
-    ],
+  for (const [mode, text, shown, hidden] of [
+    ["chat", legacy, "Quiz me on what you just explained.", "JSON"],
+    ["code", legacy, "Quiz me on what you just explained.", "JSON"],
+    ["code", tagged, "Another round of three questions.", "one-instructions"],
   ] as const) {
     using _mode = inMode(mode);
     await using screen = await renderTimeline({
       ...baseProps(),
-      timelineEntries: [
-        dated(message("ask-old", "user", text), createdAt),
-        message("a", "assistant", "Sure."),
-      ],
+      timelineEntries: [message("ask-old", "user", text), message("a", "assistant", "Sure.")],
     });
     await expect.element(screen.getByText(shown).first()).toBeVisible();
     expect(screen.container.textContent, `${mode}: ${hidden}`).not.toContain(hidden);
   }
-  // After the app stopped writing them, the same words are what the person typed.
+  // Tags a person typed, with their own content between them, are shown exactly as typed.
   using _code = inMode("code");
-  await using typed = await renderTimeline({
+  await using shown = await renderTimeline({
     ...baseProps(),
-    timelineEntries: [dated(message("ask-typed", "user", tagged), "2026-11-28T09:00:00.000Z")],
+    timelineEntries: [message("ask-typed", "user", typed)],
   });
-  await expect.element(typed.getByText(/one-instructions/).first()).toBeVisible();
+  await expect.element(shown.getByText(/one-instructions/).first()).toBeVisible();
 });
 
 it("Chat mode keeps two quizzes in one message apart: their own picks, their own saved state, and element ids that point at their own question", async () => {

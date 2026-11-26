@@ -148,7 +148,7 @@ describe("handoff budget", () => {
       context: { version: 1, records: [], agentContext: "Explain the Providers page." },
     });
     assert.equal(asked?.role, "user");
-    assert.isTrue(asked!.text.startsWith("What is this?\n\n[One app context."));
+    assert.isTrue(asked!.text.startsWith("What is this?\n\n[One app notes "));
     assert.include(asked!.text, "Explain the Providers page.");
     assert.equal(command?.role, "assistant");
     assert.equal(command?.kind, "command_execution");

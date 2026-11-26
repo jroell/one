@@ -1299,3 +1299,54 @@ it.effect(
       }).pipe(Effect.provide(layerTest));
     }),
 );
+
+it.effect(
+  "leaves the app's hidden notes out of an exported transcript and keeps the person's words",
+  () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("thread:transcript:notes");
+      const row = (type: string, extra: object) => ({ item: { type, ...extra } });
+      const layerTest = ThreadManagementService.layer.pipe(
+        Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
+        Layer.provide(
+          Layer.mock(Orchestrator.OrchestratorV2)({
+            getTranscriptByteFloor: () => Effect.succeed(0),
+            getThreadSnapshot: () =>
+              Effect.succeed({
+                schemaVersion: 1,
+                snapshotSequence: 1,
+                projection: {
+                  thread: { id: threadId, title: "Explain" },
+                  updatedAt: DateTime.makeUnsafe(0),
+                  visibleTurnItems: [
+                    row("user_message", {
+                      text: "What is a hub?",
+                      context: {
+                        version: 1,
+                        records: [],
+                        agentContext: "Reference notes: SECRET-NOTES",
+                      },
+                    }),
+                    row("assistant_message", { text: "A hub is..." }),
+                  ],
+                } as unknown as OrchestrationV2ThreadProjection,
+              }),
+          }),
+        ),
+        Layer.provide(ServerSettings.layerTest()),
+        Layer.provide(layerReceiptsTest),
+      );
+      const transcript = yield* Effect.gen(function* () {
+        const threads = yield* ThreadManagementService.ThreadManagementService;
+        return yield* threads.getThreadTranscript(threadId).pipe(
+          Effect.provideService(ServerEnvironment.ServerEnvironmentIdentity, {
+            getEnvironmentId: Effect.succeed(EnvironmentId.make("environment:export")),
+          }),
+        );
+      }).pipe(Effect.provide(layerTest));
+      const written = JSON.stringify(transcript.items);
+      expect(written).toContain("What is a hub?");
+      expect(written).not.toContain("SECRET-NOTES");
+      expect(written).not.toContain("agentContext");
+    }),
+);

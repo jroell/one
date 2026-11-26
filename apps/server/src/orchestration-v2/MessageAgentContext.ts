@@ -1,10 +1,11 @@
-import type {
-  OrchestrationMessageContext,
-  OrchestrationV2Actor,
-  OrchestrationV2CreationSource,
+import {
+  isFirstPartyMessageOrigin,
+  type OrchestrationMessageContext,
+  type OrchestrationV2Actor,
+  type OrchestrationV2CreationSource,
 } from "@t3tools/contracts";
 
-/** Who made a message, as far as the fields that say so go. Absent fields mean "not that". */
+/** Who made a message, as far as the fields that say so go. A missing field never grants trust. */
 export interface MessageOrigin {
   readonly createdBy?: OrchestrationV2Actor | undefined;
   readonly creationSource?: OrchestrationV2CreationSource | undefined;
@@ -13,25 +14,6 @@ export interface MessageOrigin {
   readonly linkedSender?: unknown;
   readonly linkOrigin?: unknown;
   readonly guestMessageId?: unknown;
-}
-
-/**
- * Only a message a person sent from this app's own client may carry `context.agentContext`: not an
- * agent's or a tool's, not a guest's, not a scheduled task's, not one that came over a link from
- * another environment. Anything else could hide words from the person or pose as the app.
- */
-function isFirstPartyMessage(origin: MessageOrigin): boolean {
-  return (
-    (origin.createdBy === undefined || origin.createdBy === "user") &&
-    (origin.creationSource === undefined ||
-      origin.creationSource === "web" ||
-      origin.creationSource === "mobile") &&
-    origin.scheduledTaskId === undefined &&
-    origin.senderThreadId === undefined &&
-    origin.linkedSender === undefined &&
-    origin.linkOrigin === undefined &&
-    origin.guestMessageId === undefined
-  );
 }
 
 /** The same value with the app's context taken out of its message context. */
@@ -43,11 +25,14 @@ export function withoutAgentContext<
   return { ...value, context };
 }
 
-/** Keeps the app's context on a message from a first-party client and drops it from any other. */
+/**
+ * Keeps the app's context on a message a person sent from this app's own client and drops it
+ * from any other origin. Fails closed (see `isFirstPartyMessageOrigin`).
+ */
 export function withAgentContextFromFirstParty<
   C extends { readonly context?: OrchestrationMessageContext | undefined },
 >(value: C, origin: MessageOrigin): C {
-  return isFirstPartyMessage(origin) ? value : withoutAgentContext(value);
+  return isFirstPartyMessageOrigin(origin) ? value : withoutAgentContext(value);
 }
 
 /**

@@ -16,7 +16,6 @@ import {
 import { filePreviewKind } from "@t3tools/shared/filePreview";
 import { imageMimeType } from "@t3tools/shared/image";
 import { videoMimeType } from "@t3tools/shared/video";
-import * as DateTime from "effect/DateTime";
 import { msg } from "gt-i18n";
 
 /** The working row while T3 Code's own compaction runs. */
@@ -33,42 +32,43 @@ export const IDLE_COMPACTION_TITLES = {
 
 const LEGACY_INSTRUCTIONS_OPEN = "<one-instructions>";
 const LEGACY_INSTRUCTIONS_CLOSE = "</one-instructions>";
-/**
- * Messages made before this moment may hold the app's instructions inside their text, between
- * tags, written by an earlier build. From this moment the app sends them in
- * `context.agentContext`, so text made after it is always the person's own, tags and all.
- */
-export const LEGACY_INSTRUCTIONS_UNTIL = "2026-11-27T00:00:00.000Z";
 
-/** The quiz request as it was first sent, with its whole format in the visible text (English). */
-const LEGACY_QUIZ_REQUEST =
-  /^(Quiz me on what you just explained\.) Ask three questions\. Reply with only a fenced code block labelled quiz that holds JSON in this shape: [\s\S]*$/;
-
-const isoOf = (value: unknown): string | undefined =>
-  typeof value === "string"
-    ? value
-    : DateTime.isDateTime(value)
-      ? DateTime.formatIso(value)
-      : undefined;
+/** The quiz format that shipped between the tags, word for word. Frozen: never edit or extend. */
+const LEGACY_QUIZ_SHAPE =
+  '{"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}';
+const LEGACY_QUIZ_FORMAT = `The person asked for a quiz. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: ${LEGACY_QUIZ_SHAPE}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.`;
 
 /**
- * What the person wrote in a message made before `LEGACY_INSTRUCTIONS_UNTIL`, with the
- * instructions an earlier build put in its text left out. A newer message, or one with no date, is
- * returned as it is: text that merely looks like the tags is the person's.
+ * Every instruction text an earlier build wrote between the tags. Only a block that equals one of
+ * these exactly is cut from the person's words: tags the person typed, or any other content
+ * between tags, show as typed. Frozen, because old messages keep these texts forever.
  */
-export function legacyVisibleText(message: {
-  readonly text: string;
-  readonly createdAt?: unknown;
-}): string {
+const LEGACY_INSTRUCTION_TEXTS: ReadonlySet<string> = Object.freeze(
+  new Set([LEGACY_QUIZ_FORMAT]),
+) as ReadonlySet<string>;
+
+/**
+ * The first quiz request shipped with its whole format in the visible text (English only; the
+ * other languages of that one build show their full text). It is cut only when the text is that
+ * message exactly.
+ */
+const LEGACY_QUIZ_REQUEST_LEAD = "Quiz me on what you just explained.";
+const LEGACY_QUIZ_REQUEST_TEXT = `${LEGACY_QUIZ_REQUEST_LEAD} Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: ${LEGACY_QUIZ_SHAPE}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.`;
+
+/**
+ * What the person wrote, with the instructions an earlier build put in the message's text left
+ * out. Nothing but the app's own old texts is ever removed, so a person typing the tags is shown
+ * exactly what they typed.
+ */
+export function legacyVisibleText(message: { readonly text: string }): string {
   const text = message.text;
-  const createdAt = isoOf(message.createdAt);
-  if (createdAt === undefined || !(createdAt < LEGACY_INSTRUCTIONS_UNTIL)) return text;
-  const legacy = LEGACY_QUIZ_REQUEST.exec(text);
-  if (legacy !== null) return legacy[1]!;
+  if (text.trim() === LEGACY_QUIZ_REQUEST_TEXT) return LEGACY_QUIZ_REQUEST_LEAD;
   const start = text.indexOf(LEGACY_INSTRUCTIONS_OPEN);
   if (start < 0) return text;
   const end = text.indexOf(LEGACY_INSTRUCTIONS_CLOSE, start);
   if (end < 0) return text;
+  const content = text.slice(start + LEGACY_INSTRUCTIONS_OPEN.length, end).trim();
+  if (!LEGACY_INSTRUCTION_TEXTS.has(content)) return text;
   return `${text.slice(0, start).trimEnd()}${text.slice(end + LEGACY_INSTRUCTIONS_CLOSE.length)}`.trim();
 }
 
@@ -109,8 +109,6 @@ export function resolveUserMessagePresentation(message: {
   readonly creationSource?: OrchestrationV2CreationSource;
   readonly scheduledTaskId?: ScheduledTaskId | undefined;
   readonly context?: { readonly guest?: GuestMessageAttribution | undefined } | undefined;
-  /** When it was made, as an ISO string or a date; read only to tell an old message from a new one. */
-  readonly createdAt?: unknown;
 }): {
   readonly text: string;
   readonly attribution: "automation" | "agent" | "t3code" | "guest" | null;

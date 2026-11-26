@@ -327,6 +327,45 @@ it.effect(
     }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect(
+  "never gives a guest watching live the app's notes in the message or turn item events that follow",
+  () =>
+    Effect.gen(function* () {
+      const { orchestrator, guestShares, credential } = yield* shareThread;
+      const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
+      const secret = "APP_NOTE_LIVE_THE_GUEST_MUST_NOT_SEE";
+      const kinds = new Set<string>();
+      const watching = yield* (yield* guestShares.stream(session)).pipe(
+        Stream.takeUntil((event) => {
+          if (event.type === "thread" && event.item.kind === "event") {
+            kinds.add(event.item.event.type);
+          }
+          return kinds.has("message.updated") && kinds.has("turn-item.updated");
+        }),
+        Stream.runCollect,
+        Effect.forkChild({ startImmediately: true }),
+      );
+      yield* Effect.yieldNow;
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make("owner-live-message-with-note"),
+        threadId,
+        messageId: MessageId.make("message:live-note"),
+        text: "What is this?",
+        context: { version: 1, records: [], agentContext: secret },
+        attachments: [],
+        dispatchMode: { type: "defer_start" },
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const events = Array.from(yield* Fiber.join(watching));
+      assert.isTrue(kinds.has("message.updated") && kinds.has("turn-item.updated"));
+      const shown = JSON.stringify(events);
+      assert.include(shown, "What is this?");
+      assert.notInclude(shown, secret);
+    }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("redeems only a short invite whose signature and share id are both current", () =>
   Effect.gen(function* () {
     const { guestShares, credential: replaced } = yield* shareThread;

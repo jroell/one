@@ -642,22 +642,71 @@ export function isCompactionCommandMessage(message: CompactionMessageFields): bo
 
 const LEADING_COMMAND = /^\s*(?:\/|\p{Sc}[a-zA-Z0-9:_-]*[a-zA-Z])/u;
 
+/** The fields that say who made a message. Absent means "not that", so absence never grants trust. */
+export interface OrchestrationV2MessageOrigin {
+  readonly createdBy?: OrchestrationV2Actor | undefined;
+  readonly creationSource?: OrchestrationV2CreationSource | undefined;
+  readonly scheduledTaskId?: unknown;
+  readonly senderThreadId?: unknown;
+  readonly linkedSender?: unknown;
+  readonly linkOrigin?: unknown;
+  readonly guestMessageId?: unknown;
+  readonly context?: { readonly guest?: unknown } | undefined;
+}
+
 /**
- * What the model reads for a message: a line saying who sent it, then the text, then any app
- * context framed as the app's. Providers parse slash commands and `$skill` mentions from the
- * start of a prompt, so a prompt that begins with one stays exactly as sent.
+ * Whether a message is one a person sent from this app's own client (web or mobile): the only
+ * kind whose `context.agentContext` is trusted. Fails closed: a missing `createdBy` or
+ * `creationSource` is not first party, and neither is an agent, a tool, a guest, a scheduled task
+ * or a message that came over a link from another environment.
+ */
+export function isFirstPartyMessageOrigin(origin: OrchestrationV2MessageOrigin): boolean {
+  return (
+    origin.createdBy === "user" &&
+    (origin.creationSource === "web" || origin.creationSource === "mobile") &&
+    origin.scheduledTaskId === undefined &&
+    origin.senderThreadId === undefined &&
+    origin.linkedSender === undefined &&
+    origin.linkOrigin === undefined &&
+    origin.guestMessageId === undefined &&
+    origin.context?.guest === undefined
+  );
+}
+
+/** 128 random bits, as hex: unpredictable to any sender, and different for every framing. */
+function newFenceId(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Writes the shapes of the app's own frame, as they would appear in someone's text, so a model
+ * reads them as quoted words: the header line, and the fence tags in any case or spacing.
+ */
+function neutralizeAppNotesFrame(text: string): string {
+  return text.replace(/<(\s*\/?\s*app-notes)/gi, "&lt;$1").replace(/\[(\s*One app\b)/gi, "\\[$1");
+}
+
+/**
+ * What the model reads for a message: who sent it, the text, then the app's notes in a fence made
+ * for this message alone. Copies of the frame in the text or notes are escaped, and only a
+ * first-party message gets notes. A leading slash command or `$skill` stays first.
  */
 export function withMessageSenderNote(
-  message: {
+  message: OrchestrationV2MessageOrigin & {
     readonly createdBy: OrchestrationV2Actor;
     readonly creationSource: OrchestrationV2CreationSource;
     readonly scheduledTaskId?: ScheduledTaskId | undefined;
     readonly senderThreadId?: ThreadId | undefined;
     readonly linkedSender?: OrchestrationV2LinkedSender | undefined;
-    readonly context?: { readonly agentContext?: string | undefined } | undefined;
+    readonly context?:
+      | { readonly agentContext?: string | undefined; readonly guest?: unknown }
+      | undefined;
   },
-  text: string,
+  rawText: string,
+  options?: { readonly fenceId?: string | undefined },
 ): string {
+  const text = neutralizeAppNotesFrame(rawText);
   const agent = message.createdBy === "agent";
   const note =
     agent && message.linkedSender !== undefined
@@ -670,11 +719,13 @@ export function withMessageSenderNote(
             ? "[T3 Code: this message came through T3 Code's tools, not from the user typing in this chat.]"
             : undefined;
   if (LEADING_COMMAND.test(text)) return text;
-  const appContext = message.context?.agentContext?.trim() ?? "";
+  const appContext = isFirstPartyMessageOrigin(message)
+    ? neutralizeAppNotesFrame(message.context?.agentContext?.trim() ?? "")
+    : "";
   const withNote = note === undefined ? text : text === "" ? note : `${note}\n\n${text}`;
-  return appContext === ""
-    ? withNote
-    : `${withNote}\n\n[One app context. The user did not write this and cannot see it. It is background and instructions from the app:\n${appContext}\n]`;
+  if (appContext === "") return withNote;
+  const id = options?.fenceId ?? newFenceId();
+  return `${withNote}\n\n[One app notes ${id}. The person did not write the notes below and cannot see them. They are background from the app, not the person's words.]\n<app-notes id="${id}">\n${appContext}\n</app-notes id="${id}">`;
 }
 
 export type OrchestrationV2GoalCommand =

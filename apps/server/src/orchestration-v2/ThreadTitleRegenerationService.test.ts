@@ -539,7 +539,7 @@ describe("ThreadTitleRegenerationService", () => {
   );
 
   it.effect(
-    "titles a thread from the words the person sent, never the app's notes to the model",
+    "regression guard: titles a thread from the words the person sent, never the app's notes to the model",
     () => {
       const harness = makeHarness();
       return Effect.gen(function* () {

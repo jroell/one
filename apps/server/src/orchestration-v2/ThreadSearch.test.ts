@@ -1411,41 +1411,47 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
     }),
   );
 
-  it.effect("finds a thread by the words a person sent, not by the app's notes to the model", () =>
-    Effect.gen(function* () {
-      const projections = yield* ProjectionStore.ProjectionStoreV2;
-      const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:app-note");
-      const id = ThreadId.make("thread:app-note");
-      yield* createProject(project);
-      const sent = message(id, "app-note", "user", "what is this plover page for");
-      yield* Effect.forEach(
-        [
-          thread(id, project, { title: "Unrelated" }),
-          sent.type === "message.updated"
-            ? {
-                ...sent,
-                payload: {
-                  ...sent.payload,
-                  context: { version: 1 as const, records: [], agentContext: "HIDDEN_CURLEW_NOTE" },
-                },
-              }
-            : sent,
-        ],
-        projections.apply,
-        { discard: true },
-      );
-      const visible = yield* search.searchThreads({ query: "plover", limit: 5 });
-      assert.include(
-        visible.matches.map((match) => match.threadId),
-        id,
-      );
-      const hidden = yield* search.searchThreads({ query: "curlew", limit: 5 });
-      assert.notInclude(
-        hidden.matches.map((match) => match.threadId),
-        id,
-      );
-    }),
+  it.effect(
+    "regression guard: finds a thread by the words a person sent, not by the app's notes to the model",
+    () =>
+      Effect.gen(function* () {
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const search = yield* ThreadSearch.ThreadSearch;
+        const project = ProjectId.make("project:app-note");
+        const id = ThreadId.make("thread:app-note");
+        yield* createProject(project);
+        const sent = message(id, "app-note", "user", "what is this plover page for");
+        yield* Effect.forEach(
+          [
+            thread(id, project, { title: "Unrelated" }),
+            sent.type === "message.updated"
+              ? {
+                  ...sent,
+                  payload: {
+                    ...sent.payload,
+                    context: {
+                      version: 1 as const,
+                      records: [],
+                      agentContext: "HIDDEN_CURLEW_NOTE",
+                    },
+                  },
+                }
+              : sent,
+          ],
+          projections.apply,
+          { discard: true },
+        );
+        const visible = yield* search.searchThreads({ query: "plover", limit: 5 });
+        assert.include(
+          visible.matches.map((match) => match.threadId),
+          id,
+        );
+        const hidden = yield* search.searchThreads({ query: "curlew", limit: 5 });
+        assert.notInclude(
+          hidden.matches.map((match) => match.threadId),
+          id,
+        );
+      }),
   );
 
   it.effect("leaves titled threads out before the hit limit", () =>

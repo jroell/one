@@ -11,9 +11,6 @@ import {
 
 const decodeRecord = Schema.decodeUnknownOption(ComposerContextRecord);
 const decodeContext = Schema.decodeUnknownSync(OrchestrationMessageContext);
-const decodeOlderContext = Schema.decodeUnknownSync(
-  Schema.Struct({ version: Schema.Literal(1), records: Schema.Array(Schema.Unknown) }),
-);
 
 const base = { version: 1, contextId: "ctx_1" } as const;
 
@@ -272,11 +269,9 @@ describe("OrchestrationMessageContext agentContext", () => {
     expect(() => decodeContext({ version: 1, records: [], agentContext: `${full}x` })).toThrow();
   });
 
-  it("is dropped by a reader that does not know the field, leaving the rest of the context", () => {
-    // An older client's schema is this struct without `agentContext`; decoding ignores the extra key.
-    expect(decodeOlderContext({ version: 1, records: [], agentContext: "Background" })).toEqual({
-      version: 1,
-      records: [],
-    });
+  it("decodes a context stored before the field existed, with no agentContext and none added", () => {
+    const decoded = decodeContext({ version: 1, records: [] });
+    expect(decoded.agentContext).toBeUndefined();
+    expect("agentContext" in decoded).toBe(false);
   });
 });

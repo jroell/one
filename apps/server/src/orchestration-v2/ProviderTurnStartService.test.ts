@@ -2395,8 +2395,8 @@ effectIt.effect(
       });
       yield* harness.start;
       const text = harness.startTurn.mock.calls[0]?.[0].message.text ?? "";
-      expect(text.startsWith("What is this?\n\n[One app context.")).toBe(true);
-      expect(text).toContain("The user did not write this and cannot see it");
+      expect(text.startsWith("What is this?\n\n[One app notes ")).toBe(true);
+      expect(text).toContain("The person did not write the notes below and cannot see them");
       expect(text).toContain("Explain the Providers page.");
     }),
 );

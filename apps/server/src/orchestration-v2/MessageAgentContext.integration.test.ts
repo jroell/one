@@ -159,3 +159,40 @@ it.effect(
       assert.equal(text, "What is this page for?");
     }).pipe(Effect.provide(layerTest)),
 );
+
+it.effect.each([
+  ["an agent", false, { createdBy: "agent", creationSource: "mcp" }],
+  ["a person on the web client", true, { createdBy: "user", creationSource: "web" }],
+] as const)(
+  "the first message of a thread made by %s keeps the app's context: %s",
+  ([_name, kept, origin]) =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const created = ThreadId.make("thread:initial-message");
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("create-with-message"),
+        threadId: created,
+        projectId: ProjectId.make("project:message-agent-context"),
+        title: "Explain",
+        modelSelection: { instanceId, model: "gpt-5.1-codex" },
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        ...origin,
+        initialMessage: {
+          messageId: MessageId.make("initial"),
+          text: "What is this?",
+          context: { version: 1, records: [], agentContext: NOTE },
+          attachments: [],
+          workspaceStrategy: undefined,
+        },
+      } as unknown as OrchestrationV2Command);
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const message = (yield* projections.getThreadProjection(created)).messages.find(
+        (candidate) => candidate.id === MessageId.make("initial"),
+      );
+      assert.equal(message?.context?.agentContext, kept ? NOTE : undefined);
+    }).pipe(Effect.provide(layerTest)),
+);

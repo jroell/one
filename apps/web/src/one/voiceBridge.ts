@@ -11,6 +11,10 @@ export type VoiceSendReport = Readonly<{
   rejected: (message: string | null) => void;
   /** The composer ended without sending a turn: a side chat command, or a send it dropped. */
   notSent: (destination: "side-chat" | "none") => void;
+  /** Set only by the app's own guided send: the server accepted the turn request. */
+  accepted?: (messageId: string) => void;
+  /** Set only by the app's own guided send: hidden notes that ride with this one message. */
+  agentContext?: string;
 }>;
 
 /**

@@ -1,7 +1,6 @@
 import { msg } from "gt-react";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m } from "~/i18n/messages";
-import { takePendingAgentContext } from "~/one/pendingAgentContext";
 import { isClearComposerCommand, parseSideChatCommand } from "@t3tools/shared/composerTrigger";
 import { readWorktreeBaseBranch } from "../../worktreeRepositoryChoiceStore";
 import { armFreshSession, disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
@@ -99,6 +98,7 @@ import {
 } from "../../lib/composerContextRecords";
 import { environmentServerConfigsAtom } from "../../state/server";
 import { threadEnvironment } from "../../state/threads";
+import { acceptsAppNotes } from "~/one/appNotesSupport";
 import { runMobileComposerTransition } from "./draftHeroTransition";
 import { useClientSettingsHydrated } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -991,8 +991,15 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     const threadIdForSend = activeThread.id;
-    // Taken here, before any wait: a later message from this composer must not carry them.
-    const appContextForSend = takePendingAgentContext(composerTargetKey(composerDraftTarget));
+    // Carried by this one send's own report, so no later message from this composer has them.
+    const appContextForSend = voice?.agentContext;
+    if (appContextForSend !== undefined && !acceptsAppNotes(environmentId)) {
+      // A load-balanced draft can move to a machine too old to read the notes: refuse, never drop them.
+      voice?.rejected(
+        m(msg("This machine is too old to carry that question. Update it, then ask again.")),
+      );
+      return;
+    }
     const sendSnapshot = snapshotComposerSend({
       prompt: promptForSend,
       images: composerImages,
@@ -1641,6 +1648,7 @@ export function useComposerSend(input: ComposerSendInput) {
         );
       } else {
         turnStartSucceeded = true;
+        voice?.accepted?.(messageIdForSend);
         if (checkoutPullRequestUrl) {
           linkCheckoutPullRequest(
             scopeThreadRef(environmentId, threadIdForSend),
@@ -1707,7 +1715,9 @@ export function useComposerSend(input: ComposerSendInput) {
       });
       // A restored draft clones its images, so the sent copies are no longer used.
       optimisticBlobPreviews.release(optimisticMessage);
-      if (
+      if (voice?.agentContext !== undefined) {
+        // The app asked for this send and shows its failure itself, so its line is not restored.
+      } else if (
         composerDraftHasUserContent(
           useComposerDraftStore.getState().getComposerDraft(composerDraftTarget),
         )
@@ -1807,11 +1817,11 @@ export function useComposerSend(input: ComposerSendInput) {
     if (voice === undefined) return sendMessage(...args);
     let reported = false;
     const watched: VoiceSendReport = {
+      ...voice,
       sent: (messageId) => {
         reported = true;
         voice.sent(messageId);
       },
-      rejected: voice.rejected,
       notSent: (destination) => {
         reported = true;
         voice.notSent(destination);
@@ -1832,6 +1842,8 @@ export function useComposerSend(input: ComposerSendInput) {
       sendInFlightRef.current = false;
     });
     if (ready) return onSendLatest(...args);
+    // The draft or the settings changed during the machine pick, so nothing was sent.
+    args[5]?.notSent("none");
   };
   const sendWithEnvironmentRefreshLatest = useStableCallback(sendWithEnvironmentRefresh);
   const onSendWithRouting = async (...args: Parameters<typeof onSend>) => {

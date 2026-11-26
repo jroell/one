@@ -194,6 +194,16 @@ export async function rewindToMessage(input: {
   | { readonly error: null; readonly prompt: string }
 > {
   const { message, environmentId, draftTarget } = input;
+  // The app's hidden notes cannot be put back in a draft, so a resend would lose them silently.
+  if (message.context?.agentContext !== undefined) {
+    return {
+      error: m(
+        msg(
+          "This question came with background notes from the app, which cannot be restored. Ask it again from where it started.",
+        ),
+      ),
+    };
+  }
   try {
     if (input.composerHasPendingAttachments) {
       throw new Error(m(msg("Wait for attachments to finish preparing before rewinding.")));

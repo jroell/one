@@ -110,6 +110,9 @@ export const CLAUDE_PROVIDER = {
   slashCommands: [{ name: "compact" }],
 };
 
+/** Whether the fake server says it reads the app's hidden notes on a message. */
+let appNotesCapability = true;
+
 const decodeServerConfig = Schema.decodeUnknownSync(ServerConfig);
 const makeServerConfig = (
   providers: ReadonlyArray<unknown>,
@@ -118,7 +121,11 @@ const makeServerConfig = (
   ...decodeServerConfig({
     environment: {
       ...descriptor,
-      capabilities: { ...descriptor.capabilities, issues: supportsIssues },
+      capabilities: {
+        ...descriptor.capabilities,
+        issues: supportsIssues,
+        messageAgentContext: appNotesCapability,
+      },
     },
     auth,
     cwd: "/workspace/render",
@@ -659,8 +666,11 @@ export function installFakeEnvironment(
     /** Commands left unanswered even when accepting, until `rejectPendingCommand`. */
     readonly holdCommand?: (command: OrchestrationV2Command) => boolean;
     readonly providers?: ReadonlyArray<unknown>;
+    /** False makes the server one that predates the app's hidden notes. */
+    readonly appNotes?: boolean;
   },
 ): Disposable {
+  appNotesCapability = options?.appNotes ?? true;
   threads = fixtures;
   baseServerConfig = {
     ...makeServerConfig(
@@ -683,7 +693,15 @@ export function installFakeEnvironment(
   globalThis.fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
     if (url.origin !== window.location.origin) return realFetch(input, init);
-    if (url.pathname === "/.well-known/t3/environment") return json(encodedDescriptor);
+    if (url.pathname === "/.well-known/t3/environment") {
+      return json({
+        ...encodedDescriptor,
+        capabilities: {
+          ...encodedDescriptor.capabilities,
+          messageAgentContext: appNotesCapability,
+        },
+      });
+    }
     if (url.pathname === "/api/auth/session") {
       return json({
         authenticated: true,

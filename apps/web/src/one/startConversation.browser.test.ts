@@ -373,3 +373,19 @@ it("refuses the start, with the reset time in the reason, when every ready accou
   );
   expect(!none.ok && none.code).toBe("usage-limit");
 });
+
+it("refuses to send into the main composer's thread when the caller is showing another thread, and sends nothing", async () => {
+  using _returns = freshReturns();
+  const { value, sent } = deps();
+  const other = await startGuidedConversation(
+    { ...input, into: "current-thread", expectThreadKey: "environment:local:side-pane-thread" },
+    value,
+  );
+  expect(other).toEqual({ ok: false, reason: "wrong-thread" });
+  expect(sent.send).not.toHaveBeenCalled();
+  const same = await startGuidedConversation(
+    { ...input, into: "current-thread", expectThreadKey: "draft-1" },
+    value,
+  );
+  expect(same.ok).toBe(true);
+});

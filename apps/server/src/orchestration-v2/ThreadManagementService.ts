@@ -73,6 +73,7 @@ import { DispatchModeLimit, exceededDispatchModeLimit } from "./DispatchModeLimi
 import { projectTurnItemForDetail } from "./WireProjection.ts";
 import { cancelledBeforeStart } from "./RestartBackgroundNote.ts";
 import { contextBoundaryOrdinal } from "./contextBoundary.ts";
+import { withoutAgentContext } from "./MessageAgentContext.ts";
 import * as LegacyV1ThreadImporter from "./legacy/LegacyV1ThreadImporter.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { ThreadWorktreeRestore } from "../workspace/restoreMissingWorktree.ts";
@@ -762,7 +763,12 @@ const make = Effect.gen(function* () {
         threadId: projection.thread.id,
         title: projection.thread.title,
         updatedAt: projection.updatedAt,
-        items: projection.visibleTurnItems,
+        // The app's hidden notes are not part of what the person wrote, and this file is theirs to open.
+        items: projection.visibleTurnItems.map((row) =>
+          row.item.type === "user_message" && row.item.context?.agentContext !== undefined
+            ? { ...row, item: withoutAgentContext(row.item) }
+            : row,
+        ),
       };
       let sizeBytes = Buffer.byteLength(
         threadTranscriptHeader(yield* environment.getEnvironmentId, transcript),
