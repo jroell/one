@@ -1,9 +1,11 @@
+import { RegistryContext } from "@effect/atom-react";
 import type { ChildThreadApproval } from "@t3tools/client-runtime/state/thread-requests";
 import { EnvironmentId, RuntimeRequestId, ThreadId } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
-import { AsyncResult, Atom } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
+import { peekApprovalDecision } from "~/one/approvalDecision";
 import { render } from "../../../test/render";
 
 const state = vi.hoisted(() => ({ respond: vi.fn(), approvalsAtom: null as unknown }));
@@ -49,4 +51,21 @@ it("shows a failed decision and clears the error when the user retries", async (
   await expect.element(screen.getByRole("alert")).toHaveTextContent("Child environment offline");
   await screen.getByRole("button", { name: "Approve", exact: true }).click();
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+});
+
+it("drops the recorded answer of a child approval once it leaves the pending list", async () => {
+  const thread = setup();
+  state.respond.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+  const registry = AtomRegistry.make();
+  await using screen = await render(
+    <RegistryContext.Provider value={registry}>
+      <ChildThreadApprovals threadRef={thread} />
+    </RegistryContext.Provider>,
+  );
+  await screen.getByRole("button", { name: "Approve", exact: true }).click();
+  const requestId = RuntimeRequestId.make("approval");
+  await vi.waitFor(() => expect(peekApprovalDecision(requestId)).toBe("accept"));
+  // The request is answered: the environment no longer lists it.
+  registry.set(state.approvalsAtom as Atom.Writable<ReadonlyArray<ChildThreadApproval>>, []);
+  await vi.waitFor(() => expect(peekApprovalDecision(requestId)).toBeUndefined());
 });

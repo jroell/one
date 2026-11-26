@@ -3,35 +3,19 @@ import { CheckIcon, XIcon } from "lucide-react";
 import { use, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import { Button, InlineButton } from "~/components/ui/button";
-import { m } from "~/i18n/messages";
 
+import { useAskForQuiz } from "./useAskForQuiz";
 import { WorkingArc } from "./WorkingArc";
-import { ChatFollowUpContext } from "./chatFollowUpTarget";
 import { ChatEndHoldContext } from "./chatStage";
 import {
   ChatQuizMessageContext,
   parseQuiz,
   quizKey,
   quizScore,
-  QUIZ_ROUND_REQUEST,
   readQuizPicks,
   writeQuizPicks,
   type Quiz,
 } from "./chatQuiz";
-
-/** Puts the quiz prompt in the composer, as the follow-up does, and moves there. */
-function useAskForQuiz() {
-  const { composerRef } = use(ChatFollowUpContext);
-  if (composerRef === null) return null;
-  return () => {
-    const handle = composerRef.current;
-    if (!handle) return;
-    // Text already in the composer is the person's own: only take them there.
-    const empty = handle.readSnapshot().value.trim().length === 0;
-    if (empty && handle.insertTextAtEnd(m(QUIZ_ROUND_REQUEST)) === false) return;
-    handle.focusAtEnd();
-  };
-}
 
 /**
  * A `quiz` fence in Chat mode. While it streams, or if it never turns out whole, the person never
@@ -68,11 +52,11 @@ function ChatQuizPending() {
 
 function ChatQuizUnreadable() {
   const gt = useGT();
-  const ask = useAskForQuiz();
+  const ask = useAskForQuiz("round");
   return (
     <p className="one-chat-quiz-note" role="status">
       {gt("The quiz did not come out right.")}{" "}
-      {ask ? <InlineButton onClick={ask}>{gt("Ask again")}</InlineButton> : null}
+      <InlineButton onClick={ask}>{gt("Ask again")}</InlineButton>
     </p>
   );
 }
@@ -84,7 +68,7 @@ function firstOpen(picks: ReadonlyArray<number | null>, from = 0): number {
 
 function ChatQuiz({ quiz, quizId }: { readonly quiz: Quiz; readonly quizId: string | null }) {
   const gt = useGT();
-  const ask = useAskForQuiz();
+  const ask = useAskForQuiz("round");
   const holdEnd = use(ChatEndHoldContext);
   const [picks, setPicks] = useState<Array<number | null>>(
     () => (quizId === null ? null : readQuizPicks(quizId, quiz)) ?? quiz.questions.map(() => null),
@@ -171,11 +155,9 @@ function ChatQuiz({ quiz, quizId }: { readonly quiz: Quiz; readonly quizId: stri
               {gt("Go over the one you missed")}
             </Button>
           ) : null}
-          {ask ? (
-            <Button size="lg" onClick={ask}>
-              {gt("Another round")}
-            </Button>
-          ) : null}
+          <Button size="lg" onClick={ask}>
+            {gt("Another round")}
+          </Button>
         </div>
       </section>
     );

@@ -21,6 +21,7 @@ uniform float uSpin;
 uniform float uTilt;
 uniform float uPulse;
 uniform float uLevel;
+uniform float uSweep;
 uniform float uDark;
 uniform float uAura;
 uniform float uReveal;
@@ -211,6 +212,11 @@ void main() {
     float glint = exp(-glintGap * glintGap / 0.035) * pow(max(dot(ringNormal, rimUp), 0.0), 7.0)
       * smoothstep(0.15, 0.55, facing);
     color += mix(uHi, vec3(1.0), 0.7) * glint * 4.2;
+    // The waiting sweep: one bright stretch runs round the band once every two seconds. It does not
+    // need the band to face the light, so it still reads when the ring is held edge-on.
+    float sweepGap = atan(ringAt.z, ringAt.x) - 6.2831853 * fract(uTime * 0.5);
+    sweepGap = atan(sin(sweepGap), cos(sweepGap));
+    color += mix(uHi, vec3(1.0), 0.6) * exp(-sweepGap * sweepGap / 0.08) * uSweep * 1.8;
     color *= EXPOSURE;
     color = rollOff(color);
     // The theme colors arrive in linear light; this takes them most of the way back to what a screen shows.

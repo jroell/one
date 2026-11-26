@@ -7,7 +7,6 @@ import {
   toComposerContextId,
 } from "@t3tools/shared/composerContextReferences";
 
-import { withAgentInstructions } from "@t3tools/client-runtime/user-message";
 import { deriveTimelineMinimapItems, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 
 describe("deriveTimelineMinimapItems", () => {
@@ -93,27 +92,29 @@ describe("resolveTimelineMinimapPreview", () => {
     expect(preview?.userText).toBe("Build log");
   });
 
-  it("labels a turn by the words the person sent, not the instructions that travelled with them", () => {
-    const at = "2026-10-01T00:00:00Z";
-    const items = deriveTimelineMinimapItems([
-      {
-        kind: "message",
-        id: "quiz-request",
-        createdAt: at,
-        showAssistantMeta: false,
-        showAssistantCopyButton: false,
-        assistantCopyStreaming: false,
-        message: {
-          id: MessageId.make("quiz-request"),
-          role: "user",
-          text: withAgentInstructions("Another round of three questions.", "Reply with only JSON."),
-          runId: null,
-          streaming: false,
-          createdAt: at,
-          updatedAt: at,
+  it("labels an old turn by the words the person sent, without the instructions an earlier build wrote into its text", () => {
+    const label = (createdAt: string) =>
+      deriveTimelineMinimapItems([
+        {
+          kind: "message",
+          id: "quiz-request",
+          createdAt,
+          showAssistantMeta: false,
+          showAssistantCopyButton: false,
+          assistantCopyStreaming: false,
+          message: {
+            id: MessageId.make("quiz-request"),
+            role: "user",
+            text: "Another round of three questions.\n\n<one-instructions>\nReply with only JSON.\n</one-instructions>",
+            runId: null,
+            streaming: false,
+            createdAt,
+            updatedAt: createdAt,
+          },
         },
-      },
-    ]);
-    expect(items[0]!.userText).toBe("Another round of three questions.");
+      ])[0]!.userText;
+    expect(label("2026-11-26T09:30:00.000Z")).toBe("Another round of three questions.");
+    // After that, text that looks like the tags is what the person typed.
+    expect(label("2026-11-28T09:30:00.000Z")).toContain("<one-instructions>");
   });
 });

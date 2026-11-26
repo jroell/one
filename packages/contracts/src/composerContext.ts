@@ -311,10 +311,22 @@ export const GuestMessageAttribution = Schema.Struct({
 });
 export type GuestMessageAttribution = typeof GuestMessageAttribution.Type;
 
+/** The most background and instructions the app may attach to one message (characters). */
+export const MESSAGE_AGENT_CONTEXT_MAX_CHARS = 16_000;
+
 /** Structured context riding on a user message. Undecodable records are dropped, not fatal. */
 export const OrchestrationMessageContext = Schema.Struct({
   version: Schema.Literal(1),
   guest: Schema.optional(GuestMessageAttribution),
+  /**
+   * Background and instructions from the app that the model reads with this message and that
+   * people do not see: clients never display it, and `text` stays exactly what the person wrote.
+   * Only a first-party client's own message may carry it; the server drops it from every other
+   * origin, so a person cannot forge it by typing and an agent cannot hide text from a person.
+   */
+  agentContext: Schema.optional(
+    Schema.String.check(Schema.isMaxLength(MESSAGE_AGENT_CONTEXT_MAX_CHARS)),
+  ),
   records: Schema.Array(Schema.Unknown)
     .check(
       Schema.isMaxLength(COMPOSER_CONTEXT_MAX_RECORDS),

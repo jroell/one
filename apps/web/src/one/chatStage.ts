@@ -27,7 +27,14 @@ export function findHandoffAnswerId(
   const from = rows.findIndex((row) => row.id === userRowId);
   if (from < 0) return null;
   for (const row of rows.slice(from + 1)) {
-    if (row.kind === "message" && row.message.role === "assistant") return row.id;
+    // The same rule that keeps the stage until words arrive: an answer with none is not the one.
+    if (
+      row.kind === "message" &&
+      row.message.role === "assistant" &&
+      row.message.text.trim() !== ""
+    ) {
+      return row.id;
+    }
   }
   return null;
 }

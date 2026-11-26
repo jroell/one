@@ -1,4 +1,5 @@
 import * as WorktreeSetupTracker from "../project/WorktreeSetupTracker.ts";
+import { withAgentContextFromFirstParty } from "./MessageAgentContext.ts";
 import * as ProjectCloneTracker from "../project/ProjectCloneTracker.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
@@ -1509,7 +1510,17 @@ const make = Effect.gen(function* () {
                   ? {}
                   : { senderThreadId: input.initialMessage.senderThreadId }),
                 attachments: input.initialMessage.attachments,
-                ...(input.initialMessage.context ? { context: input.initialMessage.context } : {}),
+                ...(input.initialMessage.context
+                  ? {
+                      context: withAgentContextFromFirstParty(input.initialMessage, {
+                        createdBy: input.createdBy,
+                        creationSource: input.creationSource,
+                        linkOrigin: input.linkOrigin,
+                        scheduledTaskId: input.initialMessage.scheduledTaskId,
+                        senderThreadId: input.initialMessage.senderThreadId,
+                      }).context,
+                    }
+                  : {}),
                 ...(input.initialMessage.outputSchema === undefined
                   ? {}
                   : { outputSchema: input.initialMessage.outputSchema }),

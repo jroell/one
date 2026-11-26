@@ -1,5 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
-import { AuthOrchestrationOperateScope, type ScopedThreadRef } from "@t3tools/contracts";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import {
+  AuthOrchestrationOperateScope,
+  type RuntimeRequestId,
+  type ScopedThreadRef,
+} from "@t3tools/contracts";
 import type { ChildThreadApproval } from "@t3tools/client-runtime/state/thread-requests";
 import { fullAccessOverrideExplanation } from "@t3tools/client-runtime/state/thread-requests";
 import {
@@ -7,7 +12,8 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { T, useGT, useMessages, Var } from "gt-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { pruneApprovalDecisions } from "~/one/approvalDecision";
 import { useEnvironmentScope } from "../../state/session";
 import { childThreadApprovalsAtom, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -86,6 +92,18 @@ function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
 
 export function ChildThreadApprovals({ threadRef }: { threadRef: ScopedThreadRef | null }) {
   const approvals = useAtomValue(childThreadApprovalsAtom(threadRef));
+  // An answer recorded for a request that left this thread's list is dropped, so the store does not
+  // grow for the life of the window. A thread switch only changes the list: nothing is dropped then.
+  const listed = useRef<{ thread: string; requestIds: ReadonlySet<RuntimeRequestId> } | null>(null);
+  const threadKey = threadRef === null ? "" : scopedThreadKey(threadRef);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops the recorded answers of child approvals that left the list
+  useEffect(() => {
+    const requestIds = new Set(approvals.map((entry) => entry.approval.requestId));
+    if (listed.current?.thread === threadKey) {
+      pruneApprovalDecisions(listed.current.requestIds, (id) => requestIds.has(id));
+    }
+    listed.current = { thread: threadKey, requestIds };
+  }, [approvals, threadKey]);
   if (approvals.length === 0) return null;
   return (
     <div className="mb-2 flex max-h-80 flex-col gap-2 overflow-auto">

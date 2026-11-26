@@ -1,4 +1,5 @@
 import { managedCapabilityDenial } from "@t3tools/client-runtime/contract-labels";
+import { ExplainControl } from "./explain/ExplainControl";
 import { DeviceHostUpdates } from "../device/DeviceHostUpdates";
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
@@ -884,7 +885,11 @@ function DeviceIntegrationSettings() {
 
   return (
     <>
-      <SettingsSection id="devices" title={gt("Device access")}>
+      <SettingsSection
+        id="devices"
+        title={gt("Device access")}
+        titleAction={<ExplainControl topic="devices" variant="icon" />}
+      >
         <DeviceIntegrationControls
           key={`${environmentId}:${JSON.stringify(search)}`}
           environmentId={environmentId}
@@ -1390,6 +1395,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   return (
     <SettingsRow
       {...searchableSetting("browser-profiles")}
+      explain="browser-profiles"
       description={gt(
         "Profiles separate cookies and logins. Incognito data is cleared when the app closes.",
       )}

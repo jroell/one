@@ -90,7 +90,10 @@ describe("src/one/bootHandoff.ts", () => {
     document.getElementById("boot-shell")?.remove();
     playBootHandoff(ghost, { holdBoundMs: 10_000 });
     await vi.waitFor(() => expect(document.documentElement.dataset.oneHandoff).toBe("hold"));
-    expect(ghost.ring.getAnimations()).toHaveLength(0);
+    // Only the waiting turn runs; the flight has not started.
+    const flights = (element: HTMLElement) =>
+      element.getAnimations().filter((animation) => animation.effect?.getTiming().duration === 560);
+    expect(flights(ghost.ring)).toHaveLength(0);
     // The placeholder stays clear and the turns wait, so nothing behind the ring reads as loading.
     await vi.waitFor(() => {
       const opacity = (selector: string) =>
@@ -100,7 +103,7 @@ describe("src/one/bootHandoff.ts", () => {
     });
     document.getElementById("timeline")!.setAttribute("data-first-screen-ready", "");
     await vi.waitFor(() => expect(document.documentElement.dataset.oneHandoff).toBe("travel"));
-    expect(ghost.ring.getAnimations()).not.toHaveLength(0);
+    expect(flights(ghost.ring)).toHaveLength(1);
     // Ring and wordmark travel as one lockup: the real wordmark waits hidden until it lands.
     expect(document.querySelector<HTMLElement>("[data-one-wordmark]")!.style.opacity).toBe("0");
     const nameEffect = ghost.name?.getAnimations()[0]?.effect as KeyframeEffect | undefined;
@@ -127,6 +130,73 @@ describe("src/one/bootHandoff.ts", () => {
       timeout: 3000,
     });
     expect(document.documentElement.dataset.oneHandoff).toBeUndefined();
+  });
+
+  it("without Element.checkVisibility the ring still flies and the app shows promptly", async () => {
+    await page.viewport(1200, 800);
+    using _clean = cleanUpOnDispose();
+    const original = Element.prototype.checkVisibility;
+    // Safari before 17.4 has no checkVisibility.
+    Object.defineProperty(Element.prototype, "checkVisibility", {
+      value: undefined,
+      configurable: true,
+    });
+    using _restore = {
+      [Symbol.dispose]: () =>
+        Object.defineProperty(Element.prototype, "checkVisibility", {
+          value: original,
+          configurable: true,
+        }),
+    };
+    mountBootScreen();
+    const ghost = captureBootGhost()!;
+    document.getElementById("boot-shell")?.remove();
+    mountHome();
+    playBootHandoff(ghost);
+    await vi.waitFor(() => expect(document.documentElement.dataset.oneHandoff).toBe("travel"));
+    await vi.waitFor(() => expect(document.querySelector(".boot-ghost")).toBeNull(), {
+      timeout: 3000,
+    });
+    expect(document.documentElement.dataset.oneHandoff).toBeUndefined();
+  });
+
+  it("anything that throws inside the handoff lets the app show at once, not after 20 seconds", async () => {
+    await page.viewport(1200, 800);
+    using _clean = cleanUpOnDispose();
+    mountBootScreen();
+    const ghost = captureBootGhost()!;
+    document.getElementById("boot-shell")?.remove();
+    mountHome();
+    const measure = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: Element) {
+        if (this.classList.contains("one-chat-welcome-orb")) throw new Error("cannot measure");
+        return new DOMRect(0, 0, 10, 10);
+      });
+    using _restore = { [Symbol.dispose]: () => measure.mockRestore() };
+    playBootHandoff(ghost);
+    await vi.waitFor(() => expect(document.querySelector(".boot-ghost")).toBeNull(), {
+      timeout: 1500,
+    });
+    expect(document.documentElement.dataset.oneHandoff).toBeUndefined();
+  });
+
+  it("keeps the ghost ring turning while it holds for a thread, so the wait does not look frozen", async () => {
+    await page.viewport(1200, 800);
+    using _clean = cleanUpOnDispose();
+    using _page = mountThreadPage();
+    mountBootScreen();
+    const ghost = captureBootGhost()!;
+    document.getElementById("boot-shell")?.remove();
+    playBootHandoff(ghost, { holdBoundMs: 10_000 });
+    await vi.waitFor(() => expect(document.documentElement.dataset.oneHandoff).toBe("hold"));
+    const first = getComputedStyle(ghost.ring).rotate;
+    await vi.waitFor(() => expect(getComputedStyle(ghost.ring).rotate).not.toBe(first));
+    expect(
+      ghost.ring
+        .getAnimations()
+        .some((animation) => animation.effect?.getTiming().iterations === Infinity),
+    ).toBe(true);
   });
 
   it("on a phone the ring is not flown to the header lockup, which is not drawn there, and the ghost fades", async () => {

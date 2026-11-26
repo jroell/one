@@ -31,10 +31,16 @@ export function clearApprovalDecision(requestId: RuntimeRequestId): void {
   if (decisions.delete(requestId)) emit();
 }
 
-/** Drops every recorded answer whose request is no longer waiting or leaving. */
-export function pruneApprovalDecisions(keep: (requestId: RuntimeRequestId) => boolean): void {
+/**
+ * Drops the recorded answer of each request in `candidates` that `keep` rejects. A timeline passes
+ * the requests it has shown, so it cannot drop an answer that belongs to another timeline.
+ */
+export function pruneApprovalDecisions(
+  candidates: Iterable<RuntimeRequestId>,
+  keep: (requestId: RuntimeRequestId) => boolean,
+): void {
   let removed = false;
-  for (const requestId of decisions.keys()) {
+  for (const requestId of candidates) {
     if (!keep(requestId) && decisions.delete(requestId)) removed = true;
   }
   if (removed) emit();

@@ -209,7 +209,7 @@ import { collectComposerModelMentions } from "@t3tools/client-runtime/composer-m
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
 import { useChatBuild } from "~/one/chatBuild";
-import { quizBlockIndex } from "~/one/chatQuiz";
+import { countQuizFences, quizBlockIndex } from "~/one/chatQuiz";
 import { ChatQuizBlock } from "~/one/ChatQuizCards";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 import { MarkdownTable, markdownTableShape } from "./chat/MarkdownTable";
@@ -1145,6 +1145,8 @@ const ChatMarkdownRendererContext = React.createContext<
 
 // Isolate streamed source text from the renderer context; only offset-based renderers need it.
 const ChatMarkdownTextContext = React.createContext("");
+/** How many quiz fences the message holds before this block, so streamed blocks agree with the whole. */
+const ChatMarkdownQuizBaseContext = React.createContext(0);
 
 // A quote card is a block. These say nothing else shares its paragraph or list item on that side.
 const LIST_MARKER = String.raw`(?:[-*+]|\d+[.)])[ \t]+`;
@@ -1849,6 +1851,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       ChatMarkdownRendererContext,
     );
     const text = use(ChatMarkdownTextContext);
+    const quizBase = use(ChatMarkdownQuizBaseContext);
     const chatMode = useWorkspaceMode() === "chat";
     const codeBlock = extractCodeBlock(children);
     if (!codeBlock) {
@@ -1882,7 +1885,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       return (
         <ChatQuizBlock
           code={codeBlock.code}
-          blockIndex={quizBlockIndex(text, node?.position?.start.offset ?? 0)}
+          blockIndex={quizBase + quizBlockIndex(text, node?.position?.start.offset ?? 0)}
           streaming={isStreaming && !isClosedCodeFence(node, text, codeBlock.code)}
         />
       );
@@ -2090,8 +2093,11 @@ const MarkdownSource = memo(function MarkdownSource({
   text,
   markdown,
   cache,
+  quizBase = 0,
 }: {
   text: string;
+  /** Quiz fences in the blocks before this one. */
+  quizBase?: number;
   markdown: WordsHastOptions;
   /** The text will not change again; streamed text would only fill the cache with prefixes. */
   cache: boolean;
@@ -2104,11 +2110,13 @@ const MarkdownSource = memo(function MarkdownSource({
   }, [render, text, entry, cache]);
   const islandState = use(ChatMarkdownRendererContext);
   return (
-    <ChatMarkdownTextContext value={text}>
-      {islandState
-        ? renderHastWithIslands(entry.tree, markdownIslandOptions(islandState))
-        : render.element(entry)}
-    </ChatMarkdownTextContext>
+    <ChatMarkdownQuizBaseContext value={quizBase}>
+      <ChatMarkdownTextContext value={text}>
+        {islandState
+          ? renderHastWithIslands(entry.tree, markdownIslandOptions(islandState))
+          : render.element(entry)}
+      </ChatMarkdownTextContext>
+    </ChatMarkdownQuizBaseContext>
   );
 });
 
@@ -2142,6 +2150,7 @@ function ChatMarkdown({
     insights: renderInsights && text.includes("★ Insight"),
   });
   const blocks = streamingBlocks ?? [text];
+  const quizCounts = blocks.map(countQuizFences);
 
   return (
     <Root
@@ -2161,6 +2170,7 @@ function ChatMarkdown({
             <MarkdownSource
               // oxlint-disable-next-line react/no-array-index-key -- streamed blocks only change at the end
               key={index}
+              quizBase={quizCounts.slice(0, index).reduce((total, count) => total + count, 0)}
               text={source}
               markdown={markdown}
               // Every block before the last is finished, so its parse can be reused.

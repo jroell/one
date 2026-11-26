@@ -20,6 +20,7 @@ import {
   ThreadId,
   TurnItemId,
 } from "@t3tools/contracts";
+import { withoutAgentContext } from "../orchestration-v2/MessageAgentContext.ts";
 import { chatMarkdownImageSources } from "@t3tools/shared/markdownPipeline";
 import { htmlRenderFromToolItem } from "@t3tools/shared/toolOutput";
 import * as Context from "effect/Context";
@@ -219,6 +220,8 @@ const threadOf = (event: OrchestrationV2DomainEvent): OrchestrationV2AppThread |
 
 /** A guest sees that a file changed, never the text of the change, whatever its status. */
 const withoutFileText = (item: OrchestrationV2TurnItem): OrchestrationV2TurnItem => {
+  // A guest sees what the owner and the guest wrote, never the app's notes to the model.
+  if (item.type === "user_message") return withoutAgentContext(item);
   if (item.type !== "file_change") return item;
   const { diffStr: _diff, oldStr: _old, newStr: _new, ...shown } = item;
   return shown;
@@ -578,7 +581,12 @@ const make = Effect.gen(function* () {
           const shown =
             item.event.type === "turn-item.updated"
               ? { ...item, event: { ...item.event, payload: withoutFileText(item.event.payload) } }
-              : item;
+              : item.event.type === "message.updated"
+                ? {
+                    ...item,
+                    event: { ...item.event, payload: withoutAgentContext(item.event.payload) },
+                  }
+                : item;
           const updated = threadOf(item.event);
           const view = updated === null ? null : viewOf(updated);
           return view === null
@@ -600,6 +608,7 @@ const make = Effect.gen(function* () {
       snapshotSequence: snapshot.snapshotSequence,
       projection: {
         ...snapshot.projection,
+        messages: snapshot.projection.messages.map(withoutAgentContext),
         turnItems: snapshot.projection.turnItems.map(withoutFileText),
         visibleTurnItems: snapshot.projection.visibleTurnItems.map(rowWithoutFileText),
       },

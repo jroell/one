@@ -81,7 +81,10 @@ function isOnScreen(element: HTMLElement): boolean {
     rect.top >= 0 &&
     rect.right <= window.innerWidth &&
     rect.bottom <= window.innerHeight &&
-    element.checkVisibility()
+    // Older Safari has no checkVisibility.
+    (typeof element.checkVisibility === "function"
+      ? element.checkVisibility()
+      : element.getClientRects().length > 0)
   );
 }
 
@@ -157,7 +160,24 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
   // A last resort: whatever happens, the layer is gone 20 seconds after the boot.
   window.setTimeout(finish, 20_000);
 
-  const start = (found: Target | null) => {
+  // The handoff is decoration: anything that throws lets the app show at once.
+  const failOpen = () => finish();
+  let idleTurn: Animation | null = null;
+  let currentRotate = ghost.ringShown.rotate;
+  if (!reduced) {
+    try {
+      // The ring keeps turning while it waits, from the angle the boot left it at.
+      const from = Number(/(-?\d+(?:\.\d+)?)deg/.exec(ghost.ringShown.rotate)?.[1] ?? 0);
+      idleTurn = ghost.ring.animate(
+        [{ rotate: `0 1 0 ${from}deg` }, { rotate: `0 1 0 ${from + 360}deg` }],
+        { duration: 8000, iterations: Infinity, easing: "linear" },
+      );
+    } catch {
+      idleTurn = null;
+    }
+  }
+
+  const startUnsafe = (found: Target | null) => {
     if (finished) return;
     if (!found) {
       delete html.dataset.oneHandoff;
@@ -165,6 +185,10 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
       return;
     }
     target = found;
+    // Where the turn has got to, so the flight carries on from it.
+    currentRotate = getComputedStyle(ghost.ring).rotate;
+    idleTurn?.cancel();
+    ghost.ring.style.rotate = currentRotate;
     const to = found.element.getBoundingClientRect();
     const scale = to.width / ghost.from.width;
     const dx = to.left + to.width / 2 - (ghost.from.left + ghost.from.width / 2);
@@ -214,25 +238,37 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
         {
           transform: ghost.ringShown.transform,
           opacity: ghost.ringShown.opacity,
-          rotate: ghost.ringShown.rotate,
+          rotate: currentRotate,
         },
         {
           transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
           opacity: 1,
-          rotate: untwistedRotate(ghost.ringShown.rotate),
+          rotate: untwistedRotate(currentRotate),
         },
       ],
       { duration: TRAVEL_MS, easing: EASE, fill: "forwards" },
     );
     void travel.finished.then(() => {
       if (finished) return;
-      // The app's marks show at once under the ghost, which then fades off them: no dip between.
-      for (const element of [found.element, wordmark]) element?.style.removeProperty("opacity");
-      if (found.kind === "home") html.dataset.oneHandoff = "arrive";
-      void fade(ghost.layer, 120).finished.then(() => {
-        window.setTimeout(finish, 320);
-      }, finish);
-    }, finish);
+      try {
+        // The app's marks show at once under the ghost, which then fades off them: no dip between.
+        for (const element of [found.element, wordmark]) element?.style.removeProperty("opacity");
+        if (found.kind === "home") html.dataset.oneHandoff = "arrive";
+        void fade(ghost.layer, 120).finished.then(() => {
+          window.setTimeout(finish, 320);
+        }, finish);
+      } catch {
+        failOpen();
+      }
+    }, failOpen);
+  };
+
+  const start = (found: Target | null) => {
+    try {
+      startUnsafe(found);
+    } catch {
+      failOpen();
+    }
   };
 
   // The app stays hidden until the ring is ready to fly, then fades in under it.
@@ -241,7 +277,7 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
   const expectHome = window.location.pathname === "/";
   const expectThread = isThreadRoute();
   let begun: number | null = null;
-  const look = () => {
+  const lookUnsafe = () => {
     if (finished) return;
     if (document.getElementById("boot-shell")) {
       requestAnimationFrame(look);
@@ -274,6 +310,13 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
     }
     if (found || waited > (expectHome ? HOME_WAIT_MS : WAIT_MS)) start(found);
     else requestAnimationFrame(look);
+  };
+  const look = () => {
+    try {
+      lookUnsafe();
+    } catch {
+      failOpen();
+    }
   };
   look();
 }

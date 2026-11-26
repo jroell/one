@@ -80,6 +80,7 @@ import {
   settleCustomModelSave,
 } from "./customModelSaves.logic";
 import { getProviderRestartNotice } from "../ProviderUpdateLaunchNotification.logic";
+import { useWaitedLongerThan } from "./useWaitedLongerThan";
 import {
   getProviderVersionAdvisoryPresentation,
   getProviderStatusKey,
@@ -778,6 +779,9 @@ function useCustomModelSaves(
 
 /** Unknown drivers stay read-only to preserve fork config. projectOverride switches affect only the
  * project, not instance.enabled. */
+/** How long an enabled provider may go unreported before the list says so. */
+export const UNREPORTED_PROVIDER_MS = 10_000;
+
 export function ProviderInstanceCard({
   instanceId,
   instance,
@@ -1016,8 +1020,15 @@ export function ProviderInstanceCard({
     <code className="font-sans text-xs tabular-nums text-muted-foreground">{versionLabel}</code>
   ) : null;
 
-  const chipStatus =
-    enabled && liveProvider === undefined ? "checking" : providerStatusChip(statusKey);
+  // Checking only while a report may still come: an enabled provider the server never lists (a
+  // driver it does not know, a failed probe) must not read "Checking" forever.
+  const unreported = enabled && liveProvider === undefined;
+  const reportOverdue = useWaitedLongerThan(unreported, UNREPORTED_PROVIDER_MS);
+  const chipStatus = unreported
+    ? reportOverdue
+      ? "attention"
+      : "checking"
+    : providerStatusChip(statusKey);
   const needsAttention = statusKey === "warning" || statusKey === "error";
   const statusDiagnostic = hasCompatibilityWarning && needsAttention ? summary.detail : null;
   const inlineStatusDetail = hasCompatibilityWarning
@@ -1032,11 +1043,13 @@ export function ProviderInstanceCard({
   const listDetailLine = updateProgress
     ? gt("Updating · {progress}", { progress: updateProgress })
     : [
-        isAuthenticated && authLabel
-          ? providerPlanLabel(authLabel)
-          : chipStatus !== null && summary.restatesStatus
-            ? null
-            : summary.headline,
+        reportOverdue
+          ? gt("The server has not reported on this provider.")
+          : isAuthenticated && authLabel
+            ? providerPlanLabel(authLabel)
+            : chipStatus !== null && summary.restatesStatus
+              ? null
+              : summary.headline,
         needsAttention ? inlineStatusDetail : null,
       ]
         .filter((part): part is string => Boolean(part))

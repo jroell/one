@@ -5,7 +5,8 @@ import {
   type ServerProvider,
 } from "@t3tools/contracts";
 import { CHATGPT_USAGE_URL } from "@t3tools/shared/usageLimits";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -101,5 +102,78 @@ describe("UsageLimitsPooled next refill", () => {
       <UsageLimitsPooled presentations={presentations} now={Date.parse("2026-10-25T18:00:00Z")} />,
     );
     await expect.element(screen.getByText(/^↻ \+\d+%$/)).not.toBeInTheDocument();
+  });
+});
+
+describe("UsageLimitsPooled provider waiting on sign-in", () => {
+  it("shows Antigravity as a row with a button that opens its provider page, not as an error bar", async () => {
+    const antigravity: ServerProvider = {
+      ...managedChatGpt("antigravity", "Antigravity"),
+      driver: ProviderDriverKind.make("antigravity"),
+      usageLimits: {
+        checkedAt,
+        windows: [],
+        unavailable: {
+          reason: "unsupported",
+          message: "Sign in with Google to see Antigravity limits.",
+        },
+      },
+    };
+    const presentations = new Map([
+      [
+        EnvironmentId.make("desk"),
+        { entry: { target: { label: "Desk" } }, serverConfig: { providers: [antigravity] } },
+      ],
+    ]);
+    await using screen = await render(
+      <UsageLimitsPooled presentations={presentations} now={Date.parse(checkedAt)} />,
+      { router: "/usage" },
+    );
+
+    await expect.element(screen.getByText("Sign in to see limits.")).toBeVisible();
+    // Not a detached warning bar, and the old sentence is gone.
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.body.textContent).not.toContain(
+      "Sign in with Google to see Antigravity limits.",
+    );
+    expect(document.querySelector('[data-usage-setup="antigravity"]')).not.toBeNull();
+
+    await userEvent.click(page.getByRole("button", { name: "Sign in with Google" }));
+    await vi.waitFor(() => {
+      expect(screen.router!.state.location.pathname).toBe("/settings/providers");
+      expect(screen.router!.state.location.search).toMatchObject({
+        environmentId: "desk",
+        instanceId: "antigravity",
+        action: "sign-in",
+      });
+    });
+  });
+});
+
+describe("UsageLimitsPooled notices that report a failed read", () => {
+  it("offers Retry on the notice itself, as an outline button", async () => {
+    const failing: ServerProvider = {
+      ...managedChatGpt("codex_work", "Codex"),
+      usageLimits: { checkedAt, windows: [], unavailable: { reason: "probeFailed" } },
+    };
+    const presentations = new Map([
+      [
+        EnvironmentId.make("desk"),
+        { entry: { target: { label: "Desk" } }, serverConfig: { providers: [failing] } },
+      ],
+    ]);
+    const retry = vi.fn();
+    await using screen = await render(
+      <UsageLimitsPooled
+        presentations={presentations}
+        now={Date.parse(checkedAt)}
+        onRetry={retry}
+      />,
+    );
+
+    await expect.element(screen.getByText("Codex: Could not read limits.")).toBeVisible();
+    const button = page.getByRole("button", { name: "Retry" });
+    await userEvent.click(button);
+    expect(retry).toHaveBeenCalledOnce();
   });
 });

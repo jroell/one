@@ -4,7 +4,16 @@ import "~/index.css";
 
 import { render } from "../../test/render";
 import { OneOrb } from "./OneOrb";
-import { orbMarkUrl, type OrbMarkSize } from "./oneOrbRest";
+import {
+  orbMarkUrl,
+  ORB_GOLD,
+  ORB_OPEN_ANGLE,
+  ORB_REST,
+  glowForSize,
+  type OrbMarkSize,
+} from "./oneOrbRest";
+import { renderRestRing } from "./oneOrbRestRender";
+import { ONE_ORB_FRAGMENT_SHADER, ONE_ORB_VERTEX_SHADER } from "./oneOrbShader";
 
 /** Reduced motion draws the ring's rest pose once, which is what the static mark shows. */
 function stillMotion(): Disposable {
@@ -134,5 +143,54 @@ describe("the ring's glow level", () => {
     expect(solid(loud)).toEqual(solid(quiet));
     expect(solid(quiet).filter(Boolean).length).toBeGreaterThan(1000);
     expect(light(loud)).toBeGreaterThan(light(quiet) * 1.02);
+  });
+});
+
+describe("the waiting sweep of light", () => {
+  const linear = (hex: string) =>
+    [1, 3, 5].map((at) => (Number.parseInt(hex.slice(at, at + 2), 16) / 255) ** 2.2);
+  /** The waiting ring, held edge-on, at the voice stage's size, drawn at `time` seconds. */
+  async function waitingRing(sweep: number, time: number) {
+    const width = 256;
+    const blob = await renderRestRing({
+      vertex: ONE_ORB_VERTEX_SHADER,
+      fragment: ONE_ORB_FRAGMENT_SHADER,
+      width,
+      supersample: 1,
+      hi: linear(ORB_GOLD.hi),
+      mid: linear(ORB_GOLD.mid),
+      lo: linear(ORB_GOLD.lo),
+      dark: 1,
+      glow: glowForSize(width),
+      rest: {
+        ...ORB_REST,
+        time,
+        spin: ORB_OPEN_ANGLE + Math.PI / 2,
+        tilt: 1.12,
+        aura: 0.3,
+      },
+      quality: 1,
+      sweep,
+    });
+    return premultiplied(await createImageBitmap(blob), width);
+  }
+  const changedPixels = (a: Uint8ClampedArray, b: Uint8ClampedArray) => {
+    let count = 0;
+    for (let at = 0; at < a.length; at += 4) {
+      const largest = Math.max(
+        Math.abs((a[at] ?? 0) - (b[at] ?? 0)),
+        Math.abs((a[at + 1] ?? 0) - (b[at + 1] ?? 0)),
+        Math.abs((a[at + 2] ?? 0) - (b[at + 2] ?? 0)),
+      );
+      if (largest > 24) count += 1;
+    }
+    return count;
+  };
+
+  it("is plainly visible on the edge-on ring at 256px: half a second later the light is somewhere else, with the sweep on and not with it off", async () => {
+    const early = await waitingRing(1, 0);
+    const later = await waitingRing(1, 0.5);
+    expect(changedPixels(early, later)).toBeGreaterThan(40);
+    expect(changedPixels(await waitingRing(0, 0), await waitingRing(0, 0.5))).toBe(0);
   });
 });

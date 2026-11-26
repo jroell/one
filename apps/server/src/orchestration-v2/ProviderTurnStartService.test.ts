@@ -473,6 +473,8 @@ it.each([
 
 function makeLocalCommandHarness(input: {
   readonly text: string;
+  /** The app's notes to the model, as a first-party client attached them to the message. */
+  readonly agentContext?: string;
   readonly manualContinuation?: boolean;
   readonly nativeResumeUnsupported?: boolean;
   readonly steeringRestart?: boolean;
@@ -587,6 +589,9 @@ function makeLocalCommandHarness(input: {
     nodeId: rootNodeId,
     role: "user",
     text: input.text,
+    ...(input.agentContext === undefined
+      ? {}
+      : { context: { version: 1 as const, records: [], agentContext: input.agentContext } }),
     attachments: [],
     streaming: false,
     createdBy: input.createdBy ?? "user",
@@ -2375,6 +2380,26 @@ it("finds abandoned turns in a long history reading each record a bounded number
   const records = runs.length + attempts.length + providerTurns.length;
   expect(reads).toBeLessThanOrEqual(4 * records);
 });
+
+effectIt.effect(
+  "starts a turn with the app's context after the person's words, framed as the app's",
+  () =>
+    Effect.gen(function* () {
+      const harness = makeLocalCommandHarness({
+        text: "What is this?",
+        agentContext: "Explain the Providers page.",
+        manualContinuation: true,
+        steeringRestart: true,
+        nativeResumeUnsupported: true,
+        sideChat: { contextRun: "delivered" },
+      });
+      yield* harness.start;
+      const text = harness.startTurn.mock.calls[0]?.[0].message.text ?? "";
+      expect(text.startsWith("What is this?\n\n[One app context.")).toBe(true);
+      expect(text).toContain("The user did not write this and cannot see it");
+      expect(text).toContain("Explain the Providers page.");
+    }),
+);
 
 effectIt.effect("sends new steering text when restarting a manual continuation", () =>
   Effect.gen(function* () {

@@ -40,6 +40,8 @@ import {
 } from "./scopedSettings";
 import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
 import { releaseOutgoingSettingsPage } from "./settingsPageCrossfade";
+import { ExplainControl } from "./explain/ExplainControl";
+import type { ExplainTopicId } from "./explain/explainTypes";
 import {
   SettingInheritance,
   type SettingInheritanceState,
@@ -357,6 +359,7 @@ function projectOverrides(
 export function SettingsRow({
   title,
   description,
+  explain,
   status,
   resetAction,
   onResetOverride,
@@ -374,6 +377,8 @@ export function SettingsRow({
 }: Omit<ComponentPropsWithoutRef<"div">, "title"> & {
   title: ReactNode;
   description?: ReactNode;
+  /** A topic for a "What is this?" beside the title, when the row names something a person may not know. */
+  explain?: ExplainTopicId;
   status?: ReactNode;
   resetAction?: ReactNode;
   onResetOverride?: () => void;
@@ -589,6 +594,7 @@ export function SettingsRow({
             <h3 data-settings-row-title="" className="text-sm font-medium text-foreground">
               {title}
             </h3>
+            {explain === undefined ? null : <ExplainControl topic={explain} variant="icon" />}
             {renderedInheritance ? (
               <span
                 className={cn(

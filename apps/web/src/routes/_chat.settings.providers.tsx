@@ -43,6 +43,8 @@ export const Route = createFileRoute("/_chat/settings/providers")({
     ...(typeof raw.environmentId === "string" && raw.environmentId.trim()
       ? { environmentId: EnvironmentId.make(raw.environmentId) }
       : {}),
+    // Set by the Usage page to start this provider's sign-in once; the section removes it.
+    ...(raw.action === "sign-in" ? { action: "sign-in" as const } : {}),
     ...(typeof raw.instanceId === "string" && raw.instanceId.trim()
       ? { instanceId: ProviderInstanceId.make(raw.instanceId) }
       : {}),

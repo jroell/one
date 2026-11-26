@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { useNavigate } from "@tanstack/react-router";
 import { AuthSettingsWriteScope, type EnvironmentId, sessionGrantsScope } from "@t3tools/contracts";
 import { ChevronDownIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -103,6 +104,7 @@ export function UsagePriceOverrides({
   readonly onOpenChange: (open: boolean) => void;
 }) {
   const gt = useGT();
+  const navigate = useNavigate();
   const messages = useMessages();
   const environments = useAtomValue(priceTargetsAtom).map((target) =>
     target.unavailable === null ? target : { ...target, unavailable: messages(target.unavailable) },
@@ -369,11 +371,25 @@ export function UsagePriceOverrides({
             </span>
           </div>
           {selected.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {environments.length === 0
-                ? gt("Connect an environment to set model prices.")
-                : gt("Select an environment to see and change its model prices.")}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                {environments.length === 0
+                  ? gt("Connect an environment to set model prices.")
+                  : gt("Select an environment to see and change its model prices.")}
+              </p>
+              {environments.length === 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    onOpenChange(false);
+                    void navigate({ to: "/settings/connections" });
+                  }}
+                >
+                  {gt("Add an environment")}
+                </Button>
+              ) : null}
+            </div>
           ) : (
             <>
               <div className="min-w-0 overflow-hidden rounded-lg border border-border">

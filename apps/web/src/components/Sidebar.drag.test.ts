@@ -7,6 +7,8 @@ import {
   restrictBelowSidebarLabel,
 } from "./Sidebar.drag";
 import {
+  isOptimisticDropReleased,
+  planSidebarThreadDrop,
   resolveSidebarDropTarget,
   sidebarListItemId,
   sidebarMarkerId,
@@ -724,5 +726,89 @@ describe("lifted card clearance", () => {
   it("follows the list when it scrolls and includes content preceding Pins", () => {
     expect(511 + apply(511, 36, -500, 96).y).toBe(128);
     expect(511 + apply(511, 36, -500, 136, 114).y).toBe(250);
+  });
+});
+
+describe("a drop while one pinned thread waits on the person", () => {
+  // A, B and C are pinned with saved keys b, c and z. B is drawn in the need-you group, so the
+  // sortable list holds A and C only.
+  const savedKeys = new Map<string, string | null>([
+    ["A", "b"],
+    ["B", "c"],
+    ["C", "z"],
+  ]);
+  const drawn = [pinnedHeader, thread("A", "pinned"), thread("C", "pinned"), divider];
+  const planFor = (activeKey: string, overId: string, pinnedOrder: readonly string[]) => {
+    const target = resolveSidebarDropTarget(drawn, activeKey, overId)!;
+    return planSidebarThreadDrop({
+      activeKey,
+      activeSection: "pinned",
+      activePinned: true,
+      activeSettled: false,
+      supportsSettlement: true,
+      target,
+      pinnedOrder,
+      pinnedKeysById: savedKeys,
+      reorderableKeys: new Set(["A", "B", "C"]),
+      activeOrder: [],
+      activeKeysById: new Map(),
+      activeReorderableKeys: new Set(),
+      activeTimeOrdered: false,
+    });
+  };
+
+  it("writes nothing for a drop in place when the planner is given the list that is drawn", () => {
+    expect(planFor("A", "A", ["A", "C"]).kind).toBe("none");
+    // Given the pinned list with the waiting thread in it, the same drop looked like a move and
+    // wrote a new key for A.
+    expect(planFor("A", "A", ["A", "B", "C"]).kind).toBe("reorder-pinned");
+  });
+
+  it("moves a row among the drawn rows and leaves the waiting thread's saved key alone", () => {
+    const plan = planFor("C", "A", ["A", "C"]);
+    if (plan.kind !== "reorder-pinned") throw new Error(`expected a reorder, got ${plan.kind}`);
+    expect(plan.order).toEqual(["C", "A"]);
+    expect(plan.assignments.map(({ id }) => id)).toEqual(["C"]);
+    // Placed before A's key, so B (key c) still sorts after A when it rejoins.
+    expect(plan.assignments[0]!.orderKey < "b").toBe(true);
+  });
+
+  it("holds a drop until the server catches up when the destination is the drawn list", () => {
+    const shell = (id: string, key: string) =>
+      ({
+        environmentId: "local",
+        id,
+        pinnedAt: "2026-01-01T00:00:00.000Z",
+        pinOrderKey: key,
+        archivedAt: null,
+        settledOverride: null,
+        snoozedUntil: null,
+      }) as never;
+    const threads = [shell("A", "b"), shell("B", "c"), shell("C", "z")];
+    const optimisticDrop = {
+      key: "local:C",
+      sourceSection: "pinned" as const,
+      section: "pinned" as const,
+      occurredAt: "2026-01-02T00:00:00.000Z",
+      clearsSnooze: false,
+      order: ["local:C", "local:A"],
+      keysAtDrop: new Map([
+        ["local:A", "b"],
+        ["local:B", "c"],
+        ["local:C", "z"],
+      ]),
+      assignedKeys: new Map([["local:C", "a"]]),
+    };
+    const released = (pinnedKeys: readonly string[]) =>
+      isOptimisticDropReleased({
+        optimisticDrop,
+        threads,
+        pinnedKeys,
+        activeKeys: [],
+        now: "2026-01-02T00:00:01.000Z",
+      });
+    expect(released(["local:A", "local:C"])).toBe(false);
+    // With the waiting thread counted, the held order is one row short and was let go at once.
+    expect(released(["local:A", "local:B", "local:C"])).toBe(true);
   });
 });

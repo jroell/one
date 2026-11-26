@@ -2,6 +2,7 @@ import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAda
 import { assert, describe, it } from "@effect/vitest";
 import {
   ContextHandoffId,
+  MessageId,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -134,6 +135,21 @@ describe("handoff budget", () => {
       output: "Failure near the end: " + "界".repeat(300),
       exitCode: 1,
     });
+    // A provider handoff replays the person's words with the app's context framed as the app's.
+    const asked = historicalMessage({
+      ...base,
+      type: "user_message",
+      messageId: MessageId.make("message:with-note"),
+      text: "What is this?",
+      inputIntent: "turn_start",
+      attachments: [],
+      createdBy: "user",
+      creationSource: "web",
+      context: { version: 1, records: [], agentContext: "Explain the Providers page." },
+    });
+    assert.equal(asked?.role, "user");
+    assert.isTrue(asked!.text.startsWith("What is this?\n\n[One app context."));
+    assert.include(asked!.text, "Explain the Providers page.");
     assert.equal(command?.role, "assistant");
     assert.equal(command?.kind, "command_execution");
     assert.include(command!.text, "Exit code: 1");

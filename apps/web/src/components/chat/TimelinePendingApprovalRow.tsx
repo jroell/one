@@ -429,6 +429,7 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
         role="group"
         aria-label={m(presentation.label)}
         data-approval-card=""
+        data-approval-request-id={approval.requestId}
         data-leaving={leaving ? "" : undefined}
         data-outcome={leaving ? approvalOutcome(leavingDecision) : undefined}
         data-responding={

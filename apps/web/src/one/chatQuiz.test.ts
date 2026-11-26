@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
-
 import {
   parseQuiz,
   quizBlockIndex,
@@ -9,7 +7,7 @@ import {
   quizScore,
   QUIZ_REQUEST,
   QUIZ_ROUND_REQUEST,
-  withQuizInstructions,
+  QUIZ_INSTRUCTIONS,
 } from "./chatQuiz";
 import { m } from "~/i18n/messages";
 
@@ -108,19 +106,14 @@ describe("quizKey and quizBlockIndex", () => {
   });
 });
 
-describe("withQuizInstructions", () => {
-  it("sends the reply's format with each of the two quiz requests, and the person reads only their own line", () => {
-    for (const request of [m(QUIZ_REQUEST), m(QUIZ_ROUND_REQUEST)]) {
-      const sent = withQuizInstructions(request);
-      expect(sent).toContain("fenced code block labelled quiz");
-      expect(sent).toContain('"questions"');
-      expect(resolveUserMessagePresentation({ role: "user", text: sent }).text).toBe(request);
+describe("the quiz request", () => {
+  it("is a short line the person reads, and the reply's format is separate text with the JSON shape", () => {
+    for (const line of [m(QUIZ_REQUEST), m(QUIZ_ROUND_REQUEST)]) {
+      expect(line).not.toContain("JSON");
+      expect(line).not.toContain("fenced code block");
+      expect(line.length).toBeLessThan(80);
     }
-  });
-
-  it("sends anything else as written, even a request that only starts the same way", () => {
-    for (const text of ["", "Quiz me", `${m(QUIZ_REQUEST)} About the rings.`, "Explain it again"]) {
-      expect(withQuizInstructions(text)).toBe(text);
-    }
+    expect(QUIZ_INSTRUCTIONS).toContain("fenced code block labelled quiz");
+    expect(QUIZ_INSTRUCTIONS).toContain('"questions"');
   });
 });

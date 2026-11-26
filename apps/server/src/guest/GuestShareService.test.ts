@@ -290,6 +290,43 @@ it.effect("starts a stream with the runs and items already in the thread", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect(
+  "never gives the guest the app's notes to the model, in the snapshot or in later events",
+  () =>
+    Effect.gen(function* () {
+      const { orchestrator, guestShares, credential } = yield* shareThread;
+      const { token: session } = yield* guestShares.redeem({ credential, name: "Sam" });
+      const secret = "APP_NOTE_THE_GUEST_MUST_NOT_SEE";
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make("owner-message-with-note"),
+        threadId,
+        messageId: MessageId.make("message:with-note"),
+        text: "What is this?",
+        context: { version: 1, records: [], agentContext: secret },
+        attachments: [],
+        dispatchMode: { type: "defer_start" },
+        createdBy: "user",
+        creationSource: "web",
+      });
+      const [, snapshot] = Array.from(
+        yield* Stream.runCollect(Stream.take(yield* guestShares.stream(session), 2)),
+      );
+      if (snapshot?.type !== "thread" || snapshot.item.kind !== "snapshot") {
+        return assert.fail("Expected the thread snapshot second.");
+      }
+      const shown = JSON.stringify(snapshot.item.projection);
+      assert.include(shown, "What is this?");
+      assert.notInclude(shown, secret);
+      // The owner's own view of the same message still carries it for the model.
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const stored = (yield* projections.getThreadProjection(threadId)).messages.find(
+        (message) => message.id === MessageId.make("message:with-note"),
+      );
+      assert.equal(stored?.context?.agentContext, secret);
+    }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("redeems only a short invite whose signature and share id are both current", () =>
   Effect.gen(function* () {
     const { guestShares, credential: replaced } = yield* shareThread;

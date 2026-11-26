@@ -394,11 +394,14 @@ export function UsageLimitsSection({
   hiddenProviders,
   now,
   refreshing = false,
+  onRetry,
 }: {
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
   readonly hiddenProviders: ReadonlySet<UsageProviderKind>;
   readonly now: number;
   readonly refreshing?: boolean;
+  /** Reads the limits again; the notices that report a failed read offer it. */
+  readonly onRetry?: () => void;
 }) {
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const hiddenDrivers = new Set<ServerProvider["driver"]>(
@@ -430,5 +433,12 @@ export function UsageLimitsSection({
       ];
     }),
   );
-  return <UsageLimitsPooled presentations={selected} now={now} loading={refreshing} />;
+  return (
+    <UsageLimitsPooled
+      presentations={selected}
+      now={now}
+      loading={refreshing}
+      {...(onRetry ? { onRetry } : {})}
+    />
+  );
 }

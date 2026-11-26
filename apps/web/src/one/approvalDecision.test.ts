@@ -11,7 +11,10 @@ import {
 const request = RuntimeRequestId.make("request-a");
 const other = RuntimeRequestId.make("request-b");
 
-afterEach(() => pruneApprovalDecisions(() => false));
+afterEach(() => {
+  clearApprovalDecision(request);
+  clearApprovalDecision(other);
+});
 
 describe("answerApproval", () => {
   it("keeps the answer while the request is being answered and once it was accepted", async () => {
@@ -46,11 +49,18 @@ describe("answerApproval", () => {
 });
 
 describe("pruneApprovalDecisions", () => {
-  it("drops the answers of requests that are neither waiting nor leaving", async () => {
+  it("drops the answers of shown requests that are neither waiting nor leaving", async () => {
     await answerApproval(request, "accept", async () => ({ _tag: "Success" }));
     await answerApproval(other, "decline", async () => ({ _tag: "Success" }));
-    pruneApprovalDecisions((id) => id === other);
+    pruneApprovalDecisions([request, other], (id) => id === other);
     expect(peekApprovalDecision(request)).toBeUndefined();
     expect(peekApprovalDecision(other)).toBe("decline");
+  });
+
+  it("keeps the answer of a request the pruning timeline never showed", async () => {
+    // A side chat prunes with its own requests; the main thread's answer is still being sent.
+    await answerApproval(request, "accept", async () => ({ _tag: "Success" }));
+    pruneApprovalDecisions([other], () => false);
+    expect(peekApprovalDecision(request)).toBe("accept");
   });
 });

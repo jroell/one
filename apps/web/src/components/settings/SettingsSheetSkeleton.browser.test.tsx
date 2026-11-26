@@ -1,23 +1,43 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import "~/index.css";
 import { render } from "../../../test/render";
+import { AppRouteModal } from "../AppRouteModal";
 import { SettingsSheetSkeleton } from "./SettingsSheetSkeleton";
 
+vi.mock("../chat/GlobalVoiceInputIndicator", () => ({ GlobalVoiceInputIndicator: () => null }));
+
 describe("the settings sheet's outline", () => {
-  it("stays invisible for the first 250 ms, so a page that mounts quickly never shows scaffolding", async () => {
-    await using screen = await render(
-      <div className="app-route-modal-late flex" style={{ width: 900, height: 500 }}>
-        <SettingsSheetSkeleton />
-      </div>,
-      { router: false },
-    );
-    const late = screen.container.querySelector<HTMLElement>(".app-route-modal-late")!;
-    const style = getComputedStyle(late);
-    expect(style.animationName).toBe("app-route-modal-late");
-    expect(style.animationDelay).toBe("0.25s");
-    // The delay holds the first keyframe: nothing is drawn before it ends.
-    expect(style.opacity).toBe("0");
+  it("stays invisible for the first 250 ms inside the real modal, then gives way to the page", async () => {
+    // Hold the modal's frame timer, so the outline is on screen for as long as the test looks at it.
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    try {
+      await using _screen = await render(
+        <AppRouteModal label="Settings" skeleton={<SettingsSheetSkeleton />}>
+          <div data-testid="page">The page</div>
+        </AppRouteModal>,
+        { router: "/settings/general" },
+      );
+      const late = document.querySelector<HTMLElement>(".app-route-modal-late")!;
+      const style = getComputedStyle(late);
+      expect(style.animationName).toBe("app-route-modal-late");
+      expect(style.animationDelay).toBe("0.25s");
+      // The delay holds the first keyframe: nothing is drawn before it ends.
+      expect(style.opacity).toBe("0");
+      expect(late.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+      expect(document.querySelector('[data-testid="page"]')).toBeNull();
+
+      raf.mockRestore();
+      for (const callback of frames) callback(0);
+      await vi.waitFor(() => expect(document.querySelector('[data-testid="page"]')).not.toBeNull());
+      expect(document.querySelector(".app-route-modal-late")).toBeNull();
+    } finally {
+      raf.mockRestore();
+    }
   });
 
   it("is laid out as the real sheet is: the real rail width, a 48 px header, a centered page of at most 720 px", async () => {

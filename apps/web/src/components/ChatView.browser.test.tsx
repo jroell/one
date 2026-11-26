@@ -33,6 +33,7 @@ import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import stylesheet from "~/index.css?inline";
 import { environmentContextRecord } from "~/lib/composerContextRecords";
 import { startWorkspaceFocus } from "~/lib/workspaceFocus";
+import { waitForComposerSend } from "~/one/composerSendBridge";
 import { setWorkspaceMode } from "~/one/workspaceMode";
 import { usePromptStashStore } from "~/promptStashStore";
 import { useRightPanelStore } from "~/rightPanelStore";
@@ -134,6 +135,11 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   ...(await original()),
   trackRpcRequestSent: () => {},
 }));
+
+function inChatMode(): Disposable {
+  setWorkspaceMode("chat");
+  return { [Symbol.dispose]: () => setWorkspaceMode("code") };
+}
 
 it("opens a linked Linear issue from an inactive thread's sidebar badge", async () => {
   const style = document.createElement("style");
@@ -771,7 +777,8 @@ it("a rejected send leaves the timeline when a new draft was typed meanwhile", a
   expect(editor.element().textContent).toContain("Next draft");
 });
 
-it("a quiz request sends the reply's format with the person's short line, and the thread shows only the line", async () => {
+it("Quiz me on this sends the short line with the quiz format beside it, and the thread shows only the line", async () => {
+  using _mode = inChatMode();
   const thread = threadWithHistory("quiz-request", 1);
   using _environment = installFakeEnvironment([thread], { acceptCommands: true });
   __setClientSettingsForTests({
@@ -788,24 +795,57 @@ it("a quiz request sends the reply's format with the person's short line, and th
   });
   await expect.element(page.getByText(`Answer 0 for ${thread.id}.`)).toBeVisible();
 
-  const request = "Another round of three questions.";
-  await userEvent.click(page.getByTestId("composer-editor"));
-  await userEvent.keyboard(`${request}{Enter}`);
+  const request = "Quiz me on what you just explained, with three questions.";
+  await page.getByRole("button", { name: /^Quiz me on this/ }).click();
   await vi.waitFor(() =>
     expect(dispatchedCommands()).toContainEqual(
       expect.objectContaining({
         type: "message.dispatch",
-        text: expect.stringContaining("fenced code block labelled quiz"),
+        text: request,
+        context: expect.objectContaining({
+          agentContext: expect.stringContaining("fenced code block labelled quiz"),
+        }),
       }),
     ),
   );
-  const sent = dispatchedCommands().find(
-    (command) => command.type === "message.dispatch" && command.text.includes(request),
-  );
-  expect(sent).toBeDefined();
   // The person's own bubble reads as the line they sent; the format is not on screen.
   await expect.element(page.getByText(request).first()).toBeVisible();
   expect(document.body.textContent).not.toContain("fenced code block");
+});
+
+it("the composer offers the model it would send with, and offers the new one after the model changes", async () => {
+  const thread = threadWithHistory("model-offer", 1);
+  using _environment = installFakeEnvironment([thread], { acceptCommands: true });
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  await expect.element(page.getByText(`Answer 0 for ${thread.id}.`)).toBeVisible();
+
+  const shown = await waitForComposerSend(`${ENVIRONMENT_ID}:${thread.id}`, 5_000);
+  expect(shown?.modelSelection.model).toBe("gpt-5.4");
+  useComposerDraftStore.getState().setModelSelection(
+    scopeThreadRef(ENVIRONMENT_ID, thread.id),
+    {
+      instanceId: shown!.modelSelection.instanceId,
+      model: "gpt-5.5",
+    },
+    { explicit: true },
+  );
+  const changed = await waitForComposerSend(
+    `${ENVIRONMENT_ID}:${thread.id}`,
+    5_000,
+    (bridge) => bridge.modelSelection.model === "gpt-5.5",
+  );
+  expect(changed?.modelSelection.model).toBe("gpt-5.5");
 });
 
 it("Enter on an empty prompt resumes an interrupted thread", async () => {

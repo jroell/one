@@ -466,3 +466,87 @@ it.effect("steers a running turn with its sender and the thread's MCP app model 
     ]);
   }),
 );
+
+it.effect(
+  "steers a running turn with the app context attached to the person's message, framed as not theirs",
+  () =>
+    Effect.gen(function* () {
+      const now = yield* DateTime.now;
+      const threadId = ThreadId.make("thread:steer-agent-context");
+      const sessionId = ProviderSessionId.make("provider-session:steer-agent-context");
+      const providerTurnId = ProviderTurnId.make("provider-turn:steer-agent-context");
+      const attemptId = RunAttemptId.make("run-attempt:steer-agent-context");
+      const providerThread = {
+        id: ProviderThreadId.make("provider-thread:steer-agent-context"),
+        driver,
+        providerInstanceId,
+        providerSessionId: sessionId,
+      } as OrchestrationV2ProviderThread;
+      const projection = makeProjection({
+        now,
+        threadId,
+        providerThread,
+        providerTurnId,
+        attemptId,
+      });
+      const steered: Array<ProviderAdapter.ProviderAdapterV2SteerInput> = [];
+      const runtime = {
+        instanceId: providerInstanceId,
+        driver,
+        providerSessionId: sessionId,
+        steerTurn: (input: ProviderAdapter.ProviderAdapterV2SteerInput) =>
+          Effect.sync(() => void steered.push(input)),
+      } as unknown as ProviderAdapter.ProviderAdapterV2SessionRuntime;
+      const layerControl = ProviderTurnControlService.layer.pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            layerProjectionStore(() =>
+              Effect.succeed({
+                providerThread,
+                providerTurn: projection.providerTurns[0],
+                attempt: projection.attempts[0],
+                message: {
+                  id: MessageId.make("message:steer-agent-context"),
+                  text: "What is this?",
+                  attachments: [],
+                  createdBy: "user",
+                  creationSource: "web",
+                  context: { version: 1, records: [], agentContext: "Explain the Providers page." },
+                } as unknown as NonNullable<
+                  ProjectionStore.ProjectionProviderControlContext["message"]
+                >,
+                run: {
+                  id: RunId.make("run:steer-agent-context"),
+                  status: "running",
+                  activeAttemptId: attemptId,
+                } as OrchestrationV2Run,
+              }),
+            ),
+            layerSessions(sessionId, runtime),
+            Layer.mock(EventSink.EventSinkV2)({}),
+            Layer.mock(McpAppModelContext.McpAppModelContext)({
+              forThread: () => Effect.succeed([]),
+            }),
+          ),
+        ),
+      );
+
+      yield* Effect.gen(function* () {
+        const control = yield* ProviderTurnControlService.ProviderTurnControlServiceV2;
+        yield* control.steer({
+          threadId,
+          providerSessionId: sessionId,
+          providerThreadId: providerThread.id,
+          providerTurnId,
+          messageId: MessageId.make("message:steer-agent-context"),
+        });
+      }).pipe(Effect.provide(layerControl));
+
+      assert.equal(steered.length, 1);
+      assert.equal(steered.length, 1);
+      const text = steered[0]!.message.text;
+      assert.isTrue(text.startsWith("What is this?\n\n[One app context."));
+      assert.include(text, "The user did not write this and cannot see it");
+      assert.include(text, "Explain the Providers page.");
+    }),
+);

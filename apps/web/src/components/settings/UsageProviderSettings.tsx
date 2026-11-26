@@ -19,6 +19,7 @@ import { Button } from "../ui/button";
 import { AddUsageLimitSourceDialog } from "./AddUsageLimitSourceDialog";
 import { useSearchableSetting } from "./settingsSearch";
 import { QuotaGhost } from "./EmptyGhosts";
+import { ExplainControl } from "./explain/ExplainControl";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 
 const CLI_PROXY_NAME = "CLI Proxy";
@@ -44,6 +45,7 @@ export function UsageProviderSettings({
     <>
       <SettingsSection
         {...searchableSetting("usage-providers")}
+        titleAction={<ExplainControl topic="usage-providers" variant="icon" />}
         headerAction={
           !readOnly ? (
             <div className="flex gap-2">
@@ -64,8 +66,9 @@ export function UsageProviderSettings({
             className="min-h-40"
             title={gt("No usage sources configured")}
             description={gt(
-              "Add a hub or an HTTP source to see quota from another service, such as a shared proxy.",
+              "See how much of your AI subscriptions is left when your accounts live on a server you run yourself, under Usage.",
             )}
+            learnMore={<ExplainControl topic="usage-providers" />}
             preview={
               <QuotaGhost
                 sources={[

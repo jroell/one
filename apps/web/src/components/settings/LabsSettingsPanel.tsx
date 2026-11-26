@@ -123,6 +123,7 @@ function GuestLinksRowWithSignIn() {
   return (
     <SettingsRow
       {...searchableSetting("guest-links")}
+      explain="guest-links"
       description={gt(
         "Share a thread with a guest who watches it live in a browser and sends messages you approve. Sign in to T3 Connect to use guest links.",
       )}
@@ -154,6 +155,7 @@ function GuestLinksRow() {
     <SettingsRow
       serverScoped
       {...searchableSetting("guest-links")}
+      explain="guest-links"
       settingKeys={["guestSharingEnabled"]}
       // Turning guest links off still works without T3 Connect.
       managed={settings.guestSharingEnabled ? undefined : connectDenial}
@@ -188,6 +190,7 @@ function LinkedEnvironmentsRow() {
     <SettingsRow
       serverScoped
       {...searchableSetting("linked-environments-beta")}
+      explain="linked-environments"
       settingKeys={["linkedEnvironmentsEnabled"]}
       description={
         <T>
@@ -222,6 +225,7 @@ function WorkflowsRow() {
     <SettingsRow
       serverScoped
       {...searchableSetting("workflows-beta")}
+      explain="workflows"
       settingKeys={["workflowsEnabled"]}
       description={gt(
         "Run workflows from the files in this server's workflows folder, and start them from the command palette. While this is off, nothing in that folder runs.",

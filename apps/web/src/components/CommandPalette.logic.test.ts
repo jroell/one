@@ -1,6 +1,7 @@
 import { threadKey } from "@t3tools/client-runtime/state/entities";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { m } from "../i18n/messages";
 import type { Thread } from "../types";
 import { makeThreadFixture } from "../test-fixtures";
 import {
@@ -11,6 +12,7 @@ import {
   buildThreadActionItems,
   cachedThreadActionItems,
   itemTimestamp,
+  withTimestampAt,
   resolveItemContent,
   buildLinkedThreadActionItems,
   filterPinnedBrowseEntries,
@@ -1139,28 +1141,56 @@ describe("buildRootGroups", () => {
     expect(single[0]?.caption).toBeUndefined();
   });
 
-  it("labels a recent row with the time the list orders it by, not the thread's last update", () => {
+  it("labels a recent thread row with the time the list orders it by (its last open), not the thread's last update, as the row draws", () => {
     const now = Date.parse("2026-03-20T12:00:00.000Z");
     vi.useFakeTimers();
     vi.setSystemTime(now);
     try {
-      const recentRow = (value: string, activityAt: number, openedAt: number | null) => ({
-        ...action(value, value),
-        timestamp: "9d ago",
-        threadSearch: {
-          activityAt,
-          opens: openedAt === null ? null : { openedAt },
-        } as never,
+      const opened = makeThread({
+        id: ThreadId.make("opened"),
+        updatedAt: new Date(now - 3 * 3_600_000).toISOString(),
+        opens: { openedAt: now - 60_000, score: 1, picks: [] },
       });
-      const groups = buildRootGroups({
-        actionItems: [],
-        recentThreadItems: [
-          recentRow("thread:env:1", now - 3 * 3_600_000, now - 60_000),
-          recentRow("thread:env:2", now - 2 * 3_600_000, null),
-        ],
+      const idle = makeThread({
+        id: ThreadId.make("idle"),
+        updatedAt: new Date(now - 2 * 3_600_000).toISOString(),
+      });
+      const recentThreadItems = buildThreadActionItems({
+        threads: [opened, idle],
+        projectByKey: new Map([[`${opened.environmentId}:${opened.projectId}`, { title: "P" }]]),
+        icon: null,
+        runThread: async (_thread) => undefined,
       });
 
-      expect(groups[0]?.items.map((item) => item.timestamp)).toEqual(["1m ago", "2h ago"]);
+      const groups = buildRootGroups({ actionItems: [], recentThreadItems });
+
+      expect(groups[0]?.items.map((item) => itemTimestamp(item))).toEqual(["1m ago", "2h ago"]);
+      vi.setSystemTime(now + 60 * 60_000);
+      expect(groups[0]?.items.map((item) => itemTimestamp(item))).toEqual(["1h ago", "3h ago"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("labels a message-search row with when the matching message was written, not when its thread last moved", () => {
+    const now = Date.parse("2026-03-20T12:00:00.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    try {
+      const thread = makeThread({ updatedAt: new Date(now).toISOString() });
+      const [row] = buildThreadActionItems({
+        threads: [thread],
+        projectByKey: new Map([[`${thread.environmentId}:${thread.projectId}`, { title: "P" }]]),
+        icon: null,
+        runThread: async (_thread) => undefined,
+      });
+      expect(itemTimestamp(row!), "the thread moved just now").toBe("just now");
+
+      const matched = withTimestampAt(row!, new Date(now - 7 * 24 * 3_600_000).toISOString(), m);
+
+      expect(itemTimestamp(matched)).toBe("7d ago");
+      vi.setSystemTime(now + 24 * 3_600_000);
+      expect(itemTimestamp(matched)).toBe("8d ago");
     } finally {
       vi.useRealTimers();
     }

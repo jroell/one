@@ -13,6 +13,7 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { CheckIcon, MoreVertical, PlusIcon, ServerIcon, TypeIcon } from "lucide-react";
 import { SettingsEmptyState } from "./SettingsEmptyState";
+import { ExplainControl } from "./explain/ExplainControl";
 
 import { useId, useState } from "react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
@@ -99,6 +100,7 @@ export function TextGeneratorsSettings({
     <>
       <SettingsSection
         {...setting("text-generators")}
+        titleAction={<ExplainControl topic="text-generators" variant="icon" />}
         headerAction={
           !readOnly ? (
             <Button size="xs" variant="outline" onClick={() => setEditing("new")}>
@@ -114,8 +116,9 @@ export function TextGeneratorsSettings({
             icon={<TypeIcon />}
             title={gt("No text generators yet")}
             description={gt(
-              "Add a model API to write thread titles, commit messages, and other short text without starting a coding agent.",
+              "Add an AI service to write thread titles, commit messages and other short text without starting a coding agent.",
             )}
+            learnMore={<ExplainControl topic="text-generators" />}
           />
         ) : null}
         {generators.map(([id, config]) => {

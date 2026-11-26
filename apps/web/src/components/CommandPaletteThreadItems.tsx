@@ -37,11 +37,11 @@ import { primaryServerProvidersAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
 import { buildThreadRouteParams } from "../threadRoutes";
-import { formatRelativeTimeLabel } from "../timestampFormat";
 import {
   buildThreadActionItems,
   cachedThreadActionItems,
   ITEM_ICON_CLASS,
+  withTimestampAt,
 } from "./CommandPalette.logic";
 import { useEnvironmentLookups, useProjectLookups } from "./CommandPaletteLookups";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
@@ -297,13 +297,13 @@ export function useCommandPaletteThreadItems(input: {
     if (!item) return [];
     // The snippet replaces the project line, so a message row is as tall as a title row.
     const { description: _description, ...rest } = item;
+    // When the matching message was written, not when the thread last moved.
+    const dated = match.messageCreatedAt
+      ? withTimestampAt(rest, match.messageCreatedAt, messages)
+      : rest;
     return [
       {
-        ...rest,
-        // When the matching message was written, not when the thread last moved.
-        ...(match.messageCreatedAt
-          ? { timestamp: formatRelativeTimeLabel(match.messageCreatedAt, undefined, messages) }
-          : {}),
+        ...dated,
         threadContentMatch: {
           source: match.source,
           snippet: match.snippet,

@@ -55,6 +55,7 @@ import {
   makeWindow,
 } from "@t3tools/shared/usageFormat";
 import { formatUsageContractMismatch, usageSourceMessages } from "@t3tools/shared/usageFormatCopy";
+import { useNavigate } from "@tanstack/react-router";
 import { Button, InlineButton } from "../ui/button";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import {
@@ -191,6 +192,7 @@ export function UsagePage() {
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const hour12 = usePrimarySettings((settings) => resolveHour12(settings.timestampFormat));
   const gt = useGT();
+  const navigate = useNavigate();
   const locale = useLocale();
   const m = useMessages();
   const shortcutTitle = (
@@ -562,6 +564,17 @@ export function UsagePage() {
                           ? gt("Select an environment to see limits.")
                           : gt("Select an environment to see usage.")}
                     </p>
+                    {environments.length === 0 ? (
+                      <div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void navigate({ to: "/settings/connections" })}
+                        >
+                          {gt("Add an environment")}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : showingLimits ? (
                   <UsageLimitsSection
@@ -569,6 +582,7 @@ export function UsagePage() {
                     hiddenProviders={hiddenProviders}
                     now={limitsNow}
                     refreshing={isRefreshing || autoRefreshing}
+                    onRetry={refreshWindow}
                   />
                 ) : carried === null ? (
                   <UsageSkeleton

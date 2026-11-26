@@ -725,6 +725,7 @@ function ConfiguredCloudLinkRow({
       {showSwitch ? (
         <SettingsRow
           title={setting("t3-connect").title}
+          explain="t3-connect"
           description={
             connectDenial !== undefined && !managedTunnelActive
               ? connectDenial

@@ -9,6 +9,8 @@ import { Button } from "~/components/ui/button";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import type { WorkLogEntry } from "~/session-logic";
 
+import { noticeKind, noticeLevel, signInOf, type ChatNoticeRowPlan } from "./chatNotices";
+
 function CopyDetailButton({ text, label }: { readonly text: string; readonly label: string }) {
   const { copyToClipboard, isCopied } = useCopyToClipboard();
   return (
@@ -30,22 +32,6 @@ function noticeText(entry: WorkLogEntry): string {
   return entry.structuredPayload?.type === "system_notice"
     ? entry.structuredPayload.message
     : entry.label;
-}
-
-function noticeLevel(entry: WorkLogEntry): "info" | "warning" | "error" {
-  return entry.structuredPayload?.type === "system_notice"
-    ? (entry.structuredPayload.level ?? "warning")
-    : "warning";
-}
-
-/** A notice the person must act on: a sign-in the notice offers, or an error. */
-export function isActionableNotice(entry: WorkLogEntry): boolean {
-  const payload = entry.structuredPayload;
-  if (payload?.type !== "system_notice") return false;
-  return (
-    (payload.mcpSignIn !== undefined && payload.providerThreadId !== null) ||
-    noticeLevel(entry) === "error"
-  );
 }
 
 /** One notice that needs the person: a plain sentence, its sign-in beside it, the text behind it. */
@@ -87,16 +73,91 @@ function ChatActionableNotice({ entry }: { readonly entry: WorkLogEntry }) {
   );
 }
 
+/** `plugin:exa:exa` reads as "Exa"; the plugin's name follows when two tools share a name. */
+function toolLabels(servers: ReadonlyArray<string>): ReadonlyArray<string> {
+  const parts = servers.map((server) => {
+    const segments = server.split(":");
+    const name = (segments.at(-1) ?? server).replace(/[_-]+/g, " ").trim();
+    return { name: name.charAt(0).toUpperCase() + name.slice(1), plugin: segments.at(-2) ?? null };
+  });
+  return parts.map(({ name, plugin }) =>
+    plugin !== null && parts.filter((other) => other.name === name).length > 1
+      ? `${name} (${plugin})`
+      : name,
+  );
+}
+
 /**
- * A turn's notices that the person must act on (a sign-in, an error), each in view as one plain
- * sentence with its action beside it. The rest are quiet and live behind the header's status dot.
+ * Tools the turn never called that need a sign-in, as one quiet line that opens to a list with a
+ * sign-in beside each. Never an alert: the person asked for none of them.
  */
-export function ChatNoticeLine({ notices }: { readonly notices: ReadonlyArray<WorkLogEntry> }) {
+function ChatSignInLine({ notices }: { readonly notices: ReadonlyArray<WorkLogEntry> }) {
+  const gt = useGT();
+  const { activeThreadEnvironmentId } = use(TimelineRowCtx);
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  const rows = notices.flatMap((entry) => {
+    const signIn = signInOf(entry);
+    const payload = entry.structuredPayload;
+    return signIn !== null && payload?.type === "system_notice" && payload.providerThreadId !== null
+      ? [{ entry, server: signIn.server, payload, providerThreadId: payload.providerThreadId }]
+      : [];
+  });
+  const labels = toolLabels(rows.map((row) => row.server));
+  return (
+    <div className="one-chat-notice" data-level="info" data-chat-sign-in-line="">
+      <button
+        type="button"
+        className="one-chat-notice-toggle"
+        aria-expanded={open}
+        aria-controls={bodyId}
+        data-scroll-anchor-ignore
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>
+          {gt(
+            "{count, plural, one {{count} tool needs sign-in} other {{count} tools need sign-in}}",
+            {
+              count: rows.length,
+            },
+          )}
+        </span>
+        <ChevronRightIcon className="one-chat-notice-chevron size-3.5" aria-hidden />
+      </button>
+      {open ? (
+        <ul id={bodyId} className="one-chat-notice-body one-chat-signin-list">
+          {rows.map((row, index) => (
+            <li key={row.entry.id} className="one-chat-signin-row">
+              <span className="one-chat-notice-text">{labels[index]}</span>
+              <McpSignInAction
+                environmentId={activeThreadEnvironmentId}
+                threadId={row.payload.threadId}
+                providerThreadId={row.providerThreadId}
+                server={row.server}
+                noticeAt={DateTime.toEpochMillis(row.payload.updatedAt)}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A turn's notices in Chat. What the request needed (an error, a sign-in for a tool it called)
+ * is in view as one plain sentence with its action. The tools it did not call fold into one quiet
+ * line, and a thread the app started with hidden notes (a guided conversation) shows none of them. The rest wait behind the header's dot.
+ */
+export function ChatNoticeLine({ plan }: { readonly plan: ChatNoticeRowPlan }) {
+  const needed = plan.notices.filter((entry) => noticeKind(entry, plan.usedServers) === "needed");
+  const signIns = plan.notices.filter((entry) => noticeKind(entry, plan.usedServers) === "sign-in");
   return (
     <>
-      {notices.filter(isActionableNotice).map((entry) => (
+      {needed.map((entry) => (
         <ChatActionableNotice key={entry.id} entry={entry} />
       ))}
+      {signIns.length > 0 && !plan.fromApp ? <ChatSignInLine notices={signIns} /> : null}
     </>
   );
 }

@@ -4,8 +4,8 @@ import { ComposerContextId, GuestMessageId, ScheduledTaskId } from "@t3tools/con
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
 
 import {
-  withAgentInstructions,
-  withoutAgentInstructions,
+  LEGACY_INSTRUCTIONS_UNTIL,
+  legacyVisibleText,
   resolveUserMessageFileCards,
   resolveUserMessageGrouping,
   resolveUserMessagePresentation,
@@ -237,33 +237,38 @@ describe("resolveUserMessagePresentation", () => {
   });
 });
 
-describe("agent instructions that travel with a message", () => {
-  it("are not part of the message a person reads, and the words before and after them are", () => {
-    const sent = withAgentInstructions(
-      "Another round of three questions.",
-      "Reply with only JSON.",
-    );
-    expect(sent).toContain("Reply with only JSON.");
-    expect(resolveUserMessagePresentation({ role: "user", text: sent }).text).toBe(
-      "Another round of three questions.",
-    );
-    // Text added after the instructions (a context block) is still the sender's.
-    expect(withoutAgentInstructions(`${sent}\n\nNote: see attached`)).toBe(
+describe("instructions an earlier build put inside a message's text", () => {
+  const block = "<one-instructions>\nReply with only JSON.\n</one-instructions>";
+  const old = "2026-11-26T09:30:00.000Z";
+  const current = "2026-11-28T09:30:00.000Z";
+  const present = (text: string, createdAt?: string) =>
+    resolveUserMessagePresentation({ role: "user", text, createdAt }).text;
+
+  it("are left out of an old message, and the words around them are kept", () => {
+    const sent = `Another round of three questions.\n\n${block}`;
+    expect(present(sent, old)).toBe("Another round of three questions.");
+    expect(legacyVisibleText({ text: `${sent}\n\nNote: see attached`, createdAt: old })).toBe(
       "Another round of three questions.\n\nNote: see attached",
     );
   });
 
-  it("are not shown from a quiz request already stored with its whole format in the visible text", () => {
+  it("are shown as typed in a message made after the app stopped writing them, or with no date", () => {
+    const typed = `Please explain this tag: ${block}`;
+    expect(present(typed, current)).toBe(typed);
+    expect(present(typed, LEGACY_INSTRUCTIONS_UNTIL)).toBe(typed);
+    expect(present(typed)).toBe(typed);
+  });
+
+  it("are cut from a quiz request stored with its whole format in the visible text, only when it is old", () => {
     const stored =
       'Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
-    expect(resolveUserMessagePresentation({ role: "user", text: stored }).text).toBe(
-      "Quiz me on what you just explained.",
-    );
+    expect(present(stored, old)).toBe("Quiz me on what you just explained.");
+    expect(present(stored, current)).toBe(stored);
   });
 
   it("leave other text alone, including an opening tag that is never closed", () => {
-    expect(withoutAgentInstructions("Plain words")).toBe("Plain words");
+    expect(present("Plain words", old)).toBe("Plain words");
     const open = "Words <one-instructions> never closed";
-    expect(withoutAgentInstructions(open)).toBe(open);
+    expect(present(open, old)).toBe(open);
   });
 });

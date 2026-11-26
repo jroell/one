@@ -118,6 +118,7 @@ import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "../ui/men
 import { ToggleGroup, Toggle } from "../ui/toggle-group";
 import { ScheduleGhost } from "./EmptyGhosts";
 import { SettingsEmptyState } from "./SettingsEmptyState";
+import { ExplainControl } from "./explain/ExplainControl";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { createModelSelection } from "@t3tools/shared/model";
@@ -722,6 +723,7 @@ function NoScheduledTasks({
       description={gt(
         "A scheduled task runs a prompt on a timer, such as a summary of open work every morning.",
       )}
+      learnMore={<ExplainControl topic="scheduled-tasks" />}
       preview={
         <ScheduleGhost
           tasks={[

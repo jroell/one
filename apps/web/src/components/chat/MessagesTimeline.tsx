@@ -136,7 +136,7 @@ import {
 import { ChatNav } from "~/one/ChatNav";
 import { deriveChatSections, NO_CHAT_SECTIONS, type ChatSection } from "~/one/chatSections";
 import { chatFoldLabel } from "~/one/chatFoldLabel";
-import { ChatNoticeLine, isActionableNotice } from "~/one/ChatNoticeLine";
+import { ChatNoticeLine } from "~/one/ChatNoticeLine";
 import { ChatStatusScopeContext, publishChatStatus, type ChatStatusItem } from "~/one/chatStatus";
 import {
   ChatNoticePlanContext,
@@ -907,14 +907,20 @@ const ConversationTimeline = memo(function ConversationTimeline({
       );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [leavingKey, onApprovalLeft]);
-  // An answer kept for a request that is neither waiting nor leaving is dropped, whichever way the
-  // request left (reduced motion skips the leaving state).
+  // An answer kept for a request this timeline showed, once it is neither waiting nor leaving, is
+  // dropped, whichever way the request left (reduced motion skips the leaving state). Answers for
+  // requests another timeline shows are not this timeline's to drop.
   const waitingKey = pendingApprovals.map((approval) => approval.requestId).join("|");
+  const shownApprovalIds = useRef(new Set<RuntimeRequestId>());
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops recorded approval answers for requests that are gone
   useEffect(() => {
-    const waiting = new Set(waitingKey === "" ? [] : waitingKey.split("|"));
-    const leaving = new Set(leavingKey === "" ? [] : leavingKey.split("|"));
-    pruneApprovalDecisions((id) => waiting.has(id) || leaving.has(id));
+    const waiting = new Set(waitingKey === "" ? [] : (waitingKey.split("|") as RuntimeRequestId[]));
+    const leaving = new Set(leavingKey === "" ? [] : (leavingKey.split("|") as RuntimeRequestId[]));
+    const shown = shownApprovalIds.current;
+    for (const id of [...waiting, ...leaving]) shown.add(id);
+    const stays = (id: RuntimeRequestId) => waiting.has(id) || leaving.has(id);
+    pruneApprovalDecisions(shown, stays);
+    for (const id of shown) if (!stays(id)) shown.delete(id);
   }, [waitingKey, leavingKey]);
   const pendingApprovalRequestIds = new Set([
     ...visiblePendingApprovals.map((approval) => approval.requestId),
@@ -974,7 +980,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
               },
             ]
           : []),
-        ...quietNotices(noticePlan.values(), isActionableNotice).map((entry) => ({
+        ...quietNotices(noticePlan.values()).map((entry) => ({
           id: entry.id,
           kind: "notice" as const,
           title: entry.label,
@@ -2239,7 +2245,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           {row.kind === "thinking" ? <ThinkingTimelineRow row={row} /> : null}
         </WorkLogBlock>
       ) : null}
-      {noticePlan !== undefined ? <ChatNoticeLine notices={noticePlan.notices} /> : null}
+      {noticePlan !== undefined ? <ChatNoticeLine plan={noticePlan} /> : null}
       {row.kind === "turn-fold" ? <TurnFoldTimelineRow key={row.id} row={row} /> : null}
       {row.kind === "attempt-fold" ? <AttemptFoldTimelineRow row={row} /> : null}
       {row.kind === "context-compaction" ? <ContextCompactionTimelineRow row={row} /> : null}

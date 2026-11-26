@@ -23,7 +23,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
-import { act, render } from "../../../test/render";
+import { act, fakeTimers, render } from "../../../test/render";
 
 const state = vi.hoisted(() => ({
   providers: null as unknown as Atom.Writable<ReadonlyArray<ServerProvider>>,
@@ -179,6 +179,7 @@ vi.mock(import("../ProviderUpdatesAction"), async (original) => ({
 
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { EnvironmentProviderSettings } from "./ProviderSettingsPanel";
+import { UNREPORTED_PROVIDER_MS } from "./ProviderInstanceCard";
 import { SettingsBreadcrumb } from "./SettingsBreadcrumb";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { useProviderInstanceRoute } from "./useProviderInstanceRoute";
@@ -555,6 +556,31 @@ describe("EnvironmentProviderSettings status wording", () => {
     );
     expect(row.textContent).not.toContain("Needs attention");
     expect(row.textContent).not.toContain("Waiting for the server to report");
+  });
+
+  it("stops saying Checking for a provider the server never lists: after ten seconds the row says so", async () => {
+    using _timers = fakeTimers();
+    await setup();
+    state.settings = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providerInstances: {
+        [customId]: {
+          driver: ProviderDriverKind.make("codex"),
+          enabled: true,
+          displayName: "Work",
+        },
+      },
+    };
+    await setProviders([]);
+    await using _screen = await render(panel(), { router: "/settings/providers" });
+
+    const row = () => document.querySelector("[data-provider-row]")!.parentElement!;
+    const chip = () =>
+      row().querySelector("[data-settings-status]")?.getAttribute("data-settings-status");
+    expect(chip()).toBe("checking");
+    await act(() => vi.advanceTimersByTimeAsync(UNREPORTED_PROVIDER_MS + 500));
+    expect(chip()).toBe("attention");
+    expect(row().textContent).toContain("The server has not reported on this provider.");
   });
 
   it("says a ready provider's state once, as a Ready chip, with the plan as plain text and no Available or Authenticated beside it", async () => {

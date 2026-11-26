@@ -6,7 +6,7 @@ import {
   type ProviderInstallState,
   type ServerProvider,
 } from "@t3tools/contracts";
-import { userEvent } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
@@ -21,6 +21,7 @@ const setup = vi.hoisted(() => ({
   respondAuth: vi.fn(),
   cancelAuth: vi.fn(),
   logoutAuth: vi.fn(),
+  refreshProviders: vi.fn(),
   startInstall: vi.fn(),
   cancelInstall: vi.fn(),
   removeInstall: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock(import("../../state/server"), async (original) => {
       respondProviderAuth: setup.respondAuth as never,
       cancelProviderAuth: setup.cancelAuth as never,
       logoutProviderAuth: setup.logoutAuth as never,
+      refreshProviders: setup.refreshProviders as never,
       startProviderInstall: setup.startInstall as never,
       cancelProviderInstall: setup.cancelInstall as never,
       removeProviderInstallation: setup.removeInstall as never,
@@ -171,6 +173,7 @@ function resetSetup() {
     setup.completeAuth,
     setup.cancelAuth,
     setup.logoutAuth,
+    setup.refreshProviders,
     setup.startInstall,
     setup.cancelInstall,
     setup.removeInstall,
@@ -280,5 +283,78 @@ describe("Antigravity setup", () => {
     });
     expect(screen.button("Sign in")?.disabled).toBe(true);
     expect(setup.startAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe("Antigravity sign-in asked for by the Usage page", () => {
+  const SIGN_IN_ADDRESS = `/settings/providers?instanceId=${instanceId}&action=sign-in`;
+  const idleAuth = () => authState({ phase: "idle", flowId: null, authorizationUrl: null });
+
+  it("starts the sign-in once on arrival, removes the request from the address, and does not repeat it on a reload", async () => {
+    resetSetup();
+    setup.auth = idleAuth();
+    await using first = await render(section(), { router: SIGN_IN_ADDRESS });
+    await vi.waitFor(() => expect(setup.startAuth).toHaveBeenCalledTimes(1));
+    expect(setup.startAuth.mock.calls[0]![0]).toMatchObject({
+      environmentId,
+      input: { instanceId },
+    });
+    await vi.waitFor(() =>
+      expect(first.router!.state.location.search).not.toHaveProperty("action"),
+    );
+    await first.rerender(section());
+    expect(setup.startAuth).toHaveBeenCalledTimes(1);
+
+    // A reload comes back to the address as it is now, without the request.
+    const reloadedAt = first.router!.state.location.href;
+    await first[Symbol.asyncDispose]();
+    await using _reloaded = await render(section(), { router: reloadedAt });
+    await expect.element(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    expect(setup.startAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start a sign-in when the address does not ask for one", async () => {
+    resetSetup();
+    setup.auth = idleAuth();
+    await using _screen = await render(section(), {
+      router: `/settings/providers?instanceId=${instanceId}`,
+    });
+    await expect.element(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    expect(setup.startAuth).not.toHaveBeenCalled();
+  });
+
+  it("does not start a sign-in for a provider that is already signed in", async () => {
+    resetSetup();
+    setup.auth = idleAuth();
+    await using screen = await render(
+      section({ provider: { ...provider, status: "ready", auth: { status: "authenticated" } } }),
+      { router: SIGN_IN_ADDRESS },
+    );
+    await vi.waitFor(() =>
+      expect(screen.router!.state.location.search).not.toHaveProperty("action"),
+    );
+    expect(setup.startAuth).not.toHaveBeenCalled();
+  });
+
+  it("refreshes that provider's limits when the sign-in ends, and offers the way back to Usage", async () => {
+    resetSetup();
+    setup.auth = idleAuth();
+    await using screen = await render(section(), { router: SIGN_IN_ADDRESS });
+    await vi.waitFor(() => expect(setup.startAuth).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() =>
+      expect(screen.router!.state.location.search).not.toHaveProperty("action"),
+    );
+    expect(setup.refreshProviders).not.toHaveBeenCalled();
+
+    await screen.rerender(
+      section({ provider: { ...provider, status: "ready", auth: { status: "authenticated" } } }),
+    );
+    await vi.waitFor(() => expect(setup.refreshProviders).toHaveBeenCalledTimes(1));
+    expect(setup.refreshProviders.mock.calls[0]![0]).toMatchObject({
+      environmentId,
+      input: { instanceId },
+    });
+    await userEvent.click(page.getByRole("button", { name: "Back to Usage" }));
+    await vi.waitFor(() => expect(screen.router!.state.location.pathname).toBe("/usage"));
   });
 });

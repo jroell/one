@@ -1,4 +1,7 @@
-import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
+import {
+  legacyVisibleText,
+  resolveUserMessagePresentation,
+} from "@t3tools/client-runtime/user-message";
 import {
   EnvironmentContextRecord,
   type OrchestrationMessageContext,
@@ -143,13 +146,16 @@ export function recallableComposerPrompt(
 
 /** A sent message's text as the composer can hold it, with the mention records its chips need. */
 export function recallComposerMessage(
-  message: Pick<ComposerPromptHistoryMessage, "text" | "context">,
+  message: Pick<ComposerPromptHistoryMessage, "text" | "context"> & {
+    readonly createdAt?: unknown;
+  },
 ): Pick<ComposerPromptHistoryEntry, "prompt" | "mentions"> {
   const records = message.context?.records ?? [];
   const threadRecords = records.filter(isThreadContextRecord);
   const environmentRecords = records.filter(isEnvironmentContextRecord);
   const prompt = recallableComposerPrompt(
-    message.text,
+    // The app's instructions never come back into a draft; an old message's are cut out here.
+    legacyVisibleText(message),
     new Set([...threadRecords, ...environmentRecords].map((record) => record.contextId)),
   );
   // A record whose chip is gone from the text would put the chip back when written to the draft.

@@ -205,6 +205,21 @@ export function itemTimestamp(item: CommandPaletteItem): string | undefined {
   return item.relativeTimestamp?.() ?? item.timestamp;
 }
 
+/**
+ * The row shown with a different time than its thread's last activity (the use a recent list is
+ * sorted by, the moment a matched message was written). The label is worked out when it draws.
+ */
+export function withTimestampAt<T extends CommandPaletteItem>(
+  item: T,
+  isoDate: string,
+  resolve: MessageResolver,
+): T {
+  return {
+    ...item,
+    relativeTimestamp: () => formatRelativeTimeLabel(isoDate, undefined, resolve),
+  };
+}
+
 const resolvedContent = new WeakMap<object, PaletteItemContent>();
 
 /** The row content of an item, built once on first use when the item carries `lazyContent`. */
@@ -1004,12 +1019,7 @@ export function buildRootGroups(
     // the order and the labels agree.
     const recentThreadItems = input.recentThreadItems.map((item) => {
       const usedAt = item.threadSearch ? threadRecentUse(item.threadSearch) : 0;
-      return usedAt > 0
-        ? {
-            ...item,
-            timestamp: formatRelativeTimeLabel(new Date(usedAt).toISOString(), undefined, resolve),
-          }
-        : item;
+      return usedAt > 0 ? withTimestampAt(item, new Date(usedAt).toISOString(), resolve) : item;
     });
     const [first, ...rest] = recentThreadItems;
     const sharedContext =

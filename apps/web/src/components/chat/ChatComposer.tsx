@@ -1,4 +1,10 @@
 import { copySnapshot } from "./copySnapshot";
+import {
+  publishComposerSend,
+  retractComposerSend,
+  type GuidedSendResult,
+} from "~/one/composerSendBridge";
+import { setPendingAgentContext, takePendingAgentContext } from "~/one/pendingAgentContext";
 import { VoiceInputSetup } from "./VoiceInputSetup";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -2507,6 +2513,39 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current(undefined, undefined, { voice: report });
   });
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
+  // Sends one message for the app through the same send as a typed one. It never overwrites a
+  // draft; the notes ride beside the text and are taken by exactly this send.
+  const sendForApp = useStableCallback(
+    (input: { readonly text: string; readonly agentContext: string }) =>
+      new Promise<GuidedSendResult>((resolve) => {
+        if (prompt.trim().length > 0) {
+          resolve({ ok: false, reason: "draft-in-the-way" });
+          return;
+        }
+        if (
+          multipleModelSelections === null &&
+          (noProviderAvailable || providerSendBlockReason !== null)
+        ) {
+          resolve({ ok: false, reason: "no-provider" });
+          return;
+        }
+        setPendingAgentContext(composerDraftTargetKey, input.agentContext);
+        setComposerDraftPrompt(composerDraftTarget, input.text);
+        promptRef.current = input.text;
+        const done = (result: GuidedSendResult) => {
+          // Whatever happened, no later message from this composer carries these notes.
+          takePendingAgentContext(composerDraftTargetKey);
+          resolve(result);
+        };
+        submitComposerRef.current(undefined, undefined, {
+          voice: {
+            sent: (messageId) => done({ ok: true, messageId }),
+            rejected: (message) => done({ ok: false, reason: "rejected", message }),
+            notSent: () => done({ ok: false, reason: "not-sent" }),
+          },
+        });
+      }),
+  );
   // True when the draft with this key was sent and became the thread this composer now writes to.
   const voiceContinuesDraft = useStableCallback((draftKey: string) => {
     if (routeKind !== "server") return false;
@@ -2602,6 +2641,29 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     if (!publishesVoice) return;
     return () => retractVoiceBridge(voiceBridgeOwner);
   }, [publishesVoice, voiceBridgeOwner]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers the main composer's send to the guided conversation entry point, which lives outside the composer tree
+  useEffect(() => {
+    if (!publishesVoice) return;
+    publishComposerSend(voiceBridgeOwner, {
+      environmentId,
+      threadKey: composerDraftTargetKey,
+      isDraft: routeKind === "draft",
+      modelSelection: { instanceId: selectedInstanceId, model: selectedModel },
+      send: (input) =>
+        whileCommitted(voiceBridgeOwner, composerDraftTargetKey, () => sendForApp(input)) ??
+        Promise.resolve({ ok: false, reason: "not-sent" }),
+    });
+    return () => retractComposerSend(voiceBridgeOwner);
+  }, [
+    publishesVoice,
+    voiceBridgeOwner,
+    composerDraftTargetKey,
+    routeKind,
+    environmentId,
+    selectedInstanceId,
+    selectedModel,
+    sendForApp,
+  ]);
   useDictationSubmissionShortcut({
     enabled: voiceInputActive && !speechInput.preparing,
     formRef: composerFormRef,

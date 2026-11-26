@@ -4,6 +4,7 @@ import type { ComposerHandleRef } from "~/composerHandleContext";
 import { m } from "~/i18n/messages";
 
 import { QUIZ_REQUEST } from "./chatQuiz";
+import { useAskForQuiz } from "./useAskForQuiz";
 
 /**
  * Three ways to carry an answer into the next thought, most useful first. A pick puts a short stem
@@ -18,6 +19,7 @@ export function ChatFollowUps({
   readonly composer: ComposerHandleRef;
 }) {
   const gt = useGT();
+  const askForQuiz = useAskForQuiz("first");
   const actions = [
     {
       label: gt("Go deeper"),
@@ -34,12 +36,16 @@ export function ChatFollowUps({
     {
       label: gt("Quiz me on this"),
       hint: gt("Check what stuck"),
-      // The reply's format travels with this line out of sight (withQuizInstructions).
-      stem: m(QUIZ_REQUEST),
+      // Sent at once: the reply's format travels beside this line, out of sight.
+      stem: null,
       preview: m(QUIZ_REQUEST),
     },
   ];
-  const follow = (stem: string) => {
+  const follow = (stem: string | null) => {
+    if (stem === null) {
+      askForQuiz();
+      return;
+    }
     const handle = composer.current;
     if (!handle) return;
     // Text already in the composer is the person's own: only take them there.

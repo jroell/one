@@ -542,6 +542,41 @@ describe("text read aloud in voice chat", () => {
     expect(speakableText("| A |\n|---|\n| 1 |")).toBe("A table with one row and columns A.");
   });
 
+  it("says what a table without outer pipes is, and leaves no pipe or dash behind", () => {
+    expect(speakableText("Name | Age\n--- | ---\nAnn | 31\nBo | 28\nDi | 40")).toBe(
+      "A table with three rows and columns Name and Age.",
+    );
+    expect(speakableText("Before.\n| Name | Age |\n|:--|--:|\n| Ann | 31 |\nAfter.")).toBe(
+      "Before.\nA table with one row and columns Name and Age.\nAfter.",
+    );
+  });
+
+  it("does not take a line with a pipe for a table unless a delimiter row follows it", () => {
+    expect(speakableText("Use a | b as the filter.\nThen run it.")).toBe(
+      "Use a | b as the filter.\nThen run it.",
+    );
+  });
+
+  it("keeps a code block closed by its own fence: a longer fence holds a shorter one, and the other character does not close it", () => {
+    expect(speakableText("Intro.\n````md\n```js\nrefract()\n```\nmore code\n````\nOutro.")).toBe(
+      "Intro.\nThe code is in the thread.\nOutro.",
+    );
+    expect(speakableText("Intro.\n~~~\n```\nstill code\n~~~\nOutro.")).toBe(
+      "Intro.\nThe code is in the thread.\nOutro.",
+    );
+  });
+
+  it("does not take ```js code``` on one line for the start of a code block", () => {
+    expect(speakableText("Say ```js code``` inline.\nThen go on.")).toBe(
+      "Say js code inline.\nThen go on.",
+    );
+  });
+
+  it("keeps a hash that belongs to the heading's words, and drops only a closing run of hashes", () => {
+    expect(speakableText("# C#\nBody.")).toBe("C#.\nBody.");
+    expect(speakableText("## Why rings ##\nBody.")).toBe("Why rings.\nBody.");
+  });
+
   it("reads a reply with a table, code, a list and a link as sentences, with no markup or commas left over", () => {
     const reply = [
       "## Lens orders",

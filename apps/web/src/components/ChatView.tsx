@@ -50,6 +50,7 @@ import {
 import { useQueuedRunEdit } from "./chat/useQueuedRunEdit";
 import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnvironments";
+import { useNowAfter } from "../hooks/useDeadline";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
@@ -57,7 +58,7 @@ import { usePendingThreadRequests } from "./chat/usePendingThreadRequests";
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import { resolveWorktreeRepositorySelection } from "@t3tools/client-runtime/state/thread-repositories";
 import { visibleThreadPullRequests } from "@t3tools/shared/threadPullRequests";
-import type { UsageLimitSourceSnapshots } from "@t3tools/contracts";
+import type { ProviderApprovalDecision, UsageLimitSourceSnapshots } from "@t3tools/contracts";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { freshSessionBannerItem } from "./chat/ComposerFreshSession";
 import { heldComposerSendBannerItem } from "./chat/ComposerHeldSendBanner";
@@ -223,6 +224,9 @@ import {
 import { ChatStatusScope } from "~/one/ChatStatusScope";
 import { OneVoiceStage } from "~/one/OneVoiceStage";
 import { useThreadPanelInlineOpen, useThreadPanelView } from "~/one/chatThreadPanel";
+import { ChatUsageLimitFailure } from "~/one/ChatUsageLimitFailure";
+import { deriveUsageLimitRecovery } from "~/one/chatUsageRecovery";
+import { waitForComposerSend } from "~/one/composerSendBridge";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
@@ -422,7 +426,7 @@ import { useDraftHeroLayoutTransition } from "./chat/useDraftHeroLayoutTransitio
 import { useLocalDispatchState } from "./chat/useLocalDispatchState";
 import { draftFanoutSelectionsAtom, draftSendState } from "./chat/chatViewSend";
 import { answerApproval } from "~/one/approvalDecision";
-import { chordApprovalRequestId } from "./chat/approvalChord";
+import { approvalCardSight, chordApprovalRequestId } from "./chat/approvalChord";
 import {
   isCompactCommandMessage,
   type LocalThreadErrorEntry,
@@ -2940,8 +2944,10 @@ function ChatView(props: ChatViewProps) {
     isDesktop: isElectron,
   });
   const getShortcutContextStable = useStableCallback(getShortcutContext);
-  // Approve and Decline chords answer only the request whose card shows the chord hint: the oldest
-  // one the typing guard is not holding hidden, in the thread's own timeline.
+  // The Approve and Decline chords target the oldest request the typing guard is not holding
+  // hidden, which is the card that shows the chord hint. Whether the person can see that card is
+  // read from the page when the key is pressed (`approvalCardSight`): a card that is scrolled out
+  // of view is brought into view and not answered, and one that is out of sight is left alone.
   const chordApprovalId = chordApprovalRequestId(
     pendingApprovals.map((approval) => approval.requestId),
     heldApprovalRequestIds,
@@ -2953,9 +2959,27 @@ function ChatView(props: ChatViewProps) {
   const canRespondToChordApproval =
     !embedded &&
     canOperateThread &&
+    !rightPanelMaximized &&
     chordApproval !== null &&
     chordApproval.responseCapability === "live" &&
     !respondingRequestIds.includes(chordApproval.requestId);
+  const chordApprovalInSight = () =>
+    chordApproval !== null && approvalCardSight(chordApproval.requestId).kind !== "hidden";
+  const answerChordApproval = (
+    decision: ProviderApprovalDecision,
+    event: { readonly repeat: boolean },
+  ) => {
+    if (!canRespondToChordApproval || chordApproval === null) return false;
+    const sight = approvalCardSight(chordApproval.requestId);
+    if (sight.kind === "hidden") return false;
+    if (event.repeat) return;
+    if (sight.kind === "off-screen") {
+      if (sight.card === null) scrollToEnd(true);
+      else sight.card.scrollIntoView({ block: "center" });
+      return;
+    }
+    void answerApproval(chordApproval.requestId, decision, onRespondToApprovalStable);
+  };
   const timelineSkills = activeProviderStatus
     ? resolveProviderSkillsForCwd(activeProviderStatus, gitCwd)
     : EMPTY_PROVIDER_SKILLS;
@@ -3015,20 +3039,12 @@ function ChatView(props: ChatViewProps) {
         composerRef.current?.isCaretAtStart() === true &&
         queuedRunsControlRef.current?.editLatest(event.repeat) === true,
       "approval.approve": {
-        run: ({ event }) => {
-          if (!canRespondToChordApproval) return false;
-          if (event.repeat) return;
-          void answerApproval(chordApproval!.requestId, "accept", onRespondToApprovalStable);
-        },
-        canRun: () => canRespondToChordApproval,
+        run: ({ event }) => answerChordApproval("accept", event),
+        canRun: () => canRespondToChordApproval && chordApprovalInSight(),
       },
       "approval.decline": {
-        run: ({ event }) => {
-          if (!canRespondToChordApproval) return false;
-          if (event.repeat) return;
-          void answerApproval(chordApproval!.requestId, "decline", onRespondToApprovalStable);
-        },
-        canRun: () => canRespondToChordApproval,
+        run: ({ event }) => answerChordApproval("decline", event),
+        canRun: () => canRespondToChordApproval && chordApprovalInSight(),
       },
       "thread.stop": {
         run: ({ event }) => {
@@ -3274,6 +3290,29 @@ function ChatView(props: ChatViewProps) {
   };
   const sendPreviewAnnotationStable = useStableCallback(sendPreviewAnnotation);
   const onComposerResumeStable = useStableCallback(onResume);
+  const [usageRetryKey, setUsageRetryKey] = useState<string | null>(null);
+  // Continues the stopped run with another model: the composer takes the model, then Resume sends
+  // the run's own message again, notes and all.
+  const tryUsageLimitRunWith = useStableCallback(async (selection: ModelSelection) => {
+    setUsageRetryKey(routeThreadKey);
+    useComposerDraftStore
+      .getState()
+      .setModelSelection(composerDraftTarget, selection, { explicit: true });
+    const shown = await waitForComposerSend(
+      composerDraftTargetKey,
+      3_000,
+      (bridge) =>
+        bridge.modelSelection.instanceId === selection.instanceId &&
+        bridge.modelSelection.model === selection.model,
+    );
+    if (shown === null) {
+      toastManager.add({ type: "error", title: gt("Could not switch the model. Try again.") });
+    } else {
+      await onResume();
+    }
+    setUsageRetryKey(null);
+  });
+  const changeUsageLimitModel = useStableCallback(() => composerRef.current?.openModelPicker());
   const onComposerCompactContextStable = useStableCallback(onCompactContext);
   // Read from the projection the footer renders, so the scroll below sees the new message.
   const pendingGuestMessageIds =
@@ -3403,11 +3442,27 @@ function ChatView(props: ChatViewProps) {
       .join(" · ") || null;
   // The end of the timeline holds the thread's present and next turns: what it is doing now,
   // its lifecycle status, guest messages awaiting you, then your queued messages.
+  const usageLimitResetMs = Date.parse(serverRuntime?.usageLimitResetAt ?? "");
+  const usageLimitNow = useNowAfter(Number.isFinite(usageLimitResetMs) ? usageLimitResetMs : null);
+  const usageLimitRun =
+    limitRecoveryRun === null
+      ? undefined
+      : serverProjection?.runs.find((run) => run.id === limitRecoveryRun.runId);
+  const usageRecovery =
+    workspaceMode === "chat" && usageLimitRun !== undefined
+      ? deriveUsageLimitRecovery({
+          failedSelection: usageLimitRun.modelSelection,
+          resetsAt: serverRuntime?.usageLimitResetAt ?? null,
+          providers: providerStatuses,
+          now: usageLimitNow,
+        })
+      : null;
   const timelineFooter =
     pendingHandoff === null &&
     !hasThreadNow &&
     threadStatusLine === null &&
     pendingGuestMessageCount === 0 &&
+    usageRecovery === null &&
     !hasQueuedTurns ? null : (
       <>
         {pendingHandoff === null ? null : (
@@ -3428,6 +3483,19 @@ function ChatView(props: ChatViewProps) {
           goal={goalNow}
         />
         {threadStatusLine}
+        {usageRecovery === null ? null : (
+          <ChatUsageLimitFailure
+            recovery={usageRecovery}
+            timestampFormat={timestampFormat}
+            busy={usageRetryKey === routeThreadKey || isResuming}
+            onTryAgain={
+              canResume && usageRecovery.alternative !== null
+                ? () => void tryUsageLimitRunWith(usageRecovery.alternative!.selection)
+                : null
+            }
+            onChangeModel={changeUsageLimitModel}
+          />
+        )}
         {pendingGuestMessageCount > 0 && isServerThread && activeThread ? (
           <GuestPendingMessages
             threadRef={scopeThreadRef(activeThread.environmentId, activeThread.id)}

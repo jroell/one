@@ -15,6 +15,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { sourceIdFromUrl } from "./AddUsageLimitSourceDialog.logic";
+import { ExplainControl } from "./explain/ExplainControl";
 import { SecretSourceInput, useSecretSources } from "./SecretSourceInput";
 import { Label } from "../ui/label";
 
@@ -105,6 +106,7 @@ export function AddUsageLimitSourceDialog({
               </T>
             )}
           </DialogDescription>
+          <ExplainControl topic={http ? "usage-http-source" : "usage-hub"} />
         </DialogHeader>
         <DialogPanel>
           <form

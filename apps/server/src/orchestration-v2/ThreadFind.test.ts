@@ -246,6 +246,22 @@ describe("V2 thread find", () => {
       }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect("finds the words a person sent and never the app's notes to the model", () =>
+    Effect.gen(function* () {
+      const projection = yield* setup;
+      yield* putItems([
+        {
+          ...item("with-note", 1, "What is this page for?", "user_message"),
+          context: { version: 1 as const, records: [], agentContext: "HIDDEN_NOTE_FOR_THE_MODEL" },
+        },
+      ]);
+      const visible = yield* projection.searchThread({ threadId, query: "page for" });
+      assert.equal(visible.totalMatches, 1);
+      const hidden = yield* projection.searchThread({ threadId, query: "HIDDEN_NOTE" });
+      assert.equal(hidden.totalMatches, 0);
+    }).pipe(Effect.provide(layerTest)),
+  );
+
   it.effect("finishes one snapshot while later searches include newly inserted matches", () =>
     Effect.gen(function* () {
       const projection = yield* setup;

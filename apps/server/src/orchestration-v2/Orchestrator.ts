@@ -170,6 +170,7 @@ import {
   decideGuestShareCommand,
   type GuestShareCommand,
 } from "./GuestShareDecider.ts";
+import { keepingAgentContext, withAgentContextFromFirstParty } from "./MessageAgentContext.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
 import { withCommandMetrics } from "../observability/Metrics.ts";
 import type { OrchestrationEffectRequestV2, PendingOrchestrationEffectV2 } from "./EffectOutbox.ts";
@@ -12673,7 +12674,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         ...(command.modelSelection === undefined ? queuedMessage : pinnedMessage),
         text: command.text,
         ...editedAttachments,
-        ...(command.context ? { context: command.context } : {}),
+        ...(command.context
+          ? { context: keepingAgentContext(command.context, queuedMessage.context) }
+          : {}),
         updatedAt: now,
       }),
     });
@@ -12689,7 +12692,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           ...queuedTurnItem,
           text: command.text,
           ...editedAttachments,
-          ...(command.context ? { context: command.context } : {}),
+          ...(command.context
+            ? { context: keepingAgentContext(command.context, queuedMessage.context) }
+            : {}),
           updatedAt: now,
         }),
       });
@@ -16239,7 +16244,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             : yield* emitGuestMessageSent(command, command.guestMessageId, thread, events);
         const dispatched =
           guestSend === undefined
-            ? withoutGuestAttribution(command)
+            ? withAgentContextFromFirstParty(withoutGuestAttribution(command), command)
             : {
                 ...command,
                 text: guestSend.text,

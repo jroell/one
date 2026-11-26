@@ -12,6 +12,7 @@ export function SettingsEmptyState({
   title,
   description,
   action,
+  learnMore,
   preview,
   className,
 }: {
@@ -22,6 +23,8 @@ export function SettingsEmptyState({
   readonly description: ReactNode;
   /** The one action that fixes it. A second action belongs in the page, not here. */
   readonly action?: ReactNode;
+  /** An Explain control, set under the sentence, for a state whose terms need explaining. */
+  readonly learnMore?: ReactNode;
   /** What will appear here, drawn faintly and hidden from assistive technology. */
   readonly preview?: ReactNode;
   readonly className?: string;
@@ -45,6 +48,7 @@ export function SettingsEmptyState({
           <p data-slot="empty-description" className="max-w-[36ch] text-pretty">
             {description}
           </p>
+          {learnMore ? <div className="-ms-1">{learnMore}</div> : null}
           {action ? <div className="mt-1">{action}</div> : null}
         </div>
         {preview ? (

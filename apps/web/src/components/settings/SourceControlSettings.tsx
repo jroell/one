@@ -1,8 +1,9 @@
+import { ExplainControl } from "./explain/ExplainControl";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { ChevronDownIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type {
   SourceControlDiscoveryResult,
   SourceControlProviderAuth,
@@ -16,6 +17,7 @@ import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { cn } from "../../lib/utils";
 import { useEnvironmentQuery } from "../../state/query";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
+import { useWaitedLongerThan } from "./useWaitedLongerThan";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { serverEnvironment } from "../../state/server";
 import { sourceControlEnvironment } from "../../state/sourceControl";
@@ -337,21 +339,6 @@ export function DiscoveryItemRow({
   );
 }
 
-/** True once `active` has lasted `ms`; false again as soon as it ends. */
-function useWaitedLongerThan(active: boolean, ms: number): boolean {
-  const [waited, setWaited] = useState(false);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- timer that flags a wait that outlasts `ms`
-  useEffect(() => {
-    if (!active) return;
-    const timer = setTimeout(() => setWaited(true), ms);
-    return () => {
-      clearTimeout(timer);
-      setWaited(false);
-    };
-  }, [active, ms]);
-  return active && waited;
-}
-
 interface PendingDiscoveryItem {
   readonly key: string;
   readonly label: string;
@@ -361,11 +348,13 @@ interface PendingDiscoveryItem {
 /** The tools this page asks about, named while the server checks which are installed. */
 export function SourceControlPendingSection({
   title,
+  titleAction,
   headerAction,
   waiting,
   items,
 }: {
   readonly title: string;
+  readonly titleAction?: ReactNode;
   readonly headerAction?: ReactNode;
   /** Says what the page is waiting for, and what to do when it takes too long. */
   readonly waiting?: ReactNode;
@@ -373,7 +362,7 @@ export function SourceControlPendingSection({
 }) {
   const gt = useGT();
   return (
-    <SettingsSection title={title} headerAction={headerAction}>
+    <SettingsSection title={title} titleAction={titleAction} headerAction={headerAction}>
       {waiting ? (
         <div
           role="status"
@@ -616,6 +605,7 @@ export function SourceControlSettingsPanel() {
           />
           <SourceControlPendingSection
             title={gt("Source control providers")}
+            titleAction={<ExplainControl topic="source-control-providers" variant="icon" />}
             items={sourceControlClients.definitions.map((definition) => {
               const Icon = sourceControlIcon(definition);
               return {
@@ -648,6 +638,7 @@ export function SourceControlSettingsPanel() {
                   ? gt("Source control providers")
                   : `${gt("Source control providers")}${environmentSuffix}`
               }
+              titleAction={<ExplainControl topic="source-control-providers" variant="icon" />}
               headerAction={hasVersionControlSystems ? null : scanButton}
             >
               {result.sourceControlProviders.map((item) => (

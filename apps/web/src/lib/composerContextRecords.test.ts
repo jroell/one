@@ -511,3 +511,17 @@ describe("selectedMessageContextFragment", () => {
     expect(fragment).not.toContain(terminal.contextId);
   });
 });
+
+describe("buildMessageContext app context", () => {
+  const empty = { terminalContexts: [], reviewComments: [], previewAnnotations: [] };
+
+  it("carries the app's notes only when a caller passes them, and never invents any", () => {
+    expect(buildMessageContext(empty)).toBeUndefined();
+    expect(buildMessageContext({ ...empty, agentContext: "   " })).toBeUndefined();
+    expect(buildMessageContext({ ...empty, agentContext: " Explain the page. " })).toEqual({
+      version: 1,
+      records: [],
+      agentContext: "Explain the page.",
+    });
+  });
+});

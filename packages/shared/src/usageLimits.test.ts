@@ -26,7 +26,7 @@ import {
   usesChatGptSharing,
   resolveNewThreadModelSelection,
 } from "./usageLimits.ts";
-import { collectLimitNotices } from "./usageLimitsCopy.ts";
+import { collectLimitNotices, collectLimitSetupPrompts } from "./usageLimitsCopy.ts";
 
 const now = Date.parse("2026-09-03T12:00:00.000Z");
 
@@ -1937,6 +1937,36 @@ describe("external usage settings", () => {
       "codex: Sign in with Google to see Antigravity limits.",
     ]);
     expect(notices(unsupported())).toEqual([]);
+  });
+
+  it("asks Antigravity for a sign-in as a setup prompt, and leaves other providers' notices alone", () => {
+    const signedOut = (driver: string) =>
+      provider({
+        driver: ProviderDriverKind.make(driver),
+        usageLimits: {
+          checkedAt: "2026-09-03T11:00:00.000Z",
+          windows: [],
+          unavailable: {
+            reason: "unsupported",
+            message: "Sign in with Google to see Antigravity limits.",
+          },
+        },
+      });
+    const presentations = (limited: ServerProvider) =>
+      new Map([
+        [
+          EnvironmentId.make("a"),
+          { entry: { target: { label: "Host" } }, serverConfig: { providers: [limited] } },
+        ],
+      ]);
+    const antigravity = presentations(signedOut("antigravity"));
+    expect(collectLimitSetupPrompts(antigravity)).toMatchObject([
+      { environmentId: "a", environmentLabel: "Host", driver: "antigravity" },
+    ]);
+    // The mobile list still gets the sentence; the web page opts out and shows the row instead.
+    expect(collectLimitNotices(antigravity)).toHaveLength(1);
+    expect(collectLimitNotices(antigravity, undefined, { withoutSetupPrompts: true })).toEqual([]);
+    expect(collectLimitSetupPrompts(presentations(signedOut("codex")))).toEqual([]);
   });
 
   it("names a hub account whose read failed unless another environment read it", () => {

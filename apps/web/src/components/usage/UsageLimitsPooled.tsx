@@ -35,11 +35,13 @@ import { usePrimarySettings } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
+import { ExplainControl } from "../settings/explain/ExplainControl";
 import { providerClients } from "../settings/providerDriverMeta";
 import { RedactedSensitiveText } from "../settings/RedactedSensitiveText";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "../ui/button";
 import { OpenAI } from "../Icons";
-import { Alert, AlertTitle } from "../ui/alert";
+import { Alert, AlertAction, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -56,6 +58,9 @@ import { type LimitProjection, limitClock, meterState, projectLimit } from "./us
 import {
   collectExternalUsageLinks,
   collectLimitNotices,
+  collectLimitSetupPrompts,
+  hasUsageSourceWithNoAccounts,
+  type LimitSetupPrompt,
   cursorUsageWindowDetails,
   formatDuration,
   formatResetsIn,
@@ -1013,11 +1018,14 @@ export function UsageLimitsPooled({
   presentations,
   now,
   loading = false,
+  onRetry,
 }: {
   readonly presentations: Parameters<typeof collectLimitAccounts>[0];
   readonly now: number;
   /** A refresh is running; with nothing to show yet, the page says so instead of reporting none. */
   readonly loading?: boolean;
+  /** Reads the limits again. */
+  readonly onRetry?: () => void;
 }) {
   const gt = useGT();
   const m = useMessages();
@@ -1025,7 +1033,8 @@ export function UsageLimitsPooled({
   const segmentPopoverActions = useRef<PopoverPrimitive.Root.Actions | null>(null);
   const pools = collectLimitPools(collectLimitAccounts(presentations), now);
   const quotaSources = collectHttpQuotaSources(presentations);
-  const notices = collectLimitNotices(presentations, m);
+  const setupPrompts = collectLimitSetupPrompts(presentations);
+  const notices = collectLimitNotices(presentations, m, { withoutSetupPrompts: true });
   const externalLinks = collectExternalUsageLinks(presentations, m);
   const rowCounts = pools.map((pool) => displayLimitWindows(pool).length);
   return (
@@ -1034,6 +1043,7 @@ export function UsageLimitsPooled({
       <UsageControlsSlot />
       {pools.length === 0 &&
       notices.length === 0 &&
+      setupPrompts.length === 0 &&
       externalLinks.length === 0 &&
       quotaSources.length === 0 ? (
         loading ? (
@@ -1055,6 +1065,9 @@ export function UsageLimitsPooled({
           </Fragment>
         ))}
       </SegmentPopoverContext>
+      {setupPrompts.map((prompt) => (
+        <LimitSetupRow key={prompt.key} prompt={prompt} showEnvironment={presentations.size > 1} />
+      ))}
       <Popover handle={segmentPopover} actionsRef={segmentPopoverActions}>
         {({ payload }) =>
           payload ? (
@@ -1126,12 +1139,84 @@ export function UsageLimitsPooled({
           </Button>
         </section>
       ))}
-      <LimitNotices notices={notices} />
+      <LimitNotices
+        notices={notices}
+        explainNoAccounts={hasUsageSourceWithNoAccounts(presentations)}
+        {...(onRetry ? { onRetry } : {})}
+      />
     </div>
   );
 }
 
-function LimitNotices({ notices }: { readonly notices: readonly string[] }) {
+/**
+ * A provider whose limits wait on setup. Signing in is a flow of its own (a browser page, a code or
+ * a terminal, kept by the provider's page in Settings), so the button opens that page for this
+ * provider on this machine instead of starting a second flow here.
+ */
+function LimitSetupRow({
+  prompt,
+  showEnvironment,
+}: {
+  readonly prompt: LimitSetupPrompt;
+  readonly showEnvironment: boolean;
+}) {
+  const gt = useGT();
+  const navigate = useNavigate();
+  const label = providerClients.get(prompt.driver)?.label ?? prompt.name;
+  return (
+    <section className="usage-panel" data-usage-setup={prompt.driver}>
+      <h2 className="usage-panel-head">
+        <ProviderInstanceIcon
+          driverKind={prompt.driver}
+          displayName={label}
+          indicatorBackground="var(--background)"
+          className="usage-mark size-5"
+          iconClassName="size-4 text-foreground/80"
+        />
+        {label}
+      </h2>
+      <div className="usage-setup-body">
+        <p className="usage-setup-text">
+          <span>
+            {showEnvironment
+              ? gt("Sign in to see limits on {environment}.", {
+                  environment: prompt.environmentLabel,
+                })
+              : gt("Sign in to see limits.")}
+          </span>{" "}
+          <ExplainControl topic="usage-sign-in" returnLabel={gt("Usage")} />
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            void navigate({
+              to: "/settings/providers",
+              search: {
+                environmentId: prompt.environmentId,
+                instanceId: prompt.instanceId,
+                action: "sign-in",
+              },
+            })
+          }
+        >
+          {gt("Sign in with Google")}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function LimitNotices({
+  notices,
+  explainNoAccounts,
+  onRetry,
+}: {
+  readonly notices: readonly string[];
+  readonly explainNoAccounts: boolean;
+  readonly onRetry?: () => void;
+}) {
+  const gt = useGT();
   if (notices.length === 0) return null;
   return (
     <Alert variant="warning" controlAlignment="first-line">
@@ -1141,6 +1226,18 @@ function LimitNotices({ notices }: { readonly notices: readonly string[] }) {
           {notice}
         </AlertTitle>
       ))}
+      {onRetry || explainNoAccounts ? (
+        <AlertAction>
+          {explainNoAccounts ? (
+            <ExplainControl topic="usage-no-accounts" returnLabel={gt("Usage")} />
+          ) : null}
+          {onRetry ? (
+            <Button variant="outline" size="xs" onClick={onRetry}>
+              {gt("Retry")}
+            </Button>
+          ) : null}
+        </AlertAction>
+      ) : null}
     </Alert>
   );
 }

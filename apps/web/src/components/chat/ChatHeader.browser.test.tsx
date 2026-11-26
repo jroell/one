@@ -1,5 +1,6 @@
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
-import { expect, it, vi } from "vite-plus/test";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { expect, it, onTestFinished, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 const persisted = vi.hoisted(() => ({ title: "" }));
@@ -23,6 +24,13 @@ vi.mock(import("~/hooks/useThreadActionMenu"), () => ({
 
 import { render, stubGlobal } from "../../../test/render";
 import { ChatHeader } from "./ChatHeader";
+import { clearGuidedReturn, rememberGuidedReturn } from "~/one/guidedReturn";
+import { setWorkspaceMode } from "~/one/workspaceMode";
+
+function inMode(mode: "chat" | "code"): Disposable {
+  setWorkspaceMode(mode);
+  return { [Symbol.dispose]: () => setWorkspaceMode("code") };
+}
 
 function header(title: string) {
   return (
@@ -102,4 +110,37 @@ it("keeps the Escape that cancels a rename from also reaching window shortcuts",
   await expect.element(input).not.toBeInTheDocument();
   expect(persisted.title).toBe("New thread");
   expect(windowEscapes).toEqual([true]);
+});
+
+it("shows a quiet way back to the page a guided conversation came from in Chat mode, and uses it once", async () => {
+  using _mode = inMode("chat");
+  const threadKey = scopedThreadKey(
+    scopeThreadRef(EnvironmentId.make("environment"), ThreadId.make("thread")),
+  );
+  rememberGuidedReturn(threadKey, { label: "Settings / Providers", href: "/settings/providers" });
+  onTestFinished(() => clearGuidedReturn(threadKey));
+  await using screen = await render(header("New thread"));
+  const back = screen.getByRole("button", { name: "Back to Settings / Providers" });
+  await expect.element(back).toBeVisible();
+  await back.click();
+  // It has been used: the way back is gone from this thread.
+  await expect
+    .element(screen.getByRole("button", { name: "Back to Settings / Providers" }))
+    .not.toBeInTheDocument();
+});
+
+it("shows no way back in Code mode, or for a thread that was not opened from a page", async () => {
+  const threadKey = scopedThreadKey(
+    scopeThreadRef(EnvironmentId.make("environment"), ThreadId.make("thread")),
+  );
+  onTestFinished(() => clearGuidedReturn(threadKey));
+  {
+    using _mode = inMode("chat");
+    await using screen = await render(header("New thread"));
+    expect(screen.container.querySelector("[data-guided-back]")).toBeNull();
+  }
+  rememberGuidedReturn(threadKey, { label: "Settings", href: "/settings" });
+  using _mode = inMode("code");
+  await using screen = await render(header("New thread"));
+  expect(screen.container.querySelector("[data-guided-back]")).toBeNull();
 });

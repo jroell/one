@@ -152,6 +152,7 @@ function dispatchUserMessage(input: {
   readonly threadId: ThreadId;
   readonly text: string;
   readonly attachments?: ReadonlyArray<ChatAttachment>;
+  readonly agentContext?: string;
 }) {
   return Effect.gen(function* () {
     const threads = yield* ThreadManagement.ThreadManagementService;
@@ -161,6 +162,9 @@ function dispatchUserMessage(input: {
       threadId: input.threadId,
       messageId: MessageId.make(`${input.command}:message`),
       text: input.text,
+      ...(input.agentContext === undefined
+        ? {}
+        : { context: { version: 1 as const, records: [], agentContext: input.agentContext } }),
       attachments: input.attachments ?? [],
       modelSelection,
       dispatchMode: { type: "defer_start" },
@@ -532,6 +536,32 @@ describe("ThreadTitleRegenerationService", () => {
           }).pipe(Effect.provide(harness.layer));
         }
       }),
+  );
+
+  it.effect(
+    "titles a thread from the words the person sent, never the app's notes to the model",
+    () => {
+      const harness = makeHarness();
+      return Effect.gen(function* () {
+        const service = yield* ThreadTitleRegeneration.ThreadTitleRegenerationService;
+        const threadId = yield* createThread({ command: "note:create", thread: "note:thread" });
+        yield* dispatchUserMessage({
+          command: "note:message",
+          threadId,
+          text: "What is this?",
+          agentContext: "APP_NOTE_FOR_THE_MODEL_ONLY",
+        });
+        const requestId = yield* armRegeneration({ command: "note:title", threadId });
+        yield* service.execute({
+          threadId,
+          requestId,
+          kind: { type: "initial", messageId: MessageId.make("note:message:message") },
+        });
+        const call = harness.generateThreadTitle.mock.calls[0]?.[0];
+        assert.equal(call?.message, "What is this?");
+        assert.notInclude(JSON.stringify(call), "APP_NOTE_FOR_THE_MODEL_ONLY");
+      }).pipe(Effect.provide(harness.layer));
+    },
   );
 
   it.effect("arms and clears the regeneration marker through metadata commands", () =>

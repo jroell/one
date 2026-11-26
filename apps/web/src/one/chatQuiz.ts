@@ -1,8 +1,5 @@
-import { withAgentInstructions } from "@t3tools/client-runtime/user-message";
 import { msg } from "gt-react";
 import { createContext } from "react";
-
-import { m } from "~/i18n/messages";
 
 /** One question of a quiz the reply carries in a fenced `quiz` block. */
 export interface QuizQuestion {
@@ -90,10 +87,16 @@ export function quizKey(messageId: string, blockIndex: number): string {
   return blockIndex === 0 ? messageId : `${messageId}:${blockIndex}`;
 }
 
+const QUIZ_FENCE = /^ {0,3}(?:`{3,}|~{3,})[ \t]*quiz\b/gm;
+
+/** How many `quiz` fences open in `text`. */
+export function countQuizFences(text: string): number {
+  return text.includes("quiz") ? (text.match(QUIZ_FENCE)?.length ?? 0) : 0;
+}
+
 /** How many `quiz` fences open in `text` before `offset`: this block's place among its message's. */
 export function quizBlockIndex(text: string, offset: number): number {
-  const before = text.slice(0, Math.max(0, offset));
-  return before.match(/^ {0,3}(?:`{3,}|~{3,})[ \t]*quiz\b/gm)?.length ?? 0;
+  return countQuizFences(text.slice(0, Math.max(0, offset)));
 }
 
 const storageKey = (key: string) => `one:quiz:${key}`;
@@ -131,16 +134,4 @@ export const QUIZ_REQUEST = msg("Quiz me on what you just explained, with three 
 export const QUIZ_ROUND_REQUEST = msg("Another round of three questions.");
 
 /** What the reply must look like for the reading view to turn it into cards. */
-const QUIZ_INSTRUCTIONS = `The person asked for a quiz. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: ${QUIZ_SHAPE}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.`;
-
-/**
- * A quiz request that is exactly one of the two lines above carries the reply's format with it,
- * out of sight: the person sees their own short line, never the JSON shape. Anything else they
- * write is sent as written.
- */
-export function withQuizInstructions(prompt: string): string {
-  const trimmed = prompt.trim();
-  return trimmed === m(QUIZ_REQUEST) || trimmed === m(QUIZ_ROUND_REQUEST)
-    ? withAgentInstructions(prompt, QUIZ_INSTRUCTIONS)
-    : prompt;
-}
+export const QUIZ_INSTRUCTIONS = `The person asked for a quiz. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: ${QUIZ_SHAPE}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.`;

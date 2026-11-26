@@ -13,7 +13,8 @@ import type {
   ServerProvider,
 } from "@t3tools/contracts";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { CopyIcon } from "lucide-react";
 
 import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
@@ -103,6 +104,22 @@ export function ProviderAuthenticationSection({
             ? gt("Connect on {environment} to load models.", { environment: environmentLabel })
             : gt("Sign in on {environment}.", { environment: environmentLabel });
   const statusMessage = auth?.phase === "failed" ? auth.message : null;
+  // The Usage page asks for a sign-in with `&action=sign-in` in the address. The address names this
+  // provider's page, so only the section for that provider acts on it, and only once.
+  const navigate = useNavigate();
+  const signInIntent = useSearch({
+    strict: false,
+    select: (search: { readonly action?: string; readonly instanceId?: string }) =>
+      search.action === "sign-in" && search.instanceId === instanceId,
+  });
+  const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, commands);
+  const intentHandled = useRef(false);
+  const refreshedAfterIntent = useRef(false);
+  // Kept in the history entry, not in state, so the way back to Usage shows once this sign-in ends.
+  const cameFromUsage = useLocation({
+    select: (location) =>
+      (location.state as { readonly signInFromUsage?: string }).signInFromUsage === instanceId,
+  });
   const disabled = readOnly || pending || query.error !== null || isDiscovering;
   const draftId = `${auth?.flowId ?? ""}:${interaction?.id ?? ""}`;
   const values = draft.id === draftId ? draft.values : {};
@@ -135,6 +152,59 @@ export function ProviderAuthenticationSection({
     setPending(false);
     return succeeded;
   }
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the sign-in the address asked for once its state has loaded, then removes the request from the address so a reload or Back does not repeat it
+  useEffect(() => {
+    if (!signInIntent || intentHandled.current) return;
+    if (!auth && query.error === null) return;
+    intentHandled.current = true;
+    void navigate({
+      search: ((previous: { readonly action?: string }) => {
+        const { action: _intent, ...rest } = previous;
+        return rest;
+      }) as never,
+      state: ((previous: object) => ({ ...previous, signInFromUsage: instanceId })) as never,
+      replace: true,
+      resetScroll: false,
+    });
+    const canStart =
+      !readOnly &&
+      Boolean(auth) &&
+      provider.enabled &&
+      provider.installed &&
+      !active &&
+      !signedIn &&
+      !needsExternalSetup &&
+      !isDiscovering &&
+      provider.setup?.canAuthenticate !== false;
+    if (!canStart) return;
+    const row = document.querySelector<HTMLElement>(
+      `[data-provider-auth="${CSS.escape(instanceId)}"]`,
+    );
+    row?.scrollIntoView({ block: "center" });
+    row?.querySelector<HTMLElement>("button")?.focus();
+    // Out of the effect's own turn: running sets the pending state.
+    queueMicrotask(() => {
+      void run(() =>
+        start({
+          environmentId,
+          input: {
+            instanceId,
+            ...(methodId && auth?.methods?.some((method) => method.id === methodId)
+              ? { methodId }
+              : {}),
+          },
+        }),
+      );
+    });
+  });
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- after a sign-in that began on the Usage page, asks the host to read this provider again so Limits shows the new numbers when the person goes back
+  useEffect(() => {
+    if (!cameFromUsage || !signedIn || active || refreshedAfterIntent.current) return;
+    refreshedAfterIntent.current = true;
+    void refreshProviders({ environmentId, input: { instanceId } });
+  });
 
   async function send(response: ProviderAuthResponse) {
     if (!auth?.flowId || !interaction) return false;
@@ -176,6 +246,7 @@ export function ProviderAuthenticationSection({
 
   return (
     <SettingsRow
+      data-provider-auth={instanceId}
       title={gt("Account")}
       description={
         signedIn && !active && provider.auth.email?.trim() ? (
@@ -329,6 +400,11 @@ export function ProviderAuthenticationSection({
                     : usesCredentials
                       ? gt("Connect")
                       : gt("Sign in")}
+              </Button>
+            ) : null}
+            {cameFromUsage && signedIn && !active ? (
+              <Button size="sm" variant="outline" onClick={() => void navigate({ to: "/usage" })}>
+                <T>Back to Usage</T>
               </Button>
             ) : null}
             {!active && signedIn && (provider.auth.canLogout ?? provider.setup?.canAuthenticate) ? (

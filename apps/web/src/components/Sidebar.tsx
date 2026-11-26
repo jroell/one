@@ -184,6 +184,8 @@ import {
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
 import {
+  isOptimisticDropReleased,
+  type SidebarOptimisticDrop,
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
   groupSidebarThreadsByProject,
@@ -359,17 +361,6 @@ const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
 
 const inboxReturns = createInboxReturnTracker();
-
-type SidebarOptimisticDrop = {
-  readonly key: string;
-  readonly sourceSection: SidebarSection;
-  readonly section: "pinned" | "active" | "settled";
-  readonly occurredAt: string;
-  readonly clearsSnooze: boolean;
-  readonly order: readonly string[] | null;
-  readonly keysAtDrop: ReadonlyMap<string, string | null>;
-  readonly assignedKeys: ReadonlyMap<string, string>;
-};
 
 interface SidebarThreadPartitionInput {
   readonly threads: readonly EnvironmentThreadShell[];
@@ -760,77 +751,6 @@ function olderSettledScopes(
     );
     return projectIds.length === 0 ? [] : [{ environmentId, projectIds }];
   });
-}
-
-function isOptimisticDropReleased(input: {
-  readonly optimisticDrop: SidebarOptimisticDrop;
-  readonly threads: readonly EnvironmentThreadShell[];
-  readonly pinnedKeys: readonly string[];
-  readonly activeKeys: readonly string[];
-  readonly now: string;
-}): boolean {
-  const { optimisticDrop, threads, pinnedKeys, activeKeys, now } = input;
-  const canonicalByKey = new Map(
-    threads.map((thread) => [
-      scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
-      thread,
-    ]),
-  );
-  const thread = canonicalByKey.get(optimisticDrop.key);
-  if (thread === undefined || thread.archivedAt !== null) {
-    return true;
-  }
-  const canonicalSection = effectiveSnoozed(thread, { now })
-    ? "snoozed"
-    : thread.settledOverride === "settled"
-      ? "settled"
-      : thread.pinnedAt != null
-        ? "pinned"
-        : "active";
-  if (
-    canonicalSection !== optimisticDrop.sourceSection &&
-    canonicalSection !== optimisticDrop.section
-  ) {
-    return true;
-  }
-  if (optimisticDrop.order === null) {
-    // Settle emits unpin/unsnooze too; hold projected fields and sort times until the whole move completes.
-    if (
-      canonicalSection === optimisticDrop.section &&
-      thread.pinnedAt == null &&
-      (!optimisticDrop.clearsSnooze || thread.snoozedUntil == null)
-    ) {
-      return true;
-    }
-    return false;
-  }
-  if (canonicalSection !== optimisticDrop.section) return false;
-  if (optimisticDrop.clearsSnooze && thread.snoozedUntil != null) return false;
-  const destinationKeys = optimisticDrop.section === "pinned" ? pinnedKeys : activeKeys;
-  const canonicalDestination = destinationKeys.flatMap((key) => {
-    const canonical = canonicalByKey.get(key);
-    return canonical === undefined ? [] : [canonical];
-  });
-  const keyByThread = new Map(
-    canonicalDestination.map((thread) => [
-      scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)),
-      (optimisticDrop.section === "pinned" ? thread.pinOrderKey : thread.activeOrderKey) ?? null,
-    ]),
-  );
-  const heldOrder = optimisticDrop.order;
-  const heldKeys = new Set(heldOrder);
-  const membershipChanged =
-    destinationKeys.length !== heldOrder.length ||
-    destinationKeys.some((key) => !heldKeys.has(key));
-  const foreignKeyLanded = destinationKeys.some((threadKey) => {
-    const currentKey = keyByThread.get(threadKey) ?? null;
-    if (currentKey === (optimisticDrop.keysAtDrop.get(threadKey) ?? null)) return false;
-    return currentKey !== optimisticDrop.assignedKeys.get(threadKey);
-  });
-  const allAssignmentsLanded = [...optimisticDrop.assignedKeys].every(
-    ([threadKey, orderKey]) => keyByThread.get(threadKey) === orderKey,
-  );
-  return membershipChanged || foreignKeyLanded || allAssignmentsLanded;
 }
 
 // Build maps in a hook so the compiler can prove they are frozen and cache them.
@@ -1485,6 +1405,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   });
   const regroupNeedsYou = projectFolders === null && needsYouEntries.length > 0;
   const regroupedKeys = new Set(regroupNeedsYou ? needsYouEntries.map((entry) => entry.key) : []);
+  // The rows a drag can land among: the sortable list draws these, so planning, collision checks and
+  // the optimistic order read them too. A waiting thread keeps its saved order key, which stays
+  // reserved in the key maps, and returns to that position when it rejoins.
+  const drawnPinnedKeys = pinnedKeys.filter((key) => !regroupedKeys.has(key));
+  const drawnActiveKeys = activeKeys.filter((key) => !regroupedKeys.has(key));
   const drawnThreadKeys = useStableArray(
     regroupNeedsYou
       ? [
@@ -1960,8 +1885,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     isOptimisticDropReleased({
       optimisticDrop,
       threads,
-      pinnedKeys,
-      activeKeys,
+      pinnedKeys: drawnPinnedKeys,
+      activeKeys: drawnActiveKeys,
       now: snoozeNow,
     })
   ) {
@@ -2174,10 +2099,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             activeSettled: source.settledOverride === "settled",
             supportsSettlement: serverConfigs.has(source.environmentId),
             target,
-            pinnedOrder: pinnedKeys,
+            pinnedOrder: drawnPinnedKeys,
             pinnedKeysById,
             reorderableKeys: draggableThreadKeys,
-            activeOrder: activeKeys,
+            activeOrder: drawnActiveKeys,
             activeKeysById,
             activeReorderableKeys: activeReorderableThreadKeys,
             activeTimeOrdered: workingShelfEnabled,
@@ -2208,10 +2133,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       activeSettled: activeThread.settledOverride === "settled",
       supportsSettlement: serverConfigs.has(activeThread.environmentId),
       target,
-      pinnedOrder: pinnedKeys,
+      pinnedOrder: drawnPinnedKeys,
       pinnedKeysById,
       reorderableKeys: draggableThreadKeys,
-      activeOrder: activeKeys,
+      activeOrder: drawnActiveKeys,
       activeKeysById,
       activeReorderableKeys: activeReorderableThreadKeys,
       activeTimeOrdered: workingShelfEnabled,

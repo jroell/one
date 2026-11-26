@@ -11,7 +11,16 @@ export function isNoticeEntry(entry: WorkLogEntry): boolean {
 export interface ChatNoticeRowPlan {
   /** The notices this row's turn ends with, shown as one quiet line. Empty on an earlier row. */
   readonly notices: ReadonlyArray<WorkLogEntry>;
+  /** The MCP servers (as `mcpServerKey`) this turn called a tool of. Carried with `notices`. */
+  readonly usedServers: ReadonlySet<string>;
+  /**
+   * The app asked a question in this thread with notes the person cannot see (a guided
+   * conversation, a quiz), so tools it never called are none of the person's business here.
+   */
+  readonly fromApp: boolean;
 }
+
+const NO_SERVERS: ReadonlySet<string> = new Set();
 
 export const NO_CHAT_NOTICES: ReadonlyMap<string, ChatNoticeRowPlan> = new Map();
 
@@ -23,24 +32,63 @@ export const ChatNoticePlanContext = createContext(NO_CHAT_NOTICES);
  * holds notices gets a plan: the last such row of a turn carries all of the turn's notices, and
  * an earlier one carries none, so its notices leave the row. Rows without notices have no plan.
  */
+/** One spelling of a server's name, so a notice's `plugin:exa:exa` meets a tool's `plugin_exa_exa`. */
+function mcpServerKey(server: string): string {
+  return server.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+}
+
+/** The MCP server a tool call belongs to, as `mcpServerKey`, or null for any other entry. */
+export function usedServerOf(entry: WorkLogEntry): string | null {
+  const key = entry.toolSource?.key;
+  if (key?.startsWith("mcp:")) return mcpServerKey(key.slice(4));
+  const payload = entry.structuredPayload;
+  const name = payload?.type === "dynamic_tool" ? payload.toolName : null;
+  const qualified = name === null ? null : /^mcp__(.+?)__/i.exec(name);
+  return qualified?.[1] ? mcpServerKey(qualified[1]) : null;
+}
+
 export function planChatNotices(
   rows: ReadonlyArray<MessagesTimelineRow>,
 ): ReadonlyMap<string, ChatNoticeRowPlan> {
   const plans = new Map<string, ChatNoticeRowPlan>();
   let turnRowIds: string[] = [];
   let turnNotices: WorkLogEntry[] = [];
+  let turnServers = new Set<string>();
+  const fromApp = rows.some(
+    (row) =>
+      row.kind === "message" &&
+      row.message.role === "user" &&
+      row.message.context?.agentContext !== undefined,
+  );
   const closeTurn = () => {
     const last = turnRowIds.at(-1);
     for (const id of turnRowIds) {
-      plans.set(id, { notices: id === last ? turnNotices : [] });
+      plans.set(
+        id,
+        id === last
+          ? { notices: turnNotices, usedServers: turnServers, fromApp }
+          : { notices: [], usedServers: NO_SERVERS, fromApp },
+      );
     }
     turnRowIds = [];
     turnNotices = [];
+    turnServers = new Set();
   };
   for (const row of rows) {
     if (row.kind === "message" && row.message.role === "user") {
       closeTurn();
       continue;
+    }
+    // A finished turn folds its tool calls away; the fold still says which servers they used.
+    if (row.kind === "turn-fold")
+      for (const server of row.summary?.servers ?? []) turnServers.add(server);
+    for (const entry of row.kind === "work"
+      ? row.groupedEntries
+      : row.kind === "work-live"
+        ? [row.entry]
+        : []) {
+      const server = usedServerOf(entry);
+      if (server !== null) turnServers.add(server);
     }
     if (row.kind !== "work") continue;
     const notices = row.groupedEntries.filter(isNoticeEntry);
@@ -52,14 +100,43 @@ export function planChatNotices(
   return plans.size === 0 ? NO_CHAT_NOTICES : plans;
 }
 
+export function noticeLevel(entry: WorkLogEntry): "info" | "warning" | "error" {
+  return entry.structuredPayload?.type === "system_notice"
+    ? (entry.structuredPayload.level ?? "warning")
+    : "warning";
+}
+
+/** A server that needs a sign-in, when the notice offers the sign-in itself. */
+export function signInOf(
+  entry: WorkLogEntry,
+): { readonly server: string; readonly key: string } | null {
+  const payload = entry.structuredPayload;
+  if (payload?.type !== "system_notice" || payload.mcpSignIn === undefined) return null;
+  if (payload.providerThreadId === null) return null;
+  return { server: payload.mcpSignIn.server, key: mcpServerKey(payload.mcpSignIn.server) };
+}
+
+/**
+ * How a notice shows in Chat. `needed` is in view, in words, with its action: an error, or a
+ * sign-in for a tool this turn called. `sign-in` is a tool the turn never called, which only
+ * gets one quiet line with the others. `quiet` waits behind the header's status dot.
+ */
+export type ChatNoticeKind = "needed" | "sign-in" | "quiet";
+
+export function noticeKind(entry: WorkLogEntry, usedServers: ReadonlySet<string>): ChatNoticeKind {
+  if (noticeLevel(entry) === "error") return "needed";
+  const signIn = signInOf(entry);
+  if (signIn === null) return "quiet";
+  return usedServers.has(signIn.key) ? "needed" : "sign-in";
+}
+
 /** The notices a turn raised that need nothing from the person, newest last. */
-export function quietNotices(
-  plans: Iterable<ChatNoticeRowPlan>,
-  isActionable: (entry: WorkLogEntry) => boolean,
-): WorkLogEntry[] {
+export function quietNotices(plans: Iterable<ChatNoticeRowPlan>): WorkLogEntry[] {
   const quiet: WorkLogEntry[] = [];
   for (const plan of plans) {
-    for (const entry of plan.notices) if (!isActionable(entry)) quiet.push(entry);
+    for (const entry of plan.notices) {
+      if (noticeKind(entry, plan.usedServers) === "quiet") quiet.push(entry);
+    }
   }
   return quiet;
 }

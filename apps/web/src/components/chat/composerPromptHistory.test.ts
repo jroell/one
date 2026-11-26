@@ -8,6 +8,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   buildComposerPromptHistoryEntries,
   recallableComposerPrompt,
+  recallComposerMessage,
   stepComposerPromptHistory,
   type ComposerPromptHistoryPosition,
 } from "./composerPromptHistory";
@@ -222,5 +223,33 @@ describe("stepComposerPromptHistory", () => {
       currentPrompt: "A",
     });
     expect(step?.prompt).toBe("first");
+  });
+});
+
+describe("recalling a sent message into the composer", () => {
+  const tagged =
+    "Another round of three questions.\n\n<one-instructions>\nReply with only JSON.\n</one-instructions>";
+
+  it("brings back the words a person sent, never the app's context that rode beside them", () => {
+    const sent = {
+      text: "Another round of three questions.",
+      context: { version: 1 as const, records: [], agentContext: "Reply with only JSON." },
+      createdAt: "2026-11-28T09:00:00.000Z",
+    };
+    expect(recallComposerMessage(sent).prompt).toBe("Another round of three questions.");
+    // Up arrow in an empty composer fills it from the same history.
+    const [entry] = buildComposerPromptHistoryEntries([
+      { id: "m1", role: "user", ...sent },
+    ] as never);
+    expect(entry?.prompt).toBe("Another round of three questions.");
+  });
+
+  it("cuts instructions an earlier build wrote into an old message's text, and keeps tags a person typed later", () => {
+    expect(
+      recallComposerMessage({ text: tagged, createdAt: "2026-11-26T09:00:00.000Z" }).prompt,
+    ).toBe("Another round of three questions.");
+    expect(
+      recallComposerMessage({ text: tagged, createdAt: "2026-11-28T09:00:00.000Z" }).prompt,
+    ).toBe(tagged);
   });
 });

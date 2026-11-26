@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   IDLE_PARK_MS,
+  WAITING_MOVE_MS,
   RESTING_FRAME_MS,
   SLOW_FRAMES_BEFORE_STEP_DOWN,
   startOneOrb,
@@ -531,6 +532,37 @@ describe("the ring at rest", () => {
     env.setFocused(true);
     env.run(40, 10);
     expect(drawCount(env)).toBeGreaterThan(paused);
+    orb.dispose();
+  });
+
+  it("moves into the waiting pose the short way and finishes inside the sheet duration, and back out as fast", () => {
+    using env = setup();
+    let state: OneOrbState = "idle";
+    const orb = startResting(env, () => state);
+    const spins = () =>
+      env.gl.uniform1f.mock.calls
+        .filter(([location]) => (location as { name?: string } | undefined)?.name === "uSpin")
+        .map(([, value]) => value as number);
+    env.run(30, 16);
+    const before = spins().length;
+    state = "waiting";
+    orb.wake();
+    env.run(Math.ceil(WAITING_MOVE_MS / 16), 16);
+    const going = spins().slice(before);
+    const edgeOn = ORB_OPEN_ANGLE + Math.PI / 2;
+    expect(Math.abs((going.at(-1) ?? 0) - edgeOn)).toBeLessThan(0.03);
+    // The short way: a quarter turn, in one direction, with no overshoot.
+    expect(Math.max(...going.map((value) => Math.abs(value - ORB_OPEN_ANGLE)))).toBeLessThan(
+      Math.PI / 2 + 0.03,
+    );
+    expect(
+      going.every((value, index) => index === 0 || value >= (going[index - 1] ?? 0) - 1e-6),
+    ).toBe(true);
+    const heldAt = spins().length;
+    state = "idle";
+    orb.wake();
+    env.run(Math.ceil(WAITING_MOVE_MS / 16), 16);
+    expect(Math.abs((spins().slice(heldAt).at(-1) ?? 0) - ORB_OPEN_ANGLE)).toBeLessThan(0.05);
     orb.dispose();
   });
 

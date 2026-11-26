@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { withAgentInstructions } from "../userMessage.ts";
 import { deriveThreadTitleSeed, threadTitleTextFromPrompt } from "./threadTitle.ts";
 
 describe("threadTitleTextFromPrompt", () => {
@@ -21,11 +20,8 @@ describe("threadTitleTextFromPrompt", () => {
 });
 
 describe("deriveThreadTitleSeed", () => {
-  it("names a thread by the words a person sent, not the instructions that travelled with them", () => {
-    const sent = withAgentInstructions(
-      "Quiz me on the lens",
-      "Reply with only a fenced quiz block.",
-    );
-    expect(deriveThreadTitleSeed({ text: sent, attachments: [] })).toBe("Quiz me on the lens");
+  it("names a thread by the words a person typed, including text that looks like the app's tags", () => {
+    const typed = "Explain <one-instructions>this tag</one-instructions> to me";
+    expect(deriveThreadTitleSeed({ text: typed, attachments: [] })).toContain("this tag");
   });
 });

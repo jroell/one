@@ -11,6 +11,7 @@ import {
 import { PlayIcon, ScanIcon } from "lucide-react";
 import { DESKTOP_DOWNLOAD_URL } from "../../branding";
 import { SettingsEmptyState } from "./SettingsEmptyState";
+import { ExplainControl } from "./explain/ExplainControl";
 import { SnapshotGhost } from "./SnapshotGhost";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
@@ -376,6 +377,7 @@ export function SnapShotSettings() {
             description={gt(
               "A web page cannot see other windows. The desktop app captures one, such as an error dialog, and attaches it to a thread.",
             )}
+            learnMore={<ExplainControl topic="snapshots" />}
             preview={<SnapshotGhost label={gt("Attached to the thread")} />}
             action={
               <Button

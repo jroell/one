@@ -1,5 +1,6 @@
 import * as DateTime from "effect/DateTime";
 import { approvalCoveredEntryIds } from "~/one/chatApprovalSubject";
+import { usedServerOf } from "~/one/chatNotices";
 import { msg } from "gt-react";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
@@ -789,6 +790,8 @@ export interface TurnFoldSummary {
   readonly sourceCount: number;
   /** The agent reasoned before or between the calls. */
   readonly thought: boolean;
+  /** The MCP servers (as `mcpServerKey`) whose tools were called behind the fold; absent if none. */
+  readonly servers?: ReadonlyArray<string>;
 }
 
 /** Work that is the agent's thinking or bookkeeping rather than a tool call. */
@@ -816,8 +819,11 @@ function summarizeFoldedWork(
   let toolCount = 0;
   let sourceCount = 0;
   let thought = false;
+  const servers = new Set<string>();
   for (const entry of entries) {
     if (entry.kind !== "work" || !hiddenEntryIds.has(entry.id)) continue;
+    const server = usedServerOf(entry.entry);
+    if (server !== null) servers.add(server);
     const itemType = entry.entry.itemType;
     if (itemType === "reasoning") thought = true;
     else if (itemType !== undefined && !NON_TOOL_WORK_ITEM_TYPES.has(itemType)) {
@@ -825,7 +831,13 @@ function summarizeFoldedWork(
       if (isLookingWork(entry.entry)) sourceCount += 1;
     }
   }
-  return { duration, toolCount, sourceCount, thought };
+  return {
+    duration,
+    toolCount,
+    sourceCount,
+    thought,
+    ...(servers.size > 0 ? { servers: [...servers] } : {}),
+  };
 }
 
 interface TurnFold {

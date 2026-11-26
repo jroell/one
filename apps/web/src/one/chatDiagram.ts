@@ -24,10 +24,10 @@ export function drawDiagramOn(container: HTMLElement) {
       for (const [index, edge] of edges.entries()) {
         edge.style.setProperty("--edge-i", String(index));
         for (const path of edge.querySelectorAll<SVGPathElement>("path:not(.pele-marker)")) {
-          // A dotted or dashed edge keeps its own pattern: pathLength would rescale it into a
-          // solid line, so it fades in instead of being drawn on.
-          const dash = path.getAttribute("stroke-dasharray");
-          if (dash !== null && dash !== "none") path.dataset.dashed = "";
+          // A dotted or dashed edge keeps its own pattern, whether the diagram put it on the path
+          // or a link style put it on the edge's group: pathLength would rescale it into a solid
+          // line, so it fades in instead of being drawn on.
+          if (getComputedStyle(path).strokeDasharray !== "none") path.dataset.dashed = "";
           else path.setAttribute("pathLength", "1");
         }
         const id = edge.dataset.id;

@@ -35,6 +35,31 @@ function plainHeading(source: string): string {
     .trim();
 }
 
+export type Fence = { readonly char: string; readonly length: number };
+
+/**
+ * Moves through a message one line at a time, outside and inside code fences, by the CommonMark
+ * rule: a fence closes only on the same character, at least as long, with nothing after it, and a
+ * backtick fence's info string cannot hold a backtick ("```js code```" is inline code). `onFence`
+ * is true for the line that opens a fence, every line inside it and the line that closes it.
+ */
+export function stepFence(
+  fence: Fence | null,
+  line: string,
+): { fence: Fence | null; onFence: boolean } {
+  if (fence !== null) {
+    const closing = FENCE_CLOSE.exec(line)?.[1];
+    const closes =
+      closing !== undefined && closing[0] === fence.char && closing.length >= fence.length;
+    return { fence: closes ? null : fence, onFence: true };
+  }
+  const opening = FENCE_OPEN.exec(line);
+  if (opening !== null && !(opening[1]![0] === "`" && opening[2]!.includes("`"))) {
+    return { fence: { char: opening[1]![0]!, length: opening[1]!.length }, onFence: true };
+  }
+  return { fence: null, onFence: false };
+}
+
 /**
  * The headings of a message's text, outside code fences. While the answer streams, a heading
  * counts once its line has ended, so a half-typed title never shows in the outline.
@@ -42,22 +67,11 @@ function plainHeading(source: string): string {
 export function parseChatHeadings(text: string, streaming: boolean): string[] {
   const lines = text.split("\n");
   const headings: string[] = [];
-  let fence: { readonly char: string; readonly length: number } | null = null;
+  let fence: Fence | null = null;
   for (const [index, line] of lines.entries()) {
-    if (fence !== null) {
-      // Only a fence of the same character, at least as long, and nothing after it, closes.
-      const closing = FENCE_CLOSE.exec(line)?.[1];
-      if (closing !== undefined && closing[0] === fence.char && closing.length >= fence.length) {
-        fence = null;
-      }
-      continue;
-    }
-    const opening = FENCE_OPEN.exec(line);
-    // A backtick fence's info string cannot hold a backtick: "```js code```" is inline code.
-    if (opening !== null && !(opening[1]![0] === "`" && opening[2]!.includes("`"))) {
-      fence = { char: opening[1]![0]!, length: opening[1]!.length };
-      continue;
-    }
+    const step = stepFence(fence, line);
+    fence = step.fence;
+    if (step.onFence) continue;
     const heading = HEADING.exec(line);
     if (heading === null) continue;
     if (streaming && index === lines.length - 1) continue;

@@ -1529,6 +1529,7 @@ export function VoiceSettingsPanel() {
         <SettingsRow
           {...setting("voice-transcription-destination")}
           title={gt("Transcribe with")}
+          explain="voice-transcription"
           description={
             destination.environmentId && chosenUnsupported
               ? gt("{label} can’t transcribe audio locally. Choose another destination.", {

@@ -43,6 +43,7 @@ import {
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { useAccessEnvironment } from "./useAccessEnvironment";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import { ExplainControl } from "./explain/ExplainControl";
 import { ManagedByOrganization } from "../ManagedPolicy";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { useSearchableSetting } from "./settingsSearch";
@@ -1420,6 +1421,7 @@ function ConnectionsSettingsContent({
             {accessServerConfig?.environment.capabilities.previewTunnelSetting ? (
               <SettingsRow
                 title={searchableSetting("preview-tunnel").title}
+                explain="preview-tunnel"
                 description={gt(
                   "Lets other devices reach this machine's local servers: browser tabs loaded on the device, the “Open on this device” action, and port forwarding. When off, browser tabs stream from this machine.",
                 )}
@@ -1468,13 +1470,16 @@ function ConnectionsSettingsContent({
                 m,
               )}
               control={
-                canWriteAccess ? (
-                  <AuthorizedClientsHeaderAction
-                    environmentId={accessEnvironmentId}
-                    delegatableScopes={currentSessionScopes ?? []}
-                    onPairingLinkCreated={handlePairingLinkCreated}
-                  />
-                ) : undefined
+                <div className="flex items-center gap-1">
+                  <ExplainControl topic="authorized-clients" variant="icon" />
+                  {canWriteAccess ? (
+                    <AuthorizedClientsHeaderAction
+                      environmentId={accessEnvironmentId}
+                      delegatableScopes={currentSessionScopes ?? []}
+                      onPairingLinkCreated={handlePairingLinkCreated}
+                    />
+                  ) : null}
+                </div>
               }
             >
               <ScrollArea
@@ -1844,23 +1849,26 @@ function ConnectionsSettingsContent({
         {...searchableSetting("remote-environments")}
         title={gt("Environments")}
         titleAction={
-          roomForMap ? (
-            <ToggleGroup
-              aria-label={gt("Show environments as")}
-              value={[environmentsView]}
-              onValueChange={(next) => {
-                const value = next[0];
-                if (value === "map" || value === "list") setPickedEnvironmentsView(value);
-              }}
-            >
-              <Toggle value="map">
-                {gt("Map", { $context: "view switch: show machines as a diagram" })}
-              </Toggle>
-              <Toggle value="list">
-                {gt("List", { $context: "view switch: show items as a list" })}
-              </Toggle>
-            </ToggleGroup>
-          ) : null
+          <div className="flex items-center gap-2">
+            <ExplainControl topic="environments" variant="icon" />
+            {roomForMap ? (
+              <ToggleGroup
+                aria-label={gt("Show environments as")}
+                value={[environmentsView]}
+                onValueChange={(next) => {
+                  const value = next[0];
+                  if (value === "map" || value === "list") setPickedEnvironmentsView(value);
+                }}
+              >
+                <Toggle value="map">
+                  {gt("Map", { $context: "view switch: show machines as a diagram" })}
+                </Toggle>
+                <Toggle value="list">
+                  {gt("List", { $context: "view switch: show items as a list" })}
+                </Toggle>
+              </ToggleGroup>
+            ) : null}
+          </div>
         }
         headerAction={
           <div className="flex items-center gap-1">

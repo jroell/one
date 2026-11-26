@@ -504,6 +504,47 @@ it.effect(
   },
 );
 
+it.effect.each([
+  { origin: "a person on the web client", keeps: true, overrides: {} },
+  {
+    origin: "an agent",
+    keeps: false,
+    overrides: { createdBy: "agent" as const, creationSource: "mcp" as const },
+  },
+  {
+    origin: "a linked environment's agent",
+    keeps: false,
+    overrides: {
+      createdBy: "agent" as const,
+      creationSource: "mcp" as const,
+      linkOrigin: { sessionId: "mcp-session:linked", label: "Linked laptop" },
+    },
+  },
+  { origin: "a provider", keeps: false, overrides: { creationSource: "provider" as const } },
+])("a first message from $origin keeps the app's context: $keeps", ({ keeps, overrides }) => {
+  const harness = makeHarness();
+  return Effect.gen(function* () {
+    const launches = yield* ThreadLaunch.ThreadLaunchService;
+    const threads = yield* ThreadManagement.ThreadManagementService;
+    const base = launchInput({ command: "command:agent-context", thread: "thread:agent-context" });
+    yield* launches.launch({
+      ...base,
+      ...overrides,
+      initialMessage: {
+        messageId: MessageId.make("message:agent-context"),
+        text: "What is this?",
+        attachments: [],
+        context: { version: 1, records: [], agentContext: "Explain the Providers page." },
+      },
+    });
+    const projection = yield* threads.getThreadProjection(base.threadId);
+    const stored = projection.messages.find(
+      (message) => message.id === MessageId.make("message:agent-context"),
+    );
+    assert.equal(stored?.context?.agentContext, keeps ? "Explain the Providers page." : undefined);
+  }).pipe(Effect.provide(harness.layer));
+});
+
 it.effect("leaves delegated tasks and workflow agent steps out of the top-level list", () => {
   const harness = makeHarness();
   return Effect.gen(function* () {

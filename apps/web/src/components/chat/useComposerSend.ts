@@ -1,7 +1,7 @@
 import { msg } from "gt-react";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m } from "~/i18n/messages";
-import { withQuizInstructions } from "~/one/chatQuiz";
+import { takePendingAgentContext } from "~/one/pendingAgentContext";
 import { isClearComposerCommand, parseSideChatCommand } from "@t3tools/shared/composerTrigger";
 import { readWorktreeBaseBranch } from "../../worktreeRepositoryChoiceStore";
 import { armFreshSession, disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
@@ -831,7 +831,7 @@ export function useComposerSend(input: ComposerSendInput) {
       : promptAtSend;
     const replyTo =
       useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.replyTo ?? null;
-    const promptForSend = withQuizInstructions(withReplyReference(draftPrompt, replyTo));
+    const promptForSend = withReplyReference(draftPrompt, replyTo);
     if (warnStrandedThreadContext(promptForSend, composerThreadContexts)) return;
     if (queuedRunEdit.isEditing) {
       // A queued message stays in its thread, so saving `/side` would send it to main.
@@ -991,6 +991,8 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     const threadIdForSend = activeThread.id;
+    // Taken here, before any wait: a later message from this composer must not carry them.
+    const appContextForSend = takePendingAgentContext(composerTargetKey(composerDraftTarget));
     const sendSnapshot = snapshotComposerSend({
       prompt: promptForSend,
       images: composerImages,
@@ -1087,6 +1089,7 @@ export function useComposerSend(input: ComposerSendInput) {
         threadContexts: composerThreadContextsSnapshot,
         environmentContexts: composerEnvironmentContextsSnapshot,
         replyTo,
+        agentContext: appContextForSend,
         attachments: composerAttachmentsSnapshot.map((attachment, index) => ({
           attachment,
           attachmentId: attachmentIds[index] ?? attachment.id,

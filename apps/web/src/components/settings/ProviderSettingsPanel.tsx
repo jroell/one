@@ -100,6 +100,7 @@ import { ProviderInstanceCard } from "./ProviderInstanceCard";
 import { useSecretSources } from "./SecretSourceInput";
 import { TextGeneratorsSettings } from "./TextGeneratorsSettings";
 import { UsageProviderSettings } from "./UsageProviderSettings";
+import { ExplainControl } from "./explain/ExplainControl";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
@@ -1118,6 +1119,8 @@ function EnvironmentProviderSettingsBody({
         headerAction={
           // The ghost button's padding would inset its label, so pull the text to the card edge.
           <div className="-me-2 flex min-w-0 items-center gap-2">
+            <ExplainControl topic="providers" />
+            <ExplainControl topic="provider-status" variant="icon" />
             <ProviderUpdatesAction />
             <Tooltip>
               <TooltipTrigger

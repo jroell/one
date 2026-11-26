@@ -1,8 +1,13 @@
 import type {
+  EnvironmentId,
   ProviderConsumeResetCreditInput,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  ServerProvider,
   ServerProviderResetCredits,
   ServerProviderUsageLimits,
   ServerProviderUsageWindow,
+  UsageLimitSourceSnapshot,
 } from "@t3tools/contracts";
 import { mFallback, msg } from "gt-i18n";
 import type { MFunctionType } from "gt-i18n/types";
@@ -79,10 +84,67 @@ export function limitsNotice(
   return limits.windows.length === 0 ? resolve(msg("No limits reported.")) : null;
 }
 
+/**
+ * A provider whose limits are missing because setup is not done, not because anything failed: the
+ * only one today is Antigravity with no Google sign-in. The row that asks for it carries a button.
+ */
+export interface LimitSetupPrompt {
+  readonly key: string;
+  readonly environmentId: EnvironmentId;
+  readonly environmentLabel: string;
+  readonly instanceId: ProviderInstanceId;
+  readonly driver: ProviderDriverKind;
+  readonly name: string;
+}
+
+function needsSignIn(provider: ServerProvider): boolean {
+  const limits = provider.usageLimits;
+  return (
+    provider.driver === "antigravity" &&
+    limits?.unavailable?.reason === "unsupported" &&
+    Boolean(limits.unavailable.message) &&
+    !limits.externalUsage
+  );
+}
+
+/** @public */
+export function collectLimitSetupPrompts(
+  presentations: LimitPresentations,
+): readonly LimitSetupPrompt[] {
+  return [...presentations].flatMap(([environmentId, presentation]) =>
+    providersWithLimits(presentation.serverConfig?.providers ?? [])
+      .filter(needsSignIn)
+      .map((provider) => ({
+        key: `${environmentId}:${provider.instanceId}`,
+        environmentId,
+        environmentLabel: presentation.entry.target.label,
+        instanceId: provider.instanceId,
+        driver: provider.driver,
+        name: provider.displayName?.trim() || String(provider.driver),
+      })),
+  );
+}
+
+/** A usage source that was read without an error and listed no accounts. @public */
+export function usageSourceReportsNoAccounts(source: UsageLimitSourceSnapshot): boolean {
+  if (source.error) return false;
+  return (
+    (source.kind === "http" ? (source.quotaAccounts?.length ?? 0) : source.accounts.length) === 0
+  );
+}
+
+/** Whether any selected environment has a usage source that reported no accounts. @public */
+export function hasUsageSourceWithNoAccounts(presentations: LimitPresentations): boolean {
+  return [...presentations.values()].some((presentation) =>
+    (presentation.serverConfig?.usageLimitSources ?? []).some(usageSourceReportsNoAccounts),
+  );
+}
+
 /** @public */
 export function collectLimitNotices(
   presentations: LimitPresentations,
   resolve: MFunctionType = mFallback,
+  options: { readonly withoutSetupPrompts?: boolean } = {},
 ): readonly string[] {
   const label = (environmentLabel: string, subject: string) =>
     presentations.size > 1 ? `${environmentLabel} · ${subject}` : subject;
@@ -93,6 +155,7 @@ export function collectLimitNotices(
     const environmentLabel = presentation.entry.target.label;
     for (const provider of providersWithLimits(presentation.serverConfig?.providers ?? [])) {
       const limits = provider.usageLimits;
+      if (options.withoutSetupPrompts && needsSignIn(provider)) continue;
       // A bare unsupported means the account has no limits; an external usage link shows its message.
       if (
         limits?.unavailable?.reason === "unsupported" &&
@@ -107,10 +170,7 @@ export function collectLimitNotices(
     for (const source of presentation.serverConfig?.usageLimitSources ?? []) {
       if (source.error) {
         notices.add(`${label(environmentLabel, source.label)}: ${source.error}`);
-      } else if (
-        (source.kind === "http" ? (source.quotaAccounts?.length ?? 0) : source.accounts.length) ===
-        0
-      ) {
+      } else if (usageSourceReportsNoAccounts(source)) {
         notices.add(
           resolve(
             msg("{source}: No accounts reported.", {

@@ -5,11 +5,15 @@ import * as Schema from "effect/Schema";
 import {
   COMPOSER_CONTEXT_KINDS,
   ComposerContextRecord,
+  MESSAGE_AGENT_CONTEXT_MAX_CHARS,
   OrchestrationMessageContext,
 } from "./composerContext.ts";
 
 const decodeRecord = Schema.decodeUnknownOption(ComposerContextRecord);
 const decodeContext = Schema.decodeUnknownSync(OrchestrationMessageContext);
+const decodeOlderContext = Schema.decodeUnknownSync(
+  Schema.Struct({ version: Schema.Literal(1), records: Schema.Array(Schema.Unknown) }),
+);
 
 const base = { version: 1, contextId: "ctx_1" } as const;
 
@@ -252,5 +256,27 @@ describe("OrchestrationMessageContext", () => {
         records: [knownRecords.skill, { ...knownRecords.terminal, contextId: " ctx_1 " }],
       }),
     ).toThrow();
+  });
+});
+
+describe("OrchestrationMessageContext agentContext", () => {
+  it("is optional, so a message written before the field existed still decodes", () => {
+    expect(decodeContext({ version: 1, records: [] })).toEqual({ version: 1, records: [] });
+  });
+
+  it("keeps the app's context and refuses one over the cap rather than cutting it", () => {
+    const kept = decodeContext({ version: 1, records: [], agentContext: "Background" });
+    expect(kept.agentContext).toBe("Background");
+    const full = "x".repeat(MESSAGE_AGENT_CONTEXT_MAX_CHARS);
+    expect(decodeContext({ version: 1, records: [], agentContext: full }).agentContext).toBe(full);
+    expect(() => decodeContext({ version: 1, records: [], agentContext: `${full}x` })).toThrow();
+  });
+
+  it("is dropped by a reader that does not know the field, leaving the rest of the context", () => {
+    // An older client's schema is this struct without `agentContext`; decoding ignores the extra key.
+    expect(decodeOlderContext({ version: 1, records: [], agentContext: "Background" })).toEqual({
+      version: 1,
+      records: [],
+    });
   });
 });

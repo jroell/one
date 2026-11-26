@@ -22,6 +22,7 @@ import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { ArchiveGhost } from "./EmptyGhosts";
 import { SettingsEmptyState } from "./SettingsEmptyState";
+import { ExplainControl } from "./explain/ExplainControl";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
@@ -329,6 +330,9 @@ export function ArchivedThreadsPanel() {
           {/* Loading shows nothing for 250 ms, then this card, where the answer will be. */}
           <div className={isLoadingArchive ? "settings-late" : undefined}>
             <SettingsEmptyState
+              learnMore={
+                isLoadingArchive || archiveError ? undefined : <ExplainControl topic="archive" />
+              }
               icon={isLoadingArchive ? undefined : <ArchiveIcon />}
               title={
                 isLoadingArchive

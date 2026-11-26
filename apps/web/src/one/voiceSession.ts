@@ -1,6 +1,7 @@
 import type { OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import { useSyncExternalStore } from "react";
 
+import { stepFence, type Fence } from "./chatSections";
 import { getVoiceExit, subscribeVoiceExit } from "./voiceStageMotion";
 
 /**
@@ -384,16 +385,27 @@ function joinWithAnd(items: ReadonlyArray<string>): string {
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
+/** The cells of a table row, without the outer pipes. */
+function tableCells(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\||\|$/g, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+/** A GFM delimiter row: dashes with optional colons in each cell, as many cells as the header has. */
+function isDelimiterRow(line: string, columns: number): boolean {
+  if (!line.includes("-") || !line.includes("|")) return false;
+  const cells = tableCells(line);
+  return cells.length === columns && cells.every((cell) => /^:?-+:?$/.test(cell));
+}
+
 /** What a person would say about a table: its columns and how many rows it has, not its cells. */
 function describeTable(lines: ReadonlyArray<string>): string {
-  const cells = (line: string) =>
-    line
-      .trim()
-      .replace(/^\||\|$/g, "")
-      .split("|")
-      .map((cell) => cell.replace(/(\*\*|__|\*|_|`)/g, "").trim())
-      .filter(Boolean);
-  const header = cells(lines[0] ?? "");
+  const header = tableCells(lines[0] ?? "")
+    .map((cell) => cell.replace(/(\*\*|__|\*|_|`)/g, "").trim())
+    .filter(Boolean);
   const rows = Math.max(0, lines.length - 2);
   const rowsText = rows === 1 ? "one row" : `${countWord(rows)} rows`;
   return header.length === 0
@@ -409,24 +421,25 @@ function describeTable(lines: ReadonlyArray<string>): string {
 export function speakableText(markdown: string): string {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const blocks: string[] = [];
-  let inFence = false;
+  let fence: Fence | null = null;
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
-    if (/^\s{0,3}(```|~~~)/.test(line)) {
-      if (!inFence) blocks.push(CODE_MARK);
-      inFence = !inFence;
+    const step = stepFence(fence, line);
+    const opened = fence === null && step.fence !== null;
+    fence = step.fence;
+    if (step.onFence) {
+      if (opened) blocks.push(CODE_MARK);
       continue;
     }
-    if (inFence) continue;
-    const next = lines[index + 1] ?? "";
-    if (
-      /^\s*\|.*\|?\s*$/.test(line) &&
-      /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(next) &&
-      next.includes("-")
-    ) {
-      const table = [line, next];
+    const delimiter = lines[index + 1] ?? "";
+    if (line.includes("|") && isDelimiterRow(delimiter, tableCells(line).length)) {
+      const table = [line, delimiter];
       index += 2;
-      while (index < lines.length && /^\s*\|/.test(lines[index] ?? "")) {
+      while (
+        index < lines.length &&
+        (lines[index] ?? "").trim() !== "" &&
+        lines[index]!.includes("|")
+      ) {
         table.push(lines[index] ?? "");
         index += 1;
       }
@@ -442,7 +455,7 @@ export function speakableText(markdown: string): string {
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     // A heading is a sentence of its own, so the voice stops after it.
-    .replace(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/gm, (_line, title: string) =>
+    .replace(/^\s{0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$/gm, (_line, title: string) =>
       /[.!?:]$/.test(title) ? title : `${title}.`,
     )
     .replace(/^\s{0,3}(>|[-*+]|\d+[.)])\s+/gm, "")

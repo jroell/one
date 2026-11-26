@@ -397,6 +397,7 @@ export function BackgroundActivitySettingsRow() {
       serverScoped
       settingKeys={["backgroundActivity"]}
       id={searchableSetting("background-activity").id}
+      explain="background-activity"
       title={
         <span className="inline-flex items-center gap-1.5">
           {searchableSetting("background-activity").title}

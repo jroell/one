@@ -7,7 +7,7 @@ import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
 } from "@t3tools/shared/composerContextReferences";
-import { withoutAgentInstructions } from "@t3tools/client-runtime/user-message";
+import { legacyVisibleText } from "@t3tools/client-runtime/user-message";
 import type { Nodes } from "hast";
 
 import { markdownTree } from "~/markdown/wordsHast";
@@ -36,7 +36,7 @@ export function deriveTimelineMinimapItems(
       rowIndex: index,
       userText: isAttachmentOnlyBootstrapPrompt(row.message.text)
         ? ""
-        : withoutAgentInstructions(row.message.text),
+        : legacyVisibleText(row.message),
       assistantText: resolveFinalAssistantTextForTurn(rows, index),
     });
   }

@@ -28,6 +28,7 @@ import { useSettingsScope } from "./SettingsScopeContext";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { useSearchableSetting } from "./settingsSearch";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import { ExplainControl } from "./explain/ExplainControl";
 
 const SECRET_PROVIDER_KINDS: Readonly<
   Record<string, { readonly name: string; readonly icon: Icon }>
@@ -108,6 +109,7 @@ function EnvironmentSecretProviders({
     <>
       <SettingsSection
         {...setting("secret-providers")}
+        titleAction={<ExplainControl topic="secrets" variant="icon" />}
         headerAction={
           !readOnly ? (
             <Button size="xs" variant="outline" onClick={() => setDialog({ mode: "add" })}>
@@ -125,6 +127,7 @@ function EnvironmentSecretProviders({
         {entries.length === 0 ? (
           <SettingsRow
             title={gt("No secret providers configured")}
+            explain="secrets"
             description={gt(
               "Add a 1Password account, then pick it as the source of a provider variable.",
             )}

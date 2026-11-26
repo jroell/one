@@ -20,6 +20,8 @@ type OrbPose = Readonly<{
   baseEnergy: number;
   /** Strength of the smoke-like corona and drifting sparks, 0 to 1. */
   aura: number;
+  /** The waiting sweep of light round the band, 0 to 1. */
+  sweep: number;
 }>;
 
 const POSES: Record<OneOrbState, OrbPose> = {
@@ -32,6 +34,7 @@ const POSES: Record<OneOrbState, OrbPose> = {
     pulse: 0,
     baseEnergy: 0,
     aura: ORB_REST.aura,
+    sweep: 0,
   },
   listening: {
     tilt: 1.46,
@@ -41,6 +44,7 @@ const POSES: Record<OneOrbState, OrbPose> = {
     pulse: 0,
     baseEnergy: 0.12,
     aura: 0.5,
+    sweep: 0,
   },
   thinking: {
     tilt: 1.12,
@@ -50,6 +54,7 @@ const POSES: Record<OneOrbState, OrbPose> = {
     pulse: 1,
     baseEnergy: 0.06,
     aura: 0.75,
+    sweep: 0,
   },
   waiting: {
     tilt: 1.12,
@@ -59,6 +64,7 @@ const POSES: Record<OneOrbState, OrbPose> = {
     pulse: 1,
     baseEnergy: 0.06,
     aura: 0.75,
+    sweep: 1,
   },
   speaking: {
     tilt: 1.26,
@@ -68,11 +74,16 @@ const POSES: Record<OneOrbState, OrbPose> = {
     pulse: 0,
     baseEnergy: 0.1,
     aura: 0.55,
+    sweep: 0,
   },
 };
 
 /** Seconds the catch-light takes to go once around the band. */
 const ORBIT_SECONDS = 12;
+/** The sheet duration: the move into and out of the waiting pose finishes inside it. */
+export const WAITING_MOVE_MS = 320;
+/** Easing rate that leaves under 2% of a move after `WAITING_MOVE_MS`. */
+const SNAPPY_RATE = 14;
 const MAX_PIXEL_RATIO = 2 * ORB_SUPERSAMPLE;
 const LARGE_RING_PX = 300;
 /**
@@ -276,6 +287,7 @@ const UNIFORM_NAMES = {
   tilt: "uTilt",
   pulse: "uPulse",
   level: "uLevel",
+  sweep: "uSweep",
   dark: "uDark",
   aura: "uAura",
   reveal: "uReveal",
@@ -416,6 +428,9 @@ export function startOneOrb(
   let pulse = 0;
   let energy = 0;
   let glowLevel = 0;
+  let sweep = 0;
+  /** Until when poses ease fast: into the waiting pose and back out of it take the sheet duration. */
+  let snappyUntil = 0;
   const openingSeconds = input.openingSeconds ?? 0;
   let reveal = openingSeconds > 0 ? 0 : 1;
   const openingStarted = performance.now();
@@ -501,18 +516,24 @@ export function startOneOrb(
     if (still) {
       tilt = pose.tilt;
       pulse = 0;
+      sweep = 0;
       spin = ORB_OPEN_ANGLE + pose.spinOffset;
       glowLevel = glowTarget;
       energy = pose.baseEnergy;
       reveal = 1;
       aura = pose.aura;
     } else {
-      const ease = 1 - Math.exp(-delta * 5.5);
+      if (state === "waiting") snappyUntil = now + WAITING_MOVE_MS * 2;
+      const snappy = now < snappyUntil;
+      const ease = 1 - Math.exp(-delta * (snappy ? SNAPPY_RATE : 5.5));
       time += delta;
       if (pose.spinSpeed > 0) {
         spin += delta * pose.spinSpeed;
       } else {
-        spin += (restAngle(spin, pose.spinOffset) - spin) * (1 - Math.exp(-delta * 3));
+        // The nearest hold, so the move takes the short way round.
+        spin +=
+          (restAngle(spin, pose.spinOffset) - spin) *
+          (1 - Math.exp(-delta * (snappy ? SNAPPY_RATE : 3)));
       }
       // The opening runs on the wall clock, so a slow first frame cannot leave the ring half lit
       // when the cover lifts.
@@ -523,6 +544,7 @@ export function startOneOrb(
       sway += (pose.sway - sway) * ease;
       tilt += (pose.tilt - tilt) * ease;
       pulse += (pose.pulse - pulse) * ease;
+      sweep += (pose.sweep - sweep) * ease;
       const target = energyTarget(state, time, level);
       // Rise fast, fall slowly, so speech reads as a swell rather than a flicker.
       energy += (target - energy) * (1 - Math.exp(-delta * (target > energy ? 18 : 5)));
@@ -536,6 +558,7 @@ export function startOneOrb(
     gl.uniform1f(uniforms.pulse, pulse);
     gl.uniform1f(uniforms.energy, energy);
     gl.uniform1f(uniforms.level, glowLevel);
+    gl.uniform1f(uniforms.sweep, sweep);
     gl.uniform1f(uniforms.aura, aura);
     gl.uniform1f(uniforms.reveal, reveal);
     // Parks on the turn that brings the catch-light to the still picture's place, so the stop is

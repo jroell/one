@@ -643,9 +643,9 @@ export function isCompactionCommandMessage(message: CompactionMessageFields): bo
 const LEADING_COMMAND = /^\s*(?:\/|\p{Sc}[a-zA-Z0-9:_-]*[a-zA-Z])/u;
 
 /**
- * Who sent a message, in a line the model reads before its text, or the text unchanged when a
- * person typed it. Providers parse slash commands and skill mentions such as `$deploy` from the
- * start of a prompt, so those stay as sent.
+ * What the model reads for a message: a line saying who sent it, then the text, then any app
+ * context framed as the app's. Providers parse slash commands and `$skill` mentions from the
+ * start of a prompt, so a prompt that begins with one stays exactly as sent.
  */
 export function withMessageSenderNote(
   message: {
@@ -654,6 +654,7 @@ export function withMessageSenderNote(
     readonly scheduledTaskId?: ScheduledTaskId | undefined;
     readonly senderThreadId?: ThreadId | undefined;
     readonly linkedSender?: OrchestrationV2LinkedSender | undefined;
+    readonly context?: { readonly agentContext?: string | undefined } | undefined;
   },
   text: string,
 ): string {
@@ -668,8 +669,12 @@ export function withMessageSenderNote(
           : agent && message.creationSource === "mcp"
             ? "[T3 Code: this message came through T3 Code's tools, not from the user typing in this chat.]"
             : undefined;
-  if (note === undefined || LEADING_COMMAND.test(text)) return text;
-  return text === "" ? note : `${note}\n\n${text}`;
+  if (LEADING_COMMAND.test(text)) return text;
+  const appContext = message.context?.agentContext?.trim() ?? "";
+  const withNote = note === undefined ? text : text === "" ? note : `${note}\n\n${text}`;
+  return appContext === ""
+    ? withNote
+    : `${withNote}\n\n[One app context. The user did not write this and cannot see it. It is background and instructions from the app:\n${appContext}\n]`;
 }
 
 export type OrchestrationV2GoalCommand =

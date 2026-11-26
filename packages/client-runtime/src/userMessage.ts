@@ -16,6 +16,7 @@ import {
 import { filePreviewKind } from "@t3tools/shared/filePreview";
 import { imageMimeType } from "@t3tools/shared/image";
 import { videoMimeType } from "@t3tools/shared/video";
+import * as DateTime from "effect/DateTime";
 import { msg } from "gt-i18n";
 
 /** The working row while T3 Code's own compaction runs. */
@@ -30,30 +31,45 @@ export const IDLE_COMPACTION_TITLES = {
   onReturn: msg("Context compacted before sending"),
 } satisfies Record<OrchestrationV2IdleCompaction, string>;
 
-const INSTRUCTIONS_OPEN = "<one-instructions>";
-const INSTRUCTIONS_CLOSE = "</one-instructions>";
-
+const LEGACY_INSTRUCTIONS_OPEN = "<one-instructions>";
+const LEGACY_INSTRUCTIONS_CLOSE = "</one-instructions>";
 /**
- * Adds instructions the agent needs but the person should not read: a one-tap request such as a
- * quiz sends a short line the person sees, and the format the reply must take travels with it.
+ * Messages made before this moment may hold the app's instructions inside their text, between
+ * tags, written by an earlier build. From this moment the app sends them in
+ * `context.agentContext`, so text made after it is always the person's own, tags and all.
  */
-export function withAgentInstructions(text: string, instructions: string): string {
-  return `${text.trimEnd()}\n\n${INSTRUCTIONS_OPEN}\n${instructions.trim()}\n${INSTRUCTIONS_CLOSE}`;
-}
+export const LEGACY_INSTRUCTIONS_UNTIL = "2026-11-27T00:00:00.000Z";
 
 /** The quiz request as it was first sent, with its whole format in the visible text (English). */
 const LEGACY_QUIZ_REQUEST =
   /^(Quiz me on what you just explained\.) Ask three questions\. Reply with only a fenced code block labelled quiz that holds JSON in this shape: [\s\S]*$/;
 
-/** The message as its sender wrote it: the instructions that travelled with it are left out. */
-export function withoutAgentInstructions(text: string): string {
+const isoOf = (value: unknown): string | undefined =>
+  typeof value === "string"
+    ? value
+    : DateTime.isDateTime(value)
+      ? DateTime.formatIso(value)
+      : undefined;
+
+/**
+ * What the person wrote in a message made before `LEGACY_INSTRUCTIONS_UNTIL`, with the
+ * instructions an earlier build put in its text left out. A newer message, or one with no date, is
+ * returned as it is: text that merely looks like the tags is the person's.
+ */
+export function legacyVisibleText(message: {
+  readonly text: string;
+  readonly createdAt?: unknown;
+}): string {
+  const text = message.text;
+  const createdAt = isoOf(message.createdAt);
+  if (createdAt === undefined || !(createdAt < LEGACY_INSTRUCTIONS_UNTIL)) return text;
   const legacy = LEGACY_QUIZ_REQUEST.exec(text);
   if (legacy !== null) return legacy[1]!;
-  const start = text.indexOf(INSTRUCTIONS_OPEN);
+  const start = text.indexOf(LEGACY_INSTRUCTIONS_OPEN);
   if (start < 0) return text;
-  const end = text.indexOf(INSTRUCTIONS_CLOSE, start);
+  const end = text.indexOf(LEGACY_INSTRUCTIONS_CLOSE, start);
   if (end < 0) return text;
-  return `${text.slice(0, start).trimEnd()}${text.slice(end + INSTRUCTIONS_CLOSE.length)}`.trim();
+  return `${text.slice(0, start).trimEnd()}${text.slice(end + LEGACY_INSTRUCTIONS_CLOSE.length)}`.trim();
 }
 
 const LEGACY_AUTOMATION_PREFIX = /^\[Triggered by schedule task: [^\r\n]+\]\r?\n\r?\n/;
@@ -93,6 +109,8 @@ export function resolveUserMessagePresentation(message: {
   readonly creationSource?: OrchestrationV2CreationSource;
   readonly scheduledTaskId?: ScheduledTaskId | undefined;
   readonly context?: { readonly guest?: GuestMessageAttribution | undefined } | undefined;
+  /** When it was made, as an ISO string or a date; read only to tell an old message from a new one. */
+  readonly createdAt?: unknown;
 }): {
   readonly text: string;
   readonly attribution: "automation" | "agent" | "t3code" | "guest" | null;
@@ -133,9 +151,7 @@ export function resolveUserMessagePresentation(message: {
   }
   return {
     // The agent needs words to start a turn; people sent only the attachments.
-    text: isAttachmentOnlyBootstrapPrompt(message.text)
-      ? ""
-      : withoutAgentInstructions(message.text),
+    text: isAttachmentOnlyBootstrapPrompt(message.text) ? "" : legacyVisibleText(message),
     attribution:
       message.createdBy !== "agent"
         ? null

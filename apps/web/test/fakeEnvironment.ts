@@ -14,6 +14,7 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   ProjectId,
   ProviderInstanceId,
+  ProviderSessionId,
   RunId,
   RuntimeRequestId,
   ServerConfig,
@@ -72,6 +73,7 @@ const descriptor = {
     repositoryIdentity: true,
     sideChats: true,
     freshContext: true,
+    messageAgentContext: true,
     fileAttachments: { maxUploadBytes: 10_000_000 },
   },
 };
@@ -317,6 +319,41 @@ export function threadWithQuestion(name: string, question: string): FakeThread {
         kind: "user_input",
         status: "pending",
         responseCapability: { type: "message" },
+        createdAt: AT,
+        resolvedAt: null,
+      },
+    ],
+  };
+}
+
+/** A thread of `turns` answered prompts whose agent then waits for a command to be approved. */
+export function threadWithApproval(name: string, command: string, turns = 1): FakeThread {
+  const thread = threadWithHistory(name, turns);
+  const requestId = RuntimeRequestId.make(`${name}-request`);
+  const runId = RunId.make(`${name}-run-${turns - 1}`);
+  return {
+    ...thread,
+    items: [
+      ...thread.items,
+      {
+        ...base(thread.id, runId, `${name}-approval`, turns * 2),
+        type: "approval_request",
+        status: "waiting",
+        completedAt: null,
+        requestId,
+        requestKind: "command",
+        prompt: command,
+      },
+    ],
+    runtimeRequests: [
+      {
+        id: requestId,
+        nodeId: NodeId.make(`${name}-node`),
+        providerTurnId: null,
+        nativeRequestRef: null,
+        kind: "command",
+        status: "pending",
+        responseCapability: { type: "live", providerSessionId: ProviderSessionId.make(name) },
         createdAt: AT,
         resolvedAt: null,
       },

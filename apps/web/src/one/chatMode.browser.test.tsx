@@ -21,7 +21,7 @@ import { act, fakeTimers, render } from "../../test/render";
 import { ComposerHandleContext } from "~/composerHandleContext";
 import { CHAT_STAGE_HOLD_MS } from "./chatStage";
 import { ChatStatusDot } from "./ChatStatusDot";
-import { withQuizInstructions } from "./chatQuiz";
+import { QUIZ_INSTRUCTIONS } from "./chatQuiz";
 import { ComposerContextPermissions } from "~/components/ComposerContextPermissions";
 import { ComposerFooterModeControls } from "~/components/chat/ComposerFooterControls";
 import { resolveRuntimeModeOption, runtimeModeOptions } from "~/components/chat/runtimeModeConfig";
@@ -1576,7 +1576,7 @@ it("Chat mode draws a diagram in the house style: gold 1.5px strokes, serif labe
 });
 
 const EDGE_KINDS_DIAGRAM =
-  "```mermaid\nflowchart LR\n  A[Solid] --> B[Dotted]\n  B -.-> C[Thick]\n  C ==> D[Open]\n  D --- E[End]\n```";
+  "```mermaid\nflowchart LR\n  A[Solid] --> B[Dotted]\n  B -.-> C[Thick]\n  C ==> D[Open]\n  D --- E[End]\n  linkStyle 0 stroke-dasharray: 4 4\n```";
 
 it("Chat mode keeps a dotted edge dotted and a thick edge thick through the draw-on and after it, with motion and with reduced motion", async () => {
   using _mode = inMode("chat");
@@ -1602,22 +1602,30 @@ it("Chat mode keeps a dotted edge dotted and a thick edge thick through the draw
     const edges = () => [
       ...screen.container.querySelectorAll<SVGPathElement>(".pele-edge > path:not(.pele-marker)"),
     ];
-    const dotted = () => edges().filter((path) => path.hasAttribute("stroke-dasharray"));
+    // Dashed by the diagram itself, or by a link style on the edge's group.
+    const groupDash = (path: SVGPathElement) => path.parentElement?.style.strokeDasharray ?? "";
+    const dotted = () =>
+      edges().filter((path) => path.hasAttribute("stroke-dasharray") || groupDash(path) !== "");
     const thick = () => edges().filter((path) => path.hasAttribute("stroke-width"));
     const solid = () =>
       edges().filter(
-        (path) => !path.hasAttribute("stroke-dasharray") && !path.hasAttribute("stroke-width"),
+        (path) =>
+          !path.hasAttribute("stroke-dasharray") &&
+          groupDash(path) === "" &&
+          !path.hasAttribute("stroke-width"),
       );
-    expect(dotted().length, `reduced ${reduced}`).toBeGreaterThan(0);
+    // The first edge carries its dash on the group (a link style), not on its path.
+    expect(groupDash(edges()[0]!), `reduced ${reduced}`).not.toBe("");
+    expect(dotted().length).toBeGreaterThan(0);
     expect(thick().length).toBeGreaterThan(0);
     expect(solid().length).toBeGreaterThan(0);
     const check = (phase: string) => {
       for (const path of dotted()) {
-        const own = path.getAttribute("stroke-dasharray")!;
+        const own = path.getAttribute("stroke-dasharray") ?? groupDash(path);
         // The pattern is the one the diagram drew, whether or not the edge is being drawn on.
         expect(path.hasAttribute("pathLength"), `${phase} dotted pathLength`).toBe(false);
         expect(getComputedStyle(path).strokeDasharray, `${phase} dotted dash`).toBe(
-          own.split(" ").join("px, ") + "px",
+          own.replace(/px/g, "").split(/[ ,]+/).join("px, ") + "px",
         );
       }
       for (const path of thick()) {
@@ -1887,69 +1895,74 @@ it("Chat mode makes the quiz a reward: a wrong pick shakes and goes quiet, the r
   }
 });
 
-it("Chat mode shows a quiz request as the person's short line, and Another round puts that line in the composer, never the instructions", async () => {
+it("Chat mode shows a quiz request as the person's short line in the bubble and the outline, whatever the app attached to it", async () => {
   using _mode = inMode("chat");
   using _motion = motion(true);
   using _storage = quizStorageCleared();
   await using _viewport = await wideViewport(1440);
-  const composer = composerStandIn("");
-  const sent = withQuizInstructions("Another round of three questions.");
-  expect(sent).toContain("fenced code block");
-  const answer = message("answer-round", "assistant", QUIZ_BLOCK());
-  const props = {
+  const ask = message("ask-round", "user", "Another round of three questions.");
+  const sent: Entry =
+    ask.kind === "message"
+      ? {
+          ...ask,
+          message: {
+            ...ask.message,
+            context: { version: 1, records: [], agentContext: QUIZ_INSTRUCTIONS },
+          },
+        }
+      : ask;
+  await using screen = await renderTimeline({
     ...baseProps(),
-    timelineEntries: [message("ask-round", "user", sent), answer],
-  };
-  const container = document.createElement("div");
-  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
-  await using screen = await render(followUpScene(composer, props), { container });
-  // The message bubble reads as the short line; the instructions that travel with it are not shown.
+    timelineEntries: [sent, message("answer-round", "assistant", QUIZ_BLOCK())],
+  });
   await expect.element(screen.getByText("Another round of three questions.").first()).toBeVisible();
-  expect(screen.container.textContent).not.toContain("fenced code block");
-  expect(screen.container.textContent).not.toContain("one-instructions");
-  // Finish the quiz, then ask for another round.
-  await screen.getByRole("radio").first().click();
-  await screen.getByRole("button", { name: "Next" }).click();
-  await screen.getByRole("radio").first().click();
-  await screen.getByRole("button", { name: "See how you did" }).click();
-  await screen.getByRole("button", { name: "Another round" }).click();
-  expect(composer.state.value).toBe("Another round of three questions.");
-  // The follow-up asks the same way.
-  composer.state.value = "";
-  await screen.getByRole("button", { name: /^Quiz me on this/ }).click();
-  expect(composer.state.value).toBe("Quiz me on what you just explained, with three questions.");
-  // The outline's entry for the turn is the short line too.
+  for (const hidden of ["fenced code block", "JSON", '"questions":', "Ask three questions"]) {
+    expect(screen.container.textContent, hidden).not.toContain(hidden);
+  }
   const outline = screen.getByRole("navigation", { name: "In this chat" });
   expect(outline.element().textContent).toContain("Another round of three questions.");
   expect(outline.element().textContent).not.toContain("fenced code block");
 });
 
-it("a quiz request reads as its short line in Code mode, and one stored with its whole format still reads as a short line", async () => {
+it("a message made by an earlier build with instructions inside its text still reads as a short line, and a new message with the same words reads as typed", async () => {
   using _storage = quizStorageCleared();
   const legacy =
     'Quiz me on what you just explained. Ask three questions. Reply with only a fenced code block labelled quiz that holds JSON in this shape: {"questions":[{"question":"...","options":["...","...","..."],"correct":0,"explanation":"..."}]}. Give three options for each question, the index of the right one as correct, and a sentence of explanation.';
-  for (const [mode, sent, shown] of [
+  const tagged =
+    "Another round of three questions.\n\n<one-instructions>\nReply with only JSON.\n</one-instructions>";
+  const dated = (entry: Entry, createdAt: string): Entry =>
+    entry.kind === "message"
+      ? { ...entry, message: { ...entry.message, createdAt, updatedAt: createdAt } }
+      : entry;
+  for (const [mode, text, createdAt, shown, hidden] of [
+    ["chat", legacy, "2026-11-26T09:00:00.000Z", "Quiz me on what you just explained.", "JSON"],
+    ["code", legacy, "2026-11-26T09:00:00.000Z", "Quiz me on what you just explained.", "JSON"],
     [
       "code",
-      withQuizInstructions("Another round of three questions."),
+      tagged,
+      "2026-11-26T09:00:00.000Z",
       "Another round of three questions.",
+      "one-instructions",
     ],
-    ["chat", legacy, "Quiz me on what you just explained."],
-    ["code", legacy, "Quiz me on what you just explained."],
   ] as const) {
     using _mode = inMode(mode);
     await using screen = await renderTimeline({
       ...baseProps(),
       timelineEntries: [
-        message("ask-old", "user", sent),
-        message("answer-old", "assistant", "Sure."),
+        dated(message("ask-old", "user", text), createdAt),
+        message("a", "assistant", "Sure."),
       ],
     });
     await expect.element(screen.getByText(shown).first()).toBeVisible();
-    for (const hidden of ["fenced code block", "JSON", 'questions":', "one-instructions"]) {
-      expect(screen.container.textContent, `${mode}: ${hidden}`).not.toContain(hidden);
-    }
+    expect(screen.container.textContent, `${mode}: ${hidden}`).not.toContain(hidden);
   }
+  // After the app stopped writing them, the same words are what the person typed.
+  using _code = inMode("code");
+  await using typed = await renderTimeline({
+    ...baseProps(),
+    timelineEntries: [dated(message("ask-typed", "user", tagged), "2026-11-28T09:00:00.000Z")],
+  });
+  await expect.element(typed.getByText(/one-instructions/).first()).toBeVisible();
 });
 
 it("Chat mode keeps two quizzes in one message apart: their own picks, their own saved state, and element ids that point at their own question", async () => {
@@ -1992,6 +2005,30 @@ it("Chat mode keeps two quizzes in one message apart: their own picks, their own
     expect(second!.textContent).toContain("Question 1 of 2");
     expect(second!.querySelector('[data-state="wrong"]')).toBeNull();
   }
+});
+
+it("Chat mode keeps two quizzes apart while their message is still streaming, and keeps the picks when the stream ends", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  using _storage = quizStorageCleared();
+  await using _viewport = await wideViewport(1440);
+  const text = `${QUIZ_BLOCK()}\n\nAnd again.\n\n${QUIZ_BLOCK()}`;
+  const props = { ...baseProps(), timelineEntries: quizEntries(text, true) };
+  await using screen = await renderTimeline(props);
+  const quizzes = () => [...screen.container.querySelectorAll<HTMLElement>("[data-chat-quiz]")];
+  await vi.waitFor(() => expect(quizzes()).toHaveLength(2));
+  // Answer the second quiz while the answer is still being written.
+  (quizzes()[1]!.querySelector('[role="radio"]') as HTMLElement).click();
+  await vi.waitFor(() =>
+    expect(quizzes()[1]!.querySelector('[data-state="wrong"]')).not.toBeNull(),
+  );
+  expect(quizzes()[0]!.querySelector('[data-state="wrong"], [data-state="correct"]')).toBeNull();
+  // The stream ends: the same quiz still holds its pick, and the first is still open.
+  await screen.rerender(<MessagesTimeline {...props} timelineEntries={quizEntries(text, false)} />);
+  await vi.waitFor(() => expect(quizzes()).toHaveLength(2));
+  // Reopened where it was left: the second quiz is on its next question, the first untouched.
+  await vi.waitFor(() => expect(quizzes()[1]!.textContent).toContain("Question 2 of 2"));
+  expect(quizzes()[0]!.textContent).toContain("Question 1 of 2");
 });
 
 it("Chat mode keeps a quiz's picks with its message, so reopening shows it finished, and lets the person go over what they missed", async () => {
@@ -2108,6 +2145,12 @@ function noticeFixture(options: {
   notices?: number;
   failure?: boolean;
   signIn?: boolean;
+  /** Further servers that need a sign-in, each as its own notice. */
+  signInServers?: ReadonlyArray<string>;
+  /** The turn called a tool of this MCP server. */
+  calledTool?: string;
+  /** The app sent the question with notes the person cannot see. */
+  appNotes?: boolean;
   errorNotice?: boolean;
 }) {
   const fixture = makeStreamingTimelineFixture();
@@ -2150,6 +2193,32 @@ function noticeFixture(options: {
       mcpSignIn: { server: "mem0" },
     },
   } as unknown as typeof work;
+  const extraSignIn = (server: string, index: number) =>
+    ({
+      ...signInNotice,
+      position: work.position + 40 + index,
+      sourceItemId: TurnItemId.make(`notice-sign-in-${index}`),
+      item: {
+        ...signInNotice.item,
+        id: TurnItemId.make(`notice-sign-in-${index}`),
+        title: `MCP server ${server} needs a sign-in`,
+        message: `The ${server} MCP server needs a sign-in before Claude can use it.`,
+        mcpSignIn: { server },
+      },
+    }) as unknown as typeof work;
+  const toolCall = options.calledTool
+    ? ({
+        ...work,
+        position: work.position + 5,
+        sourceItemId: TurnItemId.make("tool-call"),
+        item: {
+          ...work.item,
+          id: TurnItemId.make("tool-call"),
+          toolName: `mcp__${options.calledTool}__search`,
+          status: "completed" as const,
+        },
+      } as unknown as typeof work)
+    : null;
   const errorNotice = {
     ...signInNotice,
     position: work.position + 25,
@@ -2180,12 +2249,23 @@ function noticeFixture(options: {
       },
     },
   } as unknown as typeof work;
+  const question = options.appNotes
+    ? ({
+        ...user,
+        item: {
+          ...user.item,
+          context: { version: 1, records: [], agentContext: "Explain the Providers page." },
+        },
+      } as typeof user)
+    : user;
   return deriveTimelineEntriesFromVisibleTurnItems({
     visibleTurnItems: [
-      user,
+      question,
       answer,
       ...Array.from({ length: options.notices ?? 0 }, (_, index) => notice(index)),
+      ...(toolCall ? [toolCall] : []),
       ...(options.signIn ? [signInNotice] : []),
+      ...(options.signInServers ?? []).map(extraSignIn),
       ...(options.errorNotice ? [errorNotice] : []),
       ...(options.failure ? [failure] : []),
     ],
@@ -2226,8 +2306,13 @@ it("Chat mode keeps a turn's quiet notices out of the conversation, behind the h
   }
 });
 
-it("Chat mode keeps a notice that needs a sign-in or is an error in view in plain words, and leaves the rest to the status dot", async () => {
-  const timelineEntries = noticeFixture({ notices: 1, signIn: true, errorNotice: true });
+it("Chat mode keeps an error and a sign-in for a tool the turn called in view in plain words, and leaves the rest to the status dot", async () => {
+  const timelineEntries = noticeFixture({
+    notices: 1,
+    signIn: true,
+    errorNotice: true,
+    calledTool: "mem0",
+  });
   {
     using _mode = inMode("chat");
     await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
@@ -2248,6 +2333,80 @@ it("Chat mode keeps a notice that needs a sign-in or is an error in view in plai
     await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
     await expect.element(screen.getByText(/codex mcp login mem0/)).toBeVisible();
     expect(screen.container.querySelector("[data-chat-failure]")).toBeNull();
+  }
+});
+
+const SIGN_IN_SERVERS = [
+  "plugin:exa:exa",
+  "plugin:productivity:notion",
+  "plugin:productivity:gmail",
+  "plugin:engineering:gmail",
+];
+
+it("Chat mode folds sign-ins for tools the turn never called into one quiet line with a sign-in per tool, and never as an alert", async () => {
+  const timelineEntries = noticeFixture({ signInServers: SIGN_IN_SERVERS });
+  {
+    using _mode = inMode("chat");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    const line = screen.getByRole("button", { name: "4 tools need sign-in" });
+    await expect.element(line).toBeVisible();
+    expect(screen.container.querySelector('[role="alert"]')).toBeNull();
+    expect(screen.container.textContent).not.toContain("could not start because");
+    expect(screen.container.querySelectorAll("[data-chat-sign-in-line]")).toHaveLength(1);
+
+    await line.click();
+    const names = [...screen.container.querySelectorAll(".one-chat-signin-row > span")].map(
+      (node) => node.textContent,
+    );
+    // A name two plugins share says which plugin it belongs to.
+    expect(names).toEqual(["Exa", "Notion", "Gmail (productivity)", "Gmail (engineering)"]);
+  }
+  {
+    using _mode = inMode("code");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await vi.waitFor(() =>
+      expect(screen.container.querySelectorAll('[data-v2-item-type="system_notice"]')).toHaveLength(
+        4,
+      ),
+    );
+    expect(screen.container.querySelector("[data-chat-sign-in-line]")).toBeNull();
+  }
+});
+
+it("Chat mode shows a sign-in the turn needed as a sentence, and folds only the tools it did not call", async () => {
+  const timelineEntries = noticeFixture({
+    signInServers: ["plugin_exa_exa", "linear"],
+    calledTool: "plugin_exa_exa",
+  });
+  using _mode = inMode("chat");
+  await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+  await expect
+    .element(screen.getByText("plugin_exa_exa could not start because it needs you to sign in."))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "1 tool needs sign-in" })).toBeVisible();
+  expect(screen.container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+});
+
+it("a thread the app started with hidden notes shows no sign-in line for tools its question never called, and still shows one it needed", async () => {
+  using _mode = inMode("chat");
+  {
+    const timelineEntries = noticeFixture({ signInServers: SIGN_IN_SERVERS, appNotes: true });
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await expect.element(screen.getByText("The file is short.")).toBeVisible();
+    expect(screen.container.querySelector("[data-chat-sign-in-line]")).toBeNull();
+    expect(screen.container.querySelector('[role="alert"]')).toBeNull();
+  }
+  {
+    const timelineEntries = noticeFixture({
+      signInServers: ["plugin_exa_exa", "linear"],
+      calledTool: "plugin_exa_exa",
+      appNotes: true,
+    });
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await expect
+      .element(screen.getByText("plugin_exa_exa could not start because it needs you to sign in."))
+      .toBeVisible();
+    expect(screen.container.querySelector("[data-chat-sign-in-line]")).toBeNull();
   }
 });
 

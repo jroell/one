@@ -745,3 +745,41 @@ describe("withMessageSenderNote", () => {
     expect(withMessageSenderNote(message, text)).toBe(expected);
   });
 });
+
+describe("withMessageSenderNote with app context", () => {
+  const person = { createdBy: "user", creationSource: "web" } as const;
+  const context = { agentContext: "Explain the Providers page." };
+
+  it("puts the app's context after the person's words, framed as not theirs and not visible to them", () => {
+    const text = withMessageSenderNote({ ...person, context }, "What is this?");
+    expect(text.startsWith("What is this?\n\n[One app context.")).toBe(true);
+    expect(text).toContain("The user did not write this and cannot see it");
+    expect(text).toContain("Explain the Providers page.");
+  });
+
+  it("carries the sender note and the context together", () => {
+    const text = withMessageSenderNote(
+      {
+        createdBy: "agent",
+        creationSource: "mcp",
+        context,
+      },
+      "Hi",
+    );
+    expect(text.startsWith("[T3 Code: this message came through")).toBe(true);
+    expect(text).toContain("Explain the Providers page.");
+  });
+
+  it("leaves a message that begins with a slash command or a skill mention exactly as sent", () => {
+    for (const text of ["/compact", "$deploy ship it"]) {
+      expect(withMessageSenderNote({ ...person, context }, text)).toBe(text);
+    }
+  });
+
+  it("adds nothing for an empty or blank context", () => {
+    expect(withMessageSenderNote({ ...person, context: { agentContext: "  \n" } }, "Hi")).toBe(
+      "Hi",
+    );
+    expect(withMessageSenderNote({ ...person, context: {} }, "Hi")).toBe("Hi");
+  });
+});

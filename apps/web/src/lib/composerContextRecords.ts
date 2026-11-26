@@ -553,6 +553,8 @@ export function buildMessageContext(input: {
   environmentContexts?: ReadonlyArray<EnvironmentContextRecord>;
   replyTo?: ResponseContextRecord | null;
   attachments?: ReadonlyArray<BoundComposerAttachment>;
+  /** The app's own notes to the model for this message: sent with it, never shown. */
+  agentContext?: string | undefined;
 }): OrchestrationMessageContext | undefined {
   const screenshotAttachmentIds = new Set(
     (input.attachments ?? []).flatMap(({ attachment }) =>
@@ -572,7 +574,9 @@ export function buildMessageContext(input: {
     ),
     ...(input.attachments ?? []).map(attachmentContextRecord),
   ];
-  return records.length === 0 ? undefined : { version: 1, records };
+  const agentContext = input.agentContext?.trim() ?? "";
+  if (records.length === 0 && agentContext === "") return undefined;
+  return { version: 1, records, ...(agentContext === "" ? {} : { agentContext }) };
 }
 
 export function asKnownContextRecord(

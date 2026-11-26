@@ -3127,6 +3127,86 @@ it("answers one of two pending approvals: only that card leaves, the other stays
   await vi.waitFor(() => expect(hintsIn("App permission approval")).toBe(2));
 });
 
+it("keeps an approval's pressed state while a second timeline mounts or changes its own approvals", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const source = fixture.visibleTurnItems[4]!;
+  if (source.item.type !== "dynamic_tool") throw new Error("Expected fixture tool");
+  const sourceItem = source.item;
+  const mainRequest = RuntimeRequestId.make("main-approval");
+  const sideRequest = RuntimeRequestId.make("side-approval");
+  const approval = (requestId: RuntimeRequestId): PendingApproval => ({
+    requestId,
+    requestKind: "command",
+    createdAt: fixture.time(6),
+    detail: `run ${requestId}`,
+    responseCapability: "live",
+  });
+  const entriesFor = (approvals: ReadonlyArray<PendingApproval>) =>
+    deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        source,
+        ...approvals.map((pending, index) => ({
+          ...source,
+          position: source.position + index + 1,
+          sourceItemId: TurnItemId.make(`${pending.requestId}-item`),
+          item: {
+            ...sourceItem,
+            id: TurnItemId.make(`${pending.requestId}-item`),
+            type: "approval_request" as const,
+            status: "waiting" as const,
+            requestId: pending.requestId,
+            requestKind: pending.requestKind,
+            prompt: pending.detail,
+          },
+        })),
+      ],
+      optimisticMessages: [],
+    });
+  const timeline = (
+    props: ReturnType<typeof baseProps>,
+    approvals: ReadonlyArray<PendingApproval>,
+    responding: ReadonlyArray<RuntimeRequestId> = [],
+  ) => (
+    <div style={{ height: 500, width: 700, display: "flex", flexDirection: "column" }}>
+      <MessagesTimeline
+        {...props}
+        timelineEntries={entriesFor(approvals)}
+        pendingApprovals={approvals}
+        respondingRequestIds={responding}
+        canOperateThread
+        onRespondToApproval={() => new Promise<void>(() => {})}
+        isWorking
+        runningRunId={fixture.runId}
+      />
+    </div>
+  );
+  const main = baseProps();
+  const side = baseProps();
+  const ui = (sideApprovals: ReadonlyArray<PendingApproval> | null, responding = false) => (
+    <div style={{ display: "flex", gap: 16 }}>
+      {timeline(main, [approval(mainRequest)], responding ? [mainRequest] : [])}
+      {sideApprovals === null ? null : timeline(side, sideApprovals)}
+    </div>
+  );
+  await using screen = await renderElement(ui(null));
+  await expect.element(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+  try {
+    // The answer is on its way: the card shows the pressed button.
+    await click(screen.button("Approve"));
+    await screen.rerender(ui(null, true));
+    await expect.element(screen.getByText("Approving…")).toBeVisible();
+    // A side chat opens, then gains an approval of its own: neither may drop the main answer.
+    await screen.rerender(ui([], true));
+    await screen.rerender(ui([approval(sideRequest)], true));
+    expect(peekApprovalDecision(mainRequest)).toBe("accept");
+    expect(screen.text()).toContain("Approving…");
+  } finally {
+    clearApprovalDecision(mainRequest);
+    clearApprovalDecision(sideRequest);
+  }
+});
+
 it("keeps concurrent approvals actionable outside collapsed work and restores settled rows", async () => {
   setup();
   const fixture = makeStreamingTimelineFixture();
