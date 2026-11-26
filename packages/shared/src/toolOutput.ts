@@ -336,10 +336,27 @@ export function readToolOutputImage(block: unknown): ToolOutputImage | null {
   return typeof data === "string" ? { ...image, data } : image;
 }
 
+const ACP_CONTENT_WRAPPER_KEYS: ReadonlySet<string> = new Set(["type", "content", "_meta"]);
+
+/**
+ * The block inside an ACP `{ type: "content", content }` wrapper, which may carry `_meta`. Any
+ * other shape, including a wrapper with extra keys, is returned as it is.
+ */
+export function unwrapAcpContent(value: unknown): unknown {
+  return Predicate.isObject(value) &&
+    value.type === "content" &&
+    "content" in value &&
+    Object.keys(value).every((key) => ACP_CONTENT_WRAPPER_KEYS.has(key))
+    ? value.content
+    : value;
+}
+
 function outputBlocks(value: unknown): ReadonlyArray<unknown> {
-  if (Array.isArray(value)) return value;
-  if (Predicate.isObject(value) && Array.isArray(value.content)) return value.content;
-  return [value];
+  if (Array.isArray(value)) return value.map(unwrapAcpContent);
+  if (Predicate.isObject(value) && Array.isArray(value.content)) {
+    return value.content.map(unwrapAcpContent);
+  }
+  return [unwrapAcpContent(value)];
 }
 
 export const MAX_TOOL_OUTPUT_IMAGES = 8;
@@ -379,8 +396,10 @@ export function mcpToolResultOutput(result: {
 
 export function omitToolOutputImageData(value: unknown): unknown {
   const omit = (block: unknown) => {
-    const image = readToolOutputImage(block);
-    return image?.data === undefined ? block : { type: "image", mimeType: image.mimeType };
+    const image = readToolOutputImage(unwrapAcpContent(block));
+    if (image?.data === undefined) return block;
+    const trimmed = { type: "image", mimeType: image.mimeType };
+    return unwrapAcpContent(block) === block ? trimmed : { ...(block as object), content: trimmed };
   };
   if (Array.isArray(value)) return value.map(omit);
   if (Predicate.isObject(value) && Array.isArray(value.content)) {

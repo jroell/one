@@ -176,33 +176,43 @@ function contrast(a: string, b: string) {
 }
 
 describe("switch", () => {
-  it.each(["light", "dark"] as const)(
-    "an off switch track is at least 3:1 against its surface and its thumb at least 3:1 against the track in %s",
-    async (scheme) => {
-      document.documentElement.classList.toggle("dark", scheme === "dark");
-      try {
-        await using screen = await render(<Switch aria-label="Notify" />, { router: false });
-        const track = screen.container.querySelector<HTMLElement>("[data-slot=switch]")!;
-        const thumb = screen.container.querySelector<HTMLElement>("[data-slot=switch-thumb]")!;
-        const surface = document.createElement("div");
-        surface.style.backgroundColor = "var(--background)";
-        document.body.append(surface);
-        try {
-          const trackColor = getComputedStyle(track).backgroundColor;
-          expect(
-            contrast(trackColor, getComputedStyle(surface).backgroundColor),
-          ).toBeGreaterThanOrEqual(3);
-          expect(
-            contrast(getComputedStyle(thumb).backgroundColor, trackColor),
-          ).toBeGreaterThanOrEqual(3);
-        } finally {
-          surface.remove();
-        }
-      } finally {
-        document.documentElement.classList.remove("dark");
-      }
-    },
-  );
+  it("in dark an off switch track is at least 3:1 against its surface and its thumb at least 3:1 against the track", async () => {
+    document.documentElement.classList.add("dark");
+    try {
+      await using screen = await render(<Switch aria-label="Notify" />, { router: false });
+      const track = screen.container.querySelector<HTMLElement>("[data-slot=switch]")!;
+      const thumb = screen.container.querySelector<HTMLElement>("[data-slot=switch-thumb]")!;
+      const trackColor = getComputedStyle(track).backgroundColor;
+      expect(contrast(trackColor, resolved("var(--background)"))).toBeGreaterThanOrEqual(3);
+      expect(contrast(getComputedStyle(thumb).backgroundColor, trackColor)).toBeGreaterThanOrEqual(
+        3,
+      );
+    } finally {
+      document.documentElement.classList.remove("dark");
+    }
+  });
+
+  it("in light an off switch is a warm pale track clearly lighter than the on state, and its white thumb carries a ring at least 3:1 against both the track and the page", async () => {
+    await using screen = await render(
+      <>
+        <Switch aria-label="Off" />
+        <Switch aria-label="On" defaultChecked />
+      </>,
+      { router: false },
+    );
+    const [off, on] = [...screen.container.querySelectorAll<HTMLElement>("[data-slot=switch]")];
+    const thumb = off!.querySelector<HTMLElement>("[data-slot=switch-thumb]")!;
+    const trackColor = getComputedStyle(off!).backgroundColor;
+    expect(luminance(channels(trackColor))).toBeGreaterThan(
+      luminance(channels(getComputedStyle(on!).backgroundColor)) + 0.3,
+    );
+    const ring = /rgb\([^)]*\)/.exec(getComputedStyle(thumb).boxShadow)![0];
+    expect(contrast(ring, trackColor), "thumb ring against the track").toBeGreaterThanOrEqual(3);
+    expect(
+      contrast(ring, resolved("var(--background)")),
+      "thumb ring against the page",
+    ).toBeGreaterThanOrEqual(3);
+  });
 
   it("the switch in a menu row moves its thumb with the same spring and fills its checked track the same as the Switch", async () => {
     await using screen = await render(
@@ -245,13 +255,37 @@ describe("toast", () => {
     toastManager.close();
   });
 
-  it("marks its type with an accent edge on the start side", async () => {
+  it("marks its type with a status-colored icon and draws no colored edge", async () => {
     await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
     toastManager.add({ type: "error", title: "Could not save", timeout: 60_000 });
     await expect.element(page.getByText("Could not save")).toBeVisible();
 
     const toast = document.querySelector<HTMLElement>("[data-slot=toast-viewport] > [data-type]")!;
-    expect(getComputedStyle(toast).boxShadow).toContain("2px 0px 0px 0px");
+    const icon = toast.querySelector<SVGElement>("[data-slot=toast-icon] svg")!;
+    expect(getComputedStyle(icon).color).toBe(resolved("var(--ui-danger-fg)", "color"));
+    expect(getComputedStyle(toast).boxShadow).not.toContain("2px 0px 0px 0px");
+    toastManager.close();
+  });
+
+  it("shows one toast at a time with a +N count and runs the Retry action of a recoverable error", async () => {
+    const retry = vi.fn();
+    await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
+    toastManager.add({
+      type: "error",
+      title: "Could not archive",
+      timeout: 60_000,
+      data: { onRetry: retry },
+    });
+    const secondId = toastManager.add({ type: "info", title: "Second notice", timeout: 60_000 });
+    await expect.element(page.getByText("Second notice")).toBeVisible();
+
+    expect(document.querySelectorAll("[data-slot=toast-viewport] > [data-type]")).toHaveLength(1);
+    expect(document.querySelector("[data-slot=toast-count]")?.textContent).toBe("+1");
+
+    toastManager.close(secondId);
+    await expect.element(page.getByText("Could not archive")).toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
     toastManager.close();
   });
 });
@@ -293,7 +327,14 @@ describe("accent fills", () => {
         const button = screen.container.querySelector<HTMLElement>("[data-slot=button]")!;
         const track = screen.container.querySelector<HTMLElement>("[data-slot=switch]")!;
 
-        expect(contrast(getComputedStyle(button).backgroundColor, page_)).toBeGreaterThanOrEqual(3);
+        // A button is told from the page by its fill or its border, whichever is stronger.
+        const buttonStyle = getComputedStyle(button);
+        expect(
+          Math.max(
+            contrast(buttonStyle.backgroundColor, page_),
+            contrast(buttonStyle.borderTopColor, page_),
+          ),
+        ).toBeGreaterThanOrEqual(3);
         expect(contrast(getComputedStyle(track).backgroundColor, page_)).toBeGreaterThanOrEqual(3);
         expect(
           contrast(getComputedStyle(button).color, getComputedStyle(button).backgroundColor),
@@ -336,6 +377,115 @@ describe("surface levels", () => {
       );
       expect(raised!).toBeGreaterThan(base! + 0.003);
       expect(overlay!).toBeGreaterThan(raised! + 0.003);
+    }));
+});
+
+describe("the primary button metal", () => {
+  it.each(["light", "dark"] as const)(
+    "is a top-lit gradient on the gold ramp with the label at least 4.5:1 at the lightest and darkest stop and no glow at rest in %s",
+    (scheme) =>
+      inScheme(scheme, async () => {
+        await using screen = await render(<Button>Send</Button>, { router: false });
+        const button = screen.container.querySelector<HTMLElement>("[data-slot=button]")!;
+        const style = getComputedStyle(button);
+        const stops = ["--btn-a", "--btn-b"].map((name) =>
+          resolved(style.getPropertyValue(name).trim()),
+        );
+        expect(style.backgroundImage).toContain("linear-gradient");
+        const [top, bottom] = stops.map((stop) => luminance(channels(stop)));
+        expect(top!, "lit from the top").toBeGreaterThan(bottom!);
+        for (const stop of stops) {
+          expect(contrast(style.color, stop), `label on ${stop}`).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(stops[0]).toBe(resolved(scheme === "dark" ? "var(--gold-400)" : "var(--gold-500)"));
+        // Rest shadows are black contact lines and inset highlights, never a gold glow.
+        expect(style.boxShadow).not.toMatch(/221, 181, 90|110, 81, 24/);
+      }),
+  );
+});
+
+describe("the material ramp", () => {
+  it.each(["light", "dark"] as const)(
+    "text and muted text are at least 4.5:1 on the raised, card and floating steps in %s",
+    (scheme) =>
+      inScheme(scheme, () => {
+        for (const step of ["raised", "card", "floating"]) {
+          const surface = resolved(`var(--m-${step})`);
+          for (const text of [
+            "var(--foreground)",
+            "var(--muted-foreground)",
+            "var(--ui-muted-text)",
+          ]) {
+            expect(
+              contrast(resolved(text, "color"), surface),
+              `${text} on ${step}`,
+            ).toBeGreaterThanOrEqual(4.5);
+          }
+        }
+      }),
+  );
+
+  it("the dark card step is at least 6 levels lighter than the frame it sits in and the Usage summary one step above the cards", async () => {
+    await inScheme("dark", async () => {
+      await using screen = await render(
+        <div data-app-modal="">
+          <div className="usage-panel" data-testid="card" />
+          <div className="usage-panel usage-summary" data-testid="hero" />
+        </div>,
+        { router: false },
+      );
+      const backdrop = "rgb(10 9 8)";
+      const frame = composite(
+        [getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor],
+        backdrop,
+      );
+      const onFrame = (id: string) =>
+        luminance(
+          channels(
+            composite(
+              [
+                getComputedStyle(screen.container.querySelector("[data-app-modal]")!)
+                  .backgroundColor,
+                getComputedStyle(screen.getByTestId(id).element()).backgroundColor,
+              ],
+              backdrop,
+            ),
+          ),
+        );
+      const [fr, fg] = channels(frame);
+      const [cr, cg] = channels(
+        composite(
+          [
+            getComputedStyle(screen.container.querySelector("[data-app-modal]")!).backgroundColor,
+            getComputedStyle(screen.getByTestId("card").element()).backgroundColor,
+          ],
+          backdrop,
+        ),
+      );
+      expect(cr! - fr!, "red").toBeGreaterThanOrEqual(6);
+      expect(cg! - fg!, "green").toBeGreaterThanOrEqual(5);
+      expect(onFrame("hero")).toBeGreaterThan(onFrame("card"));
+    });
+  });
+
+  it("the dark ramp rises from base through raised and card, and every step leans warm: red above green above blue by at least 2 levels", () =>
+    inScheme("dark", () => {
+      const steps = ["base", "raised", "card", "floating"].map((step) =>
+        channels(resolved(`var(--m-${step})`)),
+      );
+      const lum = steps.map((rgb) => luminance(rgb));
+      expect(lum[1]!).toBeGreaterThan(lum[0]!);
+      expect(lum[2]!).toBeGreaterThan(lum[1]!);
+      for (const [r, g, b] of steps.slice(1)) {
+        expect(r! - g!).toBeGreaterThanOrEqual(2);
+        expect(g! - b!).toBeGreaterThanOrEqual(2);
+      }
+    }));
+
+  it("the app canvas and the sidebar are the base step in dark, so the page and a modal over it are one dark", () =>
+    inScheme("dark", () => {
+      expect(resolved("var(--background)")).toBe(resolved("var(--m-base)"));
+      expect(resolved("var(--sidebar)")).toBe(resolved("var(--m-base)"));
     }));
 });
 
@@ -590,7 +740,7 @@ describe("modal glass", () => {
     const root = document.documentElement;
     root.classList.add("dark");
     root.dataset.themeId = "test-theme";
-    root.style.setProperty("--app-theme-surface-raised", "rgb(10, 40, 10)");
+    root.style.setProperty("--app-theme-surface-overlay", "rgb(10, 40, 10)");
     root.style.setProperty("--app-theme-message-action", "rgb(200, 150, 20)");
     try {
       await using screen = await render(<div data-app-modal="" />, { router: false });
@@ -602,8 +752,39 @@ describe("modal glass", () => {
     } finally {
       root.classList.remove("dark");
       delete root.dataset.themeId;
-      root.style.removeProperty("--app-theme-surface-raised");
+      root.style.removeProperty("--app-theme-surface-overlay");
       root.style.removeProperty("--app-theme-message-action");
+    }
+  });
+
+  it("a theme that sets neither an action nor an accent color still gets an opaque-enough, legible frame and menu", async () => {
+    const root = document.documentElement;
+    root.classList.add("dark");
+    root.dataset.themeId = "test-theme";
+    root.style.setProperty("--app-theme-surface-overlay", "rgb(30, 30, 40)");
+    try {
+      await using screen = await render(
+        <>
+          <div data-app-modal="" />
+          <div className="dropdown-glass" data-testid="menu" />
+        </>,
+        { router: false },
+      );
+      for (const surface of [
+        screen.container.querySelector("[data-app-modal]")!,
+        screen.getByTestId("menu").element(),
+      ]) {
+        const fill = getComputedStyle(surface).backgroundColor;
+        expect(rgba(fill)[3], "the fill is not transparent").toBeGreaterThanOrEqual(0.4);
+        const behind = composite([fill], "rgb(120 120 120)");
+        expect(contrast(resolved("var(--foreground)", "color"), behind)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+    } finally {
+      root.classList.remove("dark");
+      delete root.dataset.themeId;
+      root.style.removeProperty("--app-theme-surface-overlay");
     }
   });
 });

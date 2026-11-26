@@ -70,6 +70,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { AppRouteModal, AppRouteModalClose } from "../AppRouteModal";
 import { Skeleton } from "../ui/skeleton";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { UsageLimitsSection } from "./UsageLimits";
 import { UsagePriceOverrides } from "./UsagePriceOverrides";
@@ -92,6 +93,7 @@ import {
   costTypeSegments,
   leadingProvider,
   modelShare,
+  plainNameOf,
   sortModelsByTokens,
   speedCostSegments,
   tokenTypeSegments,
@@ -386,6 +388,9 @@ export function UsagePage() {
   // Progress follows the environments selected now: a refresh still pending for one of them shows
   // it, and one left behind by a deselected or disconnected environment does not.
   const autoRefreshing = anyRefreshPending(pendingRefreshes, connectedLimitIds);
+  const refreshActive = showingLimits
+    ? isRefreshing || autoRefreshing
+    : isRefreshing || isPartial || showingKept || carried === null;
   const autoRefreshLimits = useEffectEvent(() => {
     void refreshLimits(true);
   });
@@ -482,10 +487,7 @@ export function UsagePage() {
             if (isUsageMetric(value)) selectMetric(value);
           }}
         />
-        <span
-          className="usage-refresh"
-          data-refreshing={isRefreshing || autoRefreshing ? "" : undefined}
-        >
+        <span className="usage-refresh" data-refreshing={refreshActive ? "" : undefined}>
           <Button
             onClick={refreshWindow}
             aria-label={showingLimits ? gt("Refresh limits") : gt("Refresh usage")}
@@ -494,7 +496,7 @@ export function UsagePage() {
             size="icon-sm"
             variant="ghost"
           >
-            <RefreshIcon size="sm" refreshing={isRefreshing || autoRefreshing} />
+            <RefreshIcon size="sm" refreshing={refreshActive} />
           </Button>
         </span>
       </div>
@@ -550,10 +552,7 @@ export function UsagePage() {
             </SelectPopup>
           </Select>
         </div>
-        <span
-          className="usage-refresh"
-          data-refreshing={isRefreshing || autoRefreshing ? "" : undefined}
-        >
+        <span className="usage-refresh" data-refreshing={refreshActive ? "" : undefined}>
           <Button
             onClick={refreshWindow}
             aria-label={showingLimits ? gt("Refresh limits") : gt("Refresh usage")}
@@ -562,7 +561,7 @@ export function UsagePage() {
             size="icon-sm"
             variant="ghost"
           >
-            <RefreshIcon size="sm" refreshing={isRefreshing || autoRefreshing} />
+            <RefreshIcon size="sm" refreshing={refreshActive} />
           </Button>
         </span>
       </div>
@@ -745,6 +744,11 @@ function UsageOverview({
     0,
   );
   const rankedProviders = rankProvidersByMetric(activeProviders, merged.providers, metric);
+  // The active metric leads the figure columns, then the share, then the other measure.
+  const leadingColumns =
+    metric === "tokens"
+      ? (["tokens", "share", "cost"] as const)
+      : (["cost", "share", "tokens"] as const);
   const leader = leadingProvider(merged.providers, metric);
   const providerCount = providersWithData.size;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- remembers the settled provider count in a module cache for the next skeleton
@@ -981,88 +985,119 @@ function UsageOverview({
         </div>
 
         {breakdown === "model" ? (
-          <div className="usage-panel overflow-x-auto">
-            <table className="usage-table">
-              <thead>
-                <tr className="usage-table-head text-right">
-                  <th className="py-2 pr-3 pl-2 text-left font-normal">#</th>
-                  <th className="w-full py-2 text-left font-normal">
-                    <T>Model</T>
-                  </th>
-                  <th className="py-2 pl-6 font-normal">
-                    <T>Cost</T>
-                  </th>
-                  <th className="hidden py-2 pl-6 font-normal sm:table-cell">
-                    <T context="column heading, percentage share">Share</T>
-                  </th>
-                  <th className="py-2 pr-2 pl-6 font-normal">
-                    <T>Tokens</T>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdownModels.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-muted-foreground">
-                      <T>No activity in this window.</T>
-                    </td>
-                  </tr>
-                ) : (
-                  breakdownModels.map((model, index) => {
-                    const key = `${model.provider}:${model.model}`;
-                    const value = metric === "tokens" ? model.totalTokens : model.costUsd;
-                    const hasBar = value > 0 && breakdownPeak > 0;
-                    const share = modelShare(model, metric === "tokens" ? "tokens" : "cost");
-                    return (
-                      <tr
-                        key={key}
-                        className="usage-table-row relative text-right whitespace-nowrap tabular-nums"
+          <>
+            <div className="usage-panel overflow-x-auto">
+              <table className="usage-table">
+                <thead>
+                  <tr className="usage-table-head text-right">
+                    <th className="py-2 pr-3 pl-2 text-left font-normal">#</th>
+                    <th className="w-full py-2 text-left font-normal">
+                      <T>Model</T>
+                    </th>
+                    {leadingColumns.map((column, position) => (
+                      <th
+                        key={column}
+                        className={cn(
+                          "py-2 pl-6 font-normal",
+                          column === "share" && "hidden sm:table-cell",
+                          position === leadingColumns.length - 1 && "pr-2",
+                        )}
                       >
-                        <td className="py-2.5 pr-3 pl-2 text-left text-xs">{index + 1}</td>
-                        <td className="py-2.5 text-left whitespace-normal">
-                          <button
-                            type="button"
-                            onClick={() => onSelectModel(key)}
-                            className={cn(
-                              "flex items-center gap-2 text-left text-foreground outline-none after:absolute after:inset-0",
-                              !hasBar && "py-1",
-                            )}
-                          >
-                            <ProviderMark provider={model.provider} className="size-3.5" />
-                            {model.model}
-                          </button>
-                          {hasBar ? (
-                            <div aria-hidden className="usage-row-bar">
-                              <div
-                                className="usage-row-bar-fill"
-                                style={{
-                                  width: `max(0.5rem, ${(value / breakdownPeak) * 100}%)`,
-                                  backgroundColor: PROVIDER_PRESENTATION[model.provider].color,
-                                }}
-                              />
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="py-2.5 pl-6 text-foreground">
-                          {isModelCostUnknown(model) ? (
-                            <span className="text-muted-foreground">
-                              <T>Unpriced</T>
-                            </span>
-                          ) : (
-                            formatUsd(model.costUsd, locale)
-                          )}
-                        </td>
-                        <td className="hidden py-2.5 pl-6 sm:table-cell">
-                          {share === null ? "" : formatPercent(share)}
-                        </td>
-                        <td className="py-2.5 pr-2 pl-6">{formatTokens(model.totalTokens)}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                        {column === "cost" ? (
+                          <T>Cost</T>
+                        ) : column === "tokens" ? (
+                          <T>Tokens</T>
+                        ) : (
+                          <T context="column heading, percentage share">Share</T>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdownModels.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-muted-foreground">
+                        <T>No activity in this window.</T>
+                      </td>
+                    </tr>
+                  ) : (
+                    breakdownModels.map((model, index) => {
+                      const key = `${model.provider}:${model.model}`;
+                      const value = metric === "tokens" ? model.totalTokens : model.costUsd;
+                      const hasBar = value > 0 && breakdownPeak > 0;
+                      const share = modelShare(model, metric === "tokens" ? "tokens" : "cost");
+                      return (
+                        <tr
+                          key={key}
+                          className="usage-table-row relative text-right whitespace-nowrap tabular-nums"
+                        >
+                          <td className="py-2.5 pr-3 pl-2 text-left text-xs">{index + 1}</td>
+                          <td className="py-2.5 text-left whitespace-normal">
+                            <button
+                              type="button"
+                              onClick={() => onSelectModel(key)}
+                              className={cn(
+                                "flex items-center gap-2 text-left text-foreground outline-none after:absolute after:inset-0",
+                                !hasBar && "py-1",
+                              )}
+                            >
+                              <ProviderMark provider={model.provider} className="size-3.5" />
+                              {model.model}
+                            </button>
+                            {hasBar ? (
+                              <div aria-hidden className="usage-row-bar">
+                                <div
+                                  className="usage-row-bar-fill"
+                                  style={{
+                                    width: `max(0.5rem, ${(value / breakdownPeak) * 100}%)`,
+                                    backgroundColor: PROVIDER_PRESENTATION[model.provider].color,
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </td>
+                          {leadingColumns.map((column, position) => (
+                            <td
+                              key={column}
+                              className={cn(
+                                "py-2.5 pl-6",
+                                column === "cost" && "text-foreground",
+                                column === "share" && "hidden sm:table-cell",
+                                position === leadingColumns.length - 1 && "pr-2",
+                              )}
+                            >
+                              {column === "cost" ? (
+                                isModelCostUnknown(model) ? (
+                                  <UnpricedCell alias={plainNameOf(model, breakdownModels)} />
+                                ) : (
+                                  formatUsd(model.costUsd, locale)
+                                )
+                              ) : column === "tokens" ? (
+                                formatTokens(model.totalTokens)
+                              ) : share === null ? (
+                                ""
+                              ) : (
+                                formatPercent(share)
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {breakdownModels.some(isModelCostUnknown) ? (
+              <p className="usage-table-note">
+                <T>
+                  Unpriced: no price is known for these models, so their cost is not in the
+                  estimate.
+                </T>
+              </p>
+            ) : null}
+          </>
         ) : (
           <div
             className="usage-panel overflow-x-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -1134,6 +1169,30 @@ function UsageOverview({
         )}
       </section>
     </div>
+  );
+}
+
+/** "Unpriced" with the reason on hover or focus, and a hint when another row looks like the same model. */
+function UnpricedCell({ alias }: { readonly alias: string | null }) {
+  const gt = useGT();
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="usage-unpriced" tabIndex={0} />}>
+        <T>Unpriced</T>
+      </TooltipTrigger>
+      <TooltipPopup side="top">
+        <div className="flex max-w-60 flex-col gap-0.5">
+          <span>
+            {gt("No price is known for this model, so its cost is left out of the estimate.")}
+          </span>
+          {alias === null ? null : (
+            <span className="text-muted-foreground">
+              {gt("It looks like {name}, which is recorded under its plain name.", { name: alias })}
+            </span>
+          )}
+        </div>
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 

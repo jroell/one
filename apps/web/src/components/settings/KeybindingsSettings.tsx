@@ -81,6 +81,7 @@ import {
   buildKeybindingCommandOptions,
   buildWhenVariableOptions,
   collapseAlternateRows,
+  commandActionLabel,
   commandLabel,
   DEFAULT_WHEN_VARIABLE,
   describeWhen,
@@ -1058,7 +1059,7 @@ function KeybindingRowTitle({ row }: { row: KeybindingRow }) {
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="flex items-center gap-2" />}>
-        {commandLabel(row.command, m)}
+        {commandActionLabel(row.command, m)}
         <KeybindingSourceBadge source={row.source} />
       </TooltipTrigger>
       <TooltipPopup side="top">{row.command}</TooltipPopup>
@@ -1142,18 +1143,28 @@ function KeybindingSettingsRow(props: KeybindingRowProps) {
     onRemove,
   } = props;
   const editor = useKeybindingRowEditor({ row, allRows, onSave });
+  // The condition is only worth a line when it is not the one the command ships with. A row that
+  // is focused or being edited shows it anyway, so it can still be changed.
+  const [focusWithin, setFocusWithin] = useState(false);
+  const customWhen = row.defaultKey === null || row.when !== row.defaultWhen;
+  const showWhen = customWhen || editor.isDirty || focusWithin;
 
   return (
     <SettingsRow
       id={anchorId}
-      className="group/row rounded-none"
+      data-compact=""
+      className="group/row rounded-none py-1.5"
+      onFocusCapture={() => setFocusWithin(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false);
+      }}
       title={<KeybindingRowTitle row={row} />}
       description={
         row.isUnassigned && !editor.isDirty ? (
           <T>No keyboard shortcut assigned. Click Unassigned to set one.</T>
-        ) : (
+        ) : showWhen ? (
           <KeybindingRowWhen row={row} editor={editor} variables={variables} />
-        )
+        ) : undefined
       }
       control={
         <div className="flex flex-wrap items-center justify-end gap-1.5">

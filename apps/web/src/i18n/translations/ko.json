@@ -1335,6 +1335,7 @@
   "aeac6844ac2cde59": "일반 텍스트",
   "d1d2b3130458bf2e": "어셈블리",
   "06ca993fa4236249": "무엇이든 물어보세요. @ 파일, $ 스킬, / 명령",
+  "aeba94eb95d1e830": "Ask a question, or pick up where you left off",
   "279a7589a1c78b0d": "컨텍스트 메뉴",
   "54f1a9e3c9e146cd": "편집기",
   "c3b46a31a4d3999b": "편집기에서 열기",
@@ -3059,12 +3060,19 @@
   "6d5a8b471a561b9d": "파일 탐색기",
   "83a174f9e78fe2f1": "파일",
   "fce146a6bd6173bd": "더 자세히 보기",
+  "aa5e640b0fd014cb": "Take one part further",
   "4def529d19f0f924": "더 깊이 알아보기: ",
   "f2de87a0b2906a7f": "반론 제기하기",
+  "3ca68011b267844b": "Argue the other side",
   "32b2fb0e9728bd32": "반론 제기: 이에 맞서는 가장 강력한 근거는 무엇인가요?",
   "47b12601f025963b": "이 내용 퀴즈",
+  "4d451a4192c44561": "Check what stuck",
   "3d0345d24a470b3a": "방금 설명한 내용으로 퀴즈 내기.",
   "19c6f44bfe07caca": "추가 질문",
+  "7b36b1e20f45cd73": "{count, plural, one {# notice} other {# notices}}",
+  "d35c2361186042c2": "Copy notice text",
+  "d87a7a3437a8e831": "Technical details",
+  "0e37b16aca22c057": "Copy technical details",
   "4dd6d20188c210e0": "이 채팅에서",
   "e5428a0daffa236c": "사용자 메시지",
   "9dde9bab778ed74b": "입력을 기다리는 중",
@@ -3104,6 +3112,9 @@
   "2fec6c612b3462e5": "음성 입력이 너무 오래 걸렸습니다",
   "b28b7c4b00e056b4": "질문이 전송되지 않았습니다",
   "27a15dd2215f7c53": "사이드 채팅으로 보내졌으므로 여기서 읽을 답변이 없습니다.",
+  "32480b586e418ebb": "The question was not accepted in time",
+  "c222847694b24020": "The question is held in the queue, so there is no reply to read yet",
+  "e9be2d987775606a": "The reply is no longer available",
   "5d32fb98898836be": "음성 채팅이 종료되었습니다",
   "cd1b21f0df7848a5": "입력창에 메시지가 남아 있습니다. 보내거나 지운 뒤 다시 시작하세요.",
   "665dbd0a289b9b05": "음성 입력을 더 이상 사용할 수 없습니다. 음성 설정을 확인한 후 다시 시작하세요.",
@@ -3125,6 +3136,10 @@
   "35cf31a65d66fe3e": "코드",
   "5a64d57e25033b96": "채팅",
   "ee9c314794aef79a": "작업 영역 모드",
+  "f73f6d51f1990d68": "{count, plural, one {Used # tool} other {Used # tools}} · {duration}",
+  "4c3c9fecf3fb310b": "{count, plural, one {Used # tool} other {Used # tools}}",
+  "4c36ab712143ad31": "Thought for {duration}",
+  "6f8651e48261911a": "생각",
   "a52dae3815612511": "먼저 초안을 보내거나 지우세요",
   "e9c7a57ae9a3057f": "음성 채팅은 말한 내용만 보내며 초안은 포함하지 않습니다.",
   "bdaf2c9cd3557fdd": "음성 채팅에는 전사 소스가 필요합니다",
@@ -3877,6 +3892,7 @@
   "3a04583c8500e23d": "다이어그램 표시",
   "16d64f650840fe06": "코드 표시",
   "6d329f7d3a50c7e7": "표 복사",
+  "b383b1abecca9f8a": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}}",
   "ce1c91994281ac47": "표",
   "6c71d251d9917587": "Markdown으로 복사",
   "d510b122f84051a0": "CSV로 복사",
@@ -3947,7 +3963,6 @@
   ],
   "9bbecec926c3b695": "다시 시도",
   "4fd8927b7afc2a92": "메시지 복사",
-  "6f8651e48261911a": "생각",
   "ac511f991a3c1fab": "웹 검색",
   "07e65dba2b16d3f7": "{count, plural, other {{path} 외 {count}개}}",
   "dc8ddcad32e2a50c": "{program} 실행 중",
@@ -4528,19 +4543,33 @@
   "f7e17fa98210e03d": "첨부하려면 파일을 놓으세요",
   "05d9e1b5134052c8": "끝으로 스크롤",
   "ea106dd9877652ac": "명령 승인",
+  "7ebc6d764e5b8fe8": "Run command",
   "5f71f03e4a9b734f": "명령",
   "882dff85e7998aa7": "파일 변경 승인",
+  "0116d222ffa20a24": "Edit files",
   "5fcd6fa0ef3960d1": "파일 변경",
   "943e402c16c83a27": "파일 읽기 승인",
   "d6b95eb6b123f050": "읽을 파일",
   "3e32c211b85e5c2f": "앱 권한 승인",
+  "77cfb734fc38eb96": "App permission",
   "e4e5cb6ab610e37d": "권한 요청",
   "9243d7a2b22d5f3d": "앱 액세스 승인",
+  "e1780e5cad37fbc0": "App access",
   "847e5019e2ff249d": "앱 액세스 요청",
   "74c0eda939734d7b": "+{additions} −{deletions}",
   "154a4fa849d9891f": "{count, plural, one {외 {count}개 파일} other {외 {count}개 파일}}",
-  "f41e28af25aee2b7": "미리 보기 변경",
+  "925acae0d05bbdbc": "Added line",
+  "4c9de9002af25e7b": "Added line {number}",
+  "7e8f6b1936deddad": "Removed line",
+  "3f4a807afffaabdb": "Removed line {number}",
+  "3a567477488db883": "Unchanged line",
+  "14cc19a7b6bede7c": "Unchanged line {number}",
+  "d83cc534e56928f7": "Recorded line",
   "a6ef358f3e49fce5": "{count, plural, one {{count}줄 더} other {{count}줄 더}}",
+  "f41e28af25aee2b7": "미리 보기 변경",
+  "f5b66c481aa3e4df": "편집",
+  "b725c61c6d7808ab": "Loading preview…",
+  "48cc07d45e27a5b6": "Couldn't load the preview.",
   "254937775868a979": "전체 diff 보기",
   "c92657bb7f2293ff": "승인 필요",
   "b7419ed1c775db7e": "제공자 프로세스가 종료되었습니다. 응답하려면 실행을 중단하거나 다시 시작하세요.",
@@ -4574,6 +4603,7 @@
   "c6e000ea79ae6a2b": "{status, select, inProgress {스레드 “{title}” 읽는 중} completed {스레드 “{title}” 읽음} failed {스레드 “{title}” 읽기 실패} declined {스레드 “{title}” 읽기 거부됨} stopped {스레드 “{title}” 읽기 중지됨} other {스레드 “{title}” 읽는 중}}",
   "93435595c79fd659": "사용량 한도에 도달했습니다. {resetTime} 후에 다시 시도하세요.",
   "5a2d803b3ea43f18": "사용량 한도에 도달했습니다.",
+  "f458107b0c538491": "This turn stopped before it could answer.",
   "1afc4f46bc0675aa": "{label}, 도구 호출 실패",
   "e05d1bee2862c2be": "도구 호출 실패",
   "ce591b4de647ecda": "{title} 열기",
@@ -7782,6 +7812,8 @@
   "b7406be04f4d7735": "아직 연결되지 않았습니다.",
   "595a1c9d5f762fef": "클라이언트 범위",
   "1e2d7d617ac0d4ff": "다른 모든 클라이언트에서 로그아웃할까요?",
+  "f734c6a587809145": "Revoking other clients…",
+  "6043b58d9037a504": "Other clients signed out.",
   "b76eda9aa9bec002": "다른 항목 취소",
   "06ec30a199134db1": "페어링 URL을 만들지 못했습니다.",
   "79b1490795e4c205": "페어링 URL을 만들 수 없습니다",
@@ -8334,7 +8366,7 @@
   "9bfddd9a835be5de": "서버",
   "43b545c01503eee4": "업데이트 다시 시도",
   "2f015e6d5459dce9": "{version}(으)로 업데이트",
-  "8ebba639f92932c3": "다른 기기에서 이 컴퓨터의 로컬 서버를 열 수 있게 합니다: 기기에서 불러오는 브라우저 탭, 이 기기에서 열기, 포트 포워딩. 끄면 브라우저 탭이 이 컴퓨터에서 스트리밍됩니다.",
+  "0415c64c8c250262": "Lets other devices reach this machine's local servers: browser tabs loaded on the device, the “Open on this device” action, and port forwarding. When off, browser tabs stream from this machine.",
   "1c5266bf18d0ed24": "미리보기 터널 허용",
   "a0e93cca71d0417e": "승인된 클라이언트",
   "03b9501ae07b5cf3": "네트워크 액세스를 켤까요?",
@@ -8507,11 +8539,11 @@
   "0c99fa183ed512e8": "일부에서 {platform} 사용 가능",
   "e6886a7f77b73a8e": "{platform} 사용할 수 없음",
   "b0b7610d9860d18d": "이 머신에 설정되지 않았습니다.",
-  "f5b66c481aa3e4df": "편집",
   "3b20ef0670ae4b0b": "SSH로 연결된 머신",
   "121ccffacb6b8c6d": "Expo Simulators",
   "130b55a1410a8030": "Simlock 풀(알파)",
   "b0537628ad92ed53": "아직 확인 안 됨",
+  "ff7d5cdc159712f0": "Check now",
   "46b5cfb18a8ce12c": "추적 ID를 복사하는 중 클립보드 API를 사용할 수 없습니다.",
   "3c3bf5c85bacf2ab": "추적 ID를 클립보드에 복사하지 못했습니다.",
   "1533ba0027a59b0d": "하위 프로세스",
@@ -8727,6 +8759,7 @@
   "c7204ac4bc869129": "연결이 꺼져 있음",
   "05eace0be7b01519": "링크를 읽을 수 없음",
   "6a34b35812bb4ad0": "{count, plural, =0 {나가는 링크 없음} other {나가는 링크 #개}}",
+  "d93f885fbb896882": "Links unknown",
   "5d252c8bbc3b24d0": "{status}. 링크 알 수 없음",
   "ec2c609c028d63b4": "{label}을(를) 다른 머신에 연결",
   "0a72d33781010657": "여기에는 연결할 수 없음",
@@ -9087,28 +9120,28 @@
   "9ae293971d93c819": "브라우저에서 실시간으로 지켜보고 승인한 메시지를 보낼 수 있는 게스트와 스레드를 공유합니다. 게스트 링크를 사용하려면 T3 Connect에 로그인하세요.",
   "0aa5406ac4d7f7c7": "게스트 링크",
   "f0e853acd2006d53": "연결된 환경",
-  "d7a7b21d3120e7eb": "이 서버의 One 데이터 폴더에 있는 workflows 폴더의 파일로 여러 단계 워크플로를 실행합니다. 명령 팔레트에서 열 수 있습니다. 꺼져 있는 동안에는 이 폴더의 아무것도 실행되지 않으며, 다시 켜질 때까지 실행은 대기합니다.",
+  "dd6d216a060fe314": "Run workflows from the files in this server's workflows folder, and start them from the command palette. While this is off, nothing in that folder runs.",
   "2dadb2359422121c": "워크플로",
-  "933dabf0700708af": "각 워크플로가 기록에 보관하는 건너뛴 실행 수입니다. 오래된 건너뛴 실행은 삭제되며, 무언가를 수행한 실행은 항상 보관됩니다.",
+  "1b4b2498010f3e0b": "How many skipped runs each workflow keeps in its history. Older skipped runs are deleted. Runs that did something are always kept.",
   "f172d7e5deb24f75": "보관할 건너뛴 실행을 기본값으로 재설정",
   "ba94015389f327bc": "보관할 건너뛴 실행",
   "d52b3d6bf9f2a013": "혼합",
-  "13e86eb5d8287a71": "Claude 또는 Codex 턴이 끝난 뒤 빈 입력창에 예상되는 다음 메시지를 표시합니다. Tab을 누르면 사용합니다. 제안마다 요금제에서 캐시된 요청이 하나 더 발생합니다. Codex 0.165 이상이 필요합니다. Claude 스레드는 다시 시작하면 업데이트됩니다.",
+  "3fd0ed740164a8d8": "After a Claude or Codex turn, show a predicted next message in the empty composer; Tab uses it. Each prediction is one extra request on your plan. Codex needs version 0.165 or newer, and Claude threads update after a restart.",
   "d4b2a2ec812aafb0": "다음 프롬프트 제안",
   "298c7150a7621c80": "Simlock 기기 호스트",
-  "0a72f495c410ff7b": "Mac에서는 모든 파일을 쓰는 대신, One의 데이터 폴더에 캐시된 체크아웃으로부터 새 워크트리를 복제합니다. 그럴 수 없으면 일반 Git 체크아웃을 사용합니다. 끄면 캐시가 삭제됩니다.",
+  "86ad8d15ce5ca1d9": "On a Mac, make new worktrees from a cached checkout instead of writing every file. Git’s normal checkout is used when that is not possible. Turning this off deletes the cache.",
   "f9904f78d3003f58": "빠른 워크트리 체크아웃",
   "9c2f647882522302": "선택한 컴퓨터의 에이전트 피드백 모드가 서로 다릅니다.",
   "31bbf7bf8c0a5279": "에이전트 피드백",
-  "ec7623deed751c05": [
-    "브라우저에서 실시간으로 지켜보고 승인한 메시지를 보낼 수 있는 게스트와 스레드를 공유합니다. T3 Connect가 필요합니다. 로그인한 뒤",
+  "c2ea271e877635fd": [
+    "Let a guest watch a thread live in a browser and send messages you approve. Needs T3 Connect: sign in and link this machine in",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "공유 및 액세스"
+      "c": "Sharing & access"
     },
-    "에서 이 머신을 연결하세요. 끄면 모든 게스트 링크가 중지됩니다."
+    ". Turning it off stops every guest link."
   ],
   "f20f2bcc7ecb43f7": [
     "여기의 에이전트를 다른 컴퓨터에서 실행하고, 다른 컴퓨터의 에이전트를 여기서 쓸 수 있습니다. 각 컴퓨터에서 켠 다음 ",
@@ -9711,6 +9744,7 @@
   "25617239c4886378": "인증 요청이 만료되었습니다.",
   "1bc94053b36b3f40": "{provider}을(를) 업데이트할 수 없습니다",
   "5b39dc5c8173ee94": "제공자 업데이트 명령을 시작할 수 없습니다.",
+  "eff995b7ae17d6a7": "Its account, setup, runtime and models on this device.",
   "53e1e3591fc1abc9": "제공자 인스턴스를 업데이트할 수 없습니다",
   "6c5e88b695801eaf": "{provider} 제공자 인스턴스를 제거할까요?",
   "faa86f453684649b": "인스턴스 제거",
@@ -9903,7 +9937,7 @@
   "ca04162de1fbce83": "원격 분석 스냅샷 새로 고침",
   "1cf45bdf49862933": "One 시스템 사용량",
   "68adbf70a881158a": "서버, 제공자, 터미널, 데스크톱 프로세스, 모니터 자체의 실시간 네이티브 카운터입니다.",
-  "a08a53b74f9f7771": "CPU 속도 제한 정보 없음",
+  "ac722266d1177551": "This machine does not report a CPU speed limit.",
   "d8aa38c63052c605": "모니터 다시 시도",
   "1486685f8451aff4": "호스트 상태",
   "2b6bbe7a4156f7e9": "데스크톱 호스트 신호가 연결되지 않음",
@@ -10183,7 +10217,7 @@
   "4d12d2e6d168fdb5": "{label} 참조",
   "f7b9aef971c1ce37": "{label} 확인",
   "3e3cabe47b0b5c07": "음성 · {provider}",
-  "cd90b098a17bca20": "구성된 시크릿 제공자가 없습니다.",
+  "05c3b599a392ef5e": "No secret providers configured",
   "1c9374501ee389d3": "1Password 계정을 추가한 뒤 제공자 변수의 소스로 선택하세요.",
   "382541febe15f472": "계정 표시 전환",
   "40426afd511710f8": "지원되지 않는 제공자({kind})",
@@ -10301,6 +10335,8 @@
   "7e8c995646a967d3": "바로 종료",
   "51497bd401292062": "길게 누르기",
   "9d6cc6ac23312071": "두 번 누르기",
+  "8b8bcca65136dd08": "Serif",
+  "16c68207ea28422f": "Sans-serif",
   "f001fa7b329c8fbf": "성공한 항목 숨기기",
   "ad208e3e32c85029": "모두 숨기기",
   "c80e4bb3201efd71": "Zen",
@@ -10415,6 +10451,9 @@
   "f8062ccf65d4bb2a": "사이드 패널",
   "a8072bdf7ae4a288": "메인 보기",
   "162108e16ed96771": "화면 낭독기",
+  "44dab868852d985e": "The face answers are set in while you are in Chat mode. Code mode always uses the interface face.",
+  "3943fcc2672c66ed": "Reset the reading face to default",
+  "58516bf37aa18815": "Reading face",
   "865503beaf01b140": "에이전트가 실행하는 명령, 편집, 검색을 숨깁니다. 성공한 호출은 숨기고 실패는 남깁니다. Zen에서는 최종 답변만 표시합니다. 승인, 질문, 오류는 항상 표시됩니다.",
   "5848a9c1d77f45b2": "채팅의 도구 호출 기본값으로 재설정",
   "8cf1b5b0cc0dc218": "화면 낭독기가 열린 스레드에서 듣는 내용입니다. 턴 시작, 응답 필요, 종료를 알립니다. 상태 및 메시지는 에이전트가 마지막 메시지 전에 작성한 내용을 추가하고, 모두는 각 단계를 추가합니다.",
@@ -10625,90 +10664,6 @@
     }
   ],
   "6de8a5700498d20f": [
-    {
-      "t": "span",
-      "i": 1,
-      "c": [
-        {
-          "t": "span",
-          "i": 2,
-          "c": "설정 적용 대상:"
-        },
-        {
-          "i": 3,
-          "k": "_gt_value_3",
-          "v": "v"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 4,
-      "c": [
-        {
-          "t": "span",
-          "i": 5,
-          "c": "환경:"
-        },
-        {
-          "i": 6,
-          "k": "_gt_value_6",
-          "v": "v"
-        }
-      ]
-    }
-  ],
-  "fc2262bcc4a2e4f0": [
-    {
-      "t": "span",
-      "i": 1,
-      "c": [
-        {
-          "t": "span",
-          "i": 2,
-          "c": "설정 적용 대상:"
-        },
-        {
-          "i": 3,
-          "k": "_gt_value_3",
-          "v": "v"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 4,
-      "c": [
-        {
-          "t": "span",
-          "i": 5,
-          "c": "환경:"
-        },
-        {
-          "i": 6,
-          "k": "_gt_value_6",
-          "v": "v"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 7,
-      "c": [
-        {
-          "t": "span",
-          "i": 8,
-          "c": "체크아웃:"
-        },
-        {
-          "i": 9,
-          "k": "_gt_value_9",
-          "v": "v"
-        }
-      ]
-    }
-  ],
-  "86d52b318b1a3e7a": [
     {
       "t": "span",
       "i": 1,
@@ -11822,7 +11777,7 @@
     },
     "(으)로 전환"
   ],
-  "39f64d971ba424b5": "구성된 사용량 소스가 없습니다.",
+  "879232144b2646c6": "No usage sources configured",
   "31723a5ee9fd5a09": "다른 서비스(예: 공유 프록시)의 할당량을 보려면 허브 또는 HTTP 소스를 추가합니다.",
   "dbd877abdc2c7c81": "HTTP 할당량 소스",
   "4cf6a373a7535324": "{name} · 사용 안 함",
@@ -11930,6 +11885,7 @@
   "d4b59565bd8b6d07": "영어로 번역",
   "0d88a0c771d98284": "어떤 언어로 말해도 영어 텍스트를 얻습니다.",
   "f4a8700049fc9dcc": "무음 필터링",
+  "cdae20b02f761cc1": "Choose where to transcribe to change this.",
   "69558ed7b83d671e": "Apple Speech가 무음을 자체적으로 처리합니다.",
   "f22b17f6731c14c0": "OpenAI가 무음을 직접 처리합니다.",
   "75a3001ae4561b97": "받아쓰기 전에 무음과 배경 소음을 건너뜁니다.",
@@ -12155,6 +12111,8 @@
   "54a82cff8138c33c": "베타 단순 폴더 프로젝트 트리 클래식 사이드바",
   "de42c4690914cee4": "베타 단순 사이드바 폴더 행 여러 줄 브랜치 풀 리퀘스트 세부 정보",
   "8f71bc7c325e23e3": "숨기기 도구 호출 명령 편집 검색 작업 로그 활동 조용한 채팅 젠 최종 답변만",
+  "42ca4f29a93c221b": "Reading face in Chat mode",
+  "90bed95f8d143d05": "serif sans typeface font answers reading text book",
   "5a3af411a0d5354c": "접근성 a11y 화면 낭독기 nvda jaws voiceover orca 내레이터 음성 알림 소리 내어 읽기 메시지 활동 단계",
   "d443390c4d2dcfd4": "접근성 a11y 화면 낭독기 nvda jaws voiceover orca 내레이터 창 제목 탭 제목 alt tab 작업 표시줄 스레드 상태 순서 작업 중 승인",
   "6826fa9579c22035": "베타 공유 게스트 초대 링크 팀원 지켜보기 T3 Connect 터널",
@@ -12548,6 +12506,7 @@
   "a9b66b244a71f217": "오류 메시지를 클립보드에 복사하지 못했습니다.",
   "35062fc45c2b1216": "오류를 복사했습니다",
   "63790659557f315e": "세부 정보 표시",
+  "8bb0349ba69157aa": "{count} more notifications",
   "7423eb22b2f1768f": "알림",
   "dea3a2118378111b": "알림 닫기",
   "c6cf1b06e0433ca3": "설정 진행률",
@@ -12706,6 +12665,8 @@
   "d89ad31bf0aebe92": "시간",
   "5e2236ccf9b5ffba": "일",
   "c400ae5f6f27b81d": "시간별 사용량 분석",
+  "fe50d1004835a750": "No price is known for this model, so its cost is left out of the estimate.",
+  "868155717d7538b8": "It looks like {name}, which is recorded under its plain name.",
   "8d2a69e65d453cce": "같은 대화 기록 디렉터리를 공유하는 환경 간에는 한 번만 집계됨: {sources}",
   "0f3b14055f7bba6f": "{count, plural, other {환경 {count}개}}",
   "9b84232a3f71dae1": "일부 환경에서 사용량을 보고할 수 없습니다",
@@ -12730,11 +12691,12 @@
   "b3481abb98960bd9": "합계",
   "8a86175b5560c0b4": "분석",
   "f144193ca84271f5": "비용",
-  "fc41173bcd7495a4": "비율",
   "b4ae29a86f8a6ade": "토큰",
+  "fc41173bcd7495a4": "비율",
   "49c4cd88ca4d260a": "이 기간에 활동이 없습니다.",
-  "0a492183a4c7bb3d": "가격 없음",
+  "df9631f20b380006": "Unpriced: no price is known for these models, so their cost is not in the estimate.",
   "7853bd9e23f25bb6": "합계",
+  "0a492183a4c7bb3d": "가격 없음",
   "873ae13250e5bc5c": "모든 환경",
   "e051bdc6c63a0b4b": "연결된 환경이 없습니다.",
   "b11af3f3da3d494e": "선택한 환경을 스캔하는 동안에는 합계가 일부만 표시됩니다.",

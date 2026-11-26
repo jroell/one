@@ -62,7 +62,7 @@ export function UsageProviderSettings({
           <SettingsEmptyState
             className="min-h-40"
             icon={<GaugeIcon />}
-            title={gt("No usage sources configured.")}
+            title={gt("No usage sources configured")}
             description={gt(
               "Add a hub or an HTTP source to see quota from another service, such as a shared proxy.",
             )}

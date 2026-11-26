@@ -33,6 +33,7 @@ import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import stylesheet from "~/index.css?inline";
 import { environmentContextRecord } from "~/lib/composerContextRecords";
 import { startWorkspaceFocus } from "~/lib/workspaceFocus";
+import { setWorkspaceMode } from "~/one/workspaceMode";
 import { usePromptStashStore } from "~/promptStashStore";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { getRouter } from "~/router";
@@ -1175,4 +1176,32 @@ it("opening Settings without a page event closes the composer model picker and p
   await act(() => router.navigate({ to: "/settings" }));
   await expect.element(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect.element(permissions).not.toBeInTheDocument();
+});
+
+it("the composer asks for a question in Chat mode and keeps the @, $ and / hints in Code mode", async () => {
+  const thread = threadWithHistory("placeholder", 1);
+  using _environment = installFakeEnvironment([thread], { acceptCommands: true });
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, { router: false });
+  try {
+    setWorkspaceMode("chat");
+    await expect
+      .element(page.getByText("Ask a question, or pick up where you left off"))
+      .toBeVisible();
+    expect(document.body.textContent).not.toContain("@ files");
+
+    setWorkspaceMode("code");
+    await expect
+      .element(page.getByText("Ask anything. @ files, $ skills, / commands"))
+      .toBeVisible();
+  } finally {
+    setWorkspaceMode("code");
+  }
 });

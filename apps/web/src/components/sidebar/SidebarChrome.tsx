@@ -16,7 +16,7 @@ import {
 import { primaryServerKeybindingsAtom } from "../../state/server";
 import { cn } from "../../lib/utils";
 import { useIssuesSupported, usePullRequestsSupported } from "../../state/environments";
-import { OneMark } from "../../one/OneMark";
+import { OneGlyph } from "../../one/OneGlyph";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -186,9 +186,10 @@ function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
 
 function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight">
-      <OneMark interactive className={cn("size-5", onBackdrop && "one-mark-on-backdrop")} />
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <OneGlyph size={16} data-on-backdrop={onBackdrop || undefined} />
       <span
+        data-one-wordmark=""
         className={cn(
           "truncate [text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both_cap_alphabetic]:py-1",
           onBackdrop ? "text-white" : "text-foreground",

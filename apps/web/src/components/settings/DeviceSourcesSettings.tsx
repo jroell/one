@@ -98,6 +98,8 @@ interface SourceRow {
    */
   readonly shared: boolean;
   readonly actions?: ReactNode;
+  /** Asks the hub for this source's platforms now. */
+  readonly check?: () => void;
 }
 
 type Editing =
@@ -394,6 +396,9 @@ export function DeviceSourcesSettings(props: {
   rows.push({
     key: "local",
     shared: false,
+    check: () => {
+      for (const member of active) void list({ environmentId: member.environmentId, input: {} });
+    },
     title: gt("Local simulators"),
     description:
       members.length > 1
@@ -678,8 +683,13 @@ function SourcePlatformsOrStatus(props: { row: SourceRow }) {
       <SourcePlatforms row={props.row} />
     </div>
   ) : (
-    <span className="shrink-0 text-xs text-muted-foreground">
+    <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
       <T>Not checked yet</T>
+      {props.row.check ? (
+        <InlineButton onClick={props.row.check}>
+          <T>Check now</T>
+        </InlineButton>
+      ) : null}
     </span>
   );
 }

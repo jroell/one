@@ -1,11 +1,4 @@
-import {
-  USAGE_CONTRACT_VERSION,
-  type EnvironmentId,
-  type UsageBucket,
-  type UsageDay,
-  type UsageProviderKind,
-  type UsageSummary,
-} from "@t3tools/contracts";
+import type { UsageBucket, UsageProviderKind } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
@@ -15,6 +8,7 @@ import { render } from "../../../test/render";
 import type { EnvironmentUsageStatus } from "../../state/usage";
 import { UsagePage } from "./UsagePage";
 import { saveUsagePagePreferences } from "./usagePagePreferences";
+import { bucket, status, summary } from "./usageFixtures";
 
 const view = vi.hoisted(() => ({
   environments: [] as unknown[],
@@ -44,74 +38,6 @@ vi.mock(import("../../state/usage"), async (original) => {
     }) as never,
   };
 });
-
-function bucket(provider: UsageProviderKind, costUsd: number, host: string): UsageBucket {
-  return {
-    day: "2026-08-07" as UsageDay,
-    provider,
-    model: `${provider}-model`,
-    totals: {
-      uncachedInputTokens: 100,
-      cachedInputTokens: 1000,
-      cacheCreationTokens: 10,
-      outputTokens: 50,
-      reasoningTokens: 0,
-    },
-    costUsd,
-    cacheSavingsUsd: 1,
-    costSource: "modelPriced",
-    records: 5,
-    unpricedRecords: 0,
-    sessions: 1,
-    sourcePath: `/${host}/${provider}`,
-  };
-}
-
-function summary(
-  host: string,
-  providers: readonly (readonly [UsageProviderKind, number])[],
-): UsageSummary {
-  return {
-    contractVersion: USAGE_CONTRACT_VERSION,
-    readAt: "2026-08-07T00:00:00.000Z",
-    timeZone: "UTC",
-    sinceDay: "2026-08-01" as UsageDay,
-    untilDay: "2026-08-31" as UsageDay,
-    buckets: providers.map(([provider, cost]) => bucket(provider, cost, host)),
-    sources: providers.map(([provider]) => ({
-      fingerprint: {
-        hostId: host,
-        provider,
-        resolvedHomePath: `/${host}/${provider}`,
-        volumeId: `vol-${host}`,
-      },
-      status: "ok" as const,
-      scannedFiles: 1,
-      skippedFiles: 0,
-      malformedRecords: 0,
-      distinctSessions: 1,
-      message: null,
-    })),
-    pricing: { status: "fresh", source: "litellm", fetchedAt: null, knownModels: 10 },
-    scanDurationMs: 1,
-  } as UsageSummary;
-}
-
-function status(
-  id: string,
-  overrides: Partial<EnvironmentUsageStatus> = {},
-): EnvironmentUsageStatus {
-  return {
-    environmentId: id as EnvironmentId,
-    label: id,
-    isPending: false,
-    canReadDiagnostics: true,
-    isConnected: true,
-    error: null,
-    summary: null,
-    ...overrides,
-  };
-}
 
 const open = (windowDays: 1 | 7 | 30 | 90 = 30, hidden: readonly UsageProviderKind[] = []) => {
   saveUsagePagePreferences({ metric: "cost", windowDays, hiddenProviders: hidden });
@@ -251,5 +177,65 @@ describe("UsagePage reopening", () => {
     expect(title.textTransform).toBe("none");
     expect(title.fontSize).toBe("14px");
     expect(title.fontWeight).toBe("500");
+  });
+
+  it("leads the breakdown with the active metric, and explains Unpriced with the same-model hint", async () => {
+    view.partial = false;
+    const unpriced: UsageBucket = {
+      ...bucket("codex", 0, "desk"),
+      model: "openai/codex-model",
+      unpricedRecords: 5,
+      records: 5,
+    };
+    view.environments = [status("desk", { summary: summary("desk", [["codex", 40]], [unpriced]) })];
+    saveUsagePagePreferences({ metric: "tokens", windowDays: 30 });
+    await using _tokens = await render(<UsagePage />, { router: "/usage" });
+    const headers = await vi.waitFor(() => {
+      const found = [...document.querySelectorAll(".usage-table-head th")].map(
+        (cell) => cell.textContent,
+      );
+      expect(found.length).toBeGreaterThan(3);
+      return found;
+    });
+    expect(headers).toEqual(["#", "Model", "Tokens", "Share", "Cost"]);
+    expect(document.querySelector(".usage-table-note")?.textContent).toContain("Unpriced");
+
+    await page.getByText("Unpriced", { exact: true }).hover();
+    await expect
+      .element(
+        page.getByText(
+          "No price is known for this model, so its cost is left out of the estimate.",
+        ),
+      )
+      .toBeVisible();
+    await expect
+      .element(page.getByText("It looks like codex-model, which is recorded under its plain name."))
+      .toBeVisible();
+  });
+
+  it("fades both edges of the scroll area, and lights the refresh icon only while something is being read", async () => {
+    view.partial = true;
+    view.environments = [
+      status("desk", { isPending: true, summary: summary("desk", [["codex", 40]]) }),
+    ];
+    saveUsagePagePreferences({ metric: "cost", windowDays: 30 });
+    await using screen = await render(<UsagePage />, { router: "/usage" });
+    const viewport = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>(
+        '.usage-scroll [data-slot="scroll-area-viewport"]',
+      );
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    const mask = getComputedStyle(viewport).maskImage;
+    expect(mask.match(/transparent|rgba\(0, 0, 0, 0\)/g)?.length).toBe(2);
+    expect(document.querySelector(".usage-refresh[data-refreshing]")).not.toBeNull();
+
+    view.partial = false;
+    view.environments = [status("desk", { summary: summary("desk", [["codex", 40]]) })];
+    await screen.rerender(<UsagePage />);
+    await vi.waitFor(() =>
+      expect(document.querySelector(".usage-refresh[data-refreshing]")).toBeNull(),
+    );
   });
 });

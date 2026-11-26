@@ -4,14 +4,27 @@ import { GUEST_PAGE_PATH } from "../../guestPage";
 import { withoutAssistantCitationHash } from "../../lib/assistantCitationNavigation";
 import { resolveThreadRouteTarget, type ThreadRouteTarget } from "../../threadRoutes";
 
+/**
+ * The router matches paths without regard to case or a trailing slash, so every check that
+ * classifies an address reads it through this one rule. Never use the result as a link.
+ */
+function routeKey(pathname: string) {
+  return pathname.toLowerCase().replace(/\/+$/, "") || "/";
+}
+
+/** Whether the address is the Usage page, in any spelling the router accepts. */
+export function isUsagePage(pathname: string) {
+  return routeKey(pathname) === "/usage";
+}
+
 /** Settings and Usage open as modals over the last main-app view. */
 export function isAppModalPage(pathname: string) {
-  return pathname === "/settings" || pathname.startsWith("/settings/") || pathname === "/usage";
+  const key = routeKey(pathname);
+  return key === "/settings" || key.startsWith("/settings/") || key === "/usage";
 }
 
 export function isSidebarUtilityPage(rawPathname: string) {
-  // The router matches paths without regard to case or a trailing slash, so this must too.
-  const pathname = rawPathname.toLowerCase().replace(/\/+$/, "");
+  const pathname = routeKey(rawPathname);
   return (
     pathname.startsWith("/projects/") ||
     pathname === "/pull-requests" ||
@@ -36,7 +49,7 @@ export function startMainAppLocationTracking(router: AnyRouter): () => void {
   initialHistoryIndex = router.state.location.state.__TSR_index;
   const record = () => {
     const { pathname } = router.state.location;
-    if (isAppModalPage(pathname) || SHELL_LESS_PATHS.has(pathname)) return;
+    if (isAppModalPage(pathname) || SHELL_LESS_PATHS.has(routeKey(pathname))) return;
     const href = withoutAssistantCitationHash(router.state.location.href);
     appModalReturnHref = href;
     // Only an entry that is exactly the return location can be stepped back to.

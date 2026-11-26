@@ -39,6 +39,8 @@ export const DiffStatLabel = memo(function DiffStatLabel(props: {
       </span>
     );
   }
+  // A count of zero says nothing, so it is left out. The aligned layout keeps its empty cell, so
+  // the other count stays in its column.
   return (
     <span
       role="group"
@@ -50,24 +52,18 @@ export const DiffStatLabel = memo(function DiffStatLabel(props: {
         className,
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "font-mono",
-          additions === 0 ? "text-muted-foreground" : "text-diff-addition-foreground",
-        )}
-      >
-        +{formatCompactDiffCount(additions)}
-      </span>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "font-mono",
-          deletions === 0 ? "text-muted-foreground" : "text-diff-deletion-foreground",
-        )}
-      >
-        -{formatCompactDiffCount(deletions)}
-      </span>
+      {additions > 0 ? (
+        <span aria-hidden="true" className="font-mono text-diff-addition-foreground">
+          +{formatCompactDiffCount(additions)}
+        </span>
+      ) : layout === "aligned" ? (
+        <span aria-hidden="true" />
+      ) : null}
+      {deletions > 0 ? (
+        <span aria-hidden="true" className="font-mono text-diff-deletion-foreground">
+          -{formatCompactDiffCount(deletions)}
+        </span>
+      ) : null}
     </span>
   );
 });

@@ -5,6 +5,7 @@ import {
   cacheHitRate,
   costPerMillionTokens,
   leadingProvider,
+  plainNameOf,
   wholePercent,
 } from "./usageBreakdown";
 
@@ -86,5 +87,24 @@ describe("wholePercent", () => {
     [0, "0%"],
   ])("a share of %d reads %s", (share, text) => {
     expect(wholePercent(share)).toBe(text);
+  });
+});
+
+describe("plainNameOf", () => {
+  const rows = [
+    { provider: "codex", model: "gpt-6.1-sol" },
+    { provider: "codex", model: "openai/gpt-6.1-sol" },
+    { provider: "opencode", model: "openai/gpt-6.1-terra" },
+  ] as const;
+
+  it("points a vendor-prefixed row at the same provider's plain row, and never merges them", () => {
+    expect(plainNameOf(rows[1], rows)).toBe("gpt-6.1-sol");
+    expect(rows).toHaveLength(3);
+  });
+
+  it("says nothing for a plain name, or when the plain row belongs to another provider or is missing", () => {
+    expect(plainNameOf(rows[0], rows)).toBeNull();
+    expect(plainNameOf(rows[2], rows)).toBeNull();
+    expect(plainNameOf({ provider: "codex", model: "openai/gpt-9" }, rows)).toBeNull();
   });
 });

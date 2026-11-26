@@ -202,9 +202,15 @@ describe("resource monitor retry", () => {
       .not.toBeInTheDocument();
   });
 
-  it("reads CPU in cores and shows no speed-limit figure when the host reports none", async () => {
+  it("reads CPU in cores, scales each group's bar to its memory share, and shows no speed-limit figure when the host reports none", async () => {
     using fixture = setup();
-    Object.assign(fixture.snapshot.groups.allT3, { currentCpuPercent: 194.1 });
+    const idle = fixture.snapshot.groups.monitor;
+    Object.assign(fixture.snapshot.groups, {
+      allT3: { ...idle, currentCpuPercent: 194.1, currentRssBytes: 1000 },
+      backend: { ...idle, currentRssBytes: 300 },
+      electron: { ...idle, currentRssBytes: 700 },
+      monitor: { ...idle },
+    });
     await using screen = await render(
       <RegistryContext.Provider value={fixture.registry}>
         <ResourceTelemetryDiagnostics environmentId={environmentId} />
@@ -214,7 +220,15 @@ describe("resource monitor retry", () => {
 
     await expect.element(screen.getByText("194.1%", { exact: true }).first()).toBeVisible();
     await expect.element(screen.getByText(/1\.9 cores busy/)).toBeVisible();
-    await expect.element(screen.getByText("CPU speed limit not reported")).toBeVisible();
+    await expect
+      .element(screen.getByText("This machine does not report a CPU speed limit."))
+      .toBeVisible();
+    // A group's bar is as long as its share of the memory all One processes hold.
+    expect(
+      [...screen.container.querySelectorAll("[data-aggregate-share]")].map((bar) =>
+        bar.getAttribute("data-aggregate-share"),
+      ),
+    ).toEqual(["0.3", "0.7", "0"]);
     expect(screen.container.textContent).not.toContain("Unknown");
   });
 

@@ -207,10 +207,26 @@ export function useUsage(
   ).length;
   const isPending = answeredCount === 0 && stillReporting > 0;
 
+  // The machines that actually contribute, with the model filter each is asked with. Figures carried
+  // while a new answer is pending only belong to this exact set: a revoked grant, a removed machine
+  // or another filter changes it, and the old aggregate is dropped.
+  const contributors = selectedEnvironments
+    .filter((environment) => environment.canReadDiagnostics)
+    .map(
+      (environment) =>
+        `${environment.environmentId}:${JSON.stringify(
+          appAtomRegistry.get(serverEnvironment.usageModelFilterAtom(environment.environmentId)) ??
+            null,
+        )}`,
+    )
+    .toSorted()
+    .join(",");
+
   const [lastAnswered, setLastAnswered] = useState<
     | (NonNullable<UsageView["shown"]> & {
         readonly selection: typeof selectedEnvironmentIds;
         readonly hidden: typeof hiddenProviders;
+        readonly contributors: string;
       })
     | null
   >(null);
@@ -219,17 +235,21 @@ export function useUsage(
     (lastAnswered?.merged !== merged ||
       lastAnswered.window !== input ||
       lastAnswered.selection !== selectedEnvironmentIds ||
-      lastAnswered.hidden !== hiddenProviders)
+      lastAnswered.hidden !== hiddenProviders ||
+      lastAnswered.contributors !== contributors)
   ) {
     setLastAnswered({
       window: input,
       merged,
       selection: selectedEnvironmentIds,
       hidden: hiddenProviders,
+      contributors,
     });
   }
   const kept =
-    lastAnswered?.selection === selectedEnvironmentIds && lastAnswered.hidden === hiddenProviders
+    lastAnswered?.selection === selectedEnvironmentIds &&
+    lastAnswered.hidden === hiddenProviders &&
+    lastAnswered.contributors === contributors
       ? lastAnswered
       : null;
   const shown =

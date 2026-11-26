@@ -13,6 +13,26 @@
  * replaces a state restates every state of that control.
  */
 
+/* The shadcn lint stops reading this file at the first @variant block below, so the class names page
+   code uses are declared here, empty. The rules live further down. */
+.dialog-backdrop,
+.dialog-glass,
+.dropdown-glass,
+.m-floating,
+.m-raised,
+.one-glint,
+.one-num,
+.one-title,
+.ui-overlay,
+.ui-raised,
+.ui-text-danger,
+.ui-text-info,
+.ui-text-success,
+.ui-text-warning,
+.usage-panel {
+  /* declared below */
+}
+
 /* ----------------------------------------------------------------- tokens */
 
 :root {
@@ -22,6 +42,7 @@
      keep the theme's own action pair. */
   --ui-fill: var(--primary);
   --ui-on-fill: var(--primary-foreground);
+  --ui-fill-shape: var(--ui-fill);
   --ui-switch-thumb-on: var(--ui-on-fill);
 
   /* The serif of the opening and the usage headline, for titles that should read as One. */
@@ -67,7 +88,7 @@
   --ui-info-tint: color-mix(in oklch, var(--ui-info-fill) 9%, transparent);
 
   --ui-radius: var(--control-radius, 0.5rem);
-  --ui-radius-float: 0.75rem;
+  --ui-radius-float: var(--m-radius-floating);
   --ui-radius-item: 0.5rem;
 
   /* The ring color, darkened on light surfaces: the standard light gold is 2.99:1 on white, this is
@@ -86,12 +107,8 @@
   --ui-shade: rgb(0 0 0 / 11%);
   --ui-shade-deep: rgb(0 0 0 / 18%);
   --ui-lit: rgb(255 255 255 / 80%);
-  --ui-field: color-mix(in srgb, var(--foreground) 2.5%, var(--background));
-  --ui-field-edge: color-mix(in srgb, var(--foreground) 19%, transparent);
-  --ui-field-edge-hover: color-mix(in srgb, var(--foreground) 30%, transparent);
   /* Small controls with no other cue (checkbox, radio, an off switch) keep an edge above 3:1. */
   --ui-control-edge: color-mix(in srgb, var(--foreground) 52%, transparent);
-  --ui-field-inset: inset 0 1px 2px var(--ui-shade), 0 1px 0 var(--ui-lit);
   --ui-invalid: var(--ui-danger-fg);
   --ui-invalid-edge: color-mix(in oklch, var(--ui-danger-fill) 70%, transparent);
 
@@ -120,9 +137,6 @@
     --ui-edge-strong: color-mix(in srgb, var(--foreground) 18%, transparent);
     --ui-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
     --ui-press: color-mix(in srgb, var(--foreground) 13%, transparent);
-    --ui-field: color-mix(in srgb, var(--foreground) 4.5%, var(--background));
-    --ui-field-edge: color-mix(in srgb, var(--foreground) 17%, transparent);
-    --ui-field-edge-hover: color-mix(in srgb, var(--foreground) 28%, transparent);
     --ui-control-edge: color-mix(in srgb, var(--foreground) 44%, transparent);
   }
 }
@@ -140,11 +154,223 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --ui-surface-overlay: var(--app-theme-surface-overlay, var(--popover));
 }
 
+/* One gold ramp for both themes (--gold-300 to --gold-700). Buttons fill with gold-500 (light)
+   or gold-400 (dark); a solid shape that carries no text (a checked box, an on switch) takes
+   gold-600 on light so it clears 3:1 against the page. Text on gold is always #1a1407. */
 html:not([data-theme-id]):not(.dark),
 html[data-theme-id=""]:not(.dark) {
-  --ui-fill: #b0841a;
-  --ui-on-fill: #1a1304;
-  --ui-switch-thumb-on: var(--popover);
+  --ui-fill: var(--gold-500);
+  --ui-fill-shape: var(--gold-600);
+  --ui-on-fill: #1a1407;
+  --ui-switch-thumb-on: #fff;
+  --ui-switch-off: #e6e0d5;
+}
+
+html:not([data-theme-id]).dark,
+html[data-theme-id=""].dark {
+  --ui-fill: var(--gold-400);
+  --ui-on-fill: #1a1407;
+}
+
+/* ======================================================================= the material sheet */
+
+/*
+ * Three materials. Every surface in the app is exactly one of them.
+ *
+ *   BASE      opaque, no blur, no rim. The canvas, the sidebar, the toolbar.
+ *   RAISED    opaque or barely translucent, no blur, a gradient rim. Things that sit on a base or
+ *             inside a floating surface: cards, panels, the composer, fields, message bubbles.
+ *             radius 10px (--m-radius-raised)
+ *   FLOATING  translucent over ONE backdrop blur on the outermost layer. Things that hover above
+ *             the page: menus, context menus, popovers, selects, tooltips, toasts, the project
+ *             panel, the palette, sheets and every modal. radius 14px, or 20px for the palette,
+ *             sheets and modals (--m-radius-floating, --m-radius-sheet). Controls keep 8px.
+ *
+ * One recipe per material, built from the same pieces:
+ *   light     one key light from the top left, 35 degrees off vertical (--m-angle: 145deg)
+ *   rim       a 1px gradient border, brightest top left, darkest bottom right, plus a 1px inner
+ *             highlight on the lit edges only (--m-rim-*, --m-lit)
+ *   specular  a band along the top edge, a soft sheen across the upper left, and grain
+ *   shadow    raised: a contact line and a short lift. floating: a keyline, a faint halo and a
+ *             warm bloom (on dark, light does the lifting, since a dark shadow cannot lift
+ *             a surface off a near-black page)
+ *   response  the pointer moves a glint across floating frames, the composer and primary
+ *             buttons (reflections.ts); press is scale .98 in 90ms, release a 220ms spring
+ *
+ * Gold appears only where light hits: rims, focus, primary actions, the ring. Surfaces are a
+ * warm neutral (hue about 40, almost no chroma), so gold has something to be gold against.
+ * A chosen theme keeps its own colors: its surfaces and brand color feed the same tokens.
+ *
+ * Mapping (component -> material):
+ *   BASE      html canvas, sidebar, toolbar, terminal
+ *   RAISED    settings group and card, Usage panel, composer host, user message bubble, approval
+ *             card, inputs, textareas, number fields, input groups, select triggers, search
+ *             fields, tables and empty states, banners
+ *   FLOATING  menu and context menu popup, popover, select popup, combobox and autocomplete
+ *             popup, tooltip (control radius), preview card, toast, project panel, command
+ *             palette, shortcut sheet, dialog, side sheet, Settings and Usage route modals
+ *   CONTROL   button, badge, switch, checkbox, radio, tabs, menu rows (8px, no material of their own)
+ * Page code takes a material with one class: .m-raised or .m-floating.
+ */
+:root {
+  --gold-300: #f1d58a;
+  --gold-400: #ddb55a;
+  --gold-500: #c2973a;
+  --gold-550: #a87d2a;
+  --gold-600: #9c7424;
+  --gold-700: #6e5118;
+
+  --m-radius-control: 0.5rem;
+  --m-radius-raised: 0.625rem;
+  --m-radius-floating: 0.875rem;
+  --m-radius-sheet: 1.25rem;
+  --m-angle: 145deg;
+  --m-brand-default: #b98f1f;
+  /* A pressed control goes in 90ms and comes back on the spring in 220ms. */
+  --one-release-ms: 220ms;
+
+  /* The glass opacity setting: 100% is opaque, the default 80% is a 72% fill. */
+  --m-alpha: max(40%, calc(100% - (100% - var(--glass-opacity)) * 1.4));
+
+  /* light */
+  --m-base: var(--background);
+  --m-raised: #fffaf0;
+  --m-card: #fffbf2;
+  --m-card-fill: color-mix(in srgb, #fffaf0 78%, transparent);
+  --m-card-lit-fill: color-mix(in srgb, #fffefa 88%, transparent);
+  --m-floating: #fbf8f0;
+  --m-field-fill: #fbf8f0;
+  --m-field-rim: rgb(120 90 30 / 20%);
+  --m-field-inset: inset 0 1px 1px rgb(80 60 20 / 8%);
+  --ui-field: var(--m-field-fill);
+  --ui-field-edge: var(--m-field-rim);
+  --ui-field-edge-hover: rgb(120 90 30 / 34%);
+  --ui-field-inset: var(--m-field-inset);
+
+  --m-rim-hi: rgb(255 255 255 / 95%);
+  --m-rim-mid: rgb(255 255 255 / 45%);
+  --m-rim-lo: rgb(140 100 30 / 22%);
+  --m-rim-raised-hi: rgb(255 255 255 / 90%);
+  --m-rim-raised-mid: rgb(120 90 30 / 12%);
+  --m-rim-raised-lo: rgb(120 90 30 / 22%);
+  --m-lit: inset 0 1px 0 rgb(255 255 255 / 90%), inset 1px 0 0 rgb(255 255 255 / 50%);
+  --m-spec-top: linear-gradient(180deg, rgb(255 255 255 / 60%) 0, transparent 28px);
+  --m-sheen: linear-gradient(var(--m-angle), rgb(255 255 255 / 50%) 0%, transparent 32%);
+  --m-glint: rgb(255 205 110 / 24%);
+  --one-reflection: rgb(176 132 30 / 60%);
+  --m-glow: color-mix(in oklab, var(--one-brand) 7%, transparent);
+  --m-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .28  0 0 0 0 .15  .1 0 0 0 -.03'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+
+  --m-shadow-raised: 0 1px 2px rgb(80 60 20 / 8%), 0 8px 18px -10px rgb(80 60 20 / 18%);
+  --m-shadow-floating:
+    0 0 0 1px rgb(80 60 20 / 9%), 0 1px 2px rgb(80 60 20 / 8%),
+    0 18px 40px -12px rgb(80 60 20 / 20%), 0 48px 96px -28px rgb(80 60 20 / 22%);
+  --m-shadow-small:
+    0 0 0 1px rgb(80 60 20 / 9%), 0 1px 2px rgb(80 60 20 / 8%), 0 10px 24px -8px rgb(80 60 20 / 20%);
+
+  --m-blur: blur(var(--glass-blur)) saturate(max(1.4, var(--glass-saturation)));
+  --m-scrim: color-mix(in oklab, var(--one-brand) 5%, var(--m-base));
+  --m-scrim-alpha: 34%;
+  --m-ambient:
+    radial-gradient(
+      60% 50% at 18% 0%,
+      color-mix(in oklab, var(--one-brand) 12%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 40% at 92% 100%,
+      color-mix(in oklab, var(--one-brand) 8%, transparent),
+      transparent 70%
+    );
+
+  @variant dark {
+    --m-brand-default: #d9b450;
+    --m-base: #0a0908;
+    --m-raised: #17130e;
+    --m-card: #2b231a;
+    --m-card-fill: color-mix(in srgb, #2b231a 92%, transparent);
+    --m-card-lit-fill: color-mix(in srgb, #372d21 94%, transparent);
+    --m-floating: #211c14;
+    --m-field-fill: #2b241b;
+    --m-field-rim: rgb(255 236 200 / 11%);
+    --m-field-inset: inset 0 1px 0 rgb(0 0 0 / 40%);
+    --ui-field-edge-hover: rgb(255 236 200 / 20%);
+
+    --m-rim-hi: rgb(255 236 200 / 32%);
+    --m-rim-mid: rgb(255 236 200 / 8%);
+    --m-rim-lo: rgb(0 0 0 / 45%);
+    --m-rim-raised-hi: rgb(255 236 200 / 20%);
+    --m-rim-raised-mid: rgb(255 236 200 / 6%);
+    --m-rim-raised-lo: rgb(0 0 0 / 40%);
+    --m-lit: inset 0 1px 0 rgb(255 236 200 / 12%), inset 1px 0 0 rgb(255 236 200 / 6%);
+    --m-spec-top: linear-gradient(180deg, rgb(255 240 200 / 7%) 0, transparent 36px);
+    --m-sheen: linear-gradient(var(--m-angle), rgb(255 244 220 / 5%) 0%, transparent 30%);
+    --m-glint: rgb(255 236 200 / 8%);
+    --one-reflection: rgb(255 236 200 / 55%);
+    --m-glow: color-mix(in oklab, var(--one-brand) 11%, transparent);
+    --m-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 .93  0 0 0 0 .8  .1 0 0 0 -.03'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+
+    --m-shadow-raised: 0 1px 2px rgb(0 0 0 / 50%), 0 8px 18px -10px rgb(0 0 0 / 60%);
+    --m-shadow-floating:
+      0 0 0 1px rgb(0 0 0 / 70%), 0 0 0 2px rgb(255 236 200 / 3.5%),
+      0 30px 90px -30px rgb(217 180 80 / 14%), 0 24px 60px -20px rgb(0 0 0 / 90%);
+    --m-shadow-small:
+      0 0 0 1px rgb(0 0 0 / 70%), 0 0 0 2px rgb(255 236 200 / 3.5%),
+      0 14px 40px -14px rgb(217 180 80 / 12%), 0 12px 28px -10px rgb(0 0 0 / 85%);
+
+    --m-scrim: color-mix(in oklab, var(--one-brand) 2%, black);
+    --m-scrim-alpha: 30%;
+    --m-ambient:
+      radial-gradient(
+        60% 50% at 18% 0%,
+        color-mix(in oklab, var(--one-brand) 20%, transparent),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 40% at 92% 100%,
+        color-mix(in oklab, var(--one-brand) 13%, transparent),
+        transparent 70%
+      );
+  }
+}
+
+/* A chosen theme derives the materials from its own surfaces and brand color. The brand color
+   falls back from the action color to the accent to a named default, so a theme that omits a role
+   never leaves a recipe token invalid (an invalid fill computes to transparent). */
+html[data-theme-id]:not([data-theme-id=""]) {
+  --one-brand: var(--app-theme-message-action, var(--app-theme-accent, var(--m-brand-default)));
+  --m-base: var(--background);
+  --m-raised: var(--ui-surface-raised);
+  --m-card: color-mix(in oklab, var(--ui-surface-overlay) 70%, var(--ui-surface-raised));
+  --m-card-fill: color-mix(in srgb, var(--m-card) 90%, transparent);
+  --m-floating: color-mix(in oklab, var(--one-brand) 6%, var(--ui-surface-overlay));
+  --m-field-fill: color-mix(in oklab, var(--foreground) 4%, var(--ui-surface-raised));
+}
+
+html[data-theme-id]:not([data-theme-id=""]).dark {
+  --m-floating: color-mix(in oklab, var(--one-brand) 14%, var(--ui-surface-overlay));
+}
+
+/* The default dark theme's page, sidebar and message surfaces are the material ramp, so the app
+   and the modal over it are one dark. */
+html:not([data-theme-id]).dark,
+html[data-theme-id=""].dark {
+  --background: var(--m-base);
+  --card: var(--m-raised);
+  --popover: var(--m-floating);
+  --surface-raised: var(--m-raised);
+  --sidebar: var(--m-base);
+  --message-surface: var(--m-card);
+  --ui-surface-raised: var(--m-raised);
+  --ui-surface-overlay: var(--m-card);
+}
+
+html:not([data-theme-id]).dark [data-app-sidebar],
+html[data-theme-id=""].dark [data-app-sidebar] {
+  --background: var(--m-base);
+  --card: var(--m-raised);
+  --sidebar: var(--m-base);
+  --muted: var(--m-raised);
 }
 
 /* -------------------------------------------------------------- the focus */
@@ -203,7 +429,7 @@ html[data-theme-id=""]:not(.dark) {
   [data-button]:not(:active) {
     transition-duration:
       var(--one-hover-ms), var(--one-hover-ms), var(--one-hover-ms), var(--one-hover-ms),
-      var(--one-move-ms), var(--one-hover-ms);
+      var(--one-release-ms), var(--one-hover-ms);
     transition-timing-function:
       var(--one-ease-hover), var(--one-ease-hover), var(--one-ease-hover), var(--one-ease-hover),
       var(--one-ease-spring), var(--one-ease-hover);
@@ -224,8 +450,57 @@ html[data-theme-id=""]:not(.dark) {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 26%),
     inset 0 -1px 0 rgb(0 0 0 / 14%),
-    0 1px 2px color-mix(in oklch, var(--ui-fill) 38%, transparent),
-    0 5px 12px -6px color-mix(in oklch, var(--ui-fill) 55%, transparent);
+    0 1px 2px rgb(0 0 0 / 28%);
+}
+
+/* The default theme's primary is one metal in both themes, lit from the top: gold-400 to gold-500
+   on dark (the same ramp the ring is drawn from), gold-500 to gold-550 on light (gold-600 would
+   take the #1a1407 label below 4.5:1). No glow at rest; hover adds a soft lift. */
+:is(html:not([data-theme-id]), html[data-theme-id=""]) {
+  --btn-a: var(--gold-500);
+  --btn-b: var(--gold-550);
+  --btn-edge: var(--gold-600);
+  --btn-rim: rgb(255 255 255 / 34%);
+  --btn-lift: 0 2px 8px rgb(110 81 24 / 22%);
+}
+
+:is(html:not([data-theme-id]).dark, html[data-theme-id=""].dark) {
+  --btn-a: var(--gold-400);
+  --btn-b: var(--gold-500);
+  --btn-edge: color-mix(in oklch, var(--gold-500) 78%, black);
+  --btn-rim: color-mix(in oklch, var(--gold-300) 85%, transparent);
+  --btn-lift: 0 4px 12px rgb(221 181 90 / 16%);
+}
+
+:is(html:not([data-theme-id]), html[data-theme-id=""]) [data-button][data-variant="default"] {
+  border-color: var(--btn-edge);
+  background-color: var(--btn-a);
+  background-image: linear-gradient(to bottom, var(--btn-a), var(--btn-b));
+  box-shadow:
+    inset 0 1px 0 var(--btn-rim),
+    inset 0 -1px 0 rgb(0 0 0 / 14%),
+    0 1px 2px rgb(0 0 0 / 28%);
+}
+
+:is(html:not([data-theme-id]), html[data-theme-id=""])
+  [data-button][data-variant="default"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
+  background-color: color-mix(in oklch, var(--btn-a) 90%, white);
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--btn-a) 90%, white),
+    color-mix(in oklch, var(--btn-b) 90%, white)
+  );
+  box-shadow:
+    inset 0 1px 0 var(--btn-rim),
+    inset 0 -1px 0 rgb(0 0 0 / 14%),
+    var(--btn-lift);
+}
+
+:is(html:not([data-theme-id]), html[data-theme-id=""])
+  [data-button][data-variant="default"]:is(:active, [data-pressed]):not(:disabled) {
+  background-color: color-mix(in oklch, var(--btn-a) 90%, black);
+  background-image: linear-gradient(to top, rgb(255 255 255 / 12%), transparent 55%);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 28%);
 }
 
 [data-button][data-variant="destructive"] {
@@ -287,6 +562,10 @@ html[data-theme-id=""]:not(.dark) {
 @media (hover: hover) {
   [data-button][data-variant="default"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
     background-color: color-mix(in oklch, var(--ui-fill) 90%, white);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 26%),
+      inset 0 -1px 0 rgb(0 0 0 / 14%),
+      0 4px 12px rgb(221 181 90 / 16%);
   }
 
   [data-button][data-variant="destructive"]:hover:not(:disabled, :active, [aria-disabled="true"]) {
@@ -326,10 +605,17 @@ html[data-theme-id=""]:not(.dark) {
   }
 }
 
-/* A press goes in: darker, flatter, no lift. */
+/* A press goes in: scale .98, darker, flatter, and the highlight slides from the top edge to the
+   bottom edge as the surface tilts away from the light. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-button]:active:not([aria-haspopup], :disabled, [aria-disabled="true"]) {
+    scale: 0.98;
+  }
+}
+
 [data-button][data-variant="default"]:is(:active, [data-pressed]):not(:disabled) {
   background-color: color-mix(in oklch, var(--ui-fill) 90%, black);
-  background-image: none;
+  background-image: linear-gradient(to top, rgb(255 255 255 / 12%), transparent 55%);
   box-shadow: inset 0 1px 3px rgb(0 0 0 / 28%);
 }
 
@@ -644,13 +930,13 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 :is([data-slot="checkbox"], [data-slot="radio"]):is([data-checked], [data-indeterminate]) {
-  border-color: color-mix(in oklch, var(--ui-fill) 80%, black);
+  border-color: color-mix(in oklch, var(--ui-fill-shape) 80%, black);
   box-shadow: none;
 }
 
 /* The mark fills in and the stroke draws itself: 140ms. */
 :is([data-slot="checkbox-indicator"], [data-slot="radio-indicator"]) {
-  background-color: var(--ui-fill);
+  background-color: var(--ui-fill-shape);
   background-image: linear-gradient(to bottom, rgb(255 255 255 / 16%), transparent 70%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
   outline: none;
@@ -728,11 +1014,27 @@ html[data-theme-id=""]:not(.dark) {
   box-shadow: inset 0 1px 2px var(--ui-shade);
 }
 
+html:not([data-theme-id]):not(.dark)
+  :is([data-slot="switch"], [data-slot="menu-switch"]):is([data-unchecked], [data-mixed]) {
+  box-shadow:
+    inset 0 0 0 1px #cfc6b6,
+    inset 0 1px 2px rgb(80 60 20 / 10%);
+}
+
+html:not([data-theme-id]):not(.dark)
+  :is([data-slot="switch"], [data-slot="menu-switch"]):is([data-unchecked], [data-mixed])
+  :is([data-slot="switch-thumb"], [data-slot="menu-switch-thumb"]) {
+  background-color: #fff;
+  box-shadow:
+    0 0 0 1px #857a66,
+    0 1px 2px rgb(80 60 20 / 25%);
+}
+
 :is([data-slot="switch"], [data-slot="menu-switch"])[data-checked]:not([data-mixed]) {
-  background-color: var(--ui-fill);
+  background-color: var(--ui-fill-shape);
   box-shadow:
     inset 0 1px 2px rgb(0 0 0 / 22%),
-    inset 0 0 0 1px color-mix(in oklch, var(--ui-fill) 78%, black);
+    inset 0 0 0 1px color-mix(in oklch, var(--ui-fill-shape) 78%, black);
 }
 
 :is([data-slot="switch-thumb"], [data-slot="menu-switch-thumb"]) {
@@ -763,7 +1065,9 @@ html[data-theme-id=""]:not(.dark) {
 }
 
 :is([data-slot="switch"], [data-slot="menu-switch"])[data-disabled] {
-  opacity: 0.5;
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: auto;
 }
 
 /* A 44px target on touch, with no change to what is drawn. */
@@ -1215,8 +1519,26 @@ html[data-theme-id=""]:not(.dark) {
  * filled gold button on a screen is its single primary action, and a screen has at most one.
  */
 [data-slot="badge"] {
+  border-radius: 999px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.005em;
+  text-transform: none;
+}
+
+/* A state with no tone is a quiet neutral pill, never a boxed rectangle. */
+[data-slot="badge"]:is([data-variant="outline"], [data-variant="secondary"]) {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--ui-muted-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+[data-slot="badge-dot"] {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background-color: var(--ui-badge-tone, currentColor);
 }
 
 [data-slot="badge"]:is(
@@ -1431,35 +1753,33 @@ html[data-theme-id=""]:not(.dark) {
   outline-offset: 2px;
 }
 
-/* ------------------------------------------------------------ toast accent */
+/* ------------------------------------------------------------ toasts */
 
-/* A toast says what kind it is with a colored edge along its start side. A countdown line was tried
-   and removed: Base UI keeps its dismissal timers private and resets them on updates, so a line
-   drawn beside them can drift from the real time left. */
-[data-slot="toast-viewport"] > .dropdown-glass {
-  --ui-toast-accent: transparent;
+/* A toast is a floating surface. Its kind shows as a 16px icon in the status color, never as a
+   colored edge: an edge bends around the corner radius and reads as a stock library toast.
+   Base UI keeps the dismissal timing; the close button appears on hover and focus. */
+[data-slot="toast-icon"] svg {
+  color: var(--ui-muted-text);
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass[data-type="error"] {
-  --ui-toast-accent: var(--ui-danger-fill);
+[data-type="error"] [data-slot="toast-icon"] svg {
+  color: var(--ui-danger-fg);
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass[data-type="success"] {
-  --ui-toast-accent: var(--ui-success-fill);
+[data-type="success"] [data-slot="toast-icon"] svg {
+  color: var(--ui-success-fg);
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass[data-type="warning"] {
-  --ui-toast-accent: var(--ui-warning-fill);
+[data-type="warning"] [data-slot="toast-icon"] svg {
+  color: var(--ui-warning-fg);
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass[data-type="info"] {
-  --ui-toast-accent: var(--ui-info-fill);
+[data-type="info"] [data-slot="toast-icon"] svg {
+  color: var(--ui-info-fg);
 }
 
-[data-slot="toast-viewport"] > .dropdown-glass {
-  box-shadow:
-    inset 2px 0 0 0 var(--ui-toast-accent),
-    var(--glass-shadow-sm);
+[data-slot="toast-count"] {
+  background-color: var(--ui-hover);
 }
 
 /* ------------------------------------------------------------ the surfaces */
@@ -1770,157 +2090,82 @@ html[data-theme-id=""] {
   --info-foreground: var(--ui-info-fg);
 }
 
-/* =========================================================================== the glass */
+/* =========================================================================== the materials */
 
-/*
- * One glass recipe for every glass surface: the route modals (Settings, Usage), the palette, the
- * shortcut sheet, popovers, menus, toasts and the project panel.
- *   light      the scrim dims little and carries a warm ambient field, so there is color behind it
- *   fill       smoked gold on dark, warm ivory on light, R > G > B on both; custom themes derive it
- *              from their own surfaces and brand color
- *   blur       one backdrop-filter, on the outermost layer only; panes and cards inside are fills
- *   edge       a gradient rim, brightest top left, a faint warm bounce along the bottom
- *   specular   a soft sheen band across the upper left, and a 3.5% grain against banding
- *   shadow     a keyline, a contact line, a lift and a warm ambient layer
- *   response   the pointer moves a glint across the frame (reflections.ts)
- * Reduced transparency, and a glass opacity of 100%, give opaque surfaces.
- */
-:root {
-  --glass-tint: color-mix(in oklab, var(--one-brand) 6%, var(--ui-surface-base));
-  /* 100% opacity is opaque; the default 80% is a 72% fill, so something shows through. */
-  --glass-fill-alpha: max(40%, calc(100% - (100% - var(--glass-opacity)) * 1.4));
-  --glass-tint-float: color-mix(in oklab, var(--one-brand) 6%, var(--ui-surface-overlay));
-  --glass-fill: color-mix(in srgb, var(--glass-tint) var(--glass-fill-alpha), transparent);
-  --glass-fill-float: color-mix(
-    in srgb,
-    var(--glass-tint-float) var(--glass-fill-alpha),
-    transparent
-  );
-  --glass-nav-fill: color-mix(in oklab, var(--one-brand) 6%, transparent);
-  --glass-card-fill: color-mix(in oklab, var(--ui-surface-overlay) 70%, transparent);
-  --glass-card-sheen: linear-gradient(180deg, rgb(255 255 255 / 60%), rgb(255 255 255 / 10%));
-  --glass-card-rim: rgb(255 255 255 / 90%);
-  --glass-card-shadow: 0 1px 2px rgb(60 40 10 / 8%), 0 10px 22px -14px rgb(60 40 10 / 22%);
-
-  --glass-rim-hi: rgb(255 255 255 / 95%);
-  --glass-rim-lo: rgb(255 255 255 / 38%);
-  --glass-rim-warm: color-mix(in oklab, var(--one-brand) 26%, transparent);
-  --glass-sheen: rgb(255 255 255 / 55%);
-  --glass-glint: rgb(255 255 255 / 50%);
-  --glass-glow: color-mix(in oklab, var(--one-brand) 7%, transparent);
-
-  --glass-shadow:
-    0 0 0 1px rgb(60 40 10 / 7%), 0 1px 2px rgb(60 40 10 / 7%),
-    0 14px 32px -10px rgb(60 40 10 / 16%), 0 48px 96px -24px rgb(60 40 10 / 20%);
-  --glass-shadow-sm:
-    0 0 0 1px rgb(60 40 10 / 8%), 0 1px 2px rgb(60 40 10 / 8%), 0 10px 24px -8px rgb(60 40 10 / 18%);
-
-  --glass-scrim: color-mix(in oklab, var(--one-brand) 5%, var(--ui-surface-base));
-  --glass-scrim-alpha: 34%;
-  --glass-ambient:
-    radial-gradient(
-      60% 50% at 18% 0%,
-      color-mix(in oklab, var(--one-brand) 12%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      50% 40% at 92% 100%,
-      color-mix(in oklab, var(--one-brand) 8%, transparent),
-      transparent 70%
-    );
-
-  --glass-bf: blur(calc(var(--glass-blur) * 1.5)) saturate(calc(var(--glass-saturation) + 0.45))
-    brightness(1.03);
-  --glass-bf-frame: blur(calc(var(--glass-blur) * 1.75))
-    saturate(calc(var(--glass-saturation) + 0.55)) brightness(1.03);
-
-  --glass-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.035'/></svg>");
-
-  @variant dark {
-    --glass-tint: color-mix(in oklab, var(--one-brand) 15%, var(--ui-surface-raised));
-    --glass-tint-float: color-mix(in oklab, var(--one-brand) 14%, var(--ui-surface-overlay));
-    --glass-nav-fill: color-mix(in oklab, rgb(255 238 205) 3.2%, transparent);
-    --glass-card-fill: color-mix(in oklab, rgb(255 238 205) 4.2%, transparent);
-    --glass-card-sheen: linear-gradient(180deg, rgb(255 244 220 / 6%), rgb(255 244 220 / 2%));
-    --glass-card-rim: rgb(255 255 255 / 10%);
-    --glass-card-shadow: 0 1px 0 rgb(0 0 0 / 50%), 0 14px 26px -18px rgb(0 0 0 / 70%);
-
-    --glass-rim-hi: rgb(255 246 226 / 26%);
-    --glass-rim-lo: rgb(255 255 255 / 4%);
-    --glass-rim-warm: color-mix(in oklab, var(--one-brand) 24%, transparent);
-    --glass-sheen: rgb(255 244 220 / 6.5%);
-    --glass-glint: rgb(255 255 255 / 9%);
-    --glass-glow: color-mix(in oklab, var(--one-brand) 13%, transparent);
-
-    --glass-shadow:
-      0 0 0 1px rgb(0 0 0 / 55%), 0 1px 2px rgb(0 0 0 / 40%), 0 18px 40px -12px rgb(0 0 0 / 60%),
-      0 60px 120px -24px rgb(36 20 0 / 55%);
-    --glass-shadow-sm:
-      0 0 0 1px rgb(0 0 0 / 55%), 0 1px 2px rgb(0 0 0 / 40%), 0 12px 28px -10px rgb(0 0 0 / 65%);
-
-    --glass-scrim: color-mix(in oklab, var(--one-brand) 2%, black);
-    --glass-scrim-alpha: 30%;
-    --glass-ambient:
-      radial-gradient(
-        60% 50% at 18% 0%,
-        color-mix(in oklab, var(--one-brand) 20%, transparent),
-        transparent 70%
-      ),
-      radial-gradient(
-        50% 40% at 92% 100%,
-        color-mix(in oklab, var(--one-brand) 13%, transparent),
-        transparent 70%
-      );
-  }
-}
-
-/* The scrim: it dims far less than a flat black, and carries a faint warm light field. */
+/* The scrim dims little and carries a warm light field, so the glass has color to catch. */
 .dialog-backdrop {
-  background-color: color-mix(in srgb, var(--glass-scrim) var(--glass-scrim-alpha), transparent);
-  background-image: var(--glass-ambient);
-  -webkit-backdrop-filter: blur(4px) saturate(1.2);
-  backdrop-filter: blur(4px) saturate(1.2);
+  background-color: color-mix(in srgb, var(--m-scrim) var(--m-scrim-alpha), transparent);
+  background-image: var(--m-ambient);
+  /* The blur belongs to the one floating layer above; a second filtered layer would double the cost. */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
-/* Every glass surface. */
+/* ---- floating: one fill, one blur, one rim, one shadow */
 [data-app-modal],
 .dialog-glass,
 :root:not(.dark) .dialog-glass,
 .dropdown-glass,
-[data-slot="preview-card-popup"] {
-  --one-glass-shadow: var(--glass-shadow);
+[data-slot="preview-card-popup"],
+[data-slot="sheet-popup"],
+.m-floating {
+  --m-fill: color-mix(
+    in srgb,
+    var(--m-floating, var(--ui-surface-overlay, var(--popover, Canvas))) var(--m-alpha, 72%),
+    transparent
+  );
   border-width: 0;
-  background-color: var(--glass-fill);
-  background-image:
-    linear-gradient(115deg, var(--glass-sheen) 0%, transparent 32%), var(--glass-grain);
-  background-repeat: no-repeat, repeat;
-  background-blend-mode: normal, soft-light;
-  -webkit-backdrop-filter: var(--glass-bf);
-  backdrop-filter: var(--glass-bf);
-  box-shadow: var(--glass-shadow);
+  background-color: var(--m-fill);
+  background-image: var(--m-spec-top), var(--m-sheen), var(--m-grain);
+  background-repeat: no-repeat, no-repeat, repeat;
+  -webkit-backdrop-filter: var(--m-blur);
+  backdrop-filter: var(--m-blur);
+  box-shadow: var(--m-shadow-small), var(--m-lit);
 }
 
-.dropdown-glass,
-[data-slot="preview-card-popup"] {
-  background-color: var(--glass-fill-float);
-  box-shadow: var(--glass-shadow-sm);
+[data-app-modal],
+.dialog-glass,
+:root:not(.dark) .dialog-glass,
+[data-slot="command-dialog-popup"],
+[data-slot="sheet-popup"] {
+  box-shadow: var(--m-shadow-floating), var(--m-lit);
+}
+
+[data-app-modal],
+.dialog-glass,
+[data-slot="command-dialog-popup"] {
+  border-radius: var(--m-radius-sheet);
 }
 
 [data-app-modal] {
   background-image:
-    linear-gradient(115deg, var(--glass-sheen) 0%, transparent 32%),
-    radial-gradient(52% 16rem at 14% 0, var(--glass-glow), transparent 72%), var(--glass-grain);
-  background-repeat: no-repeat, no-repeat, repeat;
-  background-blend-mode: normal, normal, soft-light;
-  -webkit-backdrop-filter: var(--glass-bf-frame);
-  backdrop-filter: var(--glass-bf-frame);
+    var(--m-spec-top), var(--m-sheen),
+    radial-gradient(52% 16rem at 14% 0, var(--m-glow), transparent 72%), var(--m-grain);
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
 }
 
-/* The edge: a 1px ring painted with a gradient, brightest top left, warm along the bottom. */
+/* The tooltip is floating at the control radius: 14px on a 24px chip would make a pill. */
+[data-slot="tooltip-popup"] {
+  border-width: 0;
+  border-radius: var(--m-radius-control);
+  color: var(--popover-foreground);
+  background-color: color-mix(in srgb, var(--m-floating) var(--m-alpha), transparent);
+  background-image: var(--m-spec-top), var(--m-grain);
+  background-repeat: no-repeat, repeat;
+  -webkit-backdrop-filter: var(--m-blur);
+  backdrop-filter: var(--m-blur);
+  box-shadow: var(--m-shadow-small), var(--m-lit);
+}
+
+/* The rim: a 1px gradient border, bright top left, dark bottom right. */
 [data-app-modal]::before,
 .dialog-glass::before,
 .dropdown-glass::before,
-[data-slot="preview-card-popup"]::before {
+[data-slot="preview-card-popup"]::before,
+[data-slot="sheet-popup"]::before,
+[data-slot="command-dialog-popup"]::before,
+.m-floating::before,
+.m-raised::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1928,11 +2173,11 @@ html[data-theme-id=""] {
   padding: 1px;
   border-radius: inherit;
   background: linear-gradient(
-    155deg,
-    var(--glass-rim-hi) 0%,
-    var(--glass-rim-lo) 28%,
-    var(--glass-rim-lo) 72%,
-    var(--glass-rim-warm) 100%
+    var(--m-angle),
+    var(--m-rim-hi) 0%,
+    var(--m-rim-mid) 38%,
+    var(--m-rim-mid) 62%,
+    var(--m-rim-lo) 100%
   );
   box-shadow: none;
   pointer-events: none;
@@ -1944,50 +2189,42 @@ html[data-theme-id=""] {
     linear-gradient(#000 0 0);
 }
 
-/*
- * Inside the modal the panes and cards are fills, not glass: no backdrop-filter of their own. The
- * rail is a frostier step and a card a lighter one, each with its own lit top edge and a quieter
- * rim. Cards and panels read these variables, so they follow without their own rules.
- */
-[data-app-modal] {
-  --background: color-mix(in oklab, var(--one-brand) 2.5%, var(--glass-tint));
-  --settings-page-bg: transparent;
-  --settings-panel-bg: var(--glass-card-fill);
-  --settings-panel-shadow: var(--glass-card-shadow);
+/* ---- raised: a fill, a rim, a short shadow, no blur */
+.m-raised,
+[data-slot="settings-group"][data-variant="grouped"],
+[data-settings-card],
+.usage-panel {
+  border-radius: var(--m-radius-raised);
+  background-color: var(--m-surface-fill, var(--m-raised));
+  background-image: none;
+  box-shadow: var(--m-shadow-raised), var(--m-lit);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
-/* Settings panels and cards take the lighter card step. The shared glass tokens the Usage cards
-   read (sheen, top rim, side rim) keep their meaning; these rules use their own. */
-[data-app-modal] :is([data-slot="settings-group"][data-variant="grouped"], [data-settings-card]) {
-  background-image: var(--glass-card-sheen);
-  box-shadow:
-    inset 0 1px 0 0 var(--glass-card-rim),
-    inset 0 0 0 1px var(--settings-hairline),
-    var(--glass-card-shadow);
+.m-raised,
+[data-slot="settings-group"][data-variant="grouped"],
+[data-settings-card],
+.usage-panel {
+  position: relative;
 }
 
-[data-app-modal] [data-settings-nav] {
-  background-color: var(--glass-nav-fill);
-}
-
-[data-app-modal]
-  :is(
-    [data-slot="settings-group"][data-variant="grouped"],
-    [data-settings-card],
-    .usage-panel
-  )::before {
+.m-raised::before,
+[data-slot="settings-group"][data-variant="grouped"]::before,
+[data-settings-card]::before,
+.usage-panel::before {
   content: "";
   position: absolute;
   inset: 0;
   padding: 1px;
   border-radius: inherit;
   background: linear-gradient(
-    155deg,
-    var(--glass-card-rim) 0%,
-    transparent 45%,
-    var(--glass-rim-warm) 100%
+    var(--m-angle),
+    var(--m-rim-raised-hi) 0%,
+    var(--m-rim-raised-mid) 40%,
+    var(--m-rim-raised-mid) 60%,
+    var(--m-rim-raised-lo) 100%
   );
-  opacity: 0.7;
   pointer-events: none;
   -webkit-mask:
     linear-gradient(#000 0 0) content-box exclude,
@@ -1997,12 +2234,26 @@ html[data-theme-id=""] {
     linear-gradient(#000 0 0);
 }
 
-[data-app-modal] :is([data-slot="settings-group"][data-variant="grouped"], [data-settings-card]) {
-  position: relative;
+/* A raised surface sits on the page (--m-raised) or inside a floating surface (--m-card-fill, one
+   step lighter, so it reads against the glass). */
+:is([data-app-modal], .dialog-glass, [data-slot="command-dialog-popup"], .m-floating) {
+  --m-surface-fill: var(--m-card-fill);
 }
 
-/* The glint: a soft light the pointer moves across the frame. Its position is a translate, so a
-   pointer move repaints nothing. reflections.ts writes --one-mx and --one-my. */
+/* Inside the modal, panes and cards are fills: no blur of their own. */
+[data-app-modal] {
+  --background: color-mix(in oklab, var(--one-brand) 2.5%, var(--m-floating));
+  --settings-page-bg: transparent;
+  --settings-panel-bg: var(--m-card-fill);
+  --settings-panel-shadow: var(--m-shadow-raised);
+}
+
+[data-app-modal] [data-settings-nav] {
+  background-color: color-mix(in oklab, var(--one-brand) 5%, transparent);
+}
+
+/* ---- the glint: a soft light the pointer moves across a floating frame. A translate, so a pointer
+   move repaints nothing. reflections.ts writes --one-mx and --one-my. */
 .one-glint {
   position: absolute;
   inset: 0;
@@ -2019,25 +2270,12 @@ html[data-theme-id=""] {
   position: absolute;
   top: 0;
   left: 0;
-  width: 44rem;
-  height: 44rem;
-  margin: -22rem 0 0 -22rem;
-  background: radial-gradient(closest-side, var(--glass-glint), transparent);
+  width: 30rem;
+  height: 30rem;
+  margin: -15rem 0 0 -15rem;
+  background: radial-gradient(closest-side, var(--m-glint), transparent);
   translate: var(--one-mx, 50%) var(--one-my, 0px);
   will-change: translate;
-}
-
-/* An interactive card catches the same light: the sheen follows the pointer while it is over. */
-@media (hover: hover) {
-  [data-app-modal] :is([data-settings-card], [data-ui-tile], [data-ui-glint]):hover {
-    background-image:
-      radial-gradient(
-        14rem circle at var(--one-mx, 50%) var(--one-my, 0),
-        var(--glass-glint),
-        transparent 70%
-      ),
-      var(--glass-card-sheen);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2046,45 +2284,172 @@ html[data-theme-id=""] {
   }
 }
 
-/* The opaque fallbacks. */
+/* ---- the opaque fallbacks */
 @media (prefers-reduced-transparency: reduce) {
-  [data-app-modal],
-  .dialog-glass,
-  :root:not(.dark) .dialog-glass {
-    background-color: var(--glass-tint);
-  }
-
-  .dropdown-glass,
-  [data-slot="preview-card-popup"] {
-    background-color: var(--glass-tint-float);
-  }
-
   [data-app-modal],
   .dialog-glass,
   :root:not(.dark) .dialog-glass,
   .dropdown-glass,
-  [data-slot="preview-card-popup"] {
+  [data-slot="preview-card-popup"],
+  [data-slot="sheet-popup"],
+  [data-slot="tooltip-popup"],
+  .m-floating {
+    background-color: var(--m-floating, var(--ui-surface-overlay, var(--popover, Canvas)));
     background-image: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 
   .dialog-backdrop {
-    background-color: color-mix(in srgb, var(--glass-scrim) 60%, transparent);
+    background-color: color-mix(in srgb, var(--m-scrim) 60%, transparent);
     background-image: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
   }
 }
 
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   [data-app-modal],
-  .dialog-glass {
-    background-color: var(--glass-tint);
+  .dialog-glass,
+  .dropdown-glass,
+  [data-slot="preview-card-popup"],
+  [data-slot="sheet-popup"],
+  [data-slot="tooltip-popup"],
+  .m-floating {
+    background-color: var(--m-floating);
+  }
+}
+
+/* ---- raised, outside the modal: the composer and the message bubble */
+html:not([data-theme-id]),
+html[data-theme-id=""] {
+  --chat-composer-glass-surface: var(--m-raised);
+  --chat-composer-outline: transparent;
+  --chat-composer-highlight: transparent;
+}
+
+[data-slot="composer-host"] {
+  box-shadow: var(--m-shadow-raised), var(--m-lit);
+}
+
+[data-slot="composer-host"]::before,
+[data-slot="composer-shell"]::before {
+  background-color: color-mix(in srgb, var(--chat-composer-glass-surface) 94%, transparent);
+  background-image: var(--m-spec-top), var(--m-sheen);
+  background-repeat: no-repeat;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+[data-slot="composer-host"]::after {
+  border: 0;
+  padding: 1px;
+  box-shadow: none;
+  background: linear-gradient(
+    var(--m-angle),
+    var(--m-rim-raised-hi) 0%,
+    var(--m-rim-raised-mid) 40%,
+    var(--m-rim-raised-mid) 60%,
+    var(--m-rim-raised-lo) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+/* The composer keeps its hairline rim when focused; the old outer gold glow is gone. */
+[data-slot="composer-shell"]:not(:has([data-composer-banner-surface="attached"])):focus-within
+  [data-slot="composer-host"] {
+  box-shadow:
+    var(--m-shadow-raised),
+    var(--m-lit),
+    0 0 0 1px color-mix(in oklch, var(--one-brand) 38%, transparent);
+}
+
+html:not([data-one-mode="chat"]) [data-user-message-bubble],
+[data-user-message-bubble] {
+  background-color: var(--message-surface);
+  background-image: var(--m-spec-top), var(--m-sheen);
+  background-repeat: no-repeat;
+  box-shadow:
+    var(--m-shadow-raised),
+    var(--m-lit),
+    inset 0 0 0 1px var(--m-rim-raised-mid);
+}
+
+/* Menu rows are 32px on every pointer, the same as the context menu. */
+:is(
+  [data-slot="menu-item"],
+  [data-slot="menu-checkbox-item"],
+  [data-slot="menu-radio-item"],
+  [data-slot="menu-sub-trigger"]
+) {
+  min-height: 2rem;
+}
+
+/* Primary buttons catch the pointer's light too: a soft 8% glint that moves by translate, clipped
+   by the button. It shows on hover only and never on touch or under reduced motion. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  [data-button][data-variant="default"] {
+    position: relative;
+    overflow: hidden;
   }
 
-  .dropdown-glass,
-  [data-slot="preview-card-popup"] {
-    background-color: var(--glass-tint-float);
+  [data-button][data-variant="default"]:hover::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 7.5rem;
+    height: 7.5rem;
+    margin: -3.75rem 0 0 -3.75rem;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(closest-side, rgb(255 255 255 / 28%), transparent);
+    translate: var(--one-mx, 50%) var(--one-my, 0px);
   }
+}
+
+/* Where mask-composite is unsupported the gradient ring would paint as a filled panel: draw a plain
+   inset border instead. */
+@supports not (mask-composite: exclude) {
+  :is(
+    [data-app-modal],
+    .dialog-glass,
+    .dropdown-glass,
+    [data-slot="preview-card-popup"],
+    [data-slot="sheet-popup"],
+    [data-slot="command-dialog-popup"],
+    .m-floating,
+    .m-raised,
+    [data-slot="settings-group"][data-variant="grouped"],
+    [data-settings-card],
+    .usage-panel,
+    [data-slot="composer-host"]
+  )::before,
+  [data-slot="composer-host"]::after {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--m-rim-mid);
+    -webkit-mask: none;
+    mask: none;
+  }
+}
+
+/* Raised surfaces share one radius, 10px. Chat mode keeps its own rounder composer. */
+html:not([data-one-mode="chat"]) [data-slot="composer-shell"],
+html:not([data-one-mode="chat"]) [data-slot="composer-shell"]::before,
+html:not([data-one-mode="chat"]) [data-slot="composer-host"],
+html:not([data-one-mode="chat"]) [data-slot="composer-host"]::before,
+html:not([data-one-mode="chat"]) [data-slot="composer-host"]::after,
+html:not([data-one-mode="chat"]) [data-user-message-bubble] {
+  border-radius: var(--m-radius-raised);
+}
+
+/* The Usage summary is the brightest slab in the modal: one step above the other panels, with the
+   sheen band across its top left. */
+.usage-panel.usage-summary {
+  --m-surface-fill: var(--m-card-lit-fill);
+  background-image: var(--m-sheen), var(--m-spec-top);
+  background-repeat: no-repeat;
 }

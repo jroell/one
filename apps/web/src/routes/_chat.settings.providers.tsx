@@ -1,14 +1,14 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { EnvironmentId, ProviderInstanceId } from "@t3tools/contracts";
 import { useGT } from "gt-react";
 
 import { ProviderSettingsPanel } from "../components/settings/ProviderSettingsPanel";
 import { useSettingsScope } from "../components/settings/SettingsScopeContext";
+import { useProviderInstanceRoute } from "../components/settings/useProviderInstanceRoute";
 
 function SettingsProvidersRoute() {
-  const target = Route.useSearch();
+  const { instanceId, onSelectInstance } = useProviderInstanceRoute();
   const { environment, scope } = useSettingsScope();
-  const navigate = useNavigate({ from: "/settings/providers" });
   const gt = useGT();
   if (!environment) {
     return (
@@ -22,17 +22,9 @@ function SettingsProvidersRoute() {
   return (
     <ProviderSettingsPanel
       environmentId={environment.environmentId}
-      {...(target.instanceId ? { instanceId: target.instanceId } : {})}
+      {...(instanceId ? { instanceId } : {})}
       // A provider is a page of its own: its address names it, so it can be linked and reloaded.
-      onSelectInstance={(instanceId) =>
-        void navigate({
-          search: (previous) => {
-            const { instanceId: _current, ...rest } = previous;
-            return instanceId === null ? rest : { ...rest, instanceId };
-          },
-          resetScroll: true,
-        })
-      }
+      onSelectInstance={onSelectInstance}
       projectIds={
         scope.kind === "project" || scope.kind === "checkout"
           ? scope.members

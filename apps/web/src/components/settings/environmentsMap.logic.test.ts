@@ -979,11 +979,11 @@ describe("layoutFleetGraph", () => {
     const cards = names.map((name) => layout.nodes.get(node(name))!);
     // Nine routes and eight links leave a card the size of one with a single route.
     expect(cards.map((card) => card.height)).toEqual(names.map(() => plain.height));
-    expect(plain.height).toBeLessThanOrEqual(64);
+    expect(plain.height).toBeLessThanOrEqual(80);
     const long = layoutFleetGraph(build([environment("Julius's MacBook Pro")]));
     const wrapped = long.nodes.get(node("Julius's MacBook Pro"))!.height;
     expect(wrapped).toBeGreaterThan(plain.height);
-    expect(wrapped).toBeLessThanOrEqual(80);
+    expect(wrapped).toBeLessThanOrEqual(96);
     for (const [index, name] of names.entries()) {
       const card = cards[index]!;
       const pills = mesh.edges
@@ -1282,11 +1282,14 @@ describe("a machine's card", () => {
     expect(envNode(graph, "server")).toMatchObject({ thisDevice: false });
   });
 
-  it("draws the card of this device one badge line taller, and the layout gives it that room", () => {
+  it("gives every machine's card the same room for its chips, whether or not it is this device, and the layout makes it", () => {
     const graph = build([device("mac"), environment("server")]);
-    const badge =
-      fleetCardHeight(envNode(graph, "mac")) - fleetCardHeight(envNode(graph, "server"));
-    expect(badge).toBeGreaterThan(0);
+    expect(fleetCardHeight(envNode(graph, "mac"))).toBe(fleetCardHeight(envNode(graph, "server")));
+    // A connect-account machine has no chip row, so its card is shorter.
+    const withOffer = build([environment("server")], [connectMachine("offer")]);
+    expect(
+      fleetCardHeight(withOffer.nodes.find((candidate) => candidate.kind === "connect")!),
+    ).toBeLessThan(fleetCardHeight(envNode(withOffer, "server")));
 
     const layout = layoutFleetGraph(graph, fleetStacks(graph, new Set()));
     for (const name of ["mac", "server"]) {

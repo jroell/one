@@ -208,7 +208,7 @@ import { matchInlineSkills } from "@t3tools/shared/inlineSkills";
 import { collectComposerModelMentions } from "@t3tools/client-runtime/composer-model-mentions";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
-import { MarkdownTable } from "./chat/MarkdownTable";
+import { MarkdownTable, markdownTableShape } from "./chat/MarkdownTable";
 import { MarkdownDetails } from "./chat/MarkdownDetails";
 import {
   authoredImageSizeStyle,
@@ -223,7 +223,12 @@ import { MarkdownExternalLinkContent } from "./chat/MarkdownExternalLink";
 import { MarkdownFileLink } from "./chat/MarkdownFileLink";
 import { canUseMarkdownFileShellActions } from "./chat/MarkdownFileLink.logic";
 import { handleMarkdownFragmentClick } from "./chat/markdownFragments";
-import { hastHasText, hastPlainTextDeep, plainHastText } from "./chat/markdownHast.logic";
+import {
+  hastHasText,
+  hastPlainTextDeep,
+  plainHastText,
+  standaloneImageCaption,
+} from "./chat/markdownHast.logic";
 import {
   extractCodeBlock,
   extractFenceLanguage,
@@ -1823,8 +1828,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     return <ChatMarkdownImageFallback alt={altText} copyMarkdown={copyMarkdown} kind={kind} />;
   },
-  table: function MarkdownTableRenderer({ node: _node, ...props }) {
-    return <MarkdownTable {...props} />;
+  table: function MarkdownTableRenderer({ node, ...props }) {
+    return <MarkdownTable shape={markdownTableShape(node)} {...props} />;
   },
   details: function MarkdownDetailsRenderer({ node: _node, children, open: detailsOpen, dir }) {
     return (
@@ -2036,6 +2041,24 @@ function markdownIslandOptions(state: ChatMarkdownComponentState): MarkdownIslan
           return node.properties.type === "checkbox"
             ? withProperties(node, { readOnly: true })
             : node;
+        case "p": {
+          // Chat mode sets a lone image as a figure, with its alt text as the caption.
+          const caption = standaloneImageCaption(node);
+          return caption === null
+            ? node
+            : {
+                ...withProperties(node, { dataOneFigure: "" }),
+                children: [
+                  ...node.children,
+                  {
+                    type: "element",
+                    tagName: "span",
+                    properties: { dataOneFigureCaption: "" },
+                    children: [{ type: "text", value: caption }],
+                  },
+                ],
+              };
+        }
         default:
           return node;
       }

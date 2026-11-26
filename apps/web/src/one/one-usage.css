@@ -44,28 +44,18 @@
 
 /* ------------------------------------------------------------------ panel */
 
-/* A pane of glass: a lit top edge, a soft sheen and a quiet shadow, like .dialog-glass. */
+/* Panels are the shared Raised material: its fill, rim and shadow come from the material sheet in
+   one-ui.css, which lists .usage-panel. Only the box model is set here. */
 .usage-panel {
   position: relative;
   min-width: 0;
-  border-radius: 1rem;
-  background-color: color-mix(in srgb, var(--foreground) 3.5%, transparent);
-  background-image: var(--one-glass-sheen);
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--usage-hairline),
-    0 1px 1px rgb(0 0 0 / 4%),
-    0 12px 28px -18px rgb(0 0 0 / 28%);
   container-type: inline-size;
   container-name: usage-panel;
 }
 
-:root.dark .usage-panel {
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--one-glass-rim),
-    0 1px 1px rgb(0 0 0 / 40%),
-    0 18px 36px -20px rgb(0 0 0 / 85%);
+/* The hero card keeps its soft diagonal sheen over the Raised material. */
+.usage-panel.usage-summary {
+  background-image: var(--one-glass-sheen);
 }
 
 .usage-panel-plain {
@@ -222,8 +212,11 @@
   column-gap: 0.625rem;
 }
 
-/* The hero. Tabular figures and a reserved width keep "left" still from 5% to 100%. */
+/* The hero. Tabular figures in a box wide enough for 100%, right-aligned, so "left" starts at the
+   same x on every row and sits right against the number. */
 .usage-limit-number {
+  min-width: 3.6ch;
+  text-align: end;
   font-size: 2.75rem;
   font-weight: 600;
   line-height: 1.05;
@@ -397,26 +390,36 @@
 /* ----------------------------------------------------------------- meter */
 
 .usage-meter {
-  /* Provider color, held inside a lightness band per theme so a near-white or near-black
-     brand color still reads as a lit capsule: graphite on light, pale steel on dark. */
-  --usage-fill: color-mix(in oklch, var(--usage-accent) 90%, black);
+  /* Healthy quota is a neutral with only a trace of the provider's hue: provider identity is the
+     icon and the name. Warning and danger colour appear only as state, never as brand. The fill is
+     then held inside a lightness band per theme: graphite on light, pale steel on dark. */
+  --usage-meter-base: color-mix(in oklch, var(--usage-accent) 6%, var(--usage-provider-neutral));
+  --usage-fill: color-mix(in oklch, var(--usage-meter-base) 90%, black);
   position: relative;
   height: var(--usage-channel-h);
   /* Room above for the marker's caret, held whether or not the window has a pace. */
   margin-block: 0.75rem 0.75rem;
 }
 
+.usage-meter[data-state="low"] {
+  --usage-meter-base: var(--warning);
+}
+
+.usage-meter[data-state="critical"] {
+  --usage-meter-base: var(--error);
+}
+
 :root.dark .usage-meter {
-  --usage-fill: var(--usage-accent);
+  --usage-fill: var(--usage-meter-base);
 }
 
 @supports (color: oklch(from red l c h)) {
   :root:not(.dark) .usage-meter {
-    --usage-fill: oklch(from var(--usage-accent) clamp(0.42, calc(l * 0.9), 0.62) c h);
+    --usage-fill: oklch(from var(--usage-meter-base) clamp(0.42, calc(l * 0.9), 0.58) c h);
   }
 
   :root.dark .usage-meter {
-    --usage-fill: oklch(from var(--usage-accent) clamp(0.56, l, 0.88) c h);
+    --usage-fill: oklch(from var(--usage-meter-base) clamp(0.56, l, 0.88) c h);
   }
 }
 
@@ -484,21 +487,6 @@
   to {
     opacity: 1;
   }
-}
-
-/* Low and critical: the leading edge of the fill is capped in the warning or error color. */
-.usage-meter[data-state="low"] .usage-meter-fill {
-  box-shadow:
-    inset -3px 0 0 0 var(--warning),
-    inset 0 0 0 1px color-mix(in oklch, var(--usage-fill) 55%, black),
-    inset 0 1px 0 1px color-mix(in srgb, var(--one-reflection) 38%, transparent);
-}
-
-.usage-meter[data-state="critical"] .usage-meter-fill {
-  box-shadow:
-    inset -3px 0 0 0 var(--error),
-    inset 0 0 0 1px color-mix(in oklch, var(--usage-fill) 55%, black),
-    inset 0 1px 0 1px color-mix(in srgb, var(--one-reflection) 38%, transparent);
 }
 
 /* Critical: a soft glow behind the fill that breathes by opacity only. It lives outside the
@@ -1258,6 +1246,29 @@ button.usage-legend:active {
   }
 }
 
+/* "Unpriced" says why on hover or focus; the dotted line is the cue. */
+.usage-unpriced {
+  /* Above the row's full-row press target, which would otherwise swallow the hover. */
+  position: relative;
+  z-index: 1;
+  color: var(--usage-text-muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  outline: none;
+}
+
+.usage-unpriced:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.usage-table-note {
+  margin: 0.5rem 0.25rem 0;
+  font-size: 0.75rem;
+  color: var(--usage-text-muted);
+}
+
 .usage-row-bar {
   height: 0.1875rem;
   max-width: 12rem;
@@ -1314,17 +1325,19 @@ button.usage-legend:active {
   align-items: center;
 }
 
-/* The day under the pointer: a band as wide as its bar, from the top of the plot down to the bar. */
+/* The day under the pointer: a halo behind its bar, a little wider than the bar and ending at the
+   bar's top, so it reads as the bar lit and never as a taller ghost bar. */
 .usage-bars-day[data-hover]::before {
   content: "";
   position: absolute;
-  inset-block: 0 var(--usage-stack, 0%);
+  inset-block: auto 0;
+  height: calc(var(--usage-stack, 0%) + 5px);
   inset-inline-start: 50%;
-  width: min(100%, 2.5rem);
+  width: calc(min(100%, 2.5rem) + 6px);
   translate: -50% 0;
-  border-start-start-radius: 3px;
-  border-start-end-radius: 3px;
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  border-start-start-radius: 4px;
+  border-start-end-radius: 4px;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
 }
 
 /* Heights are the axis scale and nothing else: no minimum and no gap, so a stack's top always meets
@@ -1342,6 +1355,11 @@ button.usage-legend:active {
   border-start-end-radius: 2px;
 }
 
+/* Axis labels hold 4.5:1 on the light panel; the stock muted gray measured 3.5. */
+.usage-axis-label {
+  color: var(--usage-text-muted);
+}
+
 /* Chart: dotted gridlines, no hard axis, a glass tooltip. */
 .usage-gridline {
   color: color-mix(in srgb, var(--foreground) 14%, transparent);
@@ -1354,24 +1372,29 @@ button.usage-legend:active {
   border-radius: 2px;
 }
 
-.usage-tooltip {
-  padding: 0.5rem 0.625rem;
-  border-radius: 0.75rem;
-  background-color: color-mix(in srgb, var(--popover) 88%, transparent);
-  background-image: var(--one-glass-sheen);
-  -webkit-backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturation, 1.4));
-  backdrop-filter: blur(var(--glass-blur, 16px)) saturate(var(--glass-saturation, 1.4));
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px var(--usage-hairline),
-    var(--one-glass-shadow);
+/* The chart tooltip is the shared Floating material (.m-floating on the element). */
+.usage-tooltip.m-floating {
+  /* The material sheet sets position: relative; the tooltip is placed by the plot. */
+  position: absolute;
 }
 
-/* The modal's bottom edge never slices a panel: the last two rems of the scroll area fade out. The
+.usage-tooltip {
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--m-radius-raised);
+}
+
+/* The modal's edges never slice a panel: the last two rems at the bottom and the first one and a
+   quarter at the top, under the header, fade out. The
    page keeps three rems of padding below its last panel, so at the end of the scroll nothing is
    faded. A mask, so it works on whatever material the modal has. */
 .usage-scroll [data-slot="scroll-area-viewport"] {
-  mask-image: linear-gradient(to bottom, rgb(0 0 0) calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(0 0 0) 1.25rem,
+    rgb(0 0 0) calc(100% - 2rem),
+    transparent
+  );
 }
 
 /* --------------------------------------------------------- reduced motion */

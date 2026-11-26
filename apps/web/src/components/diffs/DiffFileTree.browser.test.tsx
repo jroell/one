@@ -5,6 +5,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../../test/render";
 import { DiffFileTree, type DiffFileTreeEntry } from "./DiffFileTree";
+import { compareReviewFiles } from "./reviewFileOrder";
 
 const FOLDERS = 300;
 
@@ -80,4 +81,34 @@ it("reveals a changed file at the bottom of a long list on the 44px rows a touch
   expect(Math.round(rowRect.height)).toBe(44);
   expect(rowRect.top).toBeGreaterThanOrEqual(hostRect.top);
   expect(rowRect.bottom).toBeLessThanOrEqual(hostRect.bottom);
+});
+
+it("lists files in the order the review list uses, keeping a folder's subtree together", async () => {
+  const listed = [
+    { path: "a/root.ts" },
+    { path: "a-b/ext.ts" },
+    { path: "a/sub/part.ts" },
+    { path: "a/zeta.png", binary: true },
+    { path: "z.ts" },
+  ].toSorted(compareReviewFiles);
+  const entries: DiffFileTreeEntry[] = listed.map((file) => ({
+    path: file.path,
+    status: "modified" as const,
+  }));
+  await using screen = await render(
+    <div className="flex h-[600px] flex-col">
+      <DiffFileTree entries={entries} onSelectFile={() => {}} ariaLabel="Changed files" />
+    </div>,
+  );
+  await expect.element(page.getByRole("button", { name: "Collapse all folders" })).toBeVisible();
+  const visiblePaths = () =>
+    [...screen.container.querySelectorAll("file-tree-container")].flatMap((host) =>
+      [...(host.shadowRoot?.querySelectorAll("[data-item-path]") ?? [])].map(
+        (item) => item.getAttribute("data-item-path") ?? "",
+      ),
+    );
+  await vi.waitFor(() => expect(visiblePaths().length).toBeGreaterThanOrEqual(listed.length));
+  expect(visiblePaths().filter((path) => !path.endsWith("/"))).toEqual(
+    listed.map((file) => file.path),
+  );
 });

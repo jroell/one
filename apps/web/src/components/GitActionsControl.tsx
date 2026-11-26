@@ -60,6 +60,7 @@ import {
   type DefaultBranchConfirmableAction,
   requiresDefaultBranchConfirmation,
   resolveChangesTotals,
+  shortBaseRefName,
   resolveDefaultBranchActionDialogCopy,
   resolveFeatureBranchUnavailableReason,
   resolveGitActionProgressPresentation,
@@ -1114,6 +1115,12 @@ function CheckoutGitActionsControl({
       ? gt("Uncommitted")
       : gt("vs {ref}", { ref: resolvedChangesTotals.baseRef })
     : null;
+  // The row shows "vs main" for origin/main, so "Changes" and the counts keep their room; the
+  // tooltip names the full ref.
+  const changesBaseShortLabel =
+    resolvedChangesTotals && resolvedChangesTotals.baseRef !== null
+      ? gt("vs {ref}", { ref: shortBaseRefName(resolvedChangesTotals.baseRef) })
+      : changesBaseLabel;
 
   const allFiles = gitStatusForActions?.workingTree.files ?? [];
   // Changed-file paths are repository-relative, so they must resolve against
@@ -1740,7 +1747,7 @@ function CheckoutGitActionsControl({
                       <span className="pointer-events-auto min-w-0 truncate text-xs font-normal text-muted-foreground" />
                     }
                   >
-                    {changesBaseLabel}
+                    {changesBaseShortLabel}
                   </TooltipTrigger>
                   <TooltipPopup side="top" className="max-w-96 break-words">
                     {changesBaseLabel}

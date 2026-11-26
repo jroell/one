@@ -20,7 +20,37 @@ const TABLE_COPY_SERIALIZERS: Record<TableCopyFormat, (table: Element) => string
   html: serializeTableElementToHtml,
 };
 
-export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
+interface HastElementLike {
+  readonly type?: string;
+  readonly tagName?: string;
+  readonly children?: ReadonlyArray<HastElementLike>;
+}
+
+/** The body rows and columns of a table, read from its markdown node; null when it has none. */
+export function markdownTableShape(
+  node: HastElementLike | undefined,
+): { readonly rows: number; readonly columns: number } | null {
+  const sections = node?.children?.filter((child) => child.tagName !== undefined) ?? [];
+  const rows = sections
+    .filter((section) => section.tagName === "tbody")
+    .flatMap((section) => section.children ?? [])
+    .filter((row) => row.tagName === "tr");
+  const firstRow =
+    sections
+      .find((section) => section.tagName === "thead")
+      ?.children?.find((row) => row.tagName === "tr") ?? rows[0];
+  const columns = firstRow?.children?.filter((cell) => cell.tagName !== undefined).length ?? 0;
+  return rows.length === 0 || columns === 0 ? null : { rows: rows.length, columns };
+}
+
+export function MarkdownTable({
+  children,
+  shape = null,
+  ...props
+}: ComponentProps<"table"> & {
+  /** What the table holds, named in the Chat mode caption. */
+  shape?: { readonly rows: number; readonly columns: number } | null;
+}) {
   const gt = useGT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { copyToClipboard, isCopied: copied } = useCopyToClipboard<TableCopyFormat>({
@@ -53,6 +83,14 @@ export function MarkdownTable({ children, ...props }: ComponentProps<"table">) {
         <span className="font-mono text-2xs" data-one-table-label="">
           <T>Table</T>
         </span>
+        {shape ? (
+          <span data-one-table-caption="">
+            {gt(
+              "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}}",
+              { rows: shape.rows, columns: shape.columns },
+            )}
+          </span>
+        ) : null}
         <Menu>
           <Tooltip>
             <TooltipTrigger

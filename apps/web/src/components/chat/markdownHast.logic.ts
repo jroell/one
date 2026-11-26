@@ -40,3 +40,23 @@ export function hastHasText(node: unknown): boolean {
   }
   return "children" in node && Array.isArray(node.children) && node.children.some(hastHasText);
 }
+
+/**
+ * The alt text of a paragraph whose only content is one standalone image, which Chat mode sets
+ * as a figure with the alt text as its caption. Null for any other paragraph, or an image with no
+ * alt text.
+ */
+export function standaloneImageCaption(node: unknown): string | null {
+  if (!node || typeof node !== "object" || !("children" in node) || !Array.isArray(node.children)) {
+    return null;
+  }
+  const meaningful = node.children.filter(
+    (child) => !(child?.type === "text" && String(child.value ?? "").trim() === ""),
+  );
+  const only = meaningful.length === 1 ? meaningful[0] : undefined;
+  if (only?.type !== "element" || only.tagName !== "img") return null;
+  const properties = only.properties ?? {};
+  if (properties.dataStandalone !== true) return null;
+  const alt = typeof properties.alt === "string" ? properties.alt.trim() : "";
+  return alt === "" ? null : alt;
+}

@@ -1335,6 +1335,7 @@
   "aeac6844ac2cde59": "プレーンテキスト",
   "d1d2b3130458bf2e": "アセンブリ",
   "06ca993fa4236249": "何でも聞いてください。@ でファイル、$ でスキル、/ でコマンド",
+  "aeba94eb95d1e830": "Ask a question, or pick up where you left off",
   "279a7589a1c78b0d": "コンテキストメニュー",
   "54f1a9e3c9e146cd": "エディター",
   "c3b46a31a4d3999b": "エディターで開く",
@@ -3058,12 +3059,19 @@
   "6d5a8b471a561b9d": "エクスプローラー",
   "83a174f9e78fe2f1": "ファイル",
   "fce146a6bd6173bd": "さらに掘り下げる",
+  "aa5e640b0fd014cb": "Take one part further",
   "4def529d19f0f924": "次の内容を掘り下げる: ",
   "f2de87a0b2906a7f": "異論を唱える",
+  "3ca68011b267844b": "Argue the other side",
   "32b2fb0e9728bd32": "異論を唱える: 最も強い反論は何ですか？",
   "47b12601f025963b": "この内容のクイズ",
+  "4d451a4192c44561": "Check what stuck",
   "3d0345d24a470b3a": "今説明した内容についてクイズを出す。",
   "19c6f44bfe07caca": "追加で質問",
+  "7b36b1e20f45cd73": "{count, plural, one {# notice} other {# notices}}",
+  "d35c2361186042c2": "Copy notice text",
+  "d87a7a3437a8e831": "Technical details",
+  "0e37b16aca22c057": "Copy technical details",
   "4dd6d20188c210e0": "このチャット内",
   "e5428a0daffa236c": "ユーザーのメッセージ",
   "9dde9bab778ed74b": "入力を待っています",
@@ -3103,6 +3111,9 @@
   "2fec6c612b3462e5": "音声入力に時間がかかりすぎました",
   "b28b7c4b00e056b4": "質問は送信されませんでした",
   "27a15dd2215f7c53": "サイドチャットに送られたため、ここに読める返信はありません。",
+  "32480b586e418ebb": "The question was not accepted in time",
+  "c222847694b24020": "The question is held in the queue, so there is no reply to read yet",
+  "e9be2d987775606a": "The reply is no longer available",
   "5d32fb98898836be": "音声チャットを終了しました",
   "cd1b21f0df7848a5": "入力欄にメッセージが残っています。送信するか消去してから、もう一度開始してください。",
   "665dbd0a289b9b05": "音声入力が利用できなくなりました。音声設定を確認してから、もう一度開始してください。",
@@ -3124,6 +3135,10 @@
   "35cf31a65d66fe3e": "コード",
   "5a64d57e25033b96": "チャット",
   "ee9c314794aef79a": "ワークスペースモード",
+  "f73f6d51f1990d68": "{count, plural, one {Used # tool} other {Used # tools}} · {duration}",
+  "4c3c9fecf3fb310b": "{count, plural, one {Used # tool} other {Used # tools}}",
+  "4c36ab712143ad31": "Thought for {duration}",
+  "6f8651e48261911a": "思考",
   "a52dae3815612511": "先に下書きを送信するか消去してください",
   "e9c7a57ae9a3057f": "音声チャットは話した内容だけを送信し、下書きは含めません。",
   "bdaf2c9cd3557fdd": "音声チャットには文字起こしの提供元が必要です",
@@ -3877,6 +3892,7 @@
   "3a04583c8500e23d": "図を表示",
   "16d64f650840fe06": "コードを表示",
   "6d329f7d3a50c7e7": "表をコピー",
+  "b383b1abecca9f8a": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}}",
   "ce1c91994281ac47": "表",
   "6c71d251d9917587": "Markdown としてコピー",
   "d510b122f84051a0": "CSV としてコピー",
@@ -3947,7 +3963,6 @@
   ],
   "9bbecec926c3b695": "再試行",
   "4fd8927b7afc2a92": "メッセージをコピー",
-  "6f8651e48261911a": "思考",
   "ac511f991a3c1fab": "Web 検索",
   "07e65dba2b16d3f7": "{count, plural, other {{path} と他 {count} 件}}",
   "dc8ddcad32e2a50c": "{program} を実行中",
@@ -4531,19 +4546,33 @@
   "f7e17fa98210e03d": "ファイルをドロップして添付",
   "05d9e1b5134052c8": "末尾までスクロール",
   "ea106dd9877652ac": "コマンドの承認",
+  "7ebc6d764e5b8fe8": "Run command",
   "5f71f03e4a9b734f": "コマンド",
   "882dff85e7998aa7": "ファイル変更の承認",
+  "0116d222ffa20a24": "Edit files",
   "5fcd6fa0ef3960d1": "ファイルの変更",
   "943e402c16c83a27": "ファイル読み取りの承認",
   "d6b95eb6b123f050": "読み取るファイル",
   "3e32c211b85e5c2f": "アプリの権限の承認",
+  "77cfb734fc38eb96": "App permission",
   "e4e5cb6ab610e37d": "権限のリクエスト",
   "9243d7a2b22d5f3d": "アプリのアクセスの承認",
+  "e1780e5cad37fbc0": "App access",
   "847e5019e2ff249d": "アプリのアクセスのリクエスト",
   "74c0eda939734d7b": "+{additions} −{deletions}",
   "154a4fa849d9891f": "{count, plural, one {ほか {count} 件のファイル} other {ほか {count} 件のファイル}}",
-  "f41e28af25aee2b7": "プレビューを変更",
+  "925acae0d05bbdbc": "Added line",
+  "4c9de9002af25e7b": "Added line {number}",
+  "7e8f6b1936deddad": "Removed line",
+  "3f4a807afffaabdb": "Removed line {number}",
+  "3a567477488db883": "Unchanged line",
+  "14cc19a7b6bede7c": "Unchanged line {number}",
+  "d83cc534e56928f7": "Recorded line",
   "a6ef358f3e49fce5": "{count, plural, one {ほか {count} 行} other {ほか {count} 行}}",
+  "f41e28af25aee2b7": "プレビューを変更",
+  "f5b66c481aa3e4df": "編集",
+  "b725c61c6d7808ab": "Loading preview…",
+  "48cc07d45e27a5b6": "Couldn't load the preview.",
   "254937775868a979": "差分全体を表示",
   "c92657bb7f2293ff": "承認が必要",
   "b7419ed1c775db7e": "プロバイダーのプロセスが終了しています。応答するには実行を中断または再起動してください。",
@@ -4577,6 +4606,7 @@
   "c6e000ea79ae6a2b": "{status, select, inProgress {スレッド「{title}」を読み取っています} completed {スレッド「{title}」を読み取りました} failed {スレッド「{title}」を読み取れませんでした} declined {スレッド「{title}」の読み取りは拒否されました} stopped {スレッド「{title}」の読み取りを中止しました} other {スレッド「{title}」を読み取っています}}",
   "93435595c79fd659": "使用量の上限に達しました。{resetTime} 以降に再試行してください。",
   "5a2d803b3ea43f18": "使用量の上限に達しました。",
+  "f458107b0c538491": "This turn stopped before it could answer.",
   "1afc4f46bc0675aa": "{label}、ツール呼び出しに失敗しました",
   "e05d1bee2862c2be": "ツール呼び出しに失敗しました",
   "ce591b4de647ecda": "{title} を開く",
@@ -7781,6 +7811,8 @@
   "b7406be04f4d7735": "まだ接続されていません。",
   "595a1c9d5f762fef": "クライアントのスコープ",
   "1e2d7d617ac0d4ff": "ほかのすべてのクライアントからサインアウトしますか？",
+  "f734c6a587809145": "Revoking other clients…",
+  "6043b58d9037a504": "Other clients signed out.",
   "b76eda9aa9bec002": "他をすべて取り消す",
   "06ec30a199134db1": "ペアリング URL を作成できませんでした。",
   "79b1490795e4c205": "ペアリング URL を作成できませんでした",
@@ -8333,7 +8365,7 @@
   "9bfddd9a835be5de": "サーバー",
   "43b545c01503eee4": "更新を再試行",
   "2f015e6d5459dce9": "{version} に更新",
-  "8ebba639f92932c3": "他のデバイスがこのマシンのローカルサーバーを開けるようにします：デバイス上で読み込むブラウザタブ、「このデバイスで開く」、ポートフォワーディング。オフ：ブラウザタブはこのマシンからストリーミングされます。",
+  "0415c64c8c250262": "Lets other devices reach this machine's local servers: browser tabs loaded on the device, the “Open on this device” action, and port forwarding. When off, browser tabs stream from this machine.",
   "1c5266bf18d0ed24": "プレビュートンネルを許可",
   "a0e93cca71d0417e": "承認済みクライアント",
   "03b9501ae07b5cf3": "ネットワークアクセスを有効にしますか？",
@@ -8506,11 +8538,11 @@
   "0c99fa183ed512e8": "{platform} は一部で利用可能",
   "e6886a7f77b73a8e": "{platform} は利用不可",
   "b0b7610d9860d18d": "このマシンでは未設定です。",
-  "f5b66c481aa3e4df": "編集",
   "3b20ef0670ae4b0b": "SSH 経由のマシン",
   "121ccffacb6b8c6d": "Expo Simulators",
   "130b55a1410a8030": "Simlock プール (アルファ版)",
   "b0537628ad92ed53": "未確認",
+  "ff7d5cdc159712f0": "Check now",
   "46b5cfb18a8ce12c": "トレース ID をコピーする際にクリップボード API を利用できませんでした。",
   "3c3bf5c85bacf2ab": "トレース ID をクリップボードにコピーできませんでした。",
   "1533ba0027a59b0d": "サブプロセス",
@@ -8725,6 +8757,7 @@
   "c7204ac4bc869129": "リンクはオフです",
   "05eace0be7b01519": "リンクを読み取れません",
   "6a34b35812bb4ad0": "{count, plural, =0 {外向きのリンクなし} other {外向きのリンク # 件}}",
+  "d93f885fbb896882": "Links unknown",
   "5d252c8bbc3b24d0": "{status}。リンクは不明",
   "ec2c609c028d63b4": "{label} を別のマシンにリンク",
   "0a72d33781010657": "これにはリンクできません",
@@ -9085,28 +9118,28 @@
   "9ae293971d93c819": "スレッドをゲストと共有します。ゲストはブラウザーでライブで閲覧し、あなたが承認したメッセージを送信できます。ゲストリンクを使うには T3 Connect にサインインしてください。",
   "0aa5406ac4d7f7c7": "ゲストリンク",
   "f0e853acd2006d53": "リンクされた環境",
-  "d7a7b21d3120e7eb": "このサーバーの One データフォルダー内の workflows フォルダーにあるファイルから、複数ステップのワークフローを実行します。コマンドパレットから開けます。オフの間は、このフォルダー内の内容は一切実行されず、オンに戻るまで実行は待機します。",
+  "dd6d216a060fe314": "Run workflows from the files in this server's workflows folder, and start them from the command palette. While this is off, nothing in that folder runs.",
   "2dadb2359422121c": "ワークフロー",
-  "933dabf0700708af": "各ワークフローが履歴に残すスキップされた実行の数です。古いスキップされた実行は削除されます。何かを行った実行は常に残ります。",
+  "1b4b2498010f3e0b": "How many skipped runs each workflow keeps in its history. Older skipped runs are deleted. Runs that did something are always kept.",
   "f172d7e5deb24f75": "保持するスキップされた実行をデフォルトに戻す",
   "ba94015389f327bc": "保持するスキップされた実行",
   "d52b3d6bf9f2a013": "混在",
-  "13e86eb5d8287a71": "Claude または Codex のターンの後、空の入力欄に次のメッセージの予測を表示します。Tab で使用します。毎回、プランでキャッシュされたリクエストが 1 つ追加されます。Codex 0.165 以降が必要です。Claude のスレッドは再起動時に更新されます。",
+  "3fd0ed740164a8d8": "After a Claude or Codex turn, show a predicted next message in the empty composer; Tab uses it. Each prediction is one extra request on your plan. Codex needs version 0.165 or newer, and Claude threads update after a restart.",
   "d4b2a2ec812aafb0": "次のプロンプトを提案",
   "298c7150a7621c80": "Simlock デバイスホスト",
-  "0a72f495c410ff7b": "Mac では、すべてのファイルを書き込む代わりに、One のデータフォルダーにキャッシュされたチェックアウトから新しいワークツリーを複製します。それができない場合は、通常の Git チェックアウトを使用します。オフにするとキャッシュは削除されます。",
+  "86ad8d15ce5ca1d9": "On a Mac, make new worktrees from a cached checkout instead of writing every file. Git’s normal checkout is used when that is not possible. Turning this off deletes the cache.",
   "f9904f78d3003f58": "高速ワークツリーチェックアウト",
   "9c2f647882522302": "選択したマシンでは、エージェントのフィードバックモードが異なります。",
   "31bbf7bf8c0a5279": "エージェントのフィードバック",
-  "ec7623deed751c05": [
-    "スレッドをゲストと共有します。ゲストはブラウザーでライブで閲覧し、あなたが承認したメッセージを送信できます。T3 Connect が必要です。サインインして、",
+  "c2ea271e877635fd": [
+    "Let a guest watch a thread live in a browser and send messages you approve. Needs T3 Connect: sign in and link this machine in",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "共有とアクセス"
+      "c": "Sharing & access"
     },
-    " でこのマシンをリンクしてください。オフにするとすべてのゲストリンクが停止します。"
+    ". Turning it off stops every guest link."
   ],
   "f20f2bcc7ecb43f7": [
     "ここのエージェントを他のマシンで動かし、他のマシンのエージェントをここで使えるようにします。マシンごとにオンにしてから、",
@@ -9711,6 +9744,7 @@
   "25617239c4886378": "認証リクエストの期限が切れました。",
   "1bc94053b36b3f40": "{provider} を更新できませんでした",
   "5b39dc5c8173ee94": "プロバイダーの更新コマンドを開始できませんでした。",
+  "eff995b7ae17d6a7": "Its account, setup, runtime and models on this device.",
   "53e1e3591fc1abc9": "プロバイダーのインスタンスを更新できませんでした",
   "6c5e88b695801eaf": "{provider} プロバイダーのインスタンスを削除しますか？",
   "faa86f453684649b": "インスタンスを削除",
@@ -9902,7 +9936,7 @@
   "ca04162de1fbce83": "テレメトリのスナップショットを更新",
   "1cf45bdf49862933": "One のシステム負荷",
   "68adbf70a881158a": "サーバー、プロバイダー、ターミナル、デスクトッププロセス、モニター自体のネイティブカウンターをリアルタイムで表示します。",
-  "a08a53b74f9f7771": "CPU の速度上限は報告されていません",
+  "ac722266d1177551": "This machine does not report a CPU speed limit.",
   "d8aa38c63052c605": "モニターを再試行",
   "1486685f8451aff4": "ホストの状態",
   "2b6bbe7a4156f7e9": "デスクトップホストのシグナルが接続されていません",
@@ -10182,7 +10216,7 @@
   "4d12d2e6d168fdb5": "{label} の参照",
   "f7b9aef971c1ce37": "{label} を確認",
   "3e3cabe47b0b5c07": "音声 · {provider}",
-  "cd90b098a17bca20": "シークレットプロバイダーが設定されていません。",
+  "05c3b599a392ef5e": "No secret providers configured",
   "1c9374501ee389d3": "1Password アカウントを追加してから、プロバイダー変数のソースとして選択してください。",
   "382541febe15f472": "アカウントの表示を切り替え",
   "40426afd511710f8": "未対応のプロバイダー ({kind})",
@@ -10300,6 +10334,8 @@
   "7e8c995646a967d3": "即時",
   "51497bd401292062": "長押し",
   "9d6cc6ac23312071": "2 回押し",
+  "8b8bcca65136dd08": "Serif",
+  "16c68207ea28422f": "Sans-serif",
   "f001fa7b329c8fbf": "成功したものを非表示",
   "ad208e3e32c85029": "すべて非表示",
   "c80e4bb3201efd71": "Zen",
@@ -10414,6 +10450,9 @@
   "f8062ccf65d4bb2a": "サイドパネル",
   "a8072bdf7ae4a288": "メインビュー",
   "162108e16ed96771": "スクリーンリーダー",
+  "44dab868852d985e": "The face answers are set in while you are in Chat mode. Code mode always uses the interface face.",
+  "3943fcc2672c66ed": "Reset the reading face to default",
+  "58516bf37aa18815": "Reading face",
   "865503beaf01b140": "エージェントが実行するコマンド、編集、検索を非表示にします。成功した呼び出しは非表示にし、失敗は残します。Zen では最終回答だけを表示します。承認、質問、エラーは常に表示されます。",
   "5848a9c1d77f45b2": "チャット内のツール呼び出しをデフォルトにリセット",
   "8cf1b5b0cc0dc218": "開いているスレッドについてスクリーンリーダーが読み上げる内容です。ターンの開始、対応が必要なとき、終了を読み上げます。「ステータスとメッセージ」では、エージェントが最後のメッセージの前に書いた内容も読み上げます。「すべて」では各ステップも読み上げます。",
@@ -10653,90 +10692,6 @@
           "t": "span",
           "i": 5,
           "c": "に適用中"
-        }
-      ]
-    }
-  ],
-  "fc2262bcc4a2e4f0": [
-    {
-      "t": "span",
-      "i": 1,
-      "c": [
-        {
-          "i": 3,
-          "k": "_gt_value_3",
-          "v": "v"
-        },
-        {
-          "t": "span",
-          "i": 2,
-          "c": "の設定を"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 4,
-      "c": [
-        {
-          "i": 6,
-          "k": "_gt_value_6",
-          "v": "v"
-        },
-        {
-          "t": "span",
-          "i": 5,
-          "c": "全体の"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 7,
-      "c": [
-        {
-          "i": 9,
-          "k": "_gt_value_9",
-          "v": "v"
-        },
-        {
-          "t": "span",
-          "i": 8,
-          "c": "に適用中"
-        }
-      ]
-    }
-  ],
-  "86d52b318b1a3e7a": [
-    {
-      "t": "span",
-      "i": 1,
-      "c": [
-        {
-          "i": 3,
-          "k": "_gt_value_3",
-          "v": "v"
-        },
-        {
-          "t": "span",
-          "i": 2,
-          "c": "の設定を"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 4,
-      "c": [
-        {
-          "i": 6,
-          "k": "_gt_value_6",
-          "v": "v"
-        },
-        {
-          "t": "span",
-          "i": 5,
-          "c": "全体に適用中"
         }
       ]
     }
@@ -11827,7 +11782,7 @@
     },
     " に切り替え"
   ],
-  "39f64d971ba424b5": "使用量ソースが設定されていません。",
+  "879232144b2646c6": "No usage sources configured",
   "31723a5ee9fd5a09": "別のサービス（共有プロキシなど）の割り当てを表示するには、ハブまたは HTTP ソースを追加します。",
   "dbd877abdc2c7c81": "HTTP クォータソース",
   "4cf6a373a7535324": "{name} · 無効",
@@ -11935,6 +11890,7 @@
   "d4b59565bd8b6d07": "英語に翻訳",
   "0d88a0c771d98284": "どの言語で話しても英語のテキストになります。",
   "f4a8700049fc9dcc": "無音のフィルタリング",
+  "cdae20b02f761cc1": "Choose where to transcribe to change this.",
   "69558ed7b83d671e": "Apple Speech が無音を自動で処理します。",
   "f22b17f6731c14c0": "OpenAI が無音を独自に処理します。",
   "75a3001ae4561b97": "文字起こしの前に無音と背景ノイズをスキップします。",
@@ -12160,6 +12116,8 @@
   "54a82cff8138c33c": "ベータ シンプル フォルダー プロジェクトツリー クラシック サイドバー",
   "de42c4690914cee4": "ベータ シンプルなサイドバー フォルダー 行 複数行 ブランチ プルリクエスト 詳細 beta boring sidebar",
   "8f71bc7c325e23e3": "非表示 ツール呼び出し コマンド 編集 検索 作業ログ アクティビティ 静か チャット zen 最終回答のみ tool calls",
+  "42ca4f29a93c221b": "Reading face in Chat mode",
+  "90bed95f8d143d05": "serif sans typeface font answers reading text book",
   "5a3af411a0d5354c": "アクセシビリティ a11y スクリーンリーダー NVDA JAWS VoiceOver Orca ナレーター 音声 読み上げ メッセージ アクティビティ ステップ accessibility",
   "d443390c4d2dcfd4": "アクセシビリティ a11y スクリーンリーダー NVDA JAWS VoiceOver Orca ナレーター ウィンドウタイトル タブタイトル Alt+Tab タスクバー スレッド ステータス 順序 作業中 承認 accessibility",
   "6826fa9579c22035": "ベータ 共有 ゲスト 招待 リンク チームメイト 閲覧 T3 Connect トンネル beta share guest",
@@ -12553,6 +12511,7 @@
   "a9b66b244a71f217": "エラーメッセージをクリップボードにコピーできませんでした。",
   "35062fc45c2b1216": "エラーをコピーしました",
   "63790659557f315e": "詳細を表示",
+  "8bb0349ba69157aa": "{count} more notifications",
   "7423eb22b2f1768f": "通知",
   "dea3a2118378111b": "通知を閉じる",
   "c6cf1b06e0433ca3": "セットアップの進行状況",
@@ -12711,6 +12670,8 @@
   "d89ad31bf0aebe92": "時間",
   "5e2236ccf9b5ffba": "日",
   "c400ae5f6f27b81d": "時間別の使用量の内訳",
+  "fe50d1004835a750": "No price is known for this model, so its cost is left out of the estimate.",
+  "868155717d7538b8": "It looks like {name}, which is recorded under its plain name.",
   "8d2a69e65d453cce": "文字起こしディレクトリを共有する環境間では 1 回だけカウントされます: {sources}",
   "0f3b14055f7bba6f": "{count, plural, other {{count} 個の環境}}",
   "9b84232a3f71dae1": "一部の環境で使用量を報告できませんでした",
@@ -12735,11 +12696,12 @@
   "b3481abb98960bd9": "合計",
   "8a86175b5560c0b4": "内訳",
   "f144193ca84271f5": "コスト",
-  "fc41173bcd7495a4": "割合",
   "b4ae29a86f8a6ade": "トークン",
+  "fc41173bcd7495a4": "割合",
   "49c4cd88ca4d260a": "この期間にアクティビティはありません。",
-  "0a492183a4c7bb3d": "価格不明",
+  "df9631f20b380006": "Unpriced: no price is known for these models, so their cost is not in the estimate.",
   "7853bd9e23f25bb6": "合計",
+  "0a492183a4c7bb3d": "価格不明",
   "873ae13250e5bc5c": "すべての環境",
   "e051bdc6c63a0b4b": "接続されている環境はありません。",
   "b11af3f3da3d494e": "選択した環境のスキャン中は、合計は一部のみです。",

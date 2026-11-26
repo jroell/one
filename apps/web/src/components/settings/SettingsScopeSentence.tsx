@@ -166,7 +166,7 @@ export function SettingsScopeSentence() {
             <Var>{project}</Var>
           </span>
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0">across</span>
+            <span className="shrink-0">on</span>
             <Var>{environment}</Var>
           </span>
           <span className="flex min-w-0 items-center gap-1.5">
@@ -181,7 +181,7 @@ export function SettingsScopeSentence() {
             <Var>{project}</Var>
           </span>
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0">across</span>
+            <span className="shrink-0">on</span>
             <Var>{environment}</Var>
           </span>
         </T>

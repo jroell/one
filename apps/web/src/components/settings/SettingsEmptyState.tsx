@@ -29,13 +29,15 @@ export function SettingsEmptyState({
   readonly className?: string;
 }) {
   return (
-    <Empty data-settings-empty="" className={cn("min-h-64", className)}>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">{icon}</EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
-      </EmptyHeader>
-      {action ? <EmptyContent>{action}</EmptyContent> : null}
-    </Empty>
+    <div data-settings-empty-card="" className="m-raised">
+      <Empty data-settings-empty="" className={cn("min-h-64", className)}>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">{icon}</EmptyMedia>
+          <EmptyTitle>{title}</EmptyTitle>
+          <EmptyDescription>{description}</EmptyDescription>
+        </EmptyHeader>
+        {action ? <EmptyContent>{action}</EmptyContent> : null}
+      </Empty>
+    </div>
   );
 }

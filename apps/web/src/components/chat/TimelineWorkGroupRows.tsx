@@ -63,7 +63,8 @@ import {
   workEntryIconName,
 } from "./TimelineWorkEntryRow.logic";
 import { formatWorkingTimerNow } from "./TimelineWorkGroupRows.logic";
-import { OneMark } from "~/one/OneMark";
+import { OneGlyph } from "~/one/OneGlyph";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 
 export const WorkGroupSection = memo(function WorkGroupSection({
   anchorKey,
@@ -354,7 +355,9 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
   const { isCompacting, isPreparingWorktree, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
   const compacting = row.compacting === true || isCompacting;
-  const shimmer = isPreparingWorktree || compacting;
+  // Code mode marks a running turn with the shimmering line alone: no ring and no rule under it.
+  const chatMode = useWorkspaceMode() === "chat";
+  const shimmer = isPreparingWorktree || compacting || !chatMode;
   const label = isPreparingWorktree ? (
     <T>Setting up worktree…</T>
   ) : compacting ? (
@@ -367,11 +370,13 @@ export function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: 
     <T>Working...</T>
   );
   return (
-    <div className="border-b border-border/60 pb-2 pt-1">
+    <div className={cn("pb-2 pt-1", chatMode && "border-b border-border/60")}>
       <div className="flex h-6 min-w-0 items-center gap-2 px-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        <span aria-hidden="true" className="one-working-mark">
-          <OneMark className="size-5" />
-        </span>
+        {chatMode ? (
+          <span aria-hidden="true" className="one-working-mark">
+            <OneGlyph size={16} />
+          </span>
+        ) : null}
         <span
           ref={shimmer ? observeVisibleAnimation : undefined}
           className="relative shrink-0 overflow-hidden whitespace-nowrap"
@@ -477,7 +482,6 @@ export function ThinkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind:
         )
       }
       active={live}
-      shimmer={live}
     />
   );
   const { groupId } = row;
@@ -501,7 +505,6 @@ function LiveActivityRow({
   toolIcon,
   failed = false,
   active = false,
-  shimmer = false,
 }: {
   label: ReactNode;
   iconName?: WorkEntryIconName;
@@ -510,13 +513,11 @@ function LiveActivityRow({
   toolIcon?: ToolActivityIcon | undefined;
   failed?: boolean;
   active?: boolean;
-  shimmer?: boolean;
 }) {
-  const animated = active && !failed;
-  const showShimmer = animated && shimmer;
+  const showShimmer = active && !failed;
   return (
     <div
-      ref={animated ? observeVisibleAnimation : undefined}
+      ref={showShimmer ? observeVisibleAnimation : undefined}
       className="relative min-h-6 w-fit max-w-full min-w-0 overflow-hidden rounded-md text-sm leading-relaxed"
     >
       <LiveActivityContent
@@ -526,7 +527,6 @@ function LiveActivityRow({
         toolIcon={toolIcon}
         failed={failed}
         announceFailure={failed}
-        active={animated && !shimmer}
       />
       {showShimmer ? (
         <ActivityShimmerOverlay>
@@ -550,7 +550,6 @@ function LiveActivityContent({
   toolIcon,
   failed = false,
   announceFailure = false,
-  active = false,
   highlighted = false,
 }: {
   label: ReactNode;
@@ -559,7 +558,6 @@ function LiveActivityContent({
   toolIcon?: ToolActivityIcon | undefined;
   failed?: boolean;
   announceFailure?: boolean;
-  active?: boolean;
   highlighted?: boolean;
 }) {
   const gt = useGT();
@@ -596,15 +594,7 @@ function LiveActivityContent({
         ) : null
       }
       label={
-        <span
-          className={cn(
-            "block truncate",
-            highlighted && "text-foreground",
-            active && "live-tool-shine",
-          )}
-        >
-          {label}
-        </span>
+        <span className={cn("block truncate", highlighted && "text-foreground")}>{label}</span>
       }
       trailing={
         showTrailingFailureMark ? (

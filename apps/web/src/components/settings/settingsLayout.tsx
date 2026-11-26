@@ -255,15 +255,18 @@ export function SettingsSection({
   // A title that only repeats the page's is left to screen readers; an icon makes it a label.
   const repeatsPageTitle = title === useContext(SettingsPageTitleContext) && !icon;
 
+  // A title that only repeats the page's, with nothing beside it, leaves no header row: the page's
+  // own header sits directly above the first panel, as on every other page.
+  const bare = hideTitle || (repeatsPageTitle && !titleAction && !headerAction);
   return (
     <section
       {...sectionProps}
       ref={targetRef}
       data-settings-block=""
       tabIndex={sectionProps.id ? -1 : sectionProps.tabIndex}
-      className={cn(!hideTitle && "space-y-2.5", className)}
+      className={cn(!bare && "space-y-2.5", className)}
     >
-      {hideTitle ? (
+      {bare ? (
         <h2 className="sr-only">{title}</h2>
       ) : (
         <div
@@ -289,7 +292,7 @@ export function SettingsSection({
           ) : null}
         </div>
       )}
-      <SettingsGroup data-settings-scroll-target={hideTitle ? "" : undefined} variant={variant}>
+      <SettingsGroup data-settings-scroll-target={bare ? "" : undefined} variant={variant}>
         {children}
       </SettingsGroup>
     </section>

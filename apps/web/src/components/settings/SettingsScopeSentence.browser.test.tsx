@@ -33,4 +33,20 @@ describe("settings scope bar", () => {
     await using opened = await render(<SettingsScopeSentence />, { router: "/settings/projects" });
     expect(opened.container.querySelector("[data-settings-scope]")).not.toBeNull();
   });
+
+  it('words the bar on every page as a verb, the project, then "on" the environment', async () => {
+    scopeState.project = undefined;
+    await using settings = await render(<SettingsScopeSentence />, { router: "/settings/voice" });
+    const text = settings.container.querySelector("[data-settings-scope]")!.textContent!;
+    expect(text).toMatch(/^Applying settings for.*on/);
+    expect(text).not.toContain("across");
+    await settings.unmount();
+
+    await using filter = await render(<SettingsScopeSentence />, {
+      router: "/settings/diagnostics",
+    });
+    expect(filter.container.querySelector("[data-settings-scope]")!.textContent).toMatch(
+      /^Showing.*on/,
+    );
+  });
 });

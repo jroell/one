@@ -103,7 +103,16 @@ async function renderTimeline(props: TimelineProps) {
  * A running or finished turn with one file read. `approval` adds the request that
  * waits on the person, matched to a pending approval on the timeline.
  */
-function turnFixture({ approval, finished }: { approval: boolean; finished: boolean }) {
+function turnFixture({
+  approval,
+  finished,
+  work: workKind = "tool",
+}: {
+  approval: boolean;
+  finished: boolean;
+  /** "reasoning" swaps the file read for the agent's reasoning, so no tool ran. */
+  work?: "tool" | "reasoning";
+}) {
   const fixture = makeStreamingTimelineFixture();
   const [, , , user, work, assistant] = fixture.visibleTurnItems;
   if (user?.item.type !== "user_message" || work?.item.type !== "dynamic_tool") {
@@ -138,9 +147,18 @@ function turnFixture({ approval, finished }: { approval: boolean; finished: bool
     ...assistant,
     item: { ...assistant.item, text: "The file is short.", streaming: false, status: "completed" },
   } as typeof assistant;
+  const reasoning = {
+    ...work,
+    item: {
+      ...work.item,
+      type: "reasoning" as const,
+      text: "I should check the file before I answer.",
+      streaming: false,
+    },
+  };
   const visibleTurnItems = [
     user,
-    work,
+    workKind === "reasoning" ? reasoning : work,
     ...(approval ? [approvalRow] : []),
     ...(finished ? [answer] : []),
   ];
@@ -160,7 +178,7 @@ function turnFixture({ approval, finished }: { approval: boolean; finished: bool
   };
 }
 
-it("Chat mode folds a finished turn's tool rows behind one Worked for line that opens to the rows", async () => {
+it("Chat mode hides a finished turn's tool rows behind one quiet Used 1 tool line that opens to the rows", async () => {
   using _mode = inMode("chat");
   const turn = turnFixture({ approval: false, finished: true });
   await using screen = await renderTimeline({
@@ -169,7 +187,7 @@ it("Chat mode folds a finished turn's tool rows behind one Worked for line that 
     latestRun: turn.latestRun,
   });
 
-  const disclosure = screen.getByRole("button", { name: /^Worked for/ });
+  const disclosure = screen.getByRole("button", { name: /^Used 1 tool/ });
   await expect.element(disclosure).toHaveAttribute("aria-expanded", "false");
   expect(screen.container.querySelectorAll('[data-timeline-row-kind="turn-fold"]')).toHaveLength(1);
   expect(screen.container.textContent).not.toContain("index.ts");
@@ -177,6 +195,47 @@ it("Chat mode folds a finished turn's tool rows behind one Worked for line that 
   await disclosure.click();
   await expect.element(disclosure).toHaveAttribute("aria-expanded", "true");
   await expect.element(screen.getByText(/index\.ts/).first()).toBeVisible();
+});
+
+it("Chat mode names a finished turn that only reasoned Thought for its time, and Code mode keeps Worked for", async () => {
+  const turn = turnFixture({ approval: false, finished: true, work: "reasoning" });
+  const props = { ...baseProps(), timelineEntries: turn.entries, latestRun: turn.latestRun };
+  {
+    using _mode = inMode("chat");
+    await using screen = await renderTimeline(props);
+    await expect.element(screen.getByRole("button", { name: /^Thought for/ })).toBeVisible();
+    expect(screen.container.textContent).not.toContain("Worked for");
+  }
+  {
+    using _mode = inMode("code");
+    await using screen = await renderTimeline(props);
+    await expect.element(screen.getByRole("button", { name: /^Worked for/ })).toBeVisible();
+  }
+});
+
+it("Chat mode sets opened reasoning small and quiet, never the size of the answer", async () => {
+  using _mode = inMode("chat");
+  const turn = turnFixture({ approval: false, finished: true, work: "reasoning" });
+  await using screen = await renderTimeline({
+    ...baseProps(),
+    timelineEntries: turn.entries,
+    latestRun: turn.latestRun,
+  });
+  await screen.getByRole("button", { name: /^Thought for/ }).click();
+  await screen.getByText("I should check the file before I answer.").first().click();
+  const reasoning = await vi.waitFor(() => {
+    const element = screen.container.querySelector<HTMLElement>(
+      "[data-one-work-details] .chat-markdown",
+    );
+    expect(element).not.toBeNull();
+    return element!;
+  });
+  const answer = screen.container.querySelector<HTMLElement>(
+    '[data-message-role="assistant"] .chat-markdown',
+  )!;
+  expect(Number.parseFloat(getComputedStyle(reasoning).fontSize)).toBe(14);
+  expect(Number.parseFloat(getComputedStyle(answer).fontSize)).toBe(18);
+  expect(getComputedStyle(reasoning).color).not.toBe(getComputedStyle(answer).color);
 });
 
 it("Chat mode hides a running turn's tool rows and keeps its approval request actionable", async () => {
@@ -365,6 +424,128 @@ it.each([
     }
   },
 );
+
+/**
+ * The conversation pane as ChatView lays it out: the timeline fills it, and the composer's dock
+ * floats over its bottom edge, as tall as `dockHeight`, with the composer inside it.
+ */
+function dockedScene(
+  props: TimelineProps,
+  { dockHeight, scrollAway }: { dockHeight: number; scrollAway: boolean },
+) {
+  return (
+    <div style={{ position: "relative", height: 700, width: 1184 }}>
+      <MessagesTimeline {...props} contentInsetEndAdjustment={dockHeight} />
+      <div
+        data-chat-composer-overlay="true"
+        data-composer-dock=""
+        data-scroll-to-end-shown={scrollAway ? "" : undefined}
+        style={{
+          position: "absolute",
+          insetInline: 0,
+          bottom: 0,
+          zIndex: 20,
+          height: dockHeight,
+          paddingTop: 8,
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          data-testid="composer"
+          style={{ margin: "0 auto", width: 688, height: dockHeight - 28 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+const LONG_ANSWER = Array.from(
+  { length: 40 },
+  (_, index) => `Paragraph ${index + 1} of a long answer, set at reading size.`,
+).join("\n\n");
+
+it("Chat mode rests the last line of a long answer at least 24px above the composer's top edge", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const props = {
+    ...baseProps(),
+    timelineEntries: [
+      message("ask", "user", "Tell me more"),
+      message("answer", "assistant", LONG_ANSWER),
+    ],
+  };
+  await using screen = await render(dockedScene(props, { dockHeight: 140, scrollAway: false }));
+  const scroller = await vi.waitFor(() => {
+    const element = screen.container.querySelector<HTMLElement>(".messages-timeline-scroll");
+    expect(element).not.toBeNull();
+    return element!;
+  });
+  await vi.waitFor(() => {
+    scroller.scrollTop = scroller.scrollHeight;
+    expect(scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop).toBeLessThanOrEqual(
+      1,
+    );
+  });
+  const composerTop = screen.getByTestId("composer").element().getBoundingClientRect().top;
+  const paragraphs = screen.container.querySelectorAll<HTMLElement>(".chat-markdown > p");
+  const lastLine = paragraphs[paragraphs.length - 1]!.getBoundingClientRect();
+  expect(lastLine.bottom).toBeLessThanOrEqual(composerTop - 24);
+});
+
+it("Chat mode's dock is opaque to the window's edge, and gains a fade and a clear pill band only while scrolled away", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const props = {
+    ...baseProps(),
+    timelineEntries: [
+      message("ask", "user", "Tell me more"),
+      message("answer", "assistant", LONG_ANSWER),
+    ],
+  };
+  const dockOf = (screen: { container: HTMLElement }) =>
+    screen.container.querySelector<HTMLElement>("[data-chat-composer-overlay]")!;
+  {
+    await using atEnd = await render(dockedScene(props, { dockHeight: 140, scrollAway: false }));
+    const dock = dockOf(atEnd);
+    // The dock's own layer is solid, so no line of the answer shows beside or under the composer.
+    const solid = getComputedStyle(dock, "::before");
+    expect(solid.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(solid.position).toBe("absolute");
+    expect(getComputedStyle(dock, "::after").opacity).toBe("0");
+  }
+  {
+    await using away = await render(dockedScene(props, { dockHeight: 140, scrollAway: true }));
+    const fade = getComputedStyle(dockOf(away), "::after");
+    expect(fade.opacity).toBe("1");
+    // 96px of fade above 40px of clear band for the pill.
+    expect(Number.parseFloat(fade.height)).toBe(136);
+  }
+});
+
+it("Chat mode sets an answer in the serif by default and in the sans when the reading face is sans", async () => {
+  using _mode = inMode("chat");
+  const turn = turnFixture({ approval: false, finished: true });
+  await using screen = await renderTimeline({
+    ...baseProps(),
+    timelineEntries: turn.entries,
+    latestRun: turn.latestRun,
+  });
+  const answer = () =>
+    screen.container.querySelector<HTMLElement>('[data-message-role="assistant"] .chat-markdown')!;
+  await vi.waitFor(() => expect(answer()).not.toBeNull());
+  const serif = getComputedStyle(document.documentElement).getPropertyValue("--one-serif").trim();
+  expect(getComputedStyle(answer()).fontFamily).toBe(serif);
+
+  document.documentElement.dataset.chatReadingFace = "sans";
+  try {
+    expect(getComputedStyle(answer()).fontFamily).toBe(getComputedStyle(document.body).fontFamily);
+    expect(getComputedStyle(answer()).fontFamily).not.toBe(serif);
+  } finally {
+    delete document.documentElement.dataset.chatReadingFace;
+  }
+});
 
 it("Code mode never mounts the outline", async () => {
   using _motion = motion(true);
@@ -559,10 +740,14 @@ it("Chat mode says Waiting for you while an approval is pending, and Code mode k
       ),
     );
     expect(screen.container.textContent).not.toContain("Working");
-    const mark = screen.container.querySelector<SVGElement>(
-      "[data-chat-waiting] .one-working-mark > svg",
+    // A turn that waits on the person holds its flat glyph still: nothing is working.
+    const mark = screen.container.querySelector<HTMLElement>(
+      "[data-chat-waiting] .one-working-mark",
     )!;
-    expect(getComputedStyle(mark).animationName).toBe("none");
+    const glyph = mark.querySelector<SVGElement>("svg[data-one-glyph]")!;
+    expect(glyph.getAttribute("data-one-glyph")).toBe("16");
+    expect(mark.querySelector("img, [data-one-mark-vector]")).toBeNull();
+    expect(getComputedStyle(glyph).animationName).toBe("none");
   }
   {
     using _mode = inMode("code");
@@ -619,15 +804,15 @@ it("Chat mode offers follow-ups under the last finished answer only, and a pick 
     followUps
       .getByRole("button")
       .elements()
-      .map((button) => button.textContent),
+      .map((button) => button.querySelector(".one-chat-followup-title")?.textContent),
   ).toEqual(["Go deeper", "Challenge this", "Quiz me on this"]);
 
-  await followUps.getByRole("button", { name: "Challenge this" }).click();
+  await followUps.getByRole("button", { name: /^Challenge this/ }).click();
   expect(composer.state.value).toBe("Challenge this: what is the strongest case against it?");
   expect(composer.state.focused).toBe(1);
 
   // Text the person already wrote stays as it is; the composer is only focused.
-  await followUps.getByRole("button", { name: "Go deeper" }).click();
+  await followUps.getByRole("button", { name: /^Go deeper/ }).click();
   expect(composer.state.value).toBe("Challenge this: what is the strongest case against it?");
   expect(composer.state.focused).toBe(2);
 });
@@ -720,7 +905,7 @@ it("a follow-up does nothing when the composer refuses the text", async () => {
     followUpScene(composer, { ...baseProps(), timelineEntries: turns(1) }),
     { container },
   );
-  await screen.getByRole("button", { name: "Go deeper" }).click();
+  await screen.getByRole("button", { name: /^Go deeper/ }).click();
   expect(composer.state.value).toBe("");
   expect(composer.state.focused).toBe(0);
 });
@@ -761,6 +946,211 @@ it("Chat mode marks a newly arrived answer once and leaves answers already on sc
     );
   });
   await vi.waitFor(() => expect(arrivals(screen.container)).toEqual([]));
+});
+
+/** An answer, then what the run raised after it: a notice and/or a failed turn. */
+function noticeFixture(options: { notices?: number; failure?: boolean }) {
+  const fixture = makeStreamingTimelineFixture();
+  const [, , , user, work, assistant] = fixture.visibleTurnItems;
+  if (user?.item.type !== "user_message" || work?.item.type !== "dynamic_tool") {
+    throw new Error("Expected the live fixture items");
+  }
+  if (assistant?.item.type !== "assistant_message") throw new Error("Expected live assistant");
+  const answer = {
+    ...assistant,
+    item: { ...assistant.item, text: "The file is short.", streaming: false, status: "completed" },
+  } as typeof assistant;
+  const notice = (index: number) =>
+    ({
+      ...work,
+      position: work.position + 10 + index,
+      sourceItemId: TurnItemId.make(`notice-${index}`),
+      item: {
+        ...work.item,
+        id: TurnItemId.make(`notice-${index}`),
+        type: "system_notice" as const,
+        status: "completed" as const,
+        level: "warning" as const,
+        message: `MCP client for mem${index} timed out after 30 seconds. Add or adjust \`startup_timeout_sec\` in your config to give it longer to start.`,
+      },
+    }) as unknown as typeof work;
+  const failure = {
+    ...work,
+    position: work.position + 30,
+    sourceItemId: TurnItemId.make("failed-turn"),
+    item: {
+      ...work.item,
+      id: TurnItemId.make("failed-turn"),
+      type: "error" as const,
+      status: "failed" as const,
+      failure: {
+        class: "provider_error" as const,
+        message: "upstream connect error or disconnect/reset before headers (status 503)",
+        code: null,
+        retryable: false,
+      },
+    },
+  } as unknown as typeof work;
+  return deriveTimelineEntriesFromVisibleTurnItems({
+    visibleTurnItems: [
+      user,
+      answer,
+      ...Array.from({ length: options.notices ?? 0 }, (_, index) => notice(index)),
+      ...(options.failure ? [failure] : []),
+    ],
+    optimisticMessages: [],
+  });
+}
+
+it("Chat mode folds a turn's notices into one quiet line that opens to the full text, and Code mode keeps each row", async () => {
+  const timelineEntries = noticeFixture({ notices: 2 });
+  {
+    using _mode = inMode("chat");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    const line = screen.getByRole("button", { name: "2 notices" });
+    await expect.element(line).toBeVisible();
+    expect(screen.container.querySelectorAll("[data-chat-notice]")).toHaveLength(1);
+    expect(screen.container.textContent).not.toContain("timed out after 30 seconds");
+
+    await line.click();
+    await expect.element(line).toHaveAttribute("aria-expanded", "true");
+    const texts = [...screen.container.querySelectorAll<HTMLElement>(".one-chat-notice-text")];
+    expect(texts.map((text) => text.textContent)).toHaveLength(2);
+    for (const text of texts) {
+      // Wrapped, never cut off: the whole sentence is there and nothing overflows its box.
+      expect(text.textContent).toContain("to give it longer to start.");
+      expect(text.scrollWidth).toBeLessThanOrEqual(text.clientWidth);
+    }
+    await expect.element(screen.getByRole("button", { name: "Copy notice text" })).toBeVisible();
+  }
+  {
+    using _mode = inMode("code");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await vi.waitFor(() =>
+      expect(screen.container.querySelectorAll('[data-v2-item-type="system_notice"]')).toHaveLength(
+        2,
+      ),
+    );
+    expect(screen.container.querySelector("[data-chat-notice]")).toBeNull();
+  }
+});
+
+it("Chat mode says a failed turn in one plain sentence with the technical text behind a disclosure, and Code mode shows the text at once", async () => {
+  const timelineEntries = noticeFixture({ failure: true });
+  {
+    using _mode = inMode("chat");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    const alert = screen.getByRole("alert");
+    await expect.element(alert).toBeVisible();
+    expect(alert.element().textContent).toContain("This turn stopped before it could answer.");
+    expect(screen.container.textContent).not.toContain("upstream connect error");
+
+    await screen.getByRole("button", { name: "Technical details" }).click();
+    const detail = screen.container.querySelector<HTMLElement>(".one-chat-notice-text")!;
+    expect(detail.textContent).toContain("upstream connect error or disconnect/reset");
+    expect(detail.scrollWidth).toBeLessThanOrEqual(detail.clientWidth);
+    await expect
+      .element(screen.getByRole("button", { name: "Copy technical details" }))
+      .toBeVisible();
+    // The sentence is set in the answer's own face.
+    expect(
+      getComputedStyle(screen.container.querySelector(".one-chat-failure-headline")!).fontFamily,
+    ).toBe(getComputedStyle(document.documentElement).getPropertyValue("--one-serif").trim());
+  }
+  {
+    using _mode = inMode("code");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await expect.element(screen.getByText(/upstream connect error/)).toBeVisible();
+    expect(screen.container.querySelector("[data-chat-failure]")).toBeNull();
+  }
+});
+
+it("Chat mode sets a lone image as a figure with its alt text as the caption, and Code mode shows no caption", async () => {
+  const entries = [
+    message("ask", "user", "Show me"),
+    message(
+      "answer",
+      "assistant",
+      "Here it is.\n\n![A third order lens, seen from the side](http://localhost:1/lens.png)\n\nIn a sentence ![inline](http://localhost:1/dot.png) it has none.",
+    ),
+  ];
+  const captionOf = (screen: { container: HTMLElement }) =>
+    screen.container.querySelectorAll<HTMLElement>("[data-one-figure-caption]");
+  {
+    using _mode = inMode("chat");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries: entries });
+    await vi.waitFor(() => expect(captionOf(screen)).toHaveLength(1));
+    const caption = captionOf(screen)[0]!;
+    expect(caption.textContent).toBe("A third order lens, seen from the side");
+    expect(getComputedStyle(caption).display).toBe("block");
+  }
+  {
+    using _mode = inMode("code");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries: entries });
+    await vi.waitFor(() => expect(captionOf(screen)).toHaveLength(1));
+    expect(getComputedStyle(captionOf(screen)[0]!).display).toBe("none");
+  }
+});
+
+it("Chat mode reveals a new answer one paragraph after another, and the reveal is gone with the marker", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(false);
+  const props = baseProps();
+  const opening = [
+    message("ask-1", "user", "First question"),
+    message("answer-1", "assistant", "First one.\n\nSecond one.\n\nThird one."),
+  ];
+  await using screen = await renderTimeline({ ...props, timelineEntries: opening });
+  const paragraphsOf = (id: string) => [
+    ...screen.container.querySelectorAll<HTMLElement>(
+      `[data-message-id="${id}"] .chat-markdown > p`,
+    ),
+  ];
+  await vi.waitFor(() => expect(paragraphsOf("answer-1")).toHaveLength(3));
+  expect(paragraphsOf("answer-1").map((p) => getComputedStyle(p).animationName)).toEqual([
+    "none",
+    "none",
+    "none",
+  ]);
+
+  await screen.rerender(
+    <MessagesTimeline
+      {...props}
+      timelineEntries={[
+        ...opening,
+        message("ask-2", "user", "Next question"),
+        message("answer-2", "assistant", "Alpha.\n\nBeta.\n\nGamma."),
+      ]}
+    />,
+  );
+  await vi.waitFor(() => expect(arrivals(screen.container)).toEqual(["answer-2"]));
+  const arrived = paragraphsOf("answer-2");
+  expect(arrived.map((p) => getComputedStyle(p).animationName)).toEqual([
+    "one-chat-reveal",
+    "one-chat-reveal",
+    "one-chat-reveal",
+  ]);
+  expect(arrived.map((p) => getComputedStyle(p).animationDelay)).toEqual(["0s", "0.08s", "0.16s"]);
+  // The answer already on screen never plays it.
+  expect(paragraphsOf("answer-1").map((p) => getComputedStyle(p).animationName)).toEqual([
+    "none",
+    "none",
+    "none",
+  ]);
+
+  const row = screen.container.querySelector<HTMLElement>('[data-message-id="answer-2"]')!;
+  await act(async () => {
+    row.dispatchEvent(
+      new AnimationEvent("animationend", { animationName: "one-chat-arrive", bubbles: true }),
+    );
+  });
+  await vi.waitFor(() =>
+    expect(paragraphsOf("answer-2").map((p) => getComputedStyle(p).animationName)).toEqual([
+      "none",
+      "none",
+      "none",
+    ]),
+  );
 });
 
 it("Chat mode marks no arrival under reduced motion, and Code mode marks none either", async () => {

@@ -6,11 +6,15 @@ import { installOneReflections, REFLECT_PROXIMITY_PX, REMEASURE_MS } from "./ref
  * Installs the global listener with frames under the test's control, and builds surfaces at known
  * places: a plain one at (100, 100) 200 x 50, and one inside a working chat column.
  */
-function setup() {
+function setup({ reduceMotion = false } = {}) {
   const original = window.matchMedia.bind(window);
-  const media = vi
-    .spyOn(window, "matchMedia")
-    .mockImplementation((query) => original(query.includes("hover: hover") ? "all" : query));
+  const media = vi.spyOn(window, "matchMedia").mockImplementation((query) => {
+    if (query.includes("hover: hover")) return original("all");
+    if (query.includes("prefers-reduced-motion: reduce")) {
+      return original(reduceMotion ? "all" : "not all");
+    }
+    return original(query);
+  });
 
   const frames = new Map<number, FrameRequestCallback>();
   let nextFrame = 0;
@@ -48,11 +52,17 @@ function setup() {
   const insideWorking = surface(working, 100, 300);
   const elsewhere = document.createElement("div");
   stage.append(elsewhere);
+  const button = document.createElement("button");
+  button.dataset.button = "";
+  button.dataset.variant = "default";
+  button.style.cssText = "position:fixed;left:400px;top:100px;width:100px;height:30px";
+  stage.append(button);
   document.body.append(stage);
   const uninstall = installOneReflections();
 
   return {
     plain,
+    button,
     insideWorking,
     elsewhere,
     frameRequests: raf,
@@ -241,5 +251,75 @@ describe("the pointer reflection away from a surface", () => {
     env.move(env.plain.child, 120, 125, "touch");
     env.flush();
     expect(env.frameRequests).not.toHaveBeenCalled();
+  });
+});
+
+describe("the pointer light under reduced motion", () => {
+  it("writes no coordinate and asks for no frame while the user prefers reduced motion", () => {
+    using env = setup({ reduceMotion: true });
+    for (let step = 0; step < 10; step++) env.move(env.plain.child, 110 + step, 125);
+    env.move(env.button, 420, 115);
+    env.flush();
+    expect(env.frameRequests).not.toHaveBeenCalled();
+    expect(writtenTo(env.plain)).toEqual([]);
+    expect(env.button.style.getPropertyValue("--one-mx")).toBe("");
+  });
+
+  it("writes coordinates when reduced motion is off, for the same moves", () => {
+    using env = setup();
+    env.move(env.button, 420, 115);
+    env.flush();
+    expect(env.button.style.getPropertyValue("--one-mx")).toBe("20px");
+  });
+});
+
+describe("the pointer light on a primary button releases its observer", () => {
+  it("stops observing the button when the pointer moves to something else", () => {
+    using env = setup();
+    const observed = vi.spyOn(ResizeObserver.prototype, "observe");
+    const released = vi.spyOn(ResizeObserver.prototype, "unobserve");
+    const disconnected = vi.spyOn(ResizeObserver.prototype, "disconnect");
+    env.move(env.button, 420, 115);
+    expect(observed.mock.calls.some(([target]) => target === env.button)).toBe(true);
+    expect(disconnected).not.toHaveBeenCalled();
+
+    env.move(env.elsewhere, 700, 600);
+    expect(
+      disconnected.mock.calls.length > 0 ||
+        released.mock.calls.some(([target]) => target === env.button),
+    ).toBe(true);
+    observed.mockRestore();
+    released.mockRestore();
+    disconnected.mockRestore();
+  });
+
+  it("stops observing a button that was removed while hovered, once a key is pressed", () => {
+    using env = setup();
+    const released = vi.spyOn(ResizeObserver.prototype, "unobserve");
+    const disconnected = vi.spyOn(ResizeObserver.prototype, "disconnect");
+    env.move(env.button, 420, 115);
+    env.button.remove();
+    expect(disconnected).not.toHaveBeenCalled();
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    // The shared observer disconnects when the last watched element goes.
+    expect(
+      disconnected.mock.calls.length > 0 ||
+        released.mock.calls.some(([target]) => target === env.button),
+    ).toBe(true);
+    released.mockRestore();
+    disconnected.mockRestore();
+  });
+
+  it("does not add a primary button to the proximity scan that follows the pointer near surfaces", () => {
+    using env = setup();
+    env.move(env.button, 420, 115);
+    env.flush();
+    env.frameRequests.mockClear();
+
+    env.move(env.elsewhere, 405, 140);
+    env.flush();
+    expect(env.frameRequests).not.toHaveBeenCalled();
+    expect(env.button.style.getPropertyValue("--one-my")).toBe("15px");
   });
 });

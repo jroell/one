@@ -177,7 +177,7 @@ describe("UsageProviderChart daily bars", () => {
     expect(outline.outlineWidth).toBe("1px");
   });
 
-  it("draws the hovered day's band as wide as its bar, from the plot top down to the bar's top", async () => {
+  it("lights the hovered day as a halo behind its bar that ends at the bar's top", async () => {
     await using screen = await render(chart("day"), { router: false });
     screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
     await userEvent.keyboard("{ArrowRight}");
@@ -186,15 +186,15 @@ describe("UsageProviderChart daily bars", () => {
       expect(hovered).not.toBeNull();
       return hovered!;
     });
-    const band = getComputedStyle(day, "::before");
+    const halo = getComputedStyle(day, "::before");
     const bars = [...day.querySelectorAll<HTMLElement>(".usage-bars-segment")];
     const barWidth = bars[0]!.getBoundingClientRect().width;
     const barHeight = bars.reduce((sum, bar) => sum + bar.getBoundingClientRect().height, 0);
-    expect(Math.abs(Number.parseFloat(band.width) - barWidth)).toBeLessThan(1);
-    expect(
-      Math.abs(Number.parseFloat(band.height) + barHeight - day.getBoundingClientRect().height),
-    ).toBeLessThan(1);
-    expect(Number.parseFloat(band.height)).toBeGreaterThan(0);
+    // It starts at the axis and rises only a few pixels above the bar, not up to the top of the plot.
+    const haloHeight = Number.parseFloat(halo.height);
+    expect(haloHeight).toBeGreaterThanOrEqual(barHeight);
+    expect(haloHeight - barHeight).toBeLessThan(8);
+    expect(Number.parseFloat(halo.width)).toBeGreaterThanOrEqual(barWidth);
   });
 
   it("gives each tooltip row a swatch in its series colour", async () => {
@@ -242,4 +242,97 @@ describe("UsageProviderChart daily bars", () => {
       }
     },
   );
+
+  it("leaves a provider with nothing that day out of the tooltip and the announcement", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
+    await userEvent.keyboard("{End}");
+    await vi.waitFor(() => expect(screen.container.querySelector(".usage-tooltip")).not.toBeNull());
+    // The last day has only Claude, so Codex's $0.00 row is not listed.
+    const tooltip = screen.container.querySelector(".usage-tooltip")!.textContent ?? "";
+    expect(tooltip).toContain("Claude Code");
+    expect(tooltip).not.toContain("Codex");
+    expect(screen.container.querySelector('[role="status"]')?.textContent).not.toContain("Codex");
+  });
+
+  it("holds the axis labels at 4.5:1 on the light panel", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    const label = screen.container.querySelector<HTMLElement>(".usage-axis-label")!;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = getComputedStyle(label).color;
+    context.fillRect(0, 0, 1, 1);
+    const channels = Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3)).map((value) => {
+      const c = value / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    const ink = 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
+    const panel = 0.91;
+    expect((panel + 0.05) / (ink + 0.05)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("places the Floating-material tooltip absolutely, as the plot positions it", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await vi.waitFor(() => expect(screen.container.querySelector(".usage-tooltip")).not.toBeNull());
+    const tooltip = screen.container.querySelector<HTMLElement>(".usage-tooltip")!;
+    expect(tooltip.classList.contains("m-floating")).toBe(true);
+    expect(getComputedStyle(tooltip).position).toBe("absolute");
+  });
+
+  it("keeps selection and position paired when the pointer and the keyboard are mixed, and Escape dismisses both", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    const plot = screen.getByRole("group", { name: "Daily cost by provider" }).element();
+    const tooltip = () => screen.container.querySelector<HTMLElement>(".usage-tooltip");
+    const pointerAt = (share: number) => {
+      const bounds = plot.getBoundingClientRect();
+      plot.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientX: bounds.left + bounds.width * share,
+          clientY: bounds.top + bounds.height * 0.5,
+        }),
+      );
+    };
+
+    plot.focus();
+    pointerAt(0.9);
+    await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 3"));
+
+    // Escape with the pointer still parked over the plot: nothing stays open.
+    await userEvent.keyboard("{Escape}");
+    await vi.waitFor(() => expect(tooltip()).toBeNull());
+
+    // The next navigation key selects its own day and places the tooltip at that day, not at the
+    // pointer's old coordinates.
+    await userEvent.keyboard("{ArrowRight}");
+    await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 1"));
+    const bounds = plot.getBoundingClientRect();
+    const slotX = bounds.left + (bounds.width * 0.5) / 3;
+    const shown = tooltip()!.getBoundingClientRect();
+    expect(shown.left).toBeGreaterThanOrEqual(slotX - 1);
+    expect(shown.left).toBeLessThan(slotX + 24);
+
+    // The pointer takes over while it moves and hands back to the keyboard's day when it leaves.
+    pointerAt(0.9);
+    await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 3"));
+    plot.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    plot.dispatchEvent(new MouseEvent("mouseleave"));
+    await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 1"));
+  });
+
+  it("joins the announced values with the locale's list format", async () => {
+    await using screen = await render(chart("day"), { router: false });
+    screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
+    await userEvent.keyboard("{ArrowRight}");
+    const announced = () => screen.container.querySelector('[role="status"]')?.textContent ?? "";
+    await vi.waitFor(() => expect(announced()).toContain("Aug 1"));
+    const values = new Intl.ListFormat("en", { style: "short", type: "unit" }).format([
+      "Codex $20.00",
+      "Claude Code $10.00",
+    ]);
+    expect(announced()).toBe(`Aug 1: ${values}. Total $30.00`);
+  });
 });

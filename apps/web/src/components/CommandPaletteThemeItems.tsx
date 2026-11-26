@@ -25,7 +25,7 @@ import { toggleThemeEditorForTheme } from "./settings/themeEditorStore";
 import {
   STANDARD_THEME_CARDS,
   getThemeCardDefinition,
-  ThemePreviewCircle,
+  ThemePreviewMini,
 } from "./settings/ThemePreviewCircles";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { toggleVoiceChat } from "../one/startVoiceChat";
@@ -113,11 +113,11 @@ export function useCommandPaletteThemeItems() {
               ) : null}
               <span className="flex items-center gap-1" aria-hidden>
                 {previews.map((preview) => (
-                  <ThemePreviewCircle
+                  <ThemePreviewMini
                     key={preview.mode}
                     colors={preview.colors}
                     mode={preview.mode}
-                    className="size-3 border-0"
+                    size="row"
                   />
                 ))}
               </span>

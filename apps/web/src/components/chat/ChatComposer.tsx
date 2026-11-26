@@ -89,7 +89,8 @@ import {
   extendReplacementRangeForTrailingSpace,
   replaceTextRange,
 } from "../../composer-logic";
-import { DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
+import { CHAT_COMPOSER_PLACEHOLDER, DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 import { deriveComposerSendState, getAntigravitySendBlockReason } from "../ChatView.logic";
 import { threadHasStarted } from "../../lib/chatThreadActions";
 import {
@@ -549,6 +550,7 @@ const NO_PROVIDER_SLASH_COMMANDS: ServerProvider["slashCommands"] = [];
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const gt = useGT();
   const m = useMessages();
+  const chatMode = useWorkspaceMode() === "chat";
   const {
     composerDraftTarget,
     environmentId,
@@ -2352,64 +2354,67 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         capturedDetachedSend !== null ? (composerRef.current?.getSendContext() ?? null) : null;
       const capturedSubmissionTarget = submissionTarget;
       handoff.done = true;
-      submitAfterDictation((transcribedText) => {
-        const stillLive =
-          composerMountedRef.current && attachmentTargetKeyRef.current === queuedOwnerKey;
-        if (stillLive) {
-          submitComposerRef.current(dispatchMode, submissionIntent, {
-            afterDictation: true,
-            ...(voice ? { voice } : {}),
-          });
-          return;
-        }
-        if (
-          !capturedDetachedSend ||
-          !capturedSendContext ||
-          pendingDraftWork.has(queuedOwnerKey) ||
-          countPreparingComposerImages(queuedOwnerKey) > 0
-        ) {
-          voice?.notSent("none");
-          return;
-        }
-        const liveTarget = resolveLiveComposerDraftTarget(capturedDraftTarget);
-        const latestDraft =
-          liveTarget !== null
-            ? useComposerDraftStore.getState().getComposerDraft(liveTarget)
-            : null;
-        submitComposerDraft({
-          prompt: transcribedText,
-          submissionTarget: capturedSubmissionTarget,
-          event: undefined,
-          onSend: (sendEvent) => {
-            capturedDetachedSend(
-              sendEvent,
-              resolvedDispatchMode,
-              submissionIntent,
-              undefined,
-              {
-                prompt: transcribedText,
-                sendContext: {
-                  ...capturedSendContext,
-                  ...(latestDraft
-                    ? {
-                        images: latestDraft.images,
-                        files: latestDraft.files,
-                        terminalContexts: latestDraft.terminalContexts,
-                        previewAnnotations: latestDraft.previewAnnotations,
-                        reviewComments: latestDraft.reviewComments,
-                        threadContexts: latestDraft.threadContexts,
-                        environmentContexts: latestDraft.environmentContexts,
-                      }
-                    : {}),
+      submitAfterDictation(
+        (transcribedText) => {
+          const stillLive =
+            composerMountedRef.current && attachmentTargetKeyRef.current === queuedOwnerKey;
+          if (stillLive) {
+            submitComposerRef.current(dispatchMode, submissionIntent, {
+              afterDictation: true,
+              ...(voice ? { voice } : {}),
+            });
+            return;
+          }
+          if (
+            !capturedDetachedSend ||
+            !capturedSendContext ||
+            pendingDraftWork.has(queuedOwnerKey) ||
+            countPreparingComposerImages(queuedOwnerKey) > 0
+          ) {
+            voice?.notSent("none");
+            return;
+          }
+          const liveTarget = resolveLiveComposerDraftTarget(capturedDraftTarget);
+          const latestDraft =
+            liveTarget !== null
+              ? useComposerDraftStore.getState().getComposerDraft(liveTarget)
+              : null;
+          submitComposerDraft({
+            prompt: transcribedText,
+            submissionTarget: capturedSubmissionTarget,
+            event: undefined,
+            onSend: (sendEvent) => {
+              capturedDetachedSend(
+                sendEvent,
+                resolvedDispatchMode,
+                submissionIntent,
+                undefined,
+                {
                   prompt: transcribedText,
+                  sendContext: {
+                    ...capturedSendContext,
+                    ...(latestDraft
+                      ? {
+                          images: latestDraft.images,
+                          files: latestDraft.files,
+                          terminalContexts: latestDraft.terminalContexts,
+                          previewAnnotations: latestDraft.previewAnnotations,
+                          reviewComments: latestDraft.reviewComments,
+                          threadContexts: latestDraft.threadContexts,
+                          environmentContexts: latestDraft.environmentContexts,
+                        }
+                      : {}),
+                    prompt: transcribedText,
+                  },
                 },
-              },
-              voice,
-            );
-            return true;
-          },
-        });
-      });
+                voice,
+              );
+              return true;
+            },
+          });
+        },
+        () => voice?.notSent("none"),
+      );
       return false;
     }
     if (submissionBlocked || !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
@@ -4130,7 +4135,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             ? gt("Choose a project above to start a thread")
                             : showProviderUnavailable
                               ? gt("Enable a provider in Settings to send a message")
-                              : (offeredPromptSuggestion ?? m(DEFAULT_COMPOSER_PLACEHOLDER))
+                              : (offeredPromptSuggestion ??
+                                m(
+                                  chatMode
+                                    ? CHAT_COMPOSER_PLACEHOLDER
+                                    : DEFAULT_COMPOSER_PLACEHOLDER,
+                                ))
                     }
                     placeholderSuffix={
                       offeredPromptSuggestion !== null ? (

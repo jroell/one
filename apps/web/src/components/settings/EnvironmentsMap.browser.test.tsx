@@ -89,6 +89,20 @@ describe("environments map cards", () => {
     }
   });
 
+  it("states each machine's connection as a chip beside its name, with no dot on its icon", async () => {
+    const { screen, card } = await renderScene(1200);
+    await using _screen = screen;
+    const chip = (name: string) =>
+      card(name).querySelector<HTMLElement>("[data-fleet-connection]")!.textContent;
+    expect(chip("builder")).toBe("Connected");
+    expect(chip("old-box")).toBe("Client not supported");
+    expect(chip("sleeper")).toBe("Reconnecting…");
+    for (const name of ["builder", "old-box", "sleeper"]) {
+      // The card's only round absolute marker used to be the status dot over the icon.
+      expect(card(name).querySelector("span.rounded-full.absolute"), name).toBeNull();
+    }
+  });
+
   it.each([1200, 480])(
     "shows every card's state text in full and inside the card at a %i px canvas",
     async (canvasWidth) => {

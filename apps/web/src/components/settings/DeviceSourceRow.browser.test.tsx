@@ -1,6 +1,6 @@
 import { EnvironmentId } from "@t3tools/contracts";
-import { describe, expect, it } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
@@ -49,8 +49,13 @@ describe("device source row", () => {
   });
 
   it("says nothing has been checked until a platform is reported, then shows the platforms instead", async () => {
-    await using unreported = await render(<DeviceSourceRow row={local()} />, { router: false });
-    await expect.element(page.getByText("Not checked yet")).toBeVisible();
+    const check = vi.fn();
+    await using unreported = await render(<DeviceSourceRow row={{ ...local(), check }} />, {
+      router: false,
+    });
+    await expect.element(page.getByText(/Not checked yet/)).toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: "Check now" }));
+    expect(check).toHaveBeenCalledOnce();
     await unreported.unmount();
 
     await using reported = await render(

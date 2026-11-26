@@ -237,6 +237,54 @@ describe("tool results wrapped in content blocks", () => {
     }
   });
 
+  it("unwraps a content block that carries _meta", () => {
+    const wrapped = [
+      { type: "content", _meta: { source: "tool" }, content: { type: "text", text: "hello" } },
+    ];
+    expect(turnItemOutputText(toolItem(wrapped))).toBe("hello");
+  });
+
+  it("shows each block of a mixed array, with an unknown one as its own JSON", () => {
+    const mixed = [
+      { type: "content", content: { type: "text", text: "first" } },
+      { type: "text", text: "second" },
+      { kind: "other", value: 1 },
+    ];
+    expect(turnItemOutputText(toolItem(mixed))).toBe(
+      `first\nsecond\n${JSON.stringify({ kind: "other", value: 1 }, null, 2)}`,
+    );
+  });
+
+  it("keeps an array of unknown blocks as one JSON value", () => {
+    const unknown = [{ kind: "a" }, { kind: "b" }];
+    expect(turnItemOutputText(toolItem(unknown))).toBe(JSON.stringify(unknown, null, 2));
+  });
+
+  it("reads the text and uri of wrapped resources", () => {
+    const text = turnItemOutputText(
+      toolItem([
+        {
+          type: "content",
+          content: { type: "resource", resource: { uri: "file:///a", text: "body" } },
+        },
+        { type: "content", _meta: {}, content: { type: "resource_link", uri: "file:///b" } },
+      ]),
+    );
+    expect(text).toBe("body\nfile:///b");
+  });
+
+  it("previews an image inside a wrapper, with or without _meta, instead of printing [image]", () => {
+    const image = { type: "image", mimeType: "image/png", data: "AAAA" };
+    for (const wrapper of [
+      { type: "content", content: image },
+      { type: "content", _meta: { n: 1 }, content: image },
+    ]) {
+      const item = toolItem([wrapper, { type: "text", text: "caption" }]);
+      expect(turnItemOutputImages(item)).toHaveLength(1);
+      expect(turnItemOutputText(item)).toBe("caption");
+    }
+  });
+
   it("reports no text for a result that really is empty", () => {
     expect(turnItemOutputText(toolItem({ type: "text", text: "" }))).toBeNull();
     expect(

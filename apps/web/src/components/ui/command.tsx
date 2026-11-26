@@ -78,9 +78,12 @@ function CommandDialogPopup({
             className,
           )}
           data-slot="command-dialog-popup"
+          data-one-reflect=""
           {...props}
         >
           {children}
+          <span aria-hidden="true" className="one-reflection" />
+          <span aria-hidden="true" className="one-glint" />
         </CommandDialogPrimitive.Popup>
       </CommandDialogViewport>
     </CommandDialogPortal>

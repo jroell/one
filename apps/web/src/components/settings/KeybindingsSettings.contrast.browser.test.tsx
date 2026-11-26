@@ -59,11 +59,17 @@ describe("keyboard shortcut rows", () => {
           </div>,
         );
         await page.getByRole("button", { name: "Add shortcut" }).click();
-        const labels = [...document.querySelectorAll<HTMLElement>("span")].filter(
-          (element) => element.children.length === 0 && element.textContent === "When",
-        );
-        // One row per shortcut and the new-shortcut row.
-        expect(labels.length).toBeGreaterThan(1);
+        // A row shows its "When" line while it has focus, so focus one.
+        const pill = page.getByRole("button", { name: /^Edit shortcut for Sidebar: toggle:/ });
+        await expect.element(pill).toBeVisible();
+        (pill.element() as HTMLElement).focus();
+        const whenLabels = () =>
+          [...document.querySelectorAll<HTMLElement>("span")].filter(
+            (element) => element.children.length === 0 && element.textContent === "When",
+          );
+        // The focused row and the new-shortcut row.
+        await vi.waitFor(() => expect(whenLabels().length).toBeGreaterThan(1));
+        const labels = whenLabels();
         for (const label of labels) {
           const ratio = textContrast(label);
           // 5 rather than 4.5: the panel is translucent, so the row behind a label moves with the app.
@@ -75,4 +81,18 @@ describe("keyboard shortcut rows", () => {
       }
     },
   );
+
+  it("keeps a shortcut row with no custom condition to one line, 44 px tall", async () => {
+    await using screen = await render(
+      <div data-app-modal="" className="w-[880px]">
+        <KeybindingsSettingsPanel />
+      </div>,
+    );
+    const pill = page.getByRole("button", { name: /^Edit shortcut for Sidebar: toggle:/ });
+    await expect.element(pill).toBeVisible();
+    const row = pill.element().closest<HTMLElement>('[data-slot="settings-row"]')!;
+    expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(46);
+    expect(row.querySelector("[data-settings-row-description]")).toBeNull();
+    expect(screen.container.querySelector("[data-compact]")).not.toBeNull();
+  });
 });

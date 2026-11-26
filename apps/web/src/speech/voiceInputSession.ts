@@ -111,6 +111,8 @@ export class VoiceInputSession {
   private pendingSubmission: {
     readonly ownerKey: string;
     readonly submit: (text: string) => void;
+    /** The dictation ended without a transcript to submit, or was abandoned. */
+    readonly dropped: (() => void) | undefined;
     text?: string;
   } | null = null;
   private snapshot: VoiceInputSessionSnapshot = {
@@ -257,13 +259,14 @@ export class VoiceInputSession {
         if (state.phase !== "recording" && state.phase !== "transcribing")
           this.publishActivity(SILENT_ACTIVITY);
         if (state.phase === "error") {
-          this.pendingSubmission = null;
+          this.dropPendingSubmission();
           return;
         }
         if (state.phase === "idle" && this.pendingSubmission !== null) {
           const pending = this.pendingSubmission;
           this.pendingSubmission = null;
           if (pending.text !== undefined) pending.submit(pending.text);
+          else pending.dropped?.();
         }
       },
     });
@@ -301,7 +304,7 @@ export class VoiceInputSession {
       voiceInputBlocksSubmission(this.controller.currentState) &&
       this.target?.ownerKey !== target.ownerKey;
     if (busyElsewhere) return Promise.resolve();
-    this.pendingSubmission = null;
+    this.dropPendingSubmission();
     this.target = target;
     this.onSpeechStatus = onSpeechStatus;
     this.publishActivity(SILENT_ACTIVITY);
@@ -317,7 +320,7 @@ export class VoiceInputSession {
   }
 
   /** Queues a submission to run once the active dictation commits its transcript. */
-  queueSubmission(ownerKey: string, submit: (text: string) => void): boolean {
+  queueSubmission(ownerKey: string, submit: (text: string) => void, dropped?: () => void): boolean {
     if (
       this.disposed ||
       this.target?.ownerKey !== ownerKey ||
@@ -326,11 +329,17 @@ export class VoiceInputSession {
     ) {
       return false;
     }
-    this.pendingSubmission = { ownerKey, submit };
+    this.pendingSubmission = { ownerKey, submit, dropped };
     if (this.controller.currentState.phase === "recording") {
       void this.controller.stop();
     }
     return true;
+  }
+
+  private dropPendingSubmission(): void {
+    const pending = this.pendingSubmission;
+    this.pendingSubmission = null;
+    pending?.dropped?.();
   }
 
   stop(): Promise<void> {
@@ -338,7 +347,7 @@ export class VoiceInputSession {
   }
 
   cancel(): void {
-    this.pendingSubmission = null;
+    this.dropPendingSubmission();
     this.controller.cancel();
   }
 
@@ -349,13 +358,13 @@ export class VoiceInputSession {
   /** The editor for `ownerKey` now shows another draft; only a persistent target keeps going. */
   ownerChanged(ownerKey: string): void {
     if (this.target?.ownerKey !== ownerKey || this.target.persistent) return;
-    this.pendingSubmission = null;
+    this.dropPendingSubmission();
     this.controller.ownerChanged();
   }
 
   dispose(): void {
     this.disposed = true;
-    this.pendingSubmission = null;
+    this.dropPendingSubmission();
     this.controller.dispose();
     this.listeners.clear();
     this.activityListeners.clear();

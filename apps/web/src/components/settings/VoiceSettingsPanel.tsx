@@ -1344,6 +1344,9 @@ export function VoiceSettingsPanel() {
   const settings = useClientSettings();
   const settingsScope = useOptionalSettingsScope();
   const destination = useVoiceTranscriptionDestination();
+  // With transcription off, the settings that shape it have nothing to act on.
+  const transcriptionOff =
+    !destination.device && !destination.cloudProvider && !destination.environmentId;
   const appleSpeechLocales = useAppleSpeechLocales();
   const appleSpeechLanguages =
     !appleSpeechLocales.includes(settings.speechLanguage) &&
@@ -1753,16 +1756,20 @@ export function VoiceSettingsPanel() {
           {...setting("speech-silence-filtering")}
           title={gt("Silence filtering")}
           description={
-            destination.device
-              ? gt("Apple Speech handles silence itself.")
-              : destination.cloudProvider === "openai"
-                ? gt("OpenAI handles silence itself.")
-                : gt("Skip silence and background noise before transcribing.")
+            transcriptionOff
+              ? gt("Choose where to transcribe to change this.")
+              : destination.device
+                ? gt("Apple Speech handles silence itself.")
+                : destination.cloudProvider === "openai"
+                  ? gt("OpenAI handles silence itself.")
+                  : gt("Skip silence and background noise before transcribing.")
           }
           control={
             <Switch
               aria-label={gt("Silence filtering")}
-              disabled={destination.device || destination.cloudProvider === "openai"}
+              disabled={
+                transcriptionOff || destination.device || destination.cloudProvider === "openai"
+              }
               checked={settings.speechSilenceFiltering}
               onCheckedChange={(checked) =>
                 void updateClientSettings({ speechSilenceFiltering: checked })
@@ -1774,14 +1781,16 @@ export function VoiceSettingsPanel() {
           {...setting("remove-filler-words")}
           title={gt("Remove filler words")}
           description={
-            destination.device
-              ? gt("Not available with Apple Speech.")
-              : gt("Drop “um” and “uh” from transcripts.")
+            transcriptionOff
+              ? gt("Choose where to transcribe to change this.")
+              : destination.device
+                ? gt("Not available with Apple Speech.")
+                : gt("Drop “um” and “uh” from transcripts.")
           }
           control={
             <Switch
               aria-label={gt("Remove filler words")}
-              disabled={destination.device}
+              disabled={transcriptionOff || destination.device}
               checked={settings.speechRemoveFillerWords}
               onCheckedChange={(checked) =>
                 void updateClientSettings({ speechRemoveFillerWords: checked })

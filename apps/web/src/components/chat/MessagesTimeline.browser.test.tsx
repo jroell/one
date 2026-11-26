@@ -9,6 +9,7 @@ import {
   NodeId,
   ProviderDriverKind,
   ProviderInstanceId,
+  ProviderTurnId,
   RunAttemptId,
   RunId,
   RuntimeRequestId,
@@ -16,6 +17,7 @@ import {
   ScheduledTaskId,
   ThreadId,
   type OrchestrationV2Subagent,
+  type OrchestrationV2TurnItem,
 } from "@t3tools/contracts";
 import { type LegendListRef } from "@legendapp/list/react";
 import {
@@ -299,7 +301,7 @@ describe("MessagesTimeline work rows", () => {
     });
   });
 
-  it("opens every assistant turn with one ring: on the worked-for line when there is one", async () => {
+  it("marks no assistant turn with a ring, and gives every assistant message one column", async () => {
     const withWork = RunId.make("work-run");
     const withoutWork = RunId.make("plain-run");
     await using screen = await renderTimeline([
@@ -310,20 +312,115 @@ describe("MessagesTimeline work rows", () => {
       message("A plain reply", { role: "assistant", runId: withoutWork }, "plain"),
     ]);
     await expect.element(screen.getByText("A plain reply", { exact: true })).toBeVisible();
-    const marks = [...screen.container.querySelectorAll("[data-one-answer-mark]")];
-    expect(marks).toHaveLength(2);
+    expect(screen.container.querySelectorAll("[data-one-answer-mark]")).toHaveLength(0);
+    expect(screen.container.querySelector("svg.one-mark, [data-one-mark]")).toBeNull();
     const fold = screen.container.querySelector("[data-one-turn-start]")!;
-    expect(fold.querySelector("[data-one-answer-mark]")).not.toBeNull();
     expect(fold.textContent).toMatch(/^Worked/);
-    // The turn that did no work has no fold, so its first reply carries the ring.
-    const reply = marks
-      .find((mark) => mark.closest("[data-one-answer]"))!
-      .closest("[data-one-answer]")!;
-    expect(reply.textContent).toContain("A plain reply");
-    // The answer under a fold carries none, and every assistant message keeps one column.
     const finalAnswer = screen.getByText("Final answer text", { exact: true }).element();
-    expect(finalAnswer.closest("[data-one-answer]")).toBeNull();
     expect(finalAnswer.closest("[data-one-assistant]")).not.toBeNull();
+  });
+
+  it("shows the worked-for line at rest only for work of five seconds or more, and on hover otherwise", async () => {
+    const lineFor = async (ms: number) => {
+      const runId = RunId.make(`quiet-${ms}`);
+      const completedAt = new Date(Date.parse(CREATED_AT) + ms).toISOString();
+      const screen = await renderTimeline(
+        [
+          message("Question", {}, "question"),
+          message("Progress", { role: "assistant", runId }, "progress"),
+          message("Final answer", { role: "assistant", runId }, "final"),
+        ],
+        { latestRun: { runId, status: "completed", startedAt: CREATED_AT, completedAt } as never },
+      );
+      await expect.element(screen.getByText("Final answer", { exact: true })).toBeVisible();
+      return screen;
+    };
+    const opacityOf = (screen: Awaited<ReturnType<typeof lineFor>>) => {
+      const button = screen.container.querySelector("[data-one-turn-start] button")!;
+      return Number(getComputedStyle(button).opacity);
+    };
+    await using slow = await lineFor(8000);
+    await vi.waitFor(() => expect(opacityOf(slow)).toBe(1));
+    await using fast = await lineFor(900);
+    const fold = fast.container.querySelector("[data-one-turn-start]")!;
+    expect(fold.getAttribute("data-one-fold")).toBe("quiet");
+    const quietHeight = fold.getBoundingClientRect().height;
+    await vi.waitFor(() => expect(opacityOf(fast)).toBe(0));
+    await userEvent.hover(fold.querySelector("button")!);
+    await vi.waitFor(() => expect(opacityOf(fast)).toBe(1));
+    // The line keeps its room when it shows, so the list never re-measures.
+    expect(fold.getBoundingClientRect().height).toBe(quietHeight);
+  });
+
+  it("leaves out the edit row a pending approval card already names", async () => {
+    const approvalId = RuntimeRequestId.make("edit-approval");
+    const item = (id: string, ordinal: number, type: string, extra: object) =>
+      ({
+        id: TurnItemId.make(id),
+        threadId: ThreadId.make("thread"),
+        runId: RunId.make("run"),
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: ProviderTurnId.make("turn"),
+        nativeItemRef: {
+          driver: ProviderDriverKind.make("acp"),
+          nativeId: "edit-1",
+          strength: "strong" as const,
+        },
+        parentItemId: null,
+        ordinal,
+        title: null,
+        startedAt: DateTime.makeUnsafe(CREATED_AT),
+        completedAt: null,
+        updatedAt: DateTime.makeUnsafe(CREATED_AT),
+        status: "waiting" as const,
+        type,
+        ...extra,
+      }) as OrchestrationV2TurnItem;
+    const entries = deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        item("edit", 1, "file_change", {
+          fileName: "src/unique-name.ts",
+          changes: [{ operation: "update", path: "src/unique-name.ts" }],
+        }),
+        item("ask", 2, "approval_request", {
+          requestId: approvalId,
+          requestKind: "file-change",
+          prompt: "Edit src/unique-name.ts",
+        }),
+      ].map((it) => ({
+        position: it.ordinal,
+        visibility: "local" as const,
+        sourceThreadId: it.threadId,
+        sourceItemId: it.id,
+        item: it,
+      })),
+      optimisticMessages: [],
+    });
+    await using screen = await renderTimeline(entries, {
+      isWorking: true,
+      runningRunId: RunId.make("run"),
+      latestRun: {
+        runId: RunId.make("run"),
+        status: "running",
+        startedAt: CREATED_AT,
+        completedAt: null,
+      } as never,
+      pendingApprovals: [
+        {
+          requestId: approvalId,
+          requestKind: "file-change",
+          createdAt: CREATED_AT,
+          detail: "Changed files",
+          responseCapability: "live",
+        } as never,
+      ],
+      canOperateThread: true,
+      onRespondToApproval: async () => {},
+    });
+    await expect.element(screen.getByRole("group", { name: "File change approval" })).toBeVisible();
+    const matches = screen.container.textContent!.match(/unique-name\.ts/g) ?? [];
+    expect(matches).toHaveLength(1);
   });
 
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
@@ -350,6 +447,8 @@ describe("MessagesTimeline work rows", () => {
     // LegendList keeps rows click-through until its initial scroll settles on animation
     // frames, which the fake clock below would freeze.
     await expect.element(heading).toHaveStyle({ pointerEvents: "auto" });
+    // Short work keeps its line out of sight until the pointer is on it.
+    await userEvent.hover(heading.element());
     const viewport = props.listRef.current!.getScrollableNode()!;
     // Legend keeps rows transparent and unclickable until its initial scroll settles.
     await vi.waitFor(() => {

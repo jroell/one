@@ -12,7 +12,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
 
 interface ComposerPendingApprovalActionsProps {
-  presentation?: "composer" | "inline";
+  presentation?: "composer" | "inline" | "card";
   requestId: RuntimeRequestId;
   isResponding: boolean;
   canRespond: boolean;
@@ -60,100 +60,109 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
     (option) => option.decision !== "decline" && option.decision !== "accept",
   );
 
-  return (
-    <>
-      {primaryOptions.map((option) => {
-        const buttonProps = {
-          disabled: disabled || isResponding || !canRespond,
-          "aria-description": option.warning,
-          onClick: () => {
-            if (!disabled && !isResponding && canRespond) {
-              void onRespondToApproval(requestId, option.decision);
-            }
-          },
-        };
-        const content = (
-          <>
-            {option.warning ? <TriangleAlertIcon className="size-3 shrink-0" /> : null}
-            <span className={presentation === "inline" ? "whitespace-normal" : "max-w-40 truncate"}>
-              {optionLabel(option.label)}
-            </span>
-          </>
-        );
-        const button = (
-          <Button
-            key={option.decision}
-            {...buttonProps}
-            size={presentation === "inline" ? "sm-multiline" : "xs"}
-            variant={option.decision === "accept" ? "default" : "outline"}
-          >
-            {content}
-          </Button>
-        );
-        return option.warning ? (
-          <Tooltip key={option.decision}>
-            <TooltipTrigger render={button} />
-            <TooltipPopup side="top">{option.warning}</TooltipPopup>
-          </Tooltip>
-        ) : (
-          button
-        );
-      })}
-      {moreOptions.length > 0 ? (
-        <Menu>
-          <MenuTrigger
-            disabled={disabled || isResponding || !canRespond}
-            render={
-              presentation === "inline" ? (
-                <Button
-                  size="sm-multiline"
-                  variant="ghost-muted"
-                  aria-label={gt("More approval options")}
-                />
-              ) : (
-                <Button size="icon-xs" variant="outline" aria-label={gt("More approval options")} />
-              )
-            }
-          >
-            {presentation === "inline" ? (
-              <>
-                {gt("More", { $context: "button that opens more approval options" })}
-                <ChevronDownIcon aria-hidden className="size-3" />
-              </>
+  const card = presentation === "card";
+  const primaryButtons = primaryOptions.map((option) => {
+    const buttonProps = {
+      disabled: disabled || isResponding || !canRespond,
+      "aria-description": option.warning,
+      onClick: () => {
+        if (!disabled && !isResponding && canRespond) {
+          void onRespondToApproval(requestId, option.decision);
+        }
+      },
+    };
+    const content = (
+      <>
+        {option.warning ? <TriangleAlertIcon className="size-3 shrink-0" /> : null}
+        <span className={presentation === "composer" ? "max-w-40 truncate" : "whitespace-normal"}>
+          {optionLabel(option.label)}
+        </span>
+      </>
+    );
+    const button = (
+      <Button
+        key={option.decision}
+        {...buttonProps}
+        size={card ? "default" : presentation === "inline" ? "sm-multiline" : "xs"}
+        variant={option.decision === "accept" ? "default" : card ? "secondary" : "outline"}
+      >
+        {content}
+      </Button>
+    );
+    return option.warning ? (
+      <Tooltip key={option.decision}>
+        <TooltipTrigger render={button} />
+        <TooltipPopup side="top">{option.warning}</TooltipPopup>
+      </Tooltip>
+    ) : (
+      button
+    );
+  });
+  const moreMenu =
+    moreOptions.length > 0 ? (
+      <Menu>
+        <MenuTrigger
+          disabled={disabled || isResponding || !canRespond}
+          render={
+            presentation !== "composer" ? (
+              <Button
+                size={card ? "default" : "sm-multiline"}
+                variant="ghost-muted"
+                aria-label={gt("More approval options")}
+              />
             ) : (
-              <EllipsisIcon />
-            )}
-          </MenuTrigger>
-          <MenuPopup {...composerFloatingLayerProps} side="top" align="end" width="content">
-            {moreOptions.map((option) => {
-              const item = (
-                <MenuItem
-                  key={option.decision}
-                  disabled={disabled || isResponding || !canRespond}
-                  aria-description={option.warning}
-                  onClick={() => {
-                    if (!disabled && !isResponding && canRespond)
-                      void onRespondToApproval(requestId, option.decision);
-                  }}
-                >
-                  {option.warning ? <TriangleAlertIcon className="size-3 text-warning" /> : null}
-                  <span className="min-w-0 whitespace-normal wrap-break-word">
-                    {optionLabel(option.label)}
-                  </span>
-                </MenuItem>
-              );
-              return option.warning ? (
-                <Tooltip key={option.decision}>
-                  <TooltipTrigger render={item} />
-                  <TooltipPopup side="top">{option.warning}</TooltipPopup>
-                </Tooltip>
-              ) : (
-                item
-              );
-            })}
-          </MenuPopup>
-        </Menu>
-      ) : null}
+              <Button size="icon-xs" variant="outline" aria-label={gt("More approval options")} />
+            )
+          }
+        >
+          {presentation !== "composer" ? (
+            <>
+              {gt("More", { $context: "button that opens more approval options" })}
+              <ChevronDownIcon aria-hidden className="size-3" />
+            </>
+          ) : (
+            <EllipsisIcon />
+          )}
+        </MenuTrigger>
+        <MenuPopup {...composerFloatingLayerProps} side="top" align="end" width="content">
+          {moreOptions.map((option) => {
+            const item = (
+              <MenuItem
+                key={option.decision}
+                disabled={disabled || isResponding || !canRespond}
+                aria-description={option.warning}
+                onClick={() => {
+                  if (!disabled && !isResponding && canRespond)
+                    void onRespondToApproval(requestId, option.decision);
+                }}
+              >
+                {option.warning ? <TriangleAlertIcon className="size-3 text-warning" /> : null}
+                <span className="min-w-0 whitespace-normal wrap-break-word">
+                  {optionLabel(option.label)}
+                </span>
+              </MenuItem>
+            );
+            return option.warning ? (
+              <Tooltip key={option.decision}>
+                <TooltipTrigger render={item} />
+                <TooltipPopup side="top">{option.warning}</TooltipPopup>
+              </Tooltip>
+            ) : (
+              item
+            );
+          })}
+        </MenuPopup>
+      </Menu>
+    ) : null;
+  return card ? (
+    <>
+      {moreMenu}
+      {primaryButtons}
+    </>
+  ) : (
+    <>
+      {primaryButtons}
+      {moreMenu}
     </>
   );
 });

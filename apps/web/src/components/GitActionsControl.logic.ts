@@ -697,3 +697,8 @@ export function resolveChangesTotals(
         : null,
   };
 }
+
+/** A base ref as the Changes row names it: `origin/main` reads `main`, so the row keeps its room. */
+export function shortBaseRefName(ref: string): string {
+  return ref.replace(/^origin\//, "");
+}

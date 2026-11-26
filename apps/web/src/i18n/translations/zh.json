@@ -1335,6 +1335,7 @@
   "aeac6844ac2cde59": "纯文本",
   "d1d2b3130458bf2e": "Assembly",
   "06ca993fa4236249": "想问什么都可以。@ 引用文件，$ 使用技能，/ 输入命令",
+  "aeba94eb95d1e830": "Ask a question, or pick up where you left off",
   "279a7589a1c78b0d": "上下文菜单",
   "54f1a9e3c9e146cd": "编辑器",
   "c3b46a31a4d3999b": "在编辑器中打开",
@@ -3064,12 +3065,19 @@
   "6d5a8b471a561b9d": "文件资源管理器",
   "83a174f9e78fe2f1": "文件",
   "fce146a6bd6173bd": "深入了解",
+  "aa5e640b0fd014cb": "Take one part further",
   "4def529d19f0f924": "深入了解 ",
   "f2de87a0b2906a7f": "提出质疑",
+  "3ca68011b267844b": "Argue the other side",
   "32b2fb0e9728bd32": "提出质疑：反对它的最有力理由是什么？",
   "47b12601f025963b": "就此出题",
+  "4d451a4192c44561": "Check what stuck",
   "3d0345d24a470b3a": "针对刚才的讲解出题。",
   "19c6f44bfe07caca": "跟进提问",
+  "7b36b1e20f45cd73": "{count, plural, one {# notice} other {# notices}}",
+  "d35c2361186042c2": "Copy notice text",
+  "d87a7a3437a8e831": "Technical details",
+  "0e37b16aca22c057": "Copy technical details",
   "4dd6d20188c210e0": "本次对话",
   "e5428a0daffa236c": "用户消息",
   "9dde9bab778ed74b": "等待处理",
@@ -3109,6 +3117,9 @@
   "2fec6c612b3462e5": "语音输入耗时过长",
   "b28b7c4b00e056b4": "问题未发送",
   "27a15dd2215f7c53": "内容发送到了侧边聊天，因此这里没有可读的回复。",
+  "32480b586e418ebb": "The question was not accepted in time",
+  "c222847694b24020": "The question is held in the queue, so there is no reply to read yet",
+  "e9be2d987775606a": "The reply is no longer available",
   "5d32fb98898836be": "语音聊天已结束",
   "cd1b21f0df7848a5": "输入框里还有一条消息。请发送或清空后再开始。",
   "665dbd0a289b9b05": "语音输入已不可用。请检查语音设置，然后重新开始。",
@@ -3130,6 +3141,10 @@
   "35cf31a65d66fe3e": "代码",
   "5a64d57e25033b96": "聊天",
   "ee9c314794aef79a": "工作区模式",
+  "f73f6d51f1990d68": "{count, plural, one {Used # tool} other {Used # tools}} · {duration}",
+  "4c3c9fecf3fb310b": "{count, plural, one {Used # tool} other {Used # tools}}",
+  "4c36ab712143ad31": "Thought for {duration}",
+  "6f8651e48261911a": "已思考",
   "a52dae3815612511": "请先发送或清空草稿",
   "e9c7a57ae9a3057f": "语音聊天只发送你说的内容，不包含草稿。",
   "bdaf2c9cd3557fdd": "语音聊天需要转写来源",
@@ -3887,6 +3902,7 @@
   "3a04583c8500e23d": "显示图表",
   "16d64f650840fe06": "显示代码",
   "6d329f7d3a50c7e7": "复制表格",
+  "b383b1abecca9f8a": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}}",
   "ce1c91994281ac47": "表格",
   "6c71d251d9917587": "复制为 Markdown",
   "d510b122f84051a0": "复制为 CSV",
@@ -3958,7 +3974,6 @@
   ],
   "9bbecec926c3b695": "重试",
   "4fd8927b7afc2a92": "复制消息",
-  "6f8651e48261911a": "已思考",
   "ac511f991a3c1fab": "网络搜索",
   "07e65dba2b16d3f7": "{count, plural, other {{path}，另有 {count} 个}}",
   "dc8ddcad32e2a50c": "正在运行 {program}",
@@ -4547,19 +4562,33 @@
   "f7e17fa98210e03d": "松开即可添加附件",
   "05d9e1b5134052c8": "滚动到底部",
   "ea106dd9877652ac": "命令审批",
+  "7ebc6d764e5b8fe8": "Run command",
   "5f71f03e4a9b734f": "命令",
   "882dff85e7998aa7": "文件修改审批",
+  "0116d222ffa20a24": "Edit files",
   "5fcd6fa0ef3960d1": "文件修改",
   "943e402c16c83a27": "文件读取审批",
   "d6b95eb6b123f050": "要读取的文件",
   "3e32c211b85e5c2f": "应用权限审批",
+  "77cfb734fc38eb96": "App permission",
   "e4e5cb6ab610e37d": "权限请求",
   "9243d7a2b22d5f3d": "应用访问审批",
+  "e1780e5cad37fbc0": "App access",
   "847e5019e2ff249d": "应用访问请求",
   "74c0eda939734d7b": "+{additions} −{deletions}",
   "154a4fa849d9891f": "{count, plural, one {另外还有 {count} 个文件} other {另外还有 {count} 个文件}}",
-  "f41e28af25aee2b7": "更改预览",
+  "925acae0d05bbdbc": "Added line",
+  "4c9de9002af25e7b": "Added line {number}",
+  "7e8f6b1936deddad": "Removed line",
+  "3f4a807afffaabdb": "Removed line {number}",
+  "3a567477488db883": "Unchanged line",
+  "14cc19a7b6bede7c": "Unchanged line {number}",
+  "d83cc534e56928f7": "Recorded line",
   "a6ef358f3e49fce5": "{count, plural, one {还有 {count} 行} other {还有 {count} 行}}",
+  "f41e28af25aee2b7": "更改预览",
+  "f5b66c481aa3e4df": "编辑",
+  "b725c61c6d7808ab": "Loading preview…",
+  "48cc07d45e27a5b6": "Couldn't load the preview.",
   "254937775868a979": "显示完整差异",
   "c92657bb7f2293ff": "待批准",
   "b7419ed1c775db7e": "提供方进程已退出。请中断或重新开始这次运行后再回应。",
@@ -4593,6 +4622,7 @@
   "c6e000ea79ae6a2b": "{status, select, inProgress {正在读取会话“{title}”} completed {已读取会话“{title}”} failed {读取会话“{title}”失败} declined {已拒绝读取会话“{title}”} stopped {已停止读取会话“{title}”} other {正在读取会话“{title}”}}",
   "93435595c79fd659": "已达到用量限制。请在 {resetTime} 后重试。",
   "5a2d803b3ea43f18": "已达到用量上限。",
+  "f458107b0c538491": "This turn stopped before it could answer.",
   "1afc4f46bc0675aa": "{label}，工具调用失败",
   "e05d1bee2862c2be": "工具调用失败",
   "ce591b4de647ecda": "打开 {title}",
@@ -7830,6 +7860,8 @@
   "b7406be04f4d7735": "尚未连接。",
   "595a1c9d5f762fef": "客户端权限范围",
   "1e2d7d617ac0d4ff": "要退出所有其他客户端吗？",
+  "f734c6a587809145": "Revoking other clients…",
+  "6043b58d9037a504": "Other clients signed out.",
   "b76eda9aa9bec002": "撤销其他客户端的访问权限",
   "06ec30a199134db1": "无法创建配对 URL。",
   "79b1490795e4c205": "无法创建配对 URL",
@@ -8391,7 +8423,7 @@
   "9bfddd9a835be5de": "服务器",
   "43b545c01503eee4": "重试更新",
   "2f015e6d5459dce9": "更新到 {version}",
-  "8ebba639f92932c3": "允许其他设备打开此机器的本地服务器：在设备上加载的浏览器标签页、“在此设备上打开”以及端口转发。关闭后：浏览器标签页从此机器串流。",
+  "0415c64c8c250262": "Lets other devices reach this machine's local servers: browser tabs loaded on the device, the “Open on this device” action, and port forwarding. When off, browser tabs stream from this machine.",
   "1c5266bf18d0ed24": "允许预览隧道",
   "a0e93cca71d0417e": "已授权的客户端",
   "03b9501ae07b5cf3": "启用网络访问？",
@@ -8565,11 +8597,11 @@
   "0c99fa183ed512e8": "{platform} 在部分环境可用",
   "e6886a7f77b73a8e": "{platform} 不可用",
   "b0b7610d9860d18d": "此机器尚未配置。",
-  "f5b66c481aa3e4df": "编辑",
   "3b20ef0670ae4b0b": "通过 SSH 连接的机器",
   "121ccffacb6b8c6d": "Expo 模拟器",
   "130b55a1410a8030": "Simlock 池（早期测试）",
   "b0537628ad92ed53": "尚未检查",
+  "ff7d5cdc159712f0": "Check now",
   "46b5cfb18a8ce12c": "复制追踪 ID 时剪贴板 API 不可用。",
   "3c3bf5c85bacf2ab": "无法将追踪 ID 复制到剪贴板。",
   "1533ba0027a59b0d": "子进程",
@@ -8785,6 +8817,7 @@
   "c7204ac4bc869129": "链接已关闭",
   "05eace0be7b01519": "链接无法读取",
   "6a34b35812bb4ad0": "{count, plural, =0 {没有向外的关联} other {# 个向外的关联}}",
+  "d93f885fbb896882": "Links unknown",
   "5d252c8bbc3b24d0": "{status}。关联未知",
   "ec2c609c028d63b4": "将 {label} 关联到另一台机器",
   "0a72d33781010657": "无法关联到这里",
@@ -9145,28 +9178,28 @@
   "9ae293971d93c819": "与访客共享会话，访客可在浏览器中实时查看，并发送需要你批准的消息。登录 T3 Connect 后即可使用访客链接。",
   "0aa5406ac4d7f7c7": "访客链接",
   "f0e853acd2006d53": "关联环境",
-  "d7a7b21d3120e7eb": "运行此服务器 One 数据文件夹中 workflows 文件夹内的文件所定义的多步骤工作流。可从命令面板打开。关闭时，该文件夹中的任何内容都不会运行，运行会一直等待，直到重新开启。",
+  "dd6d216a060fe314": "Run workflows from the files in this server's workflows folder, and start them from the command palette. While this is off, nothing in that folder runs.",
   "2dadb2359422121c": "工作流",
-  "933dabf0700708af": "每个工作流在历史中保留的已跳过运行数量。较早的已跳过运行会被删除；执行过操作的运行始终保留。",
+  "1b4b2498010f3e0b": "How many skipped runs each workflow keeps in its history. Older skipped runs are deleted. Runs that did something are always kept.",
   "f172d7e5deb24f75": "将保留的已跳过运行数重置为默认值",
   "ba94015389f327bc": "保留的已跳过运行",
   "d52b3d6bf9f2a013": "各不相同",
-  "13e86eb5d8287a71": "Claude 或 Codex 完成一轮回复后，在空输入框中预测下一条消息。按 Tab 使用它。每次预测都会在你的套餐上产生一次额外的缓存请求。需要 Codex 0.165+。Claude 会话在重启后更新。",
+  "3fd0ed740164a8d8": "After a Claude or Codex turn, show a predicted next message in the empty composer; Tab uses it. Each prediction is one extra request on your plan. Codex needs version 0.165 or newer, and Claude threads update after a restart.",
   "d4b2a2ec812aafb0": "建议下一条提示词",
   "298c7150a7621c80": "Simlock 设备主机",
-  "0a72f495c410ff7b": "在 Mac 上，新工作树会从 One 数据文件夹中缓存的检出副本克隆，而不是逐个写入文件。无法这样做时，会使用 Git 的常规检出。关闭此选项会删除缓存。",
+  "86ad8d15ce5ca1d9": "On a Mac, make new worktrees from a cached checkout instead of writing every file. Git’s normal checkout is used when that is not possible. Turning this off deletes the cache.",
   "f9904f78d3003f58": "快速创建工作树",
   "9c2f647882522302": "所选机器使用的智能体反馈模式不同。",
   "31bbf7bf8c0a5279": "智能体反馈",
-  "ec7623deed751c05": [
-    "与访客共享会话，访客可在浏览器中实时观看并发送需经你批准的消息。需要 T3 Connect：请登录并在",
+  "c2ea271e877635fd": [
+    "Let a guest watch a thread live in a browser and send messages you approve. Needs T3 Connect: sign in and link this machine in",
     " ",
     {
       "t": "Link",
       "i": 1,
-      "c": "共享与访问"
+      "c": "Sharing & access"
     },
-    "中关联此机器。关闭后会停止所有访客链接。"
+    ". Turning it off stops every guest link."
   ],
   "f20f2bcc7ecb43f7": [
     "让这里的代理在其他机器上运行，也让其他机器的代理在这里运行。为每台机器开启此功能，然后在",
@@ -9771,6 +9804,7 @@
   "25617239c4886378": "认证请求已过期。",
   "1bc94053b36b3f40": "无法更新 {provider}",
   "5b39dc5c8173ee94": "无法启动提供方更新命令。",
+  "eff995b7ae17d6a7": "Its account, setup, runtime and models on this device.",
   "53e1e3591fc1abc9": "无法更新提供方实例",
   "6c5e88b695801eaf": "移除 {provider} 提供方实例？",
   "faa86f453684649b": "移除实例",
@@ -9963,7 +9997,7 @@
   "ca04162de1fbce83": "刷新遥测快照",
   "1cf45bdf49862933": "One 系统占用",
   "68adbf70a881158a": "服务器、提供方、终端、桌面进程和监测器自身的实时原生统计。",
-  "a08a53b74f9f7771": "未报告 CPU 速度限制",
+  "ac722266d1177551": "This machine does not report a CPU speed limit.",
   "d8aa38c63052c605": "重试监测器",
   "1486685f8451aff4": "主机状态",
   "2b6bbe7a4156f7e9": "未连接桌面主机状态信号",
@@ -10243,7 +10277,7 @@
   "4d12d2e6d168fdb5": "{label} 引用",
   "f7b9aef971c1ce37": "检查 {label}",
   "3e3cabe47b0b5c07": "语音 · {provider}",
-  "cd90b098a17bca20": "尚未配置凭据提供方。",
+  "05c3b599a392ef5e": "No secret providers configured",
   "1c9374501ee389d3": "添加一个 1Password 账户，然后将它选为提供方变量的来源。",
   "382541febe15f472": "切换账户可见性",
   "40426afd511710f8": "不支持的提供方（{kind}）",
@@ -10363,6 +10397,8 @@
   "7e8c995646a967d3": "直接退出",
   "51497bd401292062": "长按",
   "9d6cc6ac23312071": "连按两次",
+  "8b8bcca65136dd08": "Serif",
+  "16c68207ea28422f": "Sans-serif",
   "f001fa7b329c8fbf": "隐藏成功的调用",
   "ad208e3e32c85029": "全部隐藏",
   "c80e4bb3201efd71": "专注模式",
@@ -10477,6 +10513,9 @@
   "f8062ccf65d4bb2a": "侧边面板",
   "a8072bdf7ae4a288": "主视图",
   "162108e16ed96771": "屏幕阅读器",
+  "44dab868852d985e": "The face answers are set in while you are in Chat mode. Code mode always uses the interface face.",
+  "3943fcc2672c66ed": "Reset the reading face to default",
+  "58516bf37aa18815": "Reading face",
   "865503beaf01b140": "隐藏代理运行的命令、编辑和搜索。隐藏成功的调用，保留失败的调用。Zen 模式只显示最终答案。审批、提问和错误始终显示。",
   "5848a9c1d77f45b2": "重置聊天中的工具调用为默认值",
   "8cf1b5b0cc0dc218": "屏幕阅读器会从当前会话中播报：一轮开始、需要你处理以及结束。“状态和消息”还会播报智能体在最后一条消息之前写下的内容。“全部”会播报每一步。",
@@ -10687,90 +10726,6 @@
     }
   ],
   "6de8a5700498d20f": [
-    {
-      "t": "span",
-      "i": 1,
-      "c": [
-        {
-          "t": "span",
-          "i": 2,
-          "c": "设置应用于"
-        },
-        {
-          "i": 3,
-          "k": "_gt_value_3",
-          "v": "v"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 4,
-      "c": [
-        {
-          "t": "span",
-          "i": 5,
-          "c": "位于"
-        },
-        {
-          "i": 6,
-          "k": "_gt_value_6",
-          "v": "v"
-        }
-      ]
-    }
-  ],
-  "fc2262bcc4a2e4f0": [
-    {
-      "t": "span",
-      "i": 1,
-      "c": [
-        {
-          "t": "span",
-          "i": 2,
-          "c": "设置应用于"
-        },
-        {
-          "i": 3,
-          "k": "_gt_value_3",
-          "v": "v"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 4,
-      "c": [
-        {
-          "t": "span",
-          "i": 5,
-          "c": "位于"
-        },
-        {
-          "i": 6,
-          "k": "_gt_value_6",
-          "v": "v"
-        }
-      ]
-    },
-    {
-      "t": "span",
-      "i": 7,
-      "c": [
-        {
-          "t": "span",
-          "i": 8,
-          "c": "范围"
-        },
-        {
-          "i": 9,
-          "k": "_gt_value_9",
-          "v": "v"
-        }
-      ]
-    }
-  ],
-  "86d52b318b1a3e7a": [
     {
       "t": "span",
       "i": 1,
@@ -11899,7 +11854,7 @@
       "v": "v"
     }
   ],
-  "39f64d971ba424b5": "未配置用量来源。",
+  "879232144b2646c6": "No usage sources configured",
   "31723a5ee9fd5a09": "添加中心或 HTTP 源，以查看其他服务的配额，例如共享代理。",
   "dbd877abdc2c7c81": "HTTP 配额来源",
   "4cf6a373a7535324": "{name} · 已停用",
@@ -12007,6 +11962,7 @@
   "d4b59565bd8b6d07": "翻译为英文",
   "0d88a0c771d98284": "用任意语言说话，生成英文文本。",
   "f4a8700049fc9dcc": "静音过滤",
+  "cdae20b02f761cc1": "Choose where to transcribe to change this.",
   "69558ed7b83d671e": "Apple Speech 会自行处理静音。",
   "f22b17f6731c14c0": "OpenAI 会自行处理静音。",
   "75a3001ae4561b97": "转写前跳过静音和背景噪声。",
@@ -12234,6 +12190,8 @@
   "54a82cff8138c33c": "测试版 简单 文件夹 项目树 经典 侧边栏",
   "de42c4690914cee4": "测试版 简洁侧边栏 文件夹 行 多行 分支 PR 详情",
   "8f71bc7c325e23e3": "隐藏 工具调用 命令 编辑 搜索 工作日志 活动 安静 聊天 专注 仅最终回答",
+  "42ca4f29a93c221b": "Reading face in Chat mode",
+  "90bed95f8d143d05": "serif sans typeface font answers reading text book",
   "5a3af411a0d5354c": "无障碍 a11y 屏幕阅读器 nvda jaws voiceover orca 讲述人 语音 播报 朗读 消息 活动 步骤",
   "d443390c4d2dcfd4": "无障碍 a11y 屏幕阅读器 nvda jaws voiceover orca 讲述人 窗口标题 标签页标题 alt tab 任务栏 会话状态 顺序 运行中 批准",
   "6826fa9579c22035": "测试版 共享 访客 邀请 链接 队友 观看 t3 connect 隧道",
@@ -12628,6 +12586,7 @@
   "a9b66b244a71f217": "无法将错误信息复制到剪贴板。",
   "35062fc45c2b1216": "已复制错误信息",
   "63790659557f315e": "显示详情",
+  "8bb0349ba69157aa": "{count} more notifications",
   "7423eb22b2f1768f": "通知",
   "dea3a2118378111b": "关闭通知",
   "c6cf1b06e0433ca3": "设置进度",
@@ -12786,6 +12745,8 @@
   "d89ad31bf0aebe92": "小时",
   "5e2236ccf9b5ffba": "天",
   "c400ae5f6f27b81d": "按时间的用量明细",
+  "fe50d1004835a750": "No price is known for this model, so its cost is left out of the estimate.",
+  "868155717d7538b8": "It looks like {name}, which is recorded under its plain name.",
   "8d2a69e65d453cce": "在共享同一转写目录的环境间只计一次：{sources}",
   "0f3b14055f7bba6f": "{count, plural, other {{count} 个环境}}",
   "9b84232a3f71dae1": "部分环境无法提供用量数据",
@@ -12810,11 +12771,12 @@
   "b3481abb98960bd9": "总计",
   "8a86175b5560c0b4": "明细",
   "f144193ca84271f5": "费用",
-  "fc41173bcd7495a4": "占比",
   "b4ae29a86f8a6ade": "token",
+  "fc41173bcd7495a4": "占比",
   "49c4cd88ca4d260a": "此时间范围内没有活动。",
-  "0a492183a4c7bb3d": "未定价",
+  "df9631f20b380006": "Unpriced: no price is known for these models, so their cost is not in the estimate.",
   "7853bd9e23f25bb6": "总计",
+  "0a492183a4c7bb3d": "未定价",
   "873ae13250e5bc5c": "所有环境",
   "e051bdc6c63a0b4b": "未连接任何环境。",
   "b11af3f3da3d494e": "选中的环境仍在扫描，总计暂不完整。",

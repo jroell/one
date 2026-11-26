@@ -1,6 +1,7 @@
 import { msg, useMessages } from "gt-react";
 
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
+import { useSettingsBreadcrumbTail } from "./settingsBreadcrumbTail";
 import { useSettingsPathname } from "./useSettingsPathname";
 
 interface SettingsPageIntro {
@@ -109,6 +110,9 @@ export function useSettingsPageIntro() {
   const m = useMessages();
   const pathname = useSettingsPathname();
   const intro = SETTINGS_PAGE_INTROS[pathname];
+  // A page opened inside the section (one provider) is titled by its own name.
+  const tail = useSettingsBreadcrumbTail();
+  if (intro && tail) return { title: tail.label, purpose: tail.purpose };
   return intro ? { title: m(intro.title), purpose: m(intro.purpose) } : null;
 }
 
@@ -117,7 +121,9 @@ export function SettingsPageHeader() {
   if (!intro) return null;
   return (
     <header data-settings-page-header="" className="flex flex-col gap-1 px-3 sm:px-4">
-      <h1 data-settings-page-title="">{intro.title}</h1>
+      <h1 data-settings-page-title="" tabIndex={-1} className="outline-none">
+        {intro.title}
+      </h1>
       <p data-settings-page-purpose="">{intro.purpose}</p>
     </header>
   );

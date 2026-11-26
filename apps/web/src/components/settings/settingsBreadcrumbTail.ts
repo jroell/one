@@ -3,6 +3,8 @@ import { useEffect, useSyncExternalStore } from "react";
 /** A page opened inside a settings section, such as one provider: its name and the way back. */
 export interface SettingsBreadcrumbTail {
   readonly label: string;
+  /** The one line under the page's title while this sub-page is open. */
+  readonly purpose: string;
   readonly onUp: () => void;
 }
 
@@ -32,13 +34,18 @@ export function useSettingsBreadcrumbTail(): SettingsBreadcrumbTail | null {
 
 /**
  * Registers the sub-page this one shows for the header's trail ("Settings / Providers / Codex")
- * and takes it back when the page changes or unmounts. `onUp` returns to the section's list.
+ * and takes it back when the page changes or unmounts. The page's title and purpose line follow it.
+ * `onUp` returns to the section's list.
  */
-export function useRegisterSettingsBreadcrumbTail(label: string | null, onUp: () => void) {
+export function useRegisterSettingsBreadcrumbTail(
+  label: string | null,
+  purpose: string,
+  onUp: () => void,
+) {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- holds a registry entry in the header's store until this page unmounts
   useEffect(() => {
     if (label === null) return;
-    publish({ label, onUp });
+    publish({ label, purpose, onUp });
     return () => publish(null);
-  }, [label, onUp]);
+  }, [label, purpose, onUp]);
 }

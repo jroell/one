@@ -76,9 +76,9 @@ export const ChatArrivalContext = createContext<ChatArrival>({
 
 /**
  * A row that never mounts (the answer arrived while scrolled away) cannot report the end of its
- * animation, so a mark lasts this long at most, a little over the animation itself.
+ * animation, so a mark lasts this long at most: the whole paragraph-by-paragraph reveal.
  */
-export const CHAT_ARRIVAL_EXPIRY_MS = 1000;
+export const CHAT_ARRIVAL_EXPIRY_MS = 1600;
 
 /**
  * Tracks which assistant rows just arrived. `animate` is false outside Chat mode and under

@@ -20,7 +20,7 @@ import {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it, onTestFinished, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
@@ -492,6 +492,21 @@ it("keeps wrap, whitespace and the file tree in one View menu as checkable items
   await wide.screen.getByRole("button", { name: "View options" }).click();
   const whitespace = page.getByRole("menuitemcheckbox", { name: "Hide whitespace changes" });
   await expect.element(page.getByRole("menuitemcheckbox", { name: "Wrap lines" })).toBeVisible();
+  const iconWidths = new Set<number>();
+  // Each item is one row: the icon and its label share a line, and the row is 32px or taller.
+  for (const name of ["Wrap lines", "Hide whitespace changes", "Show file tree"]) {
+    const item = page.getByRole("menuitemcheckbox", { name }).element() as HTMLElement;
+    const label = [...item.querySelectorAll("span")].find((span) => span.textContent === name)!;
+    const icon = label.querySelector("svg")!;
+    const centre = (box: DOMRect) => box.top + box.height / 2;
+    expect(
+      Math.abs(centre(icon.getBoundingClientRect()) - centre(label.getBoundingClientRect())),
+    ).toBeLessThan(2);
+    iconWidths.add(Math.round(icon.getBoundingClientRect().width));
+    expect(icon.getBoundingClientRect().width).toBeGreaterThanOrEqual(15);
+    expect(item.getBoundingClientRect().height).toBeGreaterThanOrEqual(28);
+  }
+  expect(iconWidths.size).toBe(1);
   await expect
     .element(page.getByRole("menuitemcheckbox", { name: "Show file tree" }))
     .toBeVisible();
@@ -660,4 +675,31 @@ it("opens a file from a tool call's diff by the path its agent recorded", async 
       selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, context.threadRef),
     ).toMatchObject({ activeSurfaceId: "file:src/a.ts" }),
   );
+});
+
+it("opens a large diff on its folder tree until the person chooses otherwise", async () => {
+  const filePatch = (index: number) => [
+    `diff --git a/dir/file-${index}.txt b/dir/file-${index}.txt`,
+    `--- a/dir/file-${index}.txt`,
+    `+++ b/dir/file-${index}.txt`,
+    "@@ -1 +1 @@",
+    "-a",
+    "+b",
+  ];
+  const large = [...Array.from({ length: 120 }, (_, index) => filePatch(index)).flat(), ""];
+  const treeChecked = async (stored: string | null) => {
+    if (stored === null) localStorage.removeItem("t3code.diffFileTreeOpen");
+    else localStorage.setItem("t3code.diffFileTreeOpen", stored);
+    const view = await renderTurnPatch(large, 900);
+    using _context = view.context;
+    await using _screen = view.screen;
+    await expect.element(view.screen.getByText(/^120 files$/)).toBeVisible();
+    await view.screen.getByRole("button", { name: "View options" }).click();
+    const item = page.getByRole("menuitemcheckbox", { name: "Show file tree" });
+    await expect.element(item).toBeVisible();
+    return item.element().getAttribute("aria-checked");
+  };
+  onTestFinished(() => localStorage.removeItem("t3code.diffFileTreeOpen"));
+  expect(await treeChecked(null)).toBe("true");
+  expect(await treeChecked("false")).toBe("false");
 });

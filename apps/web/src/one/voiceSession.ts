@@ -190,8 +190,11 @@ export function replyAnchor(messages: ReadonlyArray<VoiceMessage>): ReplyAnchor 
   return { afterId: messages.at(-1)?.id ?? null, count: messages.length };
 }
 
-/** Where the spoken question's own turn stands: not in the thread yet, still waiting or running, or over. */
-export type OwnTurn = "unknown" | "open" | "ended";
+/**
+ * Where the spoken question's own turn stands: not in the thread yet, waiting or running, held in
+ * the queue, or over. "Over" includes a run that was cancelled or failed before it started.
+ */
+export type OwnTurn = "unknown" | "open" | "held" | "ended";
 
 const OPEN_RUN_STATUSES: ReadonlySet<string> = new Set([
   "preparing",
@@ -201,31 +204,37 @@ const OPEN_RUN_STATUSES: ReadonlySet<string> = new Set([
   "waiting",
 ]);
 
+export type OwnTurnRun = Readonly<{
+  id: string;
+  userMessageId: string;
+  status: string;
+  queueHeld?: boolean | undefined;
+}>;
+
+function runTurn(run: OwnTurnRun): OwnTurn {
+  if (!OPEN_RUN_STATUSES.has(run.status)) return "ended";
+  return run.status === "queued" && run.queueHeld === true ? "held" : "open";
+}
+
 /**
- * Follows the question voice chat sent through the thread's projection, not the thread's work in
- * general: another client's run, or the run this question waits behind, is not its turn. A run not
- * listed yet counts as open, since the message is already there.
+ * Follows the question voice chat sent through its run, which the server publishes as soon as the
+ * request is accepted, even when it queues behind another run. The transcript row only appears when
+ * a queued run starts, so it is needed only for a steer, which joins the run it redirects.
  */
 export function ownTurnState(
   messages: ReadonlyArray<VoiceMessage>,
-  runs: ReadonlyArray<{
-    readonly id: string;
-    readonly userMessageId: string;
-    readonly status: string;
-  }>,
+  runs: ReadonlyArray<OwnTurnRun>,
   messageId: string | null,
 ): OwnTurn {
   if (messageId === null) return "unknown";
-  const question = messages.find(
+  const own = runs.find((candidate) => candidate.userMessageId === messageId);
+  if (own !== undefined) return runTurn(own);
+  const steer = messages.find(
     (message) => message.role === "user" && (message.messageId ?? message.id) === messageId,
   );
-  if (question === undefined) return "unknown";
-  const run =
-    runs.find((candidate) => candidate.userMessageId === messageId) ??
-    (question.runId == null
-      ? undefined
-      : runs.find((candidate) => candidate.id === question.runId));
-  return run === undefined || OPEN_RUN_STATUSES.has(run.status) ? "open" : "ended";
+  if (steer === undefined) return "unknown";
+  const target = steer.runId == null ? undefined : runs.find((run) => run.id === steer.runId);
+  return target === undefined ? "open" : runTurn(target);
 }
 
 export type ReplySelection = Readonly<{

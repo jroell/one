@@ -623,6 +623,27 @@ it.each([
   },
 );
 
+it("turns off the settings that shape transcription while transcription is off, and on again once a destination is chosen", async () => {
+  __setClientSettingsForTests(getClientSettings());
+  using cleanup = new DisposableStack();
+  cleanup.defer(() => chooseAudioDestination(null));
+  chooseAudioDestination(null);
+  await using screen = await render(
+    <SettingsScopeProvider search={{}} onChange={() => {}}>
+      <VoiceSettingsPanel />
+    </SettingsScopeProvider>,
+  );
+  await expect.element(screen.getByRole("switch", { name: "Silence filtering" })).toBeDisabled();
+  await expect.element(screen.getByRole("switch", { name: "Remove filler words" })).toBeDisabled();
+  await expect
+    .element(screen.getByText("Choose where to transcribe to change this.").first())
+    .toBeVisible();
+
+  chooseAudioDestination({ kind: "environment", environmentId: EnvironmentId.make("missing") });
+  await expect.element(screen.getByRole("switch", { name: "Silence filtering" })).toBeEnabled();
+  await expect.element(screen.getByRole("switch", { name: "Remove filler words" })).toBeEnabled();
+});
+
 it("keeps a missing destination selected without claiming it cannot transcribe", async () => {
   __setClientSettingsForTests(getClientSettings());
   using cleanup = new DisposableStack();

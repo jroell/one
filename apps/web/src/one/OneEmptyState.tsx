@@ -26,7 +26,6 @@ import { shortcutLabelForCommand } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useProject, useThreadShell } from "~/state/entities";
 import { resolveThreadRouteTarget } from "~/threadRoutes";
-import { OneMark } from "./OneMark";
 import { OneOrb } from "./OneOrb";
 import { useVoiceBridge } from "./voiceBridge";
 import { startVoiceChat } from "./startVoiceChat";
@@ -68,12 +67,9 @@ export function OneEmptyState() {
   if (mode === "chat" && mainConversation) return <ChatWelcome />;
   if (mainConversation) return <CodeWelcome {...(draftHeading ? { heading: draftHeading } : {})} />;
   return (
-    <div className="flex flex-col items-center gap-3 text-center">
-      <OneMark className="size-12 opacity-90" />
-      <p className="text-sm text-muted-foreground">
-        <T>Send a message to start the conversation.</T>
-      </p>
-    </div>
+    <p className="text-center text-sm text-muted-foreground">
+      <T>Send a message to start the conversation.</T>
+    </p>
   );
 }
 

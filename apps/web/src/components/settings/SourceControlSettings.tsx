@@ -303,7 +303,7 @@ export function DiscoveryItemRow({
                 </span>
               ) : null}
               {statusChip ? (
-                <Badge variant={statusChip.variant} size="sm">
+                <Badge variant={statusChip.variant} dot>
                   {statusChip.label}
                 </Badge>
               ) : null}

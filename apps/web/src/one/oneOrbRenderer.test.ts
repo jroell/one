@@ -16,14 +16,15 @@ import {
   type OrbMotion,
   type OneOrbState,
 } from "./oneOrbRenderer";
+import { glowForSize } from "./oneOrbRest";
 
-/** The ring after it has eased into the idle pose: open angle, idle tilt and sway, glow at its breathing level. */
+/** The ring after it has eased into the idle pose: open angle, idle tilt, no sway and no breathing. */
 const IDLE_AT_REST: OrbMotion = {
   spin: 0.48,
-  sway: 0.42,
-  tilt: 1.02,
+  sway: 0,
+  tilt: 0.72,
   pulse: 0,
-  energy: 0.035,
+  energy: 0,
   aura: 0.3,
   reveal: 1,
 };
@@ -69,12 +70,23 @@ describe("how long the ring waits between frames", () => {
     expect(frameIntervalMs({ ...IDLE_AT_REST, ...motion }, state, 0, level)).toBe(0);
   });
 
-  it("treats the idle breathing glow as settled at any point of the breath", () => {
-    // Half a breath later the glow target is 0.07; a ring that followed it is still at rest.
-    const time = Math.PI / 2 / 1.3;
-    expect(frameIntervalMs({ ...IDLE_AT_REST, energy: 0.07 }, "idle", time, 0)).toBe(
-      RESTING_FRAME_MS,
-    );
+  it.each([0, 1.2, 2.4, 7])(
+    "keeps an idle ring at rest at time %s, because it does not breathe or sway",
+    (time) => {
+      expect(frameIntervalMs(IDLE_AT_REST, "idle", time, 0)).toBe(RESTING_FRAME_MS);
+    },
+  );
+});
+
+describe("how much light a ring gives off", () => {
+  it.each([
+    [48, 0],
+    [64, 0],
+    [96, 0.5],
+    [128, 1],
+    [256, 1],
+  ])("gives a %spx ring %s of its glow", (width, glow) => {
+    expect(glowForSize(width)).toBe(glow);
   });
 });
 
@@ -158,8 +170,8 @@ describe("the frame budget", () => {
 });
 
 describe("the highest pixel density a ring renders at", () => {
-  it("lets a small ring use twice the pixels at every step", () => {
-    expect([0, 1, 2, 5].map((step) => pixelRatioCap(200, step))).toEqual([2, 2, 2, 2]);
+  it("lets a small ring draw at up to four times the pixels at every step, so its rim is averaged", () => {
+    expect([0, 1, 2, 5].map((step) => pixelRatioCap(200, step))).toEqual([4, 4, 4, 4]);
   });
 
   it("lowers a large ring one step at a time and holds at the last", () => {

@@ -47,8 +47,8 @@ import {
   STANDARD_THEME_CARDS,
   getThemeCardDefinition,
   previewColorsOf,
-  ThemePreviewCircles,
-  ThemePreviewCircle,
+  ThemePreviewMinis,
+  ThemePreviewMini,
   type ThemeCardDefinition,
   type ThemeMode,
 } from "./ThemePreviewCircles";
@@ -209,7 +209,7 @@ function ThemeLibraryCard({
                                     })
                             }
                             aria-pressed={isActive}
-                            className="absolute left-1/2 top-2 z-20 flex size-14 items-center justify-center rounded-full outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-5 focus-visible:outline-foreground/60"
+                            className="absolute left-1/2 top-2 z-20 flex h-14 w-[5.25rem] items-center justify-center rounded-lg outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-5 focus-visible:outline-foreground/60"
                             style={{
                               transform: `translateX(calc(-50% + ${rootOffsetX}px))`,
                             }}
@@ -221,7 +221,7 @@ function ThemeLibraryCard({
                             onFocus={() => setRadialModeOpen(mode)}
                             onMouseEnter={() => setRadialModeOpen(mode)}
                           >
-                            <ThemePreviewCircle
+                            <ThemePreviewMini
                               colors={selected.preview.colors}
                               mode={selected.preview.mode}
                             />
@@ -280,7 +280,7 @@ function ThemeLibraryCard({
                                     }
                                     aria-pressed={optionIsActive}
                                     className={cn(
-                                      "absolute left-1/2 top-1 z-30 flex size-7 items-center justify-center rounded-full bg-background shadow-sm outline-none transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                                      "absolute left-1/2 top-1 z-30 flex h-7 w-10 items-center justify-center rounded-md bg-background shadow-sm outline-none transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                                       optionIsActive
                                         ? "ring-2 ring-inset ring-ring"
                                         : "ring-1 ring-border/70",
@@ -300,7 +300,7 @@ function ThemeLibraryCard({
                                     onMouseEnter={() => setRadialModeOpen(mode)}
                                   >
                                     <span className="pointer-events-none scale-[0.43]">
-                                      <ThemePreviewCircle
+                                      <ThemePreviewMini
                                         colors={preview.colors}
                                         mode={preview.mode}
                                       />
@@ -315,7 +315,7 @@ function ThemeLibraryCard({
                   })}
                 </div>
               ) : (
-                <ThemePreviewCircles
+                <ThemePreviewMinis
                   label={theme.label}
                   activeModes={activeModes}
                   onSelectMode={onUseMode}
@@ -1019,13 +1019,8 @@ export function ThemeLibrary({
                     </span>
                     <span className="flex min-h-12 items-center justify-center gap-1">
                       {card.previews.map((preview) => (
-                        <span
-                          className="flex size-11 shrink-0 items-center justify-center"
-                          key={preview.mode}
-                        >
-                          <span className="flex scale-75">
-                            <ThemePreviewCircle colors={preview.colors} mode={preview.mode} />
-                          </span>
+                        <span className="flex shrink-0 scale-75" key={preview.mode}>
+                          <ThemePreviewMini colors={preview.colors} mode={preview.mode} />
                         </span>
                       ))}
                     </span>

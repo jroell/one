@@ -1009,12 +1009,12 @@ function FleetCanvas({
         ref={setCanvas}
         data-dragging={dragging || undefined}
         data-glide={glide || undefined}
-        className="relative min-h-70 cursor-grab touch-none overflow-clip bg-background/50 select-none data-dragging:cursor-grabbing data-glide:transition-[height,background-size,background-position] data-glide:duration-200 data-glide:ease-out motion-reduce:transition-none"
+        className="relative min-h-45 cursor-grab touch-none overflow-clip bg-background/50 select-none data-dragging:cursor-grabbing data-glide:transition-[height,background-size,background-position] data-glide:duration-200 data-glide:ease-out motion-reduce:transition-none"
         style={
           view === null || size === null
             ? undefined
             : {
-                height: Math.max(size.height, 280),
+                height: Math.max(size.height, 180),
                 backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1.5px)",
                 backgroundSize: `${24 * view.scale}px ${24 * view.scale}px`,
                 backgroundPosition: `${view.x}px ${view.y}px`,
@@ -1133,6 +1133,22 @@ function FleetLegend({ twoWay }: { readonly twoWay: boolean }) {
       ) : null}
     </ul>
   );
+}
+
+/** The tone of a card's connection chip: green when connected, amber while it connects, red when it fails. */
+function connectionChipClassName(node: FleetEnvironmentNode): string {
+  if (!node.enabled) return "bg-muted text-muted-foreground";
+  switch (node.phase) {
+    case "connected":
+      return "bg-success/12 text-success-foreground";
+    case "connecting":
+    case "reconnecting":
+      return "bg-warning/12 text-warning-foreground";
+    case "error":
+      return "bg-destructive/10 text-destructive-foreground";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
 }
 
 /** A state short enough for a card. The reason behind it is in the details and the name. */
@@ -2147,13 +2163,17 @@ export const FleetScene = memo(function FleetScene({
         }
         const environment = environmentById.get(node.id);
         const routes = routeEdges.filter((edge) => edge.to === node.id);
+        const refused = routes.length > 0 && routes.every((edge) => edge.state === "refused");
+        const connection = connectionStateText(node, environment, refused, gt);
         const status = environmentStatusText(
           node,
           environment,
-          routes.length > 0 && routes.every((edge) => edge.state === "refused"),
+          refused,
           links.filter((edge) => edge.from === node.id).length,
           gt,
         );
+        // Links are only known from a connected machine; a card shows its connection as a chip.
+        const linksLine = node.phase === "connected" ? status : gt("Links unknown");
         // The card's state is short; the name carries the reason and what it leaves unknown.
         const spoken =
           node.phase === "connected"
@@ -2193,25 +2213,27 @@ export const FleetScene = memo(function FleetScene({
                 )}
               >
                 <EnvironmentMachineIcon kind={node.machine ?? "server"} className="size-3.5" />
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute -right-1 -bottom-1 size-2.5 rounded-full border-2 border-card",
-                    node.enabled
-                      ? connectionPhaseDotClassName(node.phase)
-                      : "bg-muted-foreground/40",
-                  )}
-                />
               </span>
               <span className={cn("min-w-0 flex-1 pr-1.5", dimmed && "opacity-70")}>
-                {node.thisDevice ? (
+                <span className="mb-0.5 flex flex-wrap items-center gap-1">
                   <span
-                    data-fleet-this-device=""
-                    className="mb-0.5 flex w-fit rounded-sm bg-muted px-1 text-2xs leading-4 font-medium text-muted-foreground"
+                    data-fleet-connection=""
+                    className={cn(
+                      "rounded-sm px-1 text-2xs leading-4 font-medium",
+                      connectionChipClassName(node),
+                    )}
                   >
-                    {gt("This device")}
+                    {connection}
                   </span>
-                ) : null}
+                  {node.thisDevice ? (
+                    <span
+                      data-fleet-this-device=""
+                      className="rounded-sm bg-muted px-1 text-2xs leading-4 font-medium text-muted-foreground"
+                    >
+                      {gt("This device")}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="line-clamp-2 text-xs leading-4 font-semibold [overflow-wrap:anywhere]">
                   {node.label}
                 </span>
@@ -2224,7 +2246,7 @@ export const FleetScene = memo(function FleetScene({
                       : "text-muted-foreground",
                   )}
                 >
-                  {status}
+                  {linksLine}
                 </span>
               </span>
             </button>

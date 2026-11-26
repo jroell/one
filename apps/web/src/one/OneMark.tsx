@@ -1,20 +1,20 @@
-import { useId, type SVGProps } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type HTMLAttributes,
+  type RefObject,
+} from "react";
 
 import { cn } from "~/lib/utils";
-import { ONE_MARK_PATHS } from "./oneMarkPaths";
+import { ONE_MARK_LIT_AXIS, ONE_MARK_LIT_STOPS, ONE_MARK_PATHS } from "./oneMarkPaths";
+import { ORB_MARK_DENSITIES, orbMarkUrl, type OrbMarkSize } from "./oneOrbRest";
+import { restRingUrl } from "./restRingPicture";
 
-/**
- * The One mark: a tilted glass band. Every color comes from the `--one-ring-*`
- * tokens in one.css, which follow the active theme.
- */
-export function OneMark({
-  className,
-  interactive = false,
-  ...props
-}: SVGProps<SVGSVGElement> & {
-  /** Plays the reflection sweep on hover and the squash on press of the nearest `.one-mark-host`. */
-  readonly interactive?: boolean;
-}) {
+/** The mark drawn as vectors, from the `--one-ring-*` tokens: the stand-in when an image is missing or a chosen theme recolors the ring. */
+function VectorMark() {
   const id = useId();
   const band = `${id}band`;
   const wall = `${id}wall`;
@@ -24,22 +24,23 @@ export function OneMark({
   return (
     <svg
       aria-hidden="true"
-      {...props}
-      data-one-mark={interactive ? "interactive" : "static"}
-      className={cn("one-mark", className)}
+      data-one-mark-vector=""
       viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <linearGradient id={band} x1="3" y1="8" x2="21" y2="17" gradientUnits="userSpaceOnUse">
-          <stop offset="0" style={{ stopColor: "var(--one-ring-hi)" }} />
-          <stop offset="0.2" style={{ stopColor: "var(--one-ring-mid)" }} />
-          <stop offset="0.44" style={{ stopColor: "var(--one-ring-lo)" }} />
-          <stop offset="0.58" style={{ stopColor: "var(--one-ring-mid)" }} />
-          <stop offset="0.7" style={{ stopColor: "var(--one-ring-hi)" }} />
-          <stop offset="0.84" style={{ stopColor: "var(--one-ring-mid)" }} />
-          <stop offset="1" style={{ stopColor: "var(--one-ring-lo)" }} />
+        <linearGradient
+          id={band}
+          x1={ONE_MARK_LIT_AXIS.x1}
+          y1={ONE_MARK_LIT_AXIS.y1}
+          x2={ONE_MARK_LIT_AXIS.x2}
+          y2={ONE_MARK_LIT_AXIS.y2}
+          gradientUnits="userSpaceOnUse"
+        >
+          {ONE_MARK_LIT_STOPS.map(([offset, tone]) => (
+            <stop key={offset} offset={offset} style={{ stopColor: `var(--one-ring-${tone})` }} />
+          ))}
         </linearGradient>
         <linearGradient id={wall} x1="5" y1="9" x2="19" y2="9" gradientUnits="userSpaceOnUse">
           <stop offset="0" style={{ stopColor: "var(--one-ring-deep)" }} />
@@ -92,6 +93,8 @@ export function OneMark({
           strokeLinecap="round"
           strokeOpacity="0.5"
         />
+        {/* The glint: the one catch-light that is part of the mark, fixed at one o'clock. */}
+        <path d={ONE_MARK_PATHS.glint} fill="var(--one-ring-spec)" fillOpacity="0.92" />
         {/* A band of light that travels across the ring on hover. */}
         <g clipPath={`url(#${clip})`}>
           <rect
@@ -106,5 +109,135 @@ export function OneMark({
         </g>
       </g>
     </svg>
+  );
+}
+
+/** True while a chosen theme (not the standard gold) is on: the picture is recolored for it. */
+function chosenTheme(): boolean {
+  return (document.documentElement.dataset.themeId ?? "") !== "";
+}
+
+function subscribeToTheme(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme-id"],
+  });
+  return () => observer.disconnect();
+}
+
+/**
+ * The ring drawn in the theme's ring colors (`--one-ring-lo/mid/hi`, which come from
+ * its action color), or null until it is ready or while the standard theme is on. It follows theme,
+ * mode and density changes, and each color, size and density is drawn once.
+ */
+function useThemedPicture(root: RefObject<HTMLElement | null>, size: OrbMarkSize): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the picture in step with the theme attributes on <html>, which change outside React
+  useEffect(() => {
+    const html = document.documentElement;
+    let current = 0;
+    const update = () => {
+      const element = root.current;
+      if (!element || !chosenTheme()) {
+        setUrl(null);
+        return;
+      }
+      const style = getComputedStyle(element);
+      const ring = (tone: string) => style.getPropertyValue(`--one-ring-${tone}`);
+      const request = (current += 1);
+      void restRingUrl({
+        lo: ring("lo"),
+        mid: ring("mid"),
+        hi: ring("hi"),
+        dark: html.classList.contains("dark"),
+        size,
+        density: Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 1))),
+      }).then(
+        (next) => {
+          if (request === current) setUrl(next);
+        },
+        () => {
+          if (request === current) setUrl(null);
+        },
+      );
+    };
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(html, {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-theme-id"],
+    });
+    return () => observer.disconnect();
+  }, [root, size]);
+  return url;
+}
+
+/**
+ * The One mark: the live ring's rest pose as a picture (public/mark, drawn by
+ * scripts/render-mark.mjs). A chosen theme gets the same ring drawn in its colors
+ * (restRingPicture.ts); the vector drawing only stands in for a missing image. `size` is the CSS width and picks the file.
+ */
+export function OneMark({
+  className,
+  interactive = false,
+  size = 64,
+  ...props
+}: Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
+  /** Plays the reflection sweep on hover and the squash on press of the nearest `.one-mark-host`. */
+  readonly interactive?: boolean;
+  readonly size?: OrbMarkSize;
+}) {
+  const [imageMissing, setImageMissing] = useState(false);
+  const root = useRef<HTMLSpanElement>(null);
+  const chosen = useSyncExternalStore(subscribeToTheme, chosenTheme, () => false);
+  const themed = useThemedPicture(root, size);
+  const image = (theme: "dark" | "light") => (
+    <img
+      alt=""
+      aria-hidden="true"
+      data-mark-theme={theme}
+      width={size}
+      height={size}
+      src={orbMarkUrl(theme, size, 1)}
+      srcSet={ORB_MARK_DENSITIES.map(
+        (density) => `${orbMarkUrl(theme, size, density)} ${density}x`,
+      ).join(", ")}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      onError={() => setImageMissing(true)}
+    />
+  );
+  return (
+    <span
+      ref={root}
+      aria-hidden="true"
+      {...props}
+      data-one-mark={interactive ? "interactive" : "static"}
+      data-vector={imageMissing ? "" : undefined}
+      className={cn("one-mark", className)}
+    >
+      {chosen ? (
+        themed === null ? null : (
+          <img
+            alt=""
+            aria-hidden="true"
+            data-mark-tinted=""
+            width={size}
+            height={size}
+            src={themed}
+            draggable={false}
+            onError={() => setImageMissing(true)}
+          />
+        )
+      ) : (
+        <>
+          {image("dark")}
+          {image("light")}
+        </>
+      )}
+      {imageMissing ? <VectorMark /> : null}
+    </span>
   );
 }

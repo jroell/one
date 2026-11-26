@@ -1,5 +1,6 @@
 import { textContrast } from "../../../test/contrast";
 import { render } from "../../../test/render";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
@@ -7,6 +8,7 @@ import "../../index.css";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { SettingsEmptyState } from "./SettingsEmptyState";
 import {
   SettingsPageContainer,
   SettingsPickerField,
@@ -107,7 +109,7 @@ describe("settings layout", () => {
     expect(screen.container.querySelectorAll("[data-settings-control]")).toHaveLength(5);
   });
 
-  it("draws a text field white like its panel in light, with a placeholder that stays readable", async () => {
+  it("keeps a text field's placeholder readable (4.5:1) so an empty field does not read as disabled", async () => {
     await using _screen = await render(
       <div data-app-modal="">
         <SettingsSection title="Provider">
@@ -123,9 +125,6 @@ describe("settings layout", () => {
     );
 
     const input = page.getByRole("textbox", { name: "Binary path" }).element();
-    const field = input.closest<HTMLElement>("[data-slot=input-control]")!;
-    const panel = field.closest<HTMLElement>("[data-slot=settings-group]")!;
-    expect(getComputedStyle(field).backgroundColor).toBe(getComputedStyle(panel).backgroundColor);
     expect(textContrast(input, "::placeholder")).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -196,6 +195,31 @@ describe("settings layout", () => {
       expect(Math.round(trigger.getBoundingClientRect().width), name).toBe(240);
     }
     expect(screen.container.querySelectorAll("[data-settings-picker-field]")).toHaveLength(3);
+  });
+
+  it("starts an empty state the same distance under the page header whether its section hides its title or only repeats the page's", async () => {
+    const gapUnder = async (path: string, section: ReactNode) => {
+      await using screen = await render(<SettingsPageContainer>{section}</SettingsPageContainer>, {
+        router: path,
+      });
+      const header = screen.container.querySelector("[data-settings-page-header]")!;
+      const empty = screen.container.querySelector("[data-settings-empty]")!;
+      return empty.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
+    };
+    const state = <SettingsEmptyState icon={<span />} title="Nothing yet" description="Add one." />;
+    const repeated = await gapUnder(
+      "/settings/scheduled-tasks",
+      <SettingsSection title="Scheduled tasks" variant="plain">
+        {state}
+      </SettingsSection>,
+    );
+    const hidden = await gapUnder(
+      "/settings/archived",
+      <SettingsSection title="Archive" hideTitle variant="plain">
+        {state}
+      </SettingsSection>,
+    );
+    expect(Math.abs(repeated - hidden)).toBeLessThan(1.5);
   });
 
   it("sorts a danger row after the primary action of its section whatever the source order", async () => {

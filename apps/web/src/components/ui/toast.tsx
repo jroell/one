@@ -35,6 +35,7 @@ import {
 } from "./toast.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
+import { useComposerAnchor } from "./useComposerAnchor";
 
 export type ThreadToastData = {
   threadRef?: ScopedThreadRef | null;
@@ -57,6 +58,8 @@ export type ThreadToastData = {
     | "link"
     | "outline"
     | "secondary";
+  /** A recoverable error offers a real action: it renders a Retry button that calls this. */
+  onRetry?: (() => void) | undefined;
   expandableContent?: ReactNode;
   expandableLabels?: { expand?: string; collapse?: string };
   expandableDescriptionTrigger?: boolean;
@@ -127,11 +130,13 @@ function errorDescriptionClampClass(type: unknown, description: unknown): string
   return "line-clamp-4";
 }
 
-const toastCornerDismissClass = "absolute z-20 -top-1.5 -right-1.5";
+// The close button shows while the toast is hovered or holds focus, and always on touch.
+const toastCornerDismissClass =
+  "absolute z-20 top-1.5 right-1.5 opacity-0 transition-opacity duration-150 group-hover/toast:opacity-100 group-focus-within/toast:opacity-100 [@media(hover:none)]:opacity-100";
 const toastCornerOrbClass = cn(
-  "inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border/60 bg-popover/92 text-muted-foreground shadow-sm outline-none backdrop-blur-sm",
-  "transition-[color,background-color,box-shadow] hover:bg-popover hover:text-foreground",
-  "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+  "inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none",
+  "transition-[color,background-color] hover:bg-(--ui-hover) hover:text-foreground",
+  "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
 );
 
 function handleToastDismissClick(
@@ -335,6 +340,7 @@ function deriveToastBodyDescriptor(toast: {
   const hasAdditionalActions = (toast.data?.additionalActions?.length ?? 0) > 0;
   const hasSecondaryAction = toast.data?.secondaryActionProps !== undefined;
   const hasTrailingControls =
+    toast.data?.onRetry !== undefined ||
     copyErrorText !== null ||
     hasVisibleToastAction(toast.actionProps) ||
     hasAdditionalActions ||
@@ -352,6 +358,8 @@ function deriveToastBodyDescriptor(toast: {
 }
 
 interface ToastBodyContentProps extends ToastBodyDescriptor {
+  readonly toastId: ToastId;
+  readonly moreCount?: number;
   readonly actionProps: { readonly children?: ReactNode } | undefined;
   readonly toastData: ThreadToastData | undefined;
   readonly toastDescription: unknown;
@@ -359,6 +367,8 @@ interface ToastBodyContentProps extends ToastBodyDescriptor {
 }
 
 function ToastBodyContent({
+  toastId,
+  moreCount = 0,
   stackedActionLayout,
   Icon,
   copyErrorText,
@@ -370,7 +380,10 @@ function ToastBodyContent({
   toastDescription,
   toastType,
 }: ToastBodyContentProps) {
+  const gt = useGT();
+  const { close } = Toast.useToastManager<ThreadToastData>();
   const additionalActions = toastData?.additionalActions ?? [];
+  const onRetry = toastData?.onRetry;
   const secondaryActionProps = toastData?.secondaryActionProps;
   const leadingIcon = toastData?.leadingIcon;
   const { className: secondaryActionClassName, ...secondaryActionRest } =
@@ -406,6 +419,15 @@ function ToastBodyContent({
             </div>
           ) : null}
           <Toast.Title className="min-w-0 wrap-break-word font-medium" data-slot="toast-title" />
+          {moreCount > 0 ? (
+            <span
+              aria-label={gt("{count} more notifications", { count: moreCount })}
+              className="ml-auto shrink-0 rounded-full px-1.5 text-xs text-muted-foreground tabular-nums"
+              data-slot="toast-count"
+            >
+              +{moreCount}
+            </span>
+          ) : null}
         </div>
         <ToastDescriptionAndExpandable
           toastData={toastData}
@@ -421,6 +443,20 @@ function ToastBodyContent({
           )}
         >
           {copyErrorText !== null ? <CopyErrorButton text={copyErrorText} /> : null}
+          {onRetry ? (
+            <Button
+              data-slot="toast-retry"
+              onClick={() => {
+                onRetry();
+                close(toastId);
+              }}
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              {gt("Retry")}
+            </Button>
+          ) : null}
           {additionalActions.map(({ id, props: { className, ...props } }) => (
             <Button
               {...props}
@@ -576,11 +612,15 @@ function Toasts({ position }: { position: ToastPosition }) {
   const { toasts } = Toast.useToastManager<ThreadToastData>();
   const activeThreadRef = useActiveThreadRefFromRoute();
   const gt = useGT();
-  const isTop = position.startsWith("top");
   const visibleToasts = toasts.filter((toast) =>
     shouldRenderThreadScopedToast(toast.data, activeThreadRef),
   );
-  const visibleToastLayout = buildVisibleToastLayout(visibleToasts);
+  const queuedToastCount = Math.max(0, visibleToasts.length - 1);
+  // One toast at a time; the rest queue behind it and show as a +N count.
+  const visibleToastLayout = buildVisibleToastLayout(visibleToasts.slice(0, 1));
+  const anchor = useComposerAnchor(visibleToasts.length > 0);
+  const effectivePosition: ToastPosition = anchor ? "bottom-center" : position;
+  const isTop = effectivePosition.startsWith("top");
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- prunes the module-level remaining-time map of toasts the manager has dropped
   useEffect(() => {
@@ -604,11 +644,14 @@ function Toasts({ position }: { position: ToastPosition }) {
           "data-[position*=right]:right-(--toast-inset)",
           "data-[position*=center]:-translate-x-1/2 data-[position*=center]:left-1/2",
         )}
-        data-position={position}
+        data-position={effectivePosition}
         data-slot="toast-viewport"
         style={
           {
             "--toast-frontmost-height": `${visibleToastLayout.frontmostHeight}px`,
+            ...(anchor
+              ? { bottom: anchor.bottom, left: anchor.left, width: Math.min(anchor.width, 360) }
+              : {}),
           } as CSSProperties
         }
       >
@@ -623,7 +666,7 @@ function Toasts({ position }: { position: ToastPosition }) {
           return (
             <Toast.Root
               className={cn(
-                "dropdown-glass absolute z-[calc(9999-var(--toast-index))] w-full overflow-visible select-none rounded-lg text-popover-foreground shadow-xl shadow-black/25 [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s]",
+                "dropdown-glass group/toast absolute z-[calc(9999-var(--toast-index))] w-full overflow-visible select-none rounded-(--m-radius-floating) text-popover-foreground [transition:transform_.5s_cubic-bezier(.22,1,.36,1),opacity_.5s,height_.15s]",
                 "data-[position*=right]:right-0 data-[position*=right]:left-auto",
                 "data-[position*=left]:right-auto data-[position*=left]:left-0",
                 "data-[position*=center]:right-0 data-[position*=center]:left-0",
@@ -661,7 +704,7 @@ function Toasts({ position }: { position: ToastPosition }) {
                 "data-expanded:data-ending-style:data-[swipe-direction=up]:transform-[translateY(calc(var(--toast-swipe-movement-y)-100%-var(--toast-inset)))]",
                 "data-expanded:data-ending-style:data-[swipe-direction=down]:transform-[translateY(calc(var(--toast-swipe-movement-y)+100%+var(--toast-inset)))]",
               )}
-              data-position={position}
+              data-position={effectivePosition}
               key={toast.id}
               style={
                 {
@@ -670,9 +713,9 @@ function Toasts({ position }: { position: ToastPosition }) {
                 } as CSSProperties
               }
               swipeDirection={
-                position.includes("center")
+                effectivePosition.includes("center")
                   ? [isTop ? "up" : "down"]
-                  : position.includes("left")
+                  : effectivePosition.includes("left")
                     ? ["left", isTop ? "up" : "down"]
                     : ["right", isTop ? "up" : "down"]
               }
@@ -710,8 +753,10 @@ function Toasts({ position }: { position: ToastPosition }) {
                 <ToastBodyContent
                   {...bodyDescriptor}
                   actionProps={toast.actionProps}
+                  moreCount={visibleIndex === 0 ? queuedToastCount : 0}
                   toastData={toast.data}
                   toastDescription={toast.description}
+                  toastId={toast.id}
                   toastType={toast.type}
                 />
               </Toast.Content>
@@ -767,8 +812,8 @@ function AnchoredToasts() {
               >
                 <Toast.Root
                   className={cn(
-                    "dropdown-glass relative overflow-visible text-balance text-popover-foreground text-xs shadow-xl shadow-black/25 transition-[scale,opacity] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0",
-                    tooltipStyle ? "rounded-md" : "rounded-lg",
+                    "dropdown-glass group/toast relative overflow-visible text-balance text-popover-foreground text-xs transition-[scale,opacity] data-ending-style:scale-98 data-starting-style:scale-98 data-ending-style:opacity-0 data-starting-style:opacity-0",
+                    tooltipStyle ? "rounded-md" : "rounded-(--m-radius-floating)",
                   )}
                   data-slot="toast-popup"
                   toast={toast}
@@ -813,6 +858,7 @@ function AnchoredToasts() {
                           actionProps={toast.actionProps}
                           toastData={toast.data}
                           toastDescription={toast.description}
+                          toastId={toast.id}
                           toastType={toast.type}
                         />
                       </Toast.Content>

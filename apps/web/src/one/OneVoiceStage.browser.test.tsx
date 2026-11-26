@@ -25,7 +25,12 @@ import { setWorkspaceMode } from "./workspaceMode";
 
 const saved = vi.hoisted(() => ({
   rows: [] as ReadonlyArray<unknown>,
-  runs: [] as ReadonlyArray<{ id: string; userMessageId: string; status: string }>,
+  runs: [] as ReadonlyArray<{
+    id: string;
+    userMessageId: string;
+    status: string;
+    queueHeld?: boolean;
+  }>,
 }));
 // A saved thread's turn items come from the app's state; the test supplies them directly.
 vi.mock(import("../state/entities"), async (original) => {
@@ -900,7 +905,7 @@ it("voice chat does not read another client's answer to a prompt with the same w
 const stageOf = (screen: { getByRole: (role: "dialog", options: { name: string }) => unknown }) =>
   (screen.getByRole("dialog", { name: "Voice chat" }) as { element: () => Element }).element();
 
-it("voice chat keeps waiting for a question queued behind a running turn, and reads its late answer", async () => {
+it("voice chat keeps waiting through a long queue, then reads the answer once the queued turn starts", async () => {
   using voice = setup();
   await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
   using _speak = vi
@@ -912,8 +917,8 @@ it("voice chat keeps waiting for a question queued behind a running turn, and re
 
   await voice.start();
   await press(screen.getByRole("button", { name: "Send what I said" }));
-  // Another client's turn is running when the question goes in, so the question queues behind it.
-  saved.rows = [other, queued];
+  // As the server publishes a queued question: its run exists at once, its transcript row does not.
+  saved.rows = [other];
   saved.runs = [
     savedRun("run-other", "message-9", "running"),
     savedRun("run-q", "message-q", "queued"),
@@ -922,15 +927,22 @@ it("voice chat keeps waiting for a question queued behind a running turn, and re
   await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
   expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
 
-  // The other turn ends and the queued one has not started: nothing of ours is over.
+  // The other turn ends while the queued one waits to start, and the wait outlasts every deadline.
   saved.runs = [
     savedRun("run-other", "message-9", "completed"),
     savedRun("run-q", "message-q", "queued"),
   ];
   await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
-  await act(() => vi.advanceTimersByTime(10_000));
+  await act(() => vi.advanceTimersByTime(65_000));
   expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
 
+  // It starts: the transcript row appears with the run, then the answer.
+  saved.rows = [other, queued];
+  saved.runs = [
+    savedRun("run-other", "message-9", "completed"),
+    savedRun("run-q", "message-q", "running"),
+  ];
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
   saved.rows = [other, queued, savedReply("item-2", "Light bends inside each drop.", "run-q")];
   saved.runs = [
     savedRun("run-other", "message-9", "completed"),
@@ -941,6 +953,79 @@ it("voice chat keeps waiting for a question queued behind a running turn, and re
   expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
     "Light bends inside each drop.",
   ]);
+});
+
+it("voice chat listens again when its queued turn is cancelled before it starts", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [savedRun("run-q", "message-q", "queued")];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+
+  // The person cancels the queued turn: no transcript row, no answer, ever.
+  saved.runs = [savedRun("run-q", "message-q", "cancelled")];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(4_000));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+});
+
+it("voice chat releases the stage with a plain message when its queued turn is held", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [{ ...savedRun("run-q", "message-q", "queued"), queueHeld: true }];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+  expect(
+    screen
+      .getByText("The question is held in the queue, so there is no reply to read yet")
+      .element(),
+  ).toBeVisible();
+});
+
+it("voice chat gives up when the turn it was following disappears from the thread", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [savedRun("run-q", "message-q", "running")];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+
+  // The thread was deleted: the projection is gone.
+  saved.rows = [];
+  saved.runs = [];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(10_000));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+  expect(screen.getByText("The reply is no longer available").element()).toBeVisible();
+});
+
+it("voice chat gives up 60 seconds after a request went out that the thread never shows", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing("message-q");
+  await act(() => vi.advanceTimersByTime(59_999));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "sending");
+  await act(() => vi.advanceTimersByTime(1));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+  expect(screen.getByText("The question was not accepted in time").element()).toBeVisible();
 });
 
 it("voice chat does not move to thinking when another client's run starts before its own request exists", async () => {
@@ -957,10 +1042,6 @@ it("voice chat does not move to thinking when another client's run starts before
 
   // Its own request goes out and shows up in the thread: now the turn is its own.
   await voice.finishTranscribing("message-1");
-  saved.rows = [
-    ...saved.rows,
-    savedQuestion("item-1", "message-1", "why is the sky blue", "run-1"),
-  ];
   saved.runs = [...saved.runs, savedRun("run-1", "message-1", "queued")];
   await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
   expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");

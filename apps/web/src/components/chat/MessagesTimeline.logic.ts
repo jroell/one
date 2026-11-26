@@ -1,4 +1,5 @@
 import * as DateTime from "effect/DateTime";
+import { approvalCoveredEntryIds } from "~/one/chatApprovalSubject";
 import { msg } from "gt-react";
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
@@ -602,8 +603,12 @@ type MessagesTimelineRowContent =
       createdAt: string;
       runId: RunId;
       label: string;
+      /** What the folded work was, for the one-line summary Chat mode shows. */
+      summary?: TurnFoldSummary;
       expanded: boolean;
-      /** The first row of an assistant turn, so it carries the turn's mark. */
+      /** Short work: the line shows on hover or focus only. */
+      quiet?: true;
+      /** The first row of an assistant turn. */
       startsTurn?: true;
     }
   | {
@@ -773,7 +778,41 @@ function deriveTerminalAssistantMessageIds(timelineEntries: ReadonlyArray<Timeli
   return new Set(lastAssistantMessageIdByResponseKey.values());
 }
 
+export interface TurnFoldSummary {
+  /** The turn's time, formatted; null when it is not known. */
+  readonly duration: string | null;
+  /** Tool calls behind the fold: commands, edits, searches and other tools. */
+  readonly toolCount: number;
+  /** The agent reasoned before or between the calls. */
+  readonly thought: boolean;
+}
+
+/** Work that is the agent's thinking or bookkeeping rather than a tool call. */
+const NON_TOOL_WORK_ITEM_TYPES: ReadonlySet<string> = new Set([
+  "reasoning",
+  "todo_list",
+  "approval_request",
+  "notification",
+]);
+
+function summarizeFoldedWork(
+  entries: ReadonlyArray<TimelineEntry>,
+  hiddenEntryIds: ReadonlySet<string>,
+  duration: string | null,
+): TurnFoldSummary {
+  let toolCount = 0;
+  let thought = false;
+  for (const entry of entries) {
+    if (entry.kind !== "work" || !hiddenEntryIds.has(entry.id)) continue;
+    const itemType = entry.entry.itemType;
+    if (itemType === "reasoning") thought = true;
+    else if (itemType !== undefined && !NON_TOOL_WORK_ITEM_TYPES.has(itemType)) toolCount += 1;
+  }
+  return { duration, toolCount, thought };
+}
+
 interface TurnFold {
+  summary?: TurnFoldSummary;
   runId: RunId;
   anchorEntryId: string;
   createdAt: string;
@@ -781,7 +820,12 @@ interface TurnFold {
   /** Every entry in the segment, including the cards a fold never hides. */
   entryIds: ReadonlySet<string>;
   label: string;
+  /** The line shows at rest only for work that took long enough to be worth naming. */
+  quiet: boolean;
 }
+
+/** Work shorter than this keeps its "Worked for" line out of sight until the turn is hovered. */
+const QUIET_TURN_WORK_MS = 5000;
 
 interface SupersededAttemptFold {
   readonly deferredWorkItemIds: ReadonlyArray<string>;
@@ -1286,6 +1330,10 @@ function deriveTurnFolds(input: {
       hiddenEntryIds: segmentHiddenIds(firstSegment),
       entryIds: new Set(firstSegment.map((entry) => entry.id)),
       label,
+      ...(isLatestInterruptedTurn
+        ? {}
+        : { summary: summarizeFoldedWork(firstSegment, hiddenEntryIds, duration) }),
+      quiet: !isLatestInterruptedTurn && elapsedMs !== null && elapsedMs < QUIET_TURN_WORK_MS,
     });
     for (const [index, { startIndex, steer }] of group.steerSegments.entries()) {
       const entries = group.entries.slice(startIndex, group.steerSegments[index + 1]?.startIndex);
@@ -1310,6 +1358,7 @@ function deriveTurnFolds(input: {
                 msg("Continued for {duration}", { duration: formatDuration(segmentMs, resolve) }),
               )
             : resolve(msg("Continued")),
+        quiet: segmentMs !== null && segmentMs < QUIET_TURN_WORK_MS,
       });
     }
   }
@@ -1591,6 +1640,8 @@ function timelineRowEntries(
   if (quieted !== undefined && quieted.size > 0) {
     shown = shown.filter((entry) => !quieted.has(entry.id));
   }
+  const covered = approvalCoveredEntryIds(entries, input.pendingApprovalRequestIds);
+  if (covered.size > 0) shown = shown.filter((entry) => !covered.has(entry.id));
   return withoutSubagentDelegationRows(settleSupersededReasoning(shown));
 }
 
@@ -2000,7 +2051,9 @@ export function deriveMessagesTimelineRows(
         createdAt: turnFold.createdAt,
         runId: turnFold.runId,
         label: turnFold.label,
+        ...(turnFold.summary ? { summary: turnFold.summary } : {}),
         expanded: input.expandedRunIds?.has(turnFold.runId) ?? false,
+        ...(turnFold.quiet ? { quiet: true as const } : {}),
       });
     }
 
@@ -2881,6 +2934,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.expanded === bf.expanded &&
         (a.kind === "turn-fold" ? a.startsTurn : undefined) ===
           (bf.kind === "turn-fold" ? bf.startsTurn : undefined) &&
+        (a.kind === "turn-fold" ? a.quiet : undefined) ===
+          (bf.kind === "turn-fold" ? bf.quiet : undefined) &&
         anchors.length === nextAnchors.length &&
         anchors.every((id, index) => id === nextAnchors[index])
       );

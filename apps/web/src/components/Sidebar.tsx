@@ -3671,6 +3671,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     `${thread.environmentId}:${thread.projectId}`,
                                   ) ?? null)
                             }
+                            accessibleProjectName={soleProject?.name ?? null}
                             providerEntryByInstanceId={
                               providerEntriesByEnvironment.get(thread.environmentId) ??
                               EMPTY_PROVIDER_ENTRIES

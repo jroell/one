@@ -101,20 +101,18 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
   position: sticky !important;
   top: 0;
   z-index: 4;
-  background-color: color-mix(in srgb, var(--code-background) 93%, var(--code-foreground)) !important;
-  background-image: var(--one-glass-sheen) !important;
+  background-color: var(--code-background) !important;
+  background-image: none !important;
   border-bottom-color: transparent !important;
-  box-shadow:
-    inset 0 1px 0 var(--one-glass-rim-top),
-    inset 0 -1px 0 color-mix(in srgb, var(--code-foreground) 8%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--code-foreground) 8%, transparent);
   align-items: center !important;
   font-family: var(--font-sans) !important;
   font-size: 12px !important;
   line-height: 1 !important;
   /* Collapsed items are never remeasured: the painted header must match diffHeaderHeight.
      Center controls in that height instead of adding padding to their intrinsic height. */
-  height: 32px !important;
-  min-height: 32px !important;
+  height: 28px !important;
+  min-height: 28px !important;
   padding-block: 0 !important;
   padding-inline: 8px 16px !important;
 }
@@ -122,7 +120,7 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 [data-diffs-header]:hover {
   /* A native scrollbar gutter cannot be painted by descendants. Use an inset edge cue instead
      of a full-width band that would look accidentally clipped at the gutter. */
-  background-color: color-mix(in srgb, var(--code-background) 90%, var(--code-foreground)) !important;
+  background-color: color-mix(in srgb, var(--code-background) 96%, var(--code-foreground)) !important;
   box-shadow:
     inset 3px 0 color-mix(in srgb, var(--code-foreground) 24%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--code-foreground) 8%, transparent);
@@ -188,6 +186,16 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 [data-diffs-header] [data-rename-icon] {
   display: block;
   flex-shrink: 0;
+}
+
+/* Status reads in the product's own colors: modified is gold, added is green, deleted is red.
+   Nothing in the diff is blue. */
+[data-diffs-header] :is(
+    [data-change-icon="change"],
+    [data-change-icon="rename-pure"],
+    [data-change-icon="rename-changed"]
+  ) {
+  color: light-dark(var(--gold-600), var(--gold-400)) !important;
 }
 
 [data-title] {
@@ -268,7 +276,7 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
             ? `${DIFF_VIEW_UNSAFE_CSS}\n${lineKindCss}\n${unsafeCSSExtra}`
             : `${DIFF_VIEW_UNSAFE_CSS}\n${lineKindCss}`,
           itemMetrics: {
-            diffHeaderHeight: 32,
+            diffHeaderHeight: 28,
             hunkSeparatorHeight: 24,
             // Zero both spacing and paddingTop; Pierre's expanded-file fallback otherwise adds an 8px header
             // gap.

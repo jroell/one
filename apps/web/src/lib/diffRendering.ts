@@ -4,12 +4,12 @@ import type { FileDiffMetadata } from "@pierre/diffs/types";
 import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../i18n/messages";
-import { READABLE_LIGHT_THEME_NAME } from "./readableSyntaxTheme";
+import { ONE_DARK_THEME_NAME, ONE_LIGHT_THEME_NAME } from "./oneSyntaxTheme";
 
-// Light mode uses a darker pierre-light so syntax stays readable on every code surface.
+// The One syntax theme in both appearances; the light palette reads on every code surface.
 export const DIFF_THEME_NAMES = {
-  light: READABLE_LIGHT_THEME_NAME,
-  dark: "pierre-dark",
+  light: ONE_LIGHT_THEME_NAME,
+  dark: ONE_DARK_THEME_NAME,
 } as const;
 
 export type DiffThemeName = (typeof DIFF_THEME_NAMES)[keyof typeof DIFF_THEME_NAMES];
@@ -366,7 +366,7 @@ export const DIFF_SURFACE_THEME_UNSAFE_CSS = `
   );
   --diffs-bg-addition-hover-override: color-mix(in srgb, var(--code-background) 85%, var(--diff-addition));
   /* Pierre resolves emphasis on the host, before the diff's overrides can inherit. */
-  /* Light emphasis stays above t3-light's readable syntax luminance floor. */
+  /* Light emphasis stays above the One light theme's readable syntax luminance floor. */
   --diffs-bg-addition-emphasis: light-dark(
     rgb(from var(--diffs-addition-base) r g b / 15%),
     rgb(from var(--diffs-addition-base) r g b / calc(20% + var(--appearance-contrast-boost, 0%) / 4))

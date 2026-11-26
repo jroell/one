@@ -42,7 +42,7 @@ import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
 import * as Result from "effect/Result";
 import { PlusIcon } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { m as resolveNow, type MessageResolver } from "../../i18n/messages";
 
@@ -56,6 +56,12 @@ import {
 } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useRegisterSettingsBreadcrumbTail } from "./settingsBreadcrumbTail";
+import {
+  commitFocusedField,
+  focusProviderTarget,
+  rememberOpenedProvider,
+  takeOpenedProvider,
+} from "./providerInstanceFocus";
 import { ensureLocalApi } from "../../localApi";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { cn } from "../../lib/utils";
@@ -563,15 +569,7 @@ function AccessGatedProviderSettings({
 const NO_PROJECT_IDS: readonly ProjectId[] = [];
 const NO_FAVORITES: UnifiedSettings["favorites"] = [];
 
-export function EnvironmentProviderSettings({
-  environmentId,
-  environmentLabel,
-  readOnly = false,
-  deviceTabs,
-  targetInstanceId,
-  onSelectInstance,
-  projectIds = NO_PROJECT_IDS,
-}: {
+interface EnvironmentProviderSettingsProps {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string;
   readonly deviceTabs?: ReactNode;
@@ -580,7 +578,25 @@ export function EnvironmentProviderSettings({
   readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
   readonly projectIds?: readonly ProjectId[];
   readonly readOnly?: boolean;
-}) {
+}
+
+/**
+ * One environment's providers. The page remounts when the open provider changes, so every move
+ * between the list and a provider (a row, the breadcrumb, Back, Forward) starts from clean state.
+ */
+export function EnvironmentProviderSettings(props: EnvironmentProviderSettingsProps) {
+  return <EnvironmentProviderSettingsBody key={props.targetInstanceId ?? ""} {...props} />;
+}
+
+function EnvironmentProviderSettingsBody({
+  environmentId,
+  environmentLabel,
+  readOnly = false,
+  deviceTabs,
+  targetInstanceId,
+  onSelectInstance,
+  projectIds = NO_PROJECT_IDS,
+}: EnvironmentProviderSettingsProps) {
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useEnvironmentSettings(environmentId);
@@ -818,14 +834,25 @@ export function EnvironmentProviderSettings({
   const selectedRow = rows.find((row) => row.instanceId === selectedInstanceId) ?? null;
   const targetInstanceMissing = selectedInstanceId !== null && selectedRow === null;
   const selectInstance = useStableCallback((instanceId: ProviderInstanceId | null) => {
+    // Leaving a provider commits the field being typed in; opening one remembers where from.
+    commitFocusedField();
+    if (instanceId !== null) rememberOpenedProvider(instanceId);
     setSelectedInstanceId(instanceId);
     onSelectInstance?.(instanceId);
   });
+  // Where focus goes when the page changes: the provider's title when one opens, the row it was
+  // opened from when the list comes back. The control that held focus is gone by then.
+  const openProviderId = selectedRow === null ? null : selectedRow.instanceId;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves DOM focus to the page that just replaced the focused control
+  useEffect(() => {
+    focusProviderTarget(openProviderId, openProviderId === null ? takeOpenedProvider() : null);
+  }, [openProviderId]);
   const backToList = useStableCallback(() => selectInstance(null));
   useRegisterSettingsBreadcrumbTail(
     selectedRow === null
       ? null
       : providerInstanceName(selectedRow.explicitInstance ?? { driver: selectedRow.driver }),
+    gt("Its account, setup, runtime and models on this device."),
     backToList,
   );
 

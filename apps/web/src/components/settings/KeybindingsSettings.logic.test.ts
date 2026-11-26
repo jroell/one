@@ -11,8 +11,10 @@ import { resolveShortcutCommand } from "../../keybindings";
 import {
   buildKeybindingRows,
   collapseAlternateRows,
+  commandActionLabel,
   commandLabel,
   describeWhen,
+  groupKeybindingRows,
   buildWhenVariableOptions,
   keybindingConflictLabels,
   keybindingFromKeyboardEvent,
@@ -577,5 +579,38 @@ describe("spokenShortcutLabel", () => {
       "Ctrl+Left arrow",
     );
     expect(spokenShortcutLabel(shortcut("escape"), "Linux x86_64")).toBe("Esc");
+  });
+
+  it("names a command without the group heading it is listed under, and keeps context the heading lacks", () => {
+    const label = (command: string) => commandActionLabel(command as never);
+    expect(label("thread.next")).toBe("Next");
+    expect(label("thread.regenerateTitle")).toBe("Regenerate title");
+    expect(label("thread.jump.3")).toBe("Jump to 3");
+    expect(label("terminal.split")).toBe("Split");
+    expect(label("composer.sendBackground")).toBe("Start in background");
+    // The heading says "Composer" or "Threads", not these.
+    expect(label("modelPicker.toggle")).toBe("Model picker: toggle");
+    expect(label("thread.copyReference")).toBe("Pull request: copy link or thread");
+    expect(label("sidebar.toggle")).toBe("Sidebar: toggle");
+    // Search and screen readers still get the full name.
+    expect(commandLabel("thread.next" as never)).toBe("Thread: next");
+  });
+
+  it("lists a pair of commands together, next then previous, rather than by name", () => {
+    const rows = buildKeybindingRows(
+      compileResolvedKeybindingsConfig([
+        { command: "thread.pin", key: "mod+p" },
+        { command: "thread.previous", key: "mod+[" },
+        { command: "thread.next", key: "mod+]" },
+        { command: "thread.stop", key: "mod+." },
+      ]),
+    );
+    const threads = groupKeybindingRows(rows).find((group) => group.id === "threads")!;
+    expect(threads.rows.map((row) => String(row.command))).toEqual([
+      "thread.next",
+      "thread.previous",
+      "thread.pin",
+      "thread.stop",
+    ]);
   });
 });

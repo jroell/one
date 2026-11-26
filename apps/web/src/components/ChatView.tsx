@@ -3847,6 +3847,8 @@ export default function ChatView(props: ChatViewProps) {
               }}
               inert={isRevertingCheckpoint}
               data-chat-composer-overlay="true"
+              data-composer-dock={draftHeroCentered ? undefined : ""}
+              data-scroll-to-end-shown={showScrollToBottom && !isThreadFindActive ? "" : undefined}
               className={
                 draftHeroCentered
                   ? "pointer-events-none absolute inset-0 z-20 flex items-center [@media(max-height:34rem)]:items-end"
@@ -3952,9 +3954,7 @@ export default function ChatView(props: ChatViewProps) {
                                 activeThread={activeThread}
                                 activeThreadRuns={serverProjection?.runs ?? EMPTY_RUNS}
                                 promptHistoryEntries={timelineEntries}
-                                forceExpandedOnMobile={
-                                  forceExpandedMobileComposer && draftHeroCentered
-                                }
+                                forceExpandedOnMobile={forceExpandedMobileComposer}
                                 projectSelectionRequired={
                                   isLocalDraftThread && activeProject === null
                                 }

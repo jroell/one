@@ -1416,7 +1416,7 @@ function ConnectionsSettingsContent({
               <SettingsRow
                 title={searchableSetting("preview-tunnel").title}
                 description={gt(
-                  "Lets other devices open this machine's local servers: browser tabs loaded on the device, Open on this device, and port forwarding. Off: browser tabs stream from this machine.",
+                  "Lets other devices reach this machine's local servers: browser tabs loaded on the device, the “Open on this device” action, and port forwarding. When off, browser tabs stream from this machine.",
                 )}
                 managed={previewTunnelDenial}
                 control={
@@ -1496,6 +1496,7 @@ function ConnectionsSettingsContent({
                       : null
                   }
                   isRevoking={isRevokingOtherDesktopClients}
+                  error={desktopAccessManagementMutationError}
                   onRevoke={requestRevokeOtherClients}
                 />
               ) : null}

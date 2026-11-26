@@ -41,9 +41,12 @@ const badgeVariants = cva(
 interface BadgeProps extends useRender.ComponentProps<"span"> {
   variant?: VariantProps<typeof badgeVariants>["variant"];
   size?: VariantProps<typeof badgeVariants>["size"];
+  /** A 6px status dot in the tone of the variant, before the text. */
+  dot?: boolean;
 }
 
-function Badge({ className, variant, size, render, ...props }: BadgeProps) {
+/** The one status chip: a pill, sentence-case text, an optional dot, a tone from the variant. */
+function Badge({ className, variant, size, dot, render, children, ...props }: BadgeProps) {
   const defaultProps = {
     className: cn(badgeVariants({ className, size, variant })),
     "data-slot": "badge",
@@ -52,7 +55,16 @@ function Badge({ className, variant, size, render, ...props }: BadgeProps) {
 
   return useRender({
     defaultTagName: "span",
-    props: mergeProps<"span">(defaultProps, props),
+    props: mergeProps<"span">(defaultProps, props, {
+      children: dot ? (
+        <>
+          <span aria-hidden="true" data-slot="badge-dot" />
+          {children}
+        </>
+      ) : (
+        children
+      ),
+    }),
     render,
   });
 }

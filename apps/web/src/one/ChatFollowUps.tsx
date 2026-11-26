@@ -3,8 +3,9 @@ import { useGT } from "gt-react";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 
 /**
- * Three ways to carry an answer into the next thought. A pick puts a short stem in the composer
- * and focuses it. The row keeps its height while hidden, so the answer above never moves.
+ * Three ways to carry an answer into the next thought, most useful first. A pick puts a short stem
+ * in the composer and focuses it. The block keeps its height while hidden, so the answer above
+ * never moves.
  */
 export function ChatFollowUps({
   ready,
@@ -15,12 +16,21 @@ export function ChatFollowUps({
 }) {
   const gt = useGT();
   const actions = [
-    { label: gt("Go deeper"), stem: gt("Go deeper on ") },
+    {
+      label: gt("Go deeper"),
+      hint: gt("Take one part further"),
+      stem: gt("Go deeper on "),
+    },
     {
       label: gt("Challenge this"),
+      hint: gt("Argue the other side"),
       stem: gt("Challenge this: what is the strongest case against it?"),
     },
-    { label: gt("Quiz me on this"), stem: gt("Quiz me on what you just explained.") },
+    {
+      label: gt("Quiz me on this"),
+      hint: gt("Check what stuck"),
+      stem: gt("Quiz me on what you just explained."),
+    },
   ];
   const follow = (stem: string) => {
     const handle = composer.current;
@@ -42,10 +52,11 @@ export function ChatFollowUps({
         <button
           key={action.label}
           type="button"
-          className="one-chip one-chat-followup"
+          className="one-chat-followup"
           onClick={() => follow(action.stem)}
         >
-          {action.label}
+          <span className="one-chat-followup-title">{action.label}</span>
+          <span className="one-chat-followup-hint">{action.hint}</span>
         </button>
       ))}
     </div>

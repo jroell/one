@@ -247,19 +247,32 @@ function StatTile({
   );
 }
 
+function memoryShare(group: ResourceTelemetryAggregate, all: ResourceTelemetryAggregate): number {
+  return all.currentRssBytes > 0 ? Math.min(1, group.currentRssBytes / all.currentRssBytes) : 0;
+}
+
 function AggregateCard({
   label,
   accentClass,
   aggregate,
+  share,
 }: {
   label: string;
   accentClass: string;
   aggregate: ResourceTelemetryAggregate;
+  /** This group's part of the memory all One processes hold, 0 to 1. */
+  share: number;
 }) {
   const gt = useGT();
   return (
     <div className="relative overflow-hidden border-t border-border/60 px-4 py-4 first:border-t-0 md:border-t-0 md:border-l md:first:border-l-0 sm:px-5">
-      <span className={cn("absolute inset-x-5 top-0 h-0.5 rounded-full opacity-75", accentClass)} />
+      {/* The bar is as long as the group's share of memory, so an idle group draws none. */}
+      <span
+        aria-hidden
+        data-aggregate-share={share}
+        className={cn("absolute top-0 left-5 h-0.5 rounded-full opacity-75", accentClass)}
+        style={{ width: `calc((100% - 2.5rem) * ${share})` }}
+      />
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-medium text-(--settings-description)">{label}</div>
         <div className="rounded-md bg-muted/55 px-1.5 py-0.5 text-2xs tabular-nums text-(--settings-description)">
@@ -1145,11 +1158,7 @@ function ResourceTelemetryDiagnosticsBody({
                     : "default"
               }
             />
-            {snapshot && speedLimit === null ? (
-              <div className="flex items-center px-4 py-4 text-xs text-(--settings-description) sm:px-5">
-                <T>CPU speed limit not reported</T>
-              </div>
-            ) : (
+            {snapshot && speedLimit === null ? null : (
               <StatTile
                 label={gt("CPU speed limit")}
                 value={snapshot && speedLimit !== null ? `${speedLimit.toFixed(0)}%` : "..."}
@@ -1164,6 +1173,11 @@ function ResourceTelemetryDiagnosticsBody({
               />
             )}
           </div>
+          {snapshot && speedLimit === null ? (
+            <p className="border-t border-border/55 px-4 py-2.5 text-xs text-(--settings-description) sm:px-5">
+              <T>This machine does not report a CPU speed limit.</T>
+            </p>
+          ) : null}
           {telemetry.error ? (
             <div className="flex items-start gap-2 border-t border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive sm:px-5">
               <AlertTriangleIcon className="size-3.5 h-lh shrink-0" />
@@ -1176,16 +1190,19 @@ function ResourceTelemetryDiagnosticsBody({
                 label={gt("Backend + agents")}
                 accentClass="bg-primary/60"
                 aggregate={snapshot.groups.backend}
+                share={memoryShare(snapshot.groups.backend, snapshot.groups.allT3)}
               />
               <AggregateCard
                 label={gt("Desktop")}
                 accentClass="bg-primary/60"
                 aggregate={snapshot.groups.electron}
+                share={memoryShare(snapshot.groups.electron, snapshot.groups.allT3)}
               />
               <AggregateCard
                 label={gt("Monitor overhead")}
                 accentClass="bg-primary/60"
                 aggregate={snapshot.groups.monitor}
+                share={memoryShare(snapshot.groups.monitor, snapshot.groups.allT3)}
               />
             </div>
           ) : null}

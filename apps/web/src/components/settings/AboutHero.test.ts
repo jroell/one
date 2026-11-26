@@ -14,4 +14,10 @@ describe("formatBuildDay", () => {
     expect(formatBuildDay("yesterday", "en-US")).toBeNull();
     expect(formatBuildDay("2026-13-45", "en-US")).toBeNull();
   });
+
+  it("shows nothing for a day that does not exist, instead of rolling it into the next month", () => {
+    expect(formatBuildDay("2026-02-30", "en-US")).toBeNull();
+    expect(formatBuildDay("2025-02-29", "en-US")).toBeNull();
+    expect(formatBuildDay("2028-02-29", "en-US")).toBe("Feb 29, 2028");
+  });
 });

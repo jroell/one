@@ -550,6 +550,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "chat-reading-face",
+    title: msg("Reading face in Chat mode"),
+    to: "/settings/chat",
+    searchTerms: [msg("serif sans typeface font answers reading text book")],
+  },
+  {
     id: "screen-reader-announcements",
     title: msg("Screen reader announcements"),
     to: "/settings/chat",

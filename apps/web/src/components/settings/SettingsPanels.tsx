@@ -25,6 +25,7 @@ import {
   type ResponseStreamingMode,
   type QuitConfirmationMode,
   SidebarProjectSortOrder,
+  ChatReadingFace,
   ScreenReaderAnnouncements,
   ToolCallVisibility,
 } from "@t3tools/contracts/settings";
@@ -1487,6 +1488,7 @@ export function ChatSettingsPanel() {
           }
         />
         <ToolCallVisibilityRow />
+        <ChatReadingFaceRow />
       </SettingsSection>
 
       <SettingsSection id="screen-reader" title={gt("Screen reader")}>
@@ -1494,6 +1496,60 @@ export function ChatSettingsPanel() {
         <ScreenReaderWindowTitleRow />
       </SettingsSection>
     </SettingsPageContainer>
+  );
+}
+
+const CHAT_READING_FACE_LABELS: Record<ChatReadingFace, string> = {
+  serif: msg("Serif"),
+  sans: msg("Sans-serif"),
+};
+
+const isChatReadingFace = Schema.is(ChatReadingFace);
+
+function ChatReadingFaceRow() {
+  const messages = useMessages();
+  const setting = useSearchableSetting();
+  const gt = useGT();
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...setting("chat-reading-face")}
+      description={gt(
+        "The face answers are set in while you are in Chat mode. Code mode always uses the interface face.",
+      )}
+      resetAction={
+        settings.chatReadingFace !== DEFAULT_UNIFIED_SETTINGS.chatReadingFace ? (
+          <SettingResetButton
+            ariaLabel={gt("Reset the reading face to default")}
+            onClick={() =>
+              updateSettings({ chatReadingFace: DEFAULT_UNIFIED_SETTINGS.chatReadingFace })
+            }
+          />
+        ) : null
+      }
+      control={
+        <Select
+          value={settings.chatReadingFace}
+          onValueChange={(value) => {
+            if (isChatReadingFace(value)) updateSettings({ chatReadingFace: value });
+          }}
+        >
+          <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Reading face")}>
+            <SelectValue>
+              {messages(CHAT_READING_FACE_LABELS[settings.chatReadingFace])}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {ChatReadingFace.literals.map((value) => (
+              <SelectItem key={value} value={value}>
+                {messages(CHAT_READING_FACE_LABELS[value])}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+      }
+    />
   );
 }
 

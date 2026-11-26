@@ -39,6 +39,8 @@ import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { workGroupImageGallery } from "./markdownImageGallery";
 import { McpSignInAction } from "./McpSignInAction";
+import { ChatFailure } from "~/one/ChatNoticeLine";
+import { useWorkspaceMode } from "~/one/workspaceMode";
 import * as DateTime from "effect/DateTime";
 import { ChevronRightIcon, CircleAlertIcon, XIcon, RotateCcwIcon } from "lucide-react";
 import { Button, InlineButton } from "../ui/button";
@@ -300,6 +302,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     workEntry.projectedItem?.item.type === "notification"
       ? notificationChildThreadId(workEntry.projectedItem.item.source)
       : undefined;
+  const chatMode = useWorkspaceMode() === "chat";
   const groupView = use(WorkGroupViewCtx);
   const [expanded, setExpanded] = useState(
     () => groupView?.state.expandedEntries.has(workEntry.id) ?? false,
@@ -359,6 +362,36 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       failureItem.failure.code === ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE
         ? failureItem.runId
         : null;
+    if (chatMode) {
+      return (
+        <ChatFailure
+          warning={warning}
+          headline={warning ? label : gt("This turn stopped before it could answer.")}
+          details={
+            warning
+              ? null
+              : [workEntry.label, failureItem.failure.message]
+                  .filter((part, index, parts) => part && parts.indexOf(part) === index)
+                  .join("\n\n") || null
+          }
+          action={
+            retryRunId !== null && onRetryWorkspacePreparation ? (
+              <div className="one-chat-failure-action">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => onRetryWorkspacePreparation(retryRunId)}
+                >
+                  <RotateCcwIcon aria-hidden />
+                  <T>Retry</T>
+                </Button>
+              </div>
+            ) : null
+          }
+        />
+      );
+    }
     return (
       <WorkLogRow
         data-v2-item-type="error"

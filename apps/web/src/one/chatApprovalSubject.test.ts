@@ -13,6 +13,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { deriveTimelineEntriesFromVisibleTurnItems } from "~/session-logic";
 import {
+  approvalCoveredEntryIds,
   deriveApprovalSubjects,
   isGenericFileChangePrompt,
   relativeToWorkspace,
@@ -132,6 +133,36 @@ describe("deriveApprovalSubjects", () => {
       new Set([second]),
     );
     expect(other.has(second)).toBe(false);
+  });
+
+  it("gives a waiting change a new detail revision each time the item is updated in place", () => {
+    const waiting = { ...change, status: "waiting" as const };
+    const later = DateTime.makeUnsafe("2026-10-06T10:00:05Z");
+    const revisionOf = (item: OrchestrationV2TurnItem) =>
+      deriveApprovalSubjects(
+        entriesOf([user, item, request("file-change", pending, 2)]),
+        new Set([pending]),
+      ).get(pending)!.diffTarget!.revision;
+    const first = revisionOf(waiting);
+    const second = revisionOf({ ...waiting, updatedAt: later });
+    expect(first).not.toBe(second);
+    expect(second).not.toBe("live");
+  });
+
+  it("covers the edit row a pending approval card names, and no other row, only while it is pending", () => {
+    const other = {
+      ...change,
+      id: TurnItemId.make("other"),
+      ordinal: 3,
+      nativeItemRef: nativeRef("other"),
+    };
+    const entries = entriesOf([user, change, other, request("file-change", pending, 2)]);
+    const covered = approvalCoveredEntryIds(entries, new Set([pending]));
+    const ids = entries.flatMap((entry) =>
+      entry.kind === "work" && entry.entry.projectedItem?.item.id === change.id ? [entry.id] : [],
+    );
+    expect([...covered]).toEqual(ids);
+    expect(approvalCoveredEntryIds(entries, new Set()).size).toBe(0);
   });
 
   it("shows no subject for a second approval whose own file change has not arrived, instead of the earlier edit", () => {

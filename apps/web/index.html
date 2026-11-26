@@ -6,14 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#0a0908" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <script>
       (() => {
         const LIGHT_BACKGROUND = "#ffffff";
-        const DARK_BACKGROUND = "#000000";
+        const DARK_BACKGROUND = "#0a0908";
         const CUSTOM_THEMES_STORAGE_KEY = "t3code:themes:v1";
         const ENVIRONMENT_THEMES_STORAGE_KEY = "t3code:environment-themes:v1";
         const THEME_FOLLOW_SYSTEM_STORAGE_KEY = "t3code:theme-follow-system";
@@ -26,7 +26,7 @@
             accent: "#4f46e5",
           },
           dark: {
-            background: "#000000",
+            background: "#0a0908",
             foreground: "#f5f5f5",
             accent: "#818cf8",
           },
@@ -409,7 +409,7 @@
       }
 
       html.dark body {
-        background: #000000;
+        background: #0a0908;
         color: #f5f5f5;
       }
 
@@ -432,10 +432,10 @@
       /* The boot screen: the One ring and its name on the theme's own background. The ring takes
          the selected theme's accent through --boot-accent (set above), else One gold. */
       #boot-shell-card {
-        --boot-ring-mid: var(--boot-accent, #b98f1f);
-        --boot-ring-hi: color-mix(in oklch, var(--boot-ring-mid) 36%, white);
-        --boot-ring-lo: color-mix(in oklch, var(--boot-ring-mid) 60%, black);
-        --boot-ring-deep: color-mix(in oklch, var(--boot-ring-mid) 28%, black);
+        --boot-ring-hi: #f1d58a;
+        --boot-ring-mid: #c2973a;
+        --boot-ring-lo: #6e5118;
+        --boot-ring-deep: #3c2c0d;
         position: relative;
         z-index: 1;
         display: flex;
@@ -447,31 +447,40 @@
         animation: boot-in 280ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
       }
 
-      html.dark #boot-shell-card {
-        --boot-ring-mid: var(--boot-accent, #d9b450);
-      }
-
-      /* On white the standard ring's dark bands read as mud, so light renders it brighter and
-         with shallower shading, over a warmer glow. */
       html:not(.dark) #boot-shell-card {
-        --boot-ring-mid: var(--boot-accent, #c9a02c);
-        --boot-ring-hi: color-mix(in oklch, var(--boot-ring-mid) 48%, white);
-        --boot-ring-lo: color-mix(in oklch, var(--boot-ring-mid) 82%, black);
-        --boot-ring-deep: color-mix(in oklch, var(--boot-ring-mid) 62%, black);
-        --boot-glow: 20%;
+        --boot-glow: 0.2;
       }
 
-      /* A still glow behind the ring, so it sits on something. */
+      /* A chosen theme lends its accent, and the ring's tones come from that. */
+      html[data-theme-selected="true"] #boot-shell-card {
+        --boot-ring-mid: var(--boot-accent, #c2973a);
+        --boot-ring-hi: color-mix(in oklch, var(--boot-ring-mid) 36%, white);
+        --boot-ring-lo: color-mix(in oklch, var(--boot-ring-mid) 60%, black);
+        --boot-ring-deep: color-mix(in oklch, var(--boot-ring-mid) 28%, black);
+      }
+
+      /* A still glow behind the ring, so it sits on something. Its alpha falls along an eased curve
+         and reaches zero with no slope, so no circular edge shows. */
       #boot-shell-card::before {
         content: "";
         position: absolute;
-        inset: -120px;
+        inset: -140px;
         z-index: -1;
         pointer-events: none;
-        background: radial-gradient(
+        opacity: var(--boot-glow, 0.13);
+        background: var(--boot-ring-mid);
+        mask-image: radial-gradient(
           closest-side,
-          color-mix(in oklch, var(--boot-ring-mid) var(--boot-glow, 13%), transparent),
-          transparent
+          rgb(0 0 0 / 100%) 0%,
+          rgb(0 0 0 / 74%) 8%,
+          rgb(0 0 0 / 54%) 16%,
+          rgb(0 0 0 / 38%) 24%,
+          rgb(0 0 0 / 25%) 33%,
+          rgb(0 0 0 / 15%) 43%,
+          rgb(0 0 0 / 8%) 54%,
+          rgb(0 0 0 / 3%) 67%,
+          rgb(0 0 0 / 1%) 82%,
+          transparent 100%
         );
       }
 
@@ -490,18 +499,23 @@
         animation: boot-bar-in 400ms ease-out 1500ms forwards;
       }
 
+      /* The fill grows from the left and slows as it goes: it says the app is working, and it
+         never claims to be done. With reduced motion it stays at a partial fill. */
       #boot-shell-bar::before {
         content: "";
         display: block;
-        width: 40%;
+        width: 100%;
         height: 100%;
         border-radius: inherit;
         background: var(--boot-ring-mid);
+        transform: scaleX(0.4);
+        transform-origin: left center;
       }
 
       @media (prefers-reduced-motion: no-preference) {
         #boot-shell-bar::before {
-          animation: boot-bar 1400ms cubic-bezier(0.45, 0, 0.25, 1) infinite;
+          transform: scaleX(0.06);
+          animation: boot-bar 12s cubic-bezier(0.12, 0.6, 0.3, 1) 1500ms forwards;
         }
       }
 
@@ -513,10 +527,10 @@
 
       @keyframes boot-bar {
         from {
-          translate: -100% 0;
+          transform: scaleX(0.06);
         }
         to {
-          translate: 250% 0;
+          transform: scaleX(0.92);
         }
       }
 
@@ -524,6 +538,34 @@
         width: 112px;
         height: 112px;
         overflow: visible;
+      }
+
+      /* Picture first. The vector drawing takes over for a chosen theme, which recolors the ring,
+         or when the picture did not load. */
+      #boot-shell-card .boot-ring-image {
+        display: block;
+        width: 112px;
+        height: 112px;
+      }
+
+      #boot-shell-card #boot-shell-logo,
+      html.dark #boot-shell-card .boot-ring-image[data-mark-theme="light"],
+      html:not(.dark) #boot-shell-card .boot-ring-image[data-mark-theme="dark"] {
+        display: none;
+      }
+
+      /* A chosen theme shows the gold picture recolored by the script after the markup, so the
+         picture stays hidden until that is done. The vector drawing only stands in for a missing file. */
+      html[data-theme-selected="true"] #boot-shell-card .boot-ring-image:not([data-tinted]) {
+        visibility: hidden;
+      }
+
+      #boot-shell-card[data-ring-image="missing"] #boot-shell-logo {
+        display: block;
+      }
+
+      #boot-shell-card[data-ring-image="missing"] .boot-ring-image {
+        display: none;
       }
 
       #boot-shell-name {
@@ -593,7 +635,7 @@
 
       html.dark #boot-error {
         --boot-error-fg: #f5f5f5;
-        --boot-error-bg: #000000;
+        --boot-error-bg: #0a0908;
       }
 
       html[data-theme-selected="true"] #boot-error {
@@ -835,10 +877,12 @@
       }
       html[data-one-opening]
         #boot-shell:not(:has(> #boot-error))
-        :is(#boot-shell-logo, #boot-shell-name) {
+        :is(#boot-shell-logo, .boot-ring-image, #boot-shell-name) {
         visibility: hidden;
       }
-      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-bar {
+      /* The hairline shows during the wait, even while an opening is planned: it is the only sign
+         then. It goes when the opening is armed and takes over the screen. */
+      html[data-one-opening-armed] #boot-shell:not(:has(> #boot-error)) #boot-shell-bar {
         display: none;
       }
       html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-card::before {
@@ -858,7 +902,43 @@
     <div id="root">
       <div id="boot-shell">
         <div id="boot-shell-card" aria-label="One splash screen">
-          <!-- The One mark, drawn from the same paths as src/one/OneMark.tsx. -->
+          <!-- The ring's rest pose as a picture, drawn by scripts/render-mark.mjs from the live ring's
+               shader. The vector drawing below stands in when a theme recolors the ring or the
+               picture is missing. It repeats src/one/oneMarkPaths.ts. -->
+          <img
+            class="boot-ring-image"
+            data-mark-theme="dark"
+            alt="One"
+            width="112"
+            height="112"
+            src="/mark/ring-dark-112@1x.webp"
+            srcset="
+              /mark/ring-dark-112@1x.webp 1x,
+              /mark/ring-dark-112@2x.webp 2x,
+              /mark/ring-dark-112@3x.webp 3x
+            "
+            loading="lazy"
+            decoding="async"
+            draggable="false"
+            onerror="document.getElementById('boot-shell-card').dataset.ringImage = 'missing'"
+          />
+          <img
+            class="boot-ring-image"
+            data-mark-theme="light"
+            alt="One"
+            width="112"
+            height="112"
+            src="/mark/ring-light-112@1x.webp"
+            srcset="
+              /mark/ring-light-112@1x.webp 1x,
+              /mark/ring-light-112@2x.webp 2x,
+              /mark/ring-light-112@3x.webp 3x
+            "
+            loading="lazy"
+            decoding="async"
+            draggable="false"
+            onerror="document.getElementById('boot-shell-card').dataset.ringImage = 'missing'"
+          />
           <svg
             id="boot-shell-logo"
             viewBox="0 0 24 24"
@@ -870,18 +950,18 @@
             <defs>
               <linearGradient
                 id="boot-band"
-                x1="3"
-                y1="8"
-                x2="21"
-                y2="17"
+                x1="6.5"
+                y1="3.5"
+                x2="17.5"
+                y2="20.5"
                 gradientUnits="userSpaceOnUse"
               >
                 <stop offset="0" style="stop-color: var(--boot-ring-hi)" />
-                <stop offset="0.2" style="stop-color: var(--boot-ring-mid)" />
-                <stop offset="0.44" style="stop-color: var(--boot-ring-lo)" />
-                <stop offset="0.58" style="stop-color: var(--boot-ring-mid)" />
-                <stop offset="0.7" style="stop-color: var(--boot-ring-hi)" />
-                <stop offset="0.84" style="stop-color: var(--boot-ring-mid)" />
+                <stop offset="0.14" style="stop-color: var(--boot-ring-mid)" />
+                <stop offset="0.4" style="stop-color: var(--boot-ring-lo)" />
+                <stop offset="0.6" style="stop-color: var(--boot-ring-mid)" />
+                <stop offset="0.76" style="stop-color: var(--boot-ring-hi)" />
+                <stop offset="0.88" style="stop-color: var(--boot-ring-mid)" />
                 <stop offset="1" style="stop-color: var(--boot-ring-lo)" />
               </linearGradient>
               <linearGradient
@@ -944,6 +1024,11 @@
                 stroke-width="1"
                 stroke-linecap="round"
               />
+              <path
+                d="M20.4 10.05c.25 0 .45.5.45 1.1s-.2 1.1-.45 1.1-.45-.5-.45-1.1.2-1.1.45-1.1Z"
+                fill="#fff"
+                fill-opacity="0.92"
+              />
               <g clip-path="url(#boot-clip)">
                 <rect
                   id="boot-shell-sheen"
@@ -963,6 +1048,88 @@
         </div>
       </div>
     </div>
+    <script>
+      // A chosen theme gets the gold picture recolored with its ring colors, before the app's code
+      // has loaded: each pixel keeps its place on the picture's shadow, mid and light ramp.
+      const ringTintTable = (source, target) => {
+        const luma = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const stops = [[0, [0, 0, 0]]]
+          .concat(source.map((color, index) => [luma(color[0], color[1], color[2]), target[index]]))
+          .concat([[255, [255, 255, 255]]]);
+        const table = new Uint8ClampedArray(768);
+        for (let y = 0; y < 256; y += 1) {
+          let upper = 1;
+          while (upper < stops.length - 1 && stops[upper][0] < y) upper += 1;
+          const y0 = stops[upper - 1][0];
+          const y1 = stops[upper][0];
+          const t = y1 > y0 ? Math.min(1, Math.max(0, (y - y0) / (y1 - y0))) : 1;
+          for (let c = 0; c < 3; c += 1) {
+            const from = stops[upper - 1][1][c];
+            table[y * 3 + c] = from + (stops[upper][1][c] - from) * t;
+          }
+        }
+        return table;
+      };
+      const tintRing = (pixels, table) => {
+        for (let at = 0; at < pixels.length; at += 4) {
+          const y =
+            Math.round(0.2126 * pixels[at] + 0.7152 * pixels[at + 1] + 0.0722 * pixels[at + 2]) * 3;
+          pixels[at] = table[y];
+          pixels[at + 1] = table[y + 1];
+          pixels[at + 2] = table[y + 2];
+        }
+      };
+      (async () => {
+        const html = document.documentElement;
+        const card = document.getElementById("boot-shell-card");
+        if (html.dataset.themeSelected !== "true" || !card) return;
+        try {
+          const mode = html.classList.contains("dark") ? "dark" : "light";
+          const image = card.querySelector('.boot-ring-image[data-mark-theme="' + mode + '"]');
+          const density = Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 1)));
+          const picture = new Image();
+          picture.src = "/mark/ring-" + mode + "-112@" + density + "x.webp";
+          await picture.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = picture.naturalWidth;
+          canvas.height = picture.naturalHeight;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          const probe = document
+            .createElement("canvas")
+            .getContext("2d", { willReadFrequently: true });
+          const rgb = (css) => {
+            probe.clearRect(0, 0, 1, 1);
+            probe.fillStyle = "#000";
+            probe.fillStyle = css;
+            probe.fillRect(0, 0, 1, 1);
+            return Array.from(probe.getImageData(0, 0, 1, 1).data).slice(0, 3);
+          };
+          const style = getComputedStyle(card);
+          const target = ["lo", "mid", "hi"].map((tone) =>
+            rgb(style.getPropertyValue("--boot-ring-" + tone)),
+          );
+          context.drawImage(picture, 0, 0);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+          tintRing(
+            pixels.data,
+            ringTintTable(
+              [
+                [110, 81, 24],
+                [194, 151, 58],
+                [241, 213, 138],
+              ],
+              target,
+            ),
+          );
+          context.putImageData(pixels, 0, 0);
+          image.removeAttribute("srcset");
+          image.src = canvas.toDataURL("image/png");
+          image.dataset.tinted = "";
+        } catch {
+          card.dataset.ringImage = "missing";
+        }
+      })();
+    </script>
     <script>
       const migrationLabel = document.getElementById("boot-shell-progress");
       const readMigrationProgress = window.desktopBridge?.getDatabaseMigrationProgress;

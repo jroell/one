@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type ReactNode } from "react";
+import { useLayoutEffect, useState, type ReactNode, type Ref } from "react";
 
 import type { TimelineMinimapItem } from "~/components/chat/timelineMinimapItems";
 import { useClientSettings } from "~/hooks/useSettings";
@@ -20,6 +20,7 @@ export function ChatNav({
   onSelect,
   onWheel,
   onShownChange,
+  progressRef,
   children,
 }: {
   readonly items: ReadonlyArray<TimelineMinimapItem>;
@@ -29,6 +30,8 @@ export function ChatNav({
   readonly onWheel: (event: WheelEvent) => void;
   /** Whether the outline is mounted, so the timeline measures the current turn only then. */
   readonly onShownChange: (shown: boolean) => void;
+  /** The reading-position hairline; the timeline sets its `--one-chat-read` while it scrolls. */
+  readonly progressRef: Ref<HTMLDivElement>;
   /** The timeline minimap, which the outline replaces when it shows. */
   readonly children: ReactNode;
 }) {
@@ -53,6 +56,9 @@ export function ChatNav({
   }, [showsOutline, reportShown]);
   return (
     <div className="one-chat-nav" ref={hostRef}>
+      <div className="one-chat-progress" aria-hidden ref={progressRef}>
+        <span />
+      </div>
       {showsOutline ? (
         <ChatOutline
           items={items}

@@ -1,8 +1,3 @@
-import { getResolvedOrResolveTheme, registerCustomTheme, type DiffsTheme } from "@pierre/diffs";
-
-/** pierre-light with every syntax color darkened until it reads on every light code surface. */
-export const READABLE_LIGHT_THEME_NAME = "t3-light";
-
 const MIN_CONTRAST = 4.5;
 // The darkest light code surface is a changed word on a deleted line (#f8d3d4, luminance
 // 0.71), rounded down for margin.
@@ -33,44 +28,3 @@ export function readableOnLightCode(color: string, minContrast = MIN_CONTRAST): 
   }
   return `#${rgb.map((channel) => channel.toString(16).padStart(2, "0")).join("")}${match[2] ?? ""}`;
 }
-
-type ZedTheme = NonNullable<DiffsTheme["zed"]>;
-
-// Pairs that differ only in lightness would merge at one floor. The darker color of each pair
-// goes further, keeping pierre-light's order: numbers stay darker than operators, punctuation
-// darker than comments, and decorators darker than property names.
-const FURTHER_COLORS = new Set(["#1ca1c7", "#636363", "#1a85d4"]);
-const FURTHER_MIN_CONTRAST = 6;
-
-/** The t3-light color for a pierre-light syntax color. */
-export function readableSyntaxColor(color: string): string {
-  return readableOnLightCode(
-    color,
-    FURTHER_COLORS.has(color.toLowerCase()) ? FURTHER_MIN_CONTRAST : MIN_CONTRAST,
-  );
-}
-
-function withReadableSyntax(theme: ZedTheme): ZedTheme {
-  const syntax = Object.fromEntries(
-    Object.entries(theme.style.syntax ?? {}).map(([scope, style]) => [
-      scope,
-      typeof style === "string"
-        ? readableSyntaxColor(style)
-        : style.color
-          ? { ...style, color: readableSyntaxColor(style.color) }
-          : style,
-    ]),
-  );
-  return { ...theme, name: READABLE_LIGHT_THEME_NAME, style: { ...theme.style, syntax } };
-}
-
-// Themes resolve on the main thread and reach the diff workers already resolved.
-registerCustomTheme(
-  READABLE_LIGHT_THEME_NAME,
-  async () => {
-    const base = await getResolvedOrResolveTheme("pierre-light", "highlights");
-    if (!base.zed) throw new Error("pierre-light has no Highlights palette");
-    return withReadableSyntax(base.zed);
-  },
-  "zed",
-);

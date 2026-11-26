@@ -1188,6 +1188,7 @@ export function ProviderInstanceCard({
             type="button"
             className="pointer-events-auto absolute inset-0 cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             onClick={onSelect}
+            data-provider-row={instanceId}
             aria-label={gt("Open {provider}", { provider: displayName })}
           />
           {titleIconNode}
@@ -1376,7 +1377,7 @@ export function ProviderInstanceCard({
                 id={`provider-instance-${instanceId}-display-name`}
                 size="sm"
                 className="min-w-0 flex-1 @min-[32rem]/settings-row:w-56"
-                value={instance.displayName ?? ""}
+                value={instance.displayName ?? displayName}
                 onCommit={updateDisplayName}
                 placeholder={driverOption?.label ?? gt("Instance label")}
                 spellCheck={false}

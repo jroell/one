@@ -206,4 +206,59 @@ describe("UsageLimitsPooled meters", () => {
     const gap = unit.getBoundingClientRect().left - number.getBoundingClientRect().right;
     expect(gap).toBeLessThan(16);
   });
+
+  it.each(["dark", "light"] as const)(
+    "colours a meter by state in %s: a healthy fill is a neutral, low is amber, critical is red",
+    async (theme) => {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      try {
+        const terracotta = "rgb(205 112 82)";
+        const fillOf = async (remaining: number) => {
+          await using screen = await render(
+            <LimitMeter
+              remaining={remaining}
+              timeLeft={null}
+              pace={null}
+              color={terracotta}
+              label="Weekly"
+            />,
+            { router: false },
+          );
+          const probe = document.createElement("span");
+          probe.style.color = "var(--usage-fill)";
+          screen.container.querySelector(".usage-meter")!.append(probe);
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext("2d")!;
+          context.fillStyle = getComputedStyle(probe).color;
+          context.fillRect(0, 0, 1, 1);
+          const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+          return { r, g, b, spread: Math.max(r, g, b) - Math.min(r, g, b) };
+        };
+        const healthy = await fillOf(88);
+        const low = await fillOf(20);
+        const critical = await fillOf(5);
+        // Healthy quota does not borrow the provider's terracotta, which is danger's colour too.
+        expect(healthy.spread).toBeLessThan(45);
+        expect(low.r).toBeGreaterThan(low.b + 60);
+        expect(critical.r).toBeGreaterThan(critical.g + 60);
+        expect(critical.r).toBeGreaterThan(critical.b + 40);
+      } finally {
+        document.documentElement.classList.remove("dark");
+      }
+    },
+  );
+
+  it("starts 'left' at the same x on every row, whatever the figure's width", async () => {
+    await using screen = await render(
+      <UsageLimitsPooled presentations={presentationsFor(98)} now={now} />,
+      { router: false },
+    );
+    const first = screen.container.querySelector(".usage-limit-unit")!.getBoundingClientRect().left;
+    await screen.rerender(<UsageLimitsPooled presentations={presentationsFor(12)} now={now} />);
+    const second = screen.container
+      .querySelector(".usage-limit-unit")!
+      .getBoundingClientRect().left;
+    expect(Math.abs(first - second)).toBeLessThan(0.5);
+  });
 });

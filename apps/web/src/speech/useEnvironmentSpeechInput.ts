@@ -297,14 +297,21 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     else if (session?.ownerKey === input.ownerKey) session.cancel();
   }, [input.ownerKey, input.disabled, session]);
 
-  const submitAfterDictation = useStableCallback((submit: (text: string) => void) => {
-    if (latestRef.current.input.disabled || state.phase === "preparing") return;
-    if (!session || !voiceInputBlocksSubmission(state)) {
-      submit(latestRef.current.input.readDraft().text);
-      return;
-    }
-    session.queueSubmission(latestRef.current.input.ownerKey, submit);
-  });
+  const submitAfterDictation = useStableCallback(
+    (submit: (text: string) => void, onDropped?: () => void) => {
+      if (latestRef.current.input.disabled || state.phase === "preparing") {
+        onDropped?.();
+        return;
+      }
+      if (!session || !voiceInputBlocksSubmission(state)) {
+        submit(latestRef.current.input.readDraft().text);
+        return;
+      }
+      if (!session.queueSubmission(latestRef.current.input.ownerKey, submit, onDropped)) {
+        onDropped?.();
+      }
+    },
+  );
 
   const createTarget = useStableCallback((): VoiceInputTarget => {
     const owner = latestRef.current.input.ownerKey;

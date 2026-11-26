@@ -1022,6 +1022,32 @@ it("drops a queued submission for a non-persistent draft when switching owners",
   expect(submit).not.toHaveBeenCalled();
 });
 
+it("tells a queued submission it was dropped when dictation ends with no text, and when its draft changes owner", async () => {
+  setup({ destination: "env-a" });
+  mocks.transcripts = [""];
+  const submit = vi.fn();
+  const dropped = vi.fn();
+  await using screen = await render(<Probe ownerKey="thread-a" />);
+  await act(() => mocks.voice.start());
+  await act(async () => {
+    mocks.voice.submitAfterDictation(submit, dropped);
+  });
+  // An empty transcript ends the recording in its error state, with nothing to submit.
+  await vi.waitFor(() => expect(dropped).toHaveBeenCalledTimes(1));
+  expect(mocks.voice.state.phase).toBe("error");
+  expect(submit).not.toHaveBeenCalled();
+
+  mocks.transcripts = [];
+  const droppedOnSwitch = vi.fn();
+  await act(() => mocks.voice.start());
+  await act(async () => {
+    mocks.voice.submitAfterDictation(submit, droppedOnSwitch);
+    await screen.rerender(<Probe ownerKey="thread-b" />);
+  });
+  await vi.waitFor(() => expect(droppedOnSwitch).toHaveBeenCalledTimes(1));
+  expect(submit).not.toHaveBeenCalled();
+});
+
 it("never opens the microphone for a start that was abandoned while its status check was still running", async () => {
   setup({ destination: "env-a" });
   // The cached status says a model is missing, so starting forces a fresh status check first.

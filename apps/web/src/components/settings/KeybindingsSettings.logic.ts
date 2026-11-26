@@ -35,6 +35,26 @@ const usageCommandOrder = new Map<KeybindingCommand, number>(
 
 const firstUsageCommand = METRIC_OPTIONS[0].command;
 
+/** Commands that come as a pair: the second sorts right after the first, not by its own name. */
+const PAIR_FOLLOWERS: ReadonlyMap<string, string> = new Map([
+  ["thread.previous", "thread.next"],
+  ["workspace.focusPrevious", "workspace.focusNext"],
+  ["modelPicker.previousProvider", "modelPicker.nextProvider"],
+  ["composer.decreaseEffort", "composer.increaseEffort"],
+  ["preview.zoomOut", "preview.zoomIn"],
+  ["navigation.forward", "navigation.back"],
+]);
+
+/** The command a paired command is listed right after ("thread.next" for "thread.previous"). */
+export function commandPairLeader(command: KeybindingCommand): KeybindingCommand | null {
+  return (PAIR_FOLLOWERS.get(String(command)) as KeybindingCommand | undefined) ?? null;
+}
+
+function commandSortKey(command: KeybindingCommand): string {
+  const leader = commandPairLeader(command);
+  return leader === null ? String(command) : `${leader}~`;
+}
+
 function compareCommands(
   left: KeybindingCommand,
   right: KeybindingCommand,
@@ -398,10 +418,30 @@ const KEYBINDING_GROUPS = [
     title: msg("Navigation"),
     prefixes: ["sidebar", "rightPanel", "commandPalette", "filePicker", "projectSearch", "editor"],
   },
-  { id: "threads", title: msg("Threads"), prefixes: ["thread", "chat", "pullRequest"] },
-  { id: "composer", title: msg("Composer"), prefixes: ["composer", "modelPicker"] },
-  { id: "terminal", title: msg("Terminal"), prefixes: ["terminal"] },
-  { id: "preview", title: msg("Preview & diff"), prefixes: ["preview", "diff"] },
+  {
+    id: "threads",
+    title: msg("Threads"),
+    prefixes: ["thread", "chat", "pullRequest"],
+    redundantLabelPrefix: "thread",
+  },
+  {
+    id: "composer",
+    title: msg("Composer"),
+    prefixes: ["composer", "modelPicker"],
+    redundantLabelPrefix: "composer",
+  },
+  {
+    id: "terminal",
+    title: msg("Terminal"),
+    prefixes: ["terminal"],
+    redundantLabelPrefix: "terminal",
+  },
+  {
+    id: "preview",
+    title: msg("Preview & diff"),
+    prefixes: ["preview", "diff"],
+    redundantLabelPrefix: "preview",
+  },
   {
     id: "appearance",
     title: msg("Appearance"),
@@ -506,7 +546,7 @@ export function buildKeybindingRows(
   });
 
   rowsWithConflicts.sort((left, right) => {
-    const commandCompare = compareCommands(left.command, right.command, (command) => command);
+    const commandCompare = compareCommands(left.command, right.command, commandSortKey);
     if (commandCompare !== 0) return commandCompare;
     return left.key.localeCompare(right.key);
   });
@@ -677,6 +717,43 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "preview.find": msg("Preview: find on page"),
   "shortcuts.show": msg("Keyboard shortcuts: show"),
 };
+
+/**
+ * The label for a command shown under its group's heading: "Next" under "Threads", not
+ * "Thread: next". Only a prefix that the heading already says is dropped, so "Pull request: copy
+ * number" and "Model picker: toggle" keep the context their heading does not give.
+ */
+export function commandActionLabel(
+  command: KeybindingCommand,
+  resolve: MessageResolver = m,
+): string {
+  const group = keybindingGroupFor(command) as { readonly redundantLabelPrefix?: string };
+  return commandLabelUnder(command, group.redundantLabelPrefix, resolve);
+}
+
+/**
+ * A command's label under a heading that names the command's own first word: the heading
+ * "Thread" or "Composer" over "Thread: next" leaves "Next". Any other label is returned whole.
+ */
+export function commandLabelUnder(
+  command: KeybindingCommand,
+  headingWord: string | undefined,
+  resolve: MessageResolver = m,
+): string {
+  const label = commandLabel(command, resolve);
+  const redundant = headingWord;
+  const separator = label.indexOf(": ");
+  if (redundant === undefined || separator === -1) return label;
+  const firstSegment = String(command).split(".")[0] ?? "";
+  if (
+    firstSegment !== redundant ||
+    label.slice(0, separator).toLowerCase() !== sentenceCaseCommandSegment(firstSegment, false)
+  ) {
+    return label;
+  }
+  const rest = label.slice(separator + 2);
+  return rest.slice(0, 1).toUpperCase() + rest.slice(1);
+}
 
 export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {
   const label = COMMAND_LABELS[command];

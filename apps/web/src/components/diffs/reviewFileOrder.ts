@@ -1,20 +1,30 @@
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
-function directoryOf(path: string): string {
-  const slash = path.lastIndexOf("/");
-  return slash === -1 ? "" : path.slice(0, slash);
+interface ReviewFile {
+  readonly path: string;
+  readonly binary?: boolean | undefined;
 }
 
 /**
- * Files list by folder, and inside a folder the text files come before the binaries, so a
- * folder of images never pushes the code above them out of sight.
+ * Files list one folder at a time, and a folder's whole subtree stays together: `a/root.ts`,
+ * `a/sub/part.ts`, then `a-b/ext.ts`, whatever characters sort between the names. Inside a folder
+ * the text files come first, then the binaries, then the subfolders. A file tree built from
+ * the order of the list (by where each file and folder first appears) lists them the same way.
  */
-export function compareReviewFiles(
-  a: { readonly path: string; readonly binary?: boolean | undefined },
-  b: { readonly path: string; readonly binary?: boolean | undefined },
-): number {
-  const byDirectory = collator.compare(directoryOf(a.path), directoryOf(b.path));
-  if (byDirectory !== 0) return byDirectory;
-  if ((a.binary === true) !== (b.binary === true)) return a.binary === true ? 1 : -1;
-  return collator.compare(a.path, b.path);
+export function compareReviewFiles(a: ReviewFile, b: ReviewFile): number {
+  const left = a.path.split("/");
+  const right = b.path.split("/");
+  const shared = Math.min(left.length, right.length);
+  for (let index = 0; index < shared; index += 1) {
+    const leftIsFile = index === left.length - 1;
+    const rightIsFile = index === right.length - 1;
+    if (leftIsFile !== rightIsFile) return leftIsFile ? -1 : 1;
+    if (leftIsFile) {
+      if ((a.binary === true) !== (b.binary === true)) return a.binary === true ? 1 : -1;
+      return collator.compare(left[index]!, right[index]!);
+    }
+    const byName = collator.compare(left[index]!, right[index]!);
+    if (byName !== 0) return byName;
+  }
+  return 0;
 }

@@ -153,8 +153,8 @@ function GuestLinksRow() {
       managed={settings.guestSharingEnabled ? undefined : connectDenial}
       description={
         <T>
-          Share a thread with a guest who watches it live in a browser and sends messages you
-          approve. Needs T3 Connect: sign in and link this machine in{" "}
+          Let a guest watch a thread live in a browser and send messages you approve. Needs T3
+          Connect: sign in and link this machine in{" "}
           <Link to="/settings/access" className="underline underline-offset-2">
             Sharing & access
           </Link>
@@ -218,7 +218,7 @@ function WorkflowsRow() {
       {...searchableSetting("workflows-beta")}
       settingKeys={["workflowsEnabled"]}
       description={gt(
-        "Run multi-step workflows from files in the workflows folder of this server's One data folder. Open them from the command palette. While off, nothing in that folder runs; runs wait until it is on again.",
+        "Run workflows from the files in this server's workflows folder, and start them from the command palette. While this is off, nothing in that folder runs.",
       )}
       control={
         <ScopedSwitch
@@ -248,7 +248,7 @@ export function WorkflowSkippedRunsRow() {
       {...searchableSetting("workflow-skipped-runs")}
       settingKeys={["workflowSkippedRunsKept"]}
       description={gt(
-        "How many skipped runs each workflow keeps in its history. Older skipped runs are deleted; runs that did something are always kept.",
+        "How many skipped runs each workflow keeps in its history. Older skipped runs are deleted. Runs that did something are always kept.",
       )}
       resetAction={
         mixed || kept !== DEFAULT_WORKFLOW_SKIPPED_RUNS_KEPT ? (
@@ -298,7 +298,7 @@ function PromptSuggestionsRow() {
       {...searchableSetting("prompt-suggestions-beta")}
       settingKeys={["promptSuggestionsEnabled"]}
       description={gt(
-        "Show a predicted next message in the empty composer after a Claude or Codex turn. Tab uses it. Each is an extra cached request on your plan. Needs Codex 0.165+. Claude threads update on restart.",
+        "After a Claude or Codex turn, show a predicted next message in the empty composer; Tab uses it. Each prediction is one extra request on your plan. Codex needs version 0.165 or newer, and Claude threads update after a restart.",
       )}
       control={
         <ScopedSwitch
@@ -379,7 +379,7 @@ function FastWorktreeCheckoutRow() {
       {...searchableSetting("worktree-fast-checkout")}
       settingKeys={["fastWorktreeCheckout"]}
       description={gt(
-        "On a Mac, clone new worktrees from a checkout cached in One’s data folder instead of writing every file. Uses Git’s normal checkout when it can’t. Turning it off deletes the cache.",
+        "On a Mac, make new worktrees from a cached checkout instead of writing every file. Git’s normal checkout is used when that is not possible. Turning this off deletes the cache.",
       )}
       control={
         <ScopedSwitch

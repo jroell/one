@@ -20,3 +20,16 @@ it("keeps the counts for a text file", async () => {
     .toBeInTheDocument();
   expect(screen.container.textContent).toContain("+4");
 });
+
+it("leaves out a count of zero and keeps the other count in its column", async () => {
+  await using screen = await render(<DiffStatLabel additions={12} deletions={0} />, {
+    router: false,
+  });
+  expect(screen.container.textContent).toContain("+12");
+  expect(screen.container.textContent).not.toContain("-0");
+  await using onlyDeletions = await render(<DiffStatLabel additions={0} deletions={3} />, {
+    router: false,
+  });
+  expect(onlyDeletions.container.textContent).toContain("-3");
+  expect(onlyDeletions.container.textContent).not.toContain("+0");
+});

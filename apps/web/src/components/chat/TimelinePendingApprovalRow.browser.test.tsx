@@ -106,20 +106,109 @@ it("shows the approval's own details when its change has not arrived, never a gu
     .not.toBeInTheDocument();
 });
 
-it("shows the subject without a preview when the matched change carries no patch", async () => {
+it("offers the full diff when the matched change has no preview to show", async () => {
+  const onOpenToolDiff = vi.fn();
+  await using screen = await render(
+    row(
+      approval({}),
+      {
+        path: "/repo/src/math.ts",
+        moreFiles: 0,
+        additions: 2,
+        deletions: 1,
+        diffStr: null,
+        diffTarget,
+      },
+      onOpenToolDiff,
+    ),
+    { router: false },
+  );
+  await expect.element(screen.getByText("src/math.ts")).toBeVisible();
+  expect(screen.container.querySelector("[data-approval-hunk-lines]")).toBeNull();
+  await screen.getByRole("button", { name: "Show full diff" }).click();
+  expect(onOpenToolDiff).toHaveBeenCalledWith(diffTarget);
+});
+
+it("tells a screen reader which preview line is added, removed or unchanged, with its file line", async () => {
   await using screen = await render(
     row(approval({}), {
       path: "/repo/src/math.ts",
       moreFiles: 0,
       additions: 2,
       deletions: 1,
-      diffStr: null,
+      diffStr: patch,
       diffTarget,
     }),
     { router: false },
   );
-  await expect.element(screen.getByText("src/math.ts")).toBeVisible();
-  expect(screen.container.querySelector("[data-approval-hunk]")).toBeNull();
+  await expect.element(screen.getByText("added line one")).toBeVisible();
+  const rows = [...screen.container.querySelectorAll("[data-approval-hunk-lines] > div")].map(
+    (element) => element.textContent,
+  );
+  expect(rows).toEqual([
+    expect.stringContaining("Unchanged line 3: keep"),
+    expect.stringContaining("Removed line 4: removed line"),
+    expect.stringContaining("Added line 4: added line one"),
+    expect.stringContaining("Added line 5: added line two"),
+  ]);
+});
+
+function pendingDetailRow(detail: ReturnType<typeof Atom.make>, onOpenToolDiff = vi.fn()) {
+  const shared = {
+    respondingRequestIds: [],
+    canOperateThread: true,
+    onRespondToApproval: async () => {},
+    workspaceRoot: "/repo",
+    onOpenToolDiff,
+    activeThreadEnvironmentId: EnvironmentId.make("environment"),
+    turnItemSource: { detail: () => detail },
+  } as never;
+  return (
+    <TimelineRowCtx value={shared}>
+      <ApprovalSubjectContext
+        value={
+          new Map([
+            [
+              requestId,
+              {
+                path: "/repo/src/math.ts",
+                moreFiles: 0,
+                additions: null,
+                deletions: null,
+                diffStr: null,
+                diffTarget,
+              },
+            ],
+          ])
+        }
+      >
+        <TimelinePendingApprovalRow approval={approval({})} />
+      </ApprovalSubjectContext>
+    </TimelineRowCtx>
+  );
+}
+
+it("keeps Approve, Decline and the full diff usable while the change is still loading", async () => {
+  const onOpenToolDiff = vi.fn();
+  await using screen = await render(
+    pendingDetailRow(Atom.make(AsyncResult.initial(true)) as never, onOpenToolDiff),
+    { router: false },
+  );
+  await expect.element(screen.getByText("Loading preview…")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+  await expect.element(screen.getByRole("button", { name: "Decline" })).toBeEnabled();
+  await screen.getByRole("button", { name: "Show full diff" }).click();
+  expect(onOpenToolDiff).toHaveBeenCalledWith(diffTarget);
+});
+
+it("says the preview failed to load, offers Retry and still offers the full diff", async () => {
+  await using screen = await render(
+    pendingDetailRow(Atom.make(AsyncResult.fail(new Error("offline"))) as never),
+    { router: false },
+  );
+  await expect.element(screen.getByText("Couldn't load the preview.")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Show full diff" })).toBeVisible();
 });
 
 // The ACP sequence of the dev replay's showcase: a pending edit tool call carrying before and
@@ -199,4 +288,97 @@ it("shows the added clamp lines for the replay's pending edit followed by its pe
     .toBeVisible();
   const added = screen.container.querySelectorAll('[data-approval-hunk-lines] > [data-kind="add"]');
   expect(added.length).toBeGreaterThanOrEqual(3);
+  // The recorded text proves no file offset, so no line is numbered from 1.
+  const numbers = [...screen.container.querySelectorAll("[data-approval-hunk-number]")];
+  expect(numbers.length).toBeGreaterThan(0);
+  expect(numbers.every((number) => number.textContent === "")).toBe(true);
+});
+
+it("shows the new text when a waiting change is updated in place, asking for its new revision", async () => {
+  const requested: string[] = [];
+  const item = (text: string) =>
+    ({ type: "file_change", diffStr: `@@ -1,1 +1,1 @@\n-old\n+${text}\n` }) as never;
+  const source = (input: { readonly revision: string }) => {
+    requested.push(input.revision);
+    return Atom.make(
+      AsyncResult.success({ item: item(input.revision === "r1" ? "first text" : "second text") }),
+    ) as never;
+  };
+  const shared = {
+    respondingRequestIds: [],
+    canOperateThread: true,
+    onRespondToApproval: async () => {},
+    workspaceRoot: "/repo",
+    onOpenToolDiff: vi.fn(),
+    activeThreadEnvironmentId: EnvironmentId.make("environment"),
+    turnItemSource: { detail: source },
+  } as never;
+  const view = (revision: string) => (
+    <TimelineRowCtx value={shared}>
+      <ApprovalSubjectContext
+        value={
+          new Map([
+            [
+              requestId,
+              {
+                path: "/repo/src/math.ts",
+                moreFiles: 0,
+                additions: null,
+                deletions: null,
+                diffStr: null,
+                diffTarget: { ...diffTarget, revision },
+              },
+            ],
+          ])
+        }
+      >
+        <TimelinePendingApprovalRow approval={approval({})} />
+      </ApprovalSubjectContext>
+    </TimelineRowCtx>
+  );
+  await using screen = await render(view("r1"), { router: false });
+  await expect.element(screen.getByText("first text")).toBeVisible();
+  await screen.rerender(view("r2"));
+  await expect.element(screen.getByText("second text")).toBeVisible();
+  expect(requested).toContain("r1");
+  expect(requested).toContain("r2");
+});
+
+it("lays the card out as header, change and action bar on one 16px inset, with the path once", async () => {
+  await using screen = await render(
+    row(approval({}), {
+      path: "/repo/src/math.ts",
+      moreFiles: 0,
+      additions: 2,
+      deletions: 1,
+      diffStr: patch,
+      diffTarget,
+    }),
+    { router: false },
+  );
+  await expect.element(screen.getByText("added line one")).toBeVisible();
+  const card = screen.container.querySelector("[data-approval-card]") as HTMLElement;
+  const rect = (selector: string) =>
+    (card.querySelector(selector) as HTMLElement).getBoundingClientRect();
+  const left = card.getBoundingClientRect().left;
+  // One inset, 1rem: the header, the line numbers and the status chip all start on it.
+  const inset = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  expect(rect("[data-approval-header] svg").left - left).toBeCloseTo(inset, 0);
+  expect(rect("[data-approval-status]").left - left).toBeCloseTo(inset, 0);
+  expect(
+    parseFloat(
+      getComputedStyle(card.querySelector("[data-approval-hunk-number]")!).paddingInlineStart,
+    ),
+  ).toBeCloseTo(inset, 0);
+  const decline = screen.getByRole("button", { name: "Decline" }).element().getBoundingClientRect();
+  const approveButton = screen.getByRole("button", { name: "Approve" }).element();
+  const approve = approveButton.getBoundingClientRect();
+  expect(approve.left - decline.right).toBeCloseTo(12, 0);
+  expect(approve.height).toBeGreaterThanOrEqual(32);
+  expect(decline.height).toBe(approve.height);
+  // The change is one band: card and content are the only two levels, so it draws no border.
+  expect(getComputedStyle(card.querySelector("[data-approval-content]")!).borderBottomWidth).toBe(
+    "0px",
+  );
+  expect(card.textContent!.match(/math\.ts/g)).toHaveLength(1);
 });

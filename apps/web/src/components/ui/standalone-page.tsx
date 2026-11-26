@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { OneMark } from "../../one/OneMark";
+import { OneGlyph } from "../../one/OneGlyph";
 
 export function StandalonePage({ children }: { readonly children: ReactNode }) {
   return (
@@ -32,8 +32,10 @@ export function StandalonePageHeader({
         className="flex items-center justify-between gap-3 text-muted-foreground"
       >
         <span className="flex items-center gap-2" role="img" aria-label="One">
-          <OneMark className="size-6" />
-          <span className="text-lg font-semibold tracking-tight text-foreground">One</span>
+          <OneGlyph size={20} />
+          <span data-one-wordmark="" className="text-foreground">
+            One
+          </span>
         </span>
         {context ? (
           <span data-one-standalone-context="" className="text-xs">

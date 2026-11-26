@@ -5261,3 +5261,83 @@ describe("workEntryReadOutput", () => {
     ).toBe("/workspace/t3code/src/app.ts\n~/.claude/CLAUDE.md\n~/.gitconfig");
   });
 });
+
+describe("turn fold summary", () => {
+  const entries = (itemTypes: ReadonlyArray<string | undefined>) =>
+    [
+      {
+        id: "user-entry",
+        kind: "message" as const,
+        createdAt: "2026-01-01T00:00:00Z",
+        message: {
+          id: "user-1" as never,
+          role: "user" as const,
+          text: "hello",
+          createdAt: "2026-01-01T00:00:00Z",
+          streaming: false,
+        },
+      },
+      ...itemTypes.map((itemType, index) => ({
+        id: `work-${index}`,
+        kind: "work" as const,
+        createdAt: `2026-01-01T00:00:0${index + 1}Z`,
+        entry: {
+          id: `work-${index}`,
+          createdAt: `2026-01-01T00:00:0${index + 1}Z`,
+          runId: "turn-1" as never,
+          label: "Work",
+          tone: "tool" as const,
+          ...(itemType === undefined ? {} : { itemType: itemType as never }),
+        },
+      })),
+      {
+        id: "assistant-entry",
+        kind: "message" as const,
+        createdAt: "2026-01-01T00:00:20Z",
+        message: {
+          id: "assistant-1" as never,
+          role: "assistant" as const,
+          text: "Done",
+          runId: "turn-1" as never,
+          createdAt: "2026-01-01T00:00:20Z",
+          updatedAt: "2026-01-01T00:00:22Z",
+          streaming: false,
+        },
+      },
+    ] as unknown as TimelineEntry[];
+  const foldOf = (itemTypes: ReadonlyArray<string | undefined>) =>
+    deriveMessagesTimelineRows({
+      timelineEntries: entries(itemTypes),
+      isWorking: false,
+      activeTurnStartedAt: null,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    }).find(
+      (row): row is Extract<MessagesTimelineRow, { kind: "turn-fold" }> => row.kind === "turn-fold",
+    );
+
+  it("counts the tool calls behind a fold and notes reasoning, leaving plans and approvals out", () => {
+    expect(
+      foldOf([
+        "reasoning",
+        "command_execution",
+        "todo_list",
+        "command_execution",
+        "dynamic_tool",
+        "approval_request",
+      ])?.summary,
+    ).toEqual({ duration: "22s", toolCount: 3, thought: true });
+  });
+
+  it("reports a fold that only reasoned as no tools", () => {
+    expect(foldOf(["reasoning"])?.summary).toEqual({
+      duration: "22s",
+      toolCount: 0,
+      thought: true,
+    });
+  });
+
+  it("counts nothing for work of a kind it does not know, so the line keeps its own label", () => {
+    expect(foldOf([undefined])?.summary).toEqual({ duration: "22s", toolCount: 0, thought: false });
+  });
+});

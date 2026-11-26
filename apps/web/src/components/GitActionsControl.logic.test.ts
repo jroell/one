@@ -8,6 +8,7 @@ import {
   hasUsableGitMenuContent,
   requiresDefaultBranchConfirmation,
   resolveChangesTotals,
+  shortBaseRefName,
   resolveDefaultBranchActionDialogCopy,
   resolveFeatureBranchUnavailableReason,
   resolveLiveThreadBranchUpdate,
@@ -416,5 +417,14 @@ describe("resolveChangesTotals", () => {
       ),
       { insertions: 2, deletions: 0 },
     );
+  });
+});
+
+describe("shortBaseRefName", () => {
+  it("drops the origin remote so the Changes row reads vs main, and keeps other refs whole", () => {
+    assert.equal(shortBaseRefName("origin/main"), "main");
+    assert.equal(shortBaseRefName("origin/release/2026"), "release/2026");
+    assert.equal(shortBaseRefName("upstream/main"), "upstream/main");
+    assert.equal(shortBaseRefName("main"), "main");
   });
 });

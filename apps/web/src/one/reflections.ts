@@ -11,12 +11,14 @@ export const REFLECT_PROXIMITY_PX = 24;
 export const REMEASURE_MS = 250;
 
 const REFLECT_SELECTOR = "[data-one-reflect]";
-/** Interactive cards catch the pointer's light while it is over them, with no proximity halo. */
-const GLINT_SELECTOR = "[data-settings-card], [data-ui-tile], [data-ui-glint]";
+/** Primary buttons catch the pointer's light while it is over them, with no proximity halo. */
+const GLINT_SELECTOR = '[data-ui-glint], [data-button][data-variant="default"]';
 /** While the agent works the edge light travels around the surface on its own and ignores the pointer. */
 const WORKING_SELECTOR = "[data-one-working]";
 
 type Tracked = {
+  /** Reflection surfaces glow near the pointer; glint elements only while it is over them. */
+  tier: "reflect" | "glint";
   rect: DOMRectReadOnly | null;
   /** The `epoch` the rect was measured in. */
   measuredIn: number;
@@ -41,6 +43,7 @@ export function installOneReflections(): () => void {
   ) {
     return () => {};
   }
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const tracked = new Map<HTMLElement, Tracked>();
   /** Bumped whenever a measured rectangle may have moved. */
   let epoch = 0;
@@ -54,10 +57,11 @@ export function installOneReflections(): () => void {
     tracked.get(element)?.stopObserving();
     tracked.delete(element);
   };
-  const track = (element: HTMLElement): Tracked => {
+  const track = (element: HTMLElement, tier: Tracked["tier"] = "reflect"): Tracked => {
     const known = tracked.get(element);
     if (known) return known;
     const entry: Tracked = {
+      tier,
       rect: null,
       measuredIn: -1,
       measuredAt: 0,
@@ -95,6 +99,7 @@ export function installOneReflections(): () => void {
       return over;
     }
     for (const [element, entry] of tracked) {
+      if (entry.tier !== "reflect") continue;
       if (!element.isConnected) {
         forget(element);
         continue;
@@ -140,30 +145,50 @@ export function installOneReflections(): () => void {
     if (activeGlint && !write(activeGlint)) activeGlint = null;
   };
 
+  /** A glint element is tracked only while hovered; leaving or removing it releases its observer. */
+  const releaseGlint = () => {
+    if (activeGlint && tracked.get(activeGlint)?.tier === "glint") forget(activeGlint);
+    activeGlint = null;
+  };
+  const sweepDetached = () => {
+    for (const [element, entry] of tracked) {
+      if (entry.tier === "glint" && !element.isConnected) forget(element);
+    }
+  };
+
   const onPointerMove = (event: PointerEvent) => {
-    if (event.pointerType === "touch") return;
+    if (event.pointerType === "touch" || reducedMotion.matches) return;
     x = event.clientX;
     y = event.clientY;
     active = surfaceAt(event.target);
     const glint =
       event.target instanceof Element ? event.target.closest<HTMLElement>(GLINT_SELECTOR) : null;
+    if (glint !== activeGlint) releaseGlint();
     if (glint) {
-      const entry = track(glint);
+      const entry = track(glint, "glint");
       if (glint !== activeGlint) entry.measuredIn = -1;
     }
     activeGlint = glint;
     if ((active || activeGlint) && frame === 0) frame = requestAnimationFrame(apply);
+  };
+  const onPointerOut = (event: PointerEvent) => {
+    if (event.relatedTarget === null) releaseGlint();
   };
   const onLayoutChange = () => {
     epoch++;
   };
 
   document.addEventListener("pointermove", onPointerMove, { passive: true });
+  // A surface closed from the keyboard leaves no pointer event behind to release it.
+  document.addEventListener("keydown", sweepDetached, { passive: true });
+  document.addEventListener("pointerout", onPointerOut, { passive: true });
   // Scroll does not bubble; a capturing listener hears every scroll container.
   window.addEventListener("scroll", onLayoutChange, { capture: true, passive: true });
   window.addEventListener("resize", onLayoutChange, { passive: true });
   return () => {
     document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("keydown", sweepDetached);
+    document.removeEventListener("pointerout", onPointerOut);
     window.removeEventListener("scroll", onLayoutChange, { capture: true });
     window.removeEventListener("resize", onLayoutChange);
     if (frame !== 0) cancelAnimationFrame(frame);

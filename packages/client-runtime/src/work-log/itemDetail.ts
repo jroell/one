@@ -9,6 +9,7 @@ import {
   mcpToolResultOutput,
   toolOutputImageBlocks,
   toolOutputImages,
+  unwrapAcpContent,
 } from "@t3tools/shared/toolOutput";
 import * as DateTime from "effect/DateTime";
 
@@ -31,16 +32,20 @@ function textFromBlocks(
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     const parts = value.map((block) => textFromBlocks(block, depth + 1, imageBlocks));
-    return parts.every((part) => part !== null)
-      ? parts.filter((part) => part !== "").join("\n")
-      : null;
+    // No block known: leave the array to the caller's JSON view. Some known: a block of another
+    // shape shows as its own JSON beside the rest, rather than turning every block into JSON.
+    if (parts.every((part) => part === null)) return null;
+    return parts
+      .map((part, index) => part ?? formatJsonValue(value[index]) ?? "")
+      .filter((part) => part !== "")
+      .join("\n");
   }
   if (!isRecord(value)) return null;
   if (value.type === "text" && typeof value.text === "string") return value.text;
-  // The ACP wrapper around one content block. Its text is the tool's own, never decoded again.
-  if (value.type === "content" && Object.keys(value).length === 2 && "content" in value) {
-    return textFromBlocks(value.content, depth + 1, imageBlocks);
-  }
+  // The ACP wrapper around one content block, with or without `_meta`. Its text is the tool's
+  // own, never decoded again.
+  const unwrapped = unwrapAcpContent(value);
+  if (unwrapped !== value) return textFromBlocks(unwrapped, depth + 1, imageBlocks);
   if (value.type === "image") return imageBlocks.includes(value) ? "" : "[image]";
   if (value.type === "resource_link" && typeof value.uri === "string") return value.uri;
   if (value.type === "resource" && isRecord(value.resource)) {

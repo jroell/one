@@ -23,9 +23,15 @@ uniform float uPulse;
 uniform float uDark;
 uniform float uAura;
 uniform float uReveal;
+uniform float uGlow;
 
 const float RADIUS = 1.0;
-const vec2 BAND = vec2(0.085, 0.27);
+const vec2 BAND = vec2(0.15, 0.14);
+const float ROLL = 0.17;
+/* Sets where the body's mid-tone lands: the standard gold ramp's 500 step. */
+const float EXPOSURE = 0.88;
+/* Where the mark's glint sits: its one o'clock catch-light, in the units of the ring's box. */
+const vec2 GLINT = vec2(0.61, 0.35);
 
 /* 1 below "low", 0 above "high". smoothstep itself is undefined when its edges descend. */
 float fall(float high, float low, float x) { return 1.0 - smoothstep(low, high, x); }
@@ -73,9 +79,10 @@ float embers(vec2 uv) {
 mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 
 vec3 toRing(vec3 p) {
+  // The turn on screen comes first, so the ring leans the way the mark's silhouette does.
+  p.xy = rot(ROLL) * p.xy;
   p.xz = rot(uSpin) * p.xz;
   p.yz = rot(uTilt) * p.yz;
-  p.xy = rot(-0.42) * p.xy;
   return p;
 }
 
@@ -109,30 +116,45 @@ float stripLight(vec3 d, float azimuth, float width, float low, float high) {
 }
 
 vec3 studio(vec3 d) {
-  vec3 c = mix(uLo * 0.04, uLo * 0.22, smoothstep(-1.0, 0.6, d.y));
-  c += vec3(1.0) * smoothstep(0.58, 0.88, d.y) * 3.2;
-  c += vec3(1.0) * stripLight(d, 0.95, 0.2, -0.5, 0.55) * 2.6;
-  c += mix(uHi, vec3(1.0), 0.4) * stripLight(d, -1.25, 0.12, -0.35, 0.5) * 2.0;
+  // Every light is the brand's own warm white: a pure white reflected off gold reads as grey.
+  vec3 warm = mix(uHi, vec3(1.0), 0.22);
+  vec3 c = mix(uLo * mix(0.035, 0.012, uDark), uLo * mix(0.2, 0.1, uDark), smoothstep(-1.0, 0.6, d.y));
+  c += warm * smoothstep(0.58, 0.88, d.y) * 3.4;
+  c += warm * stripLight(d, -0.95, 0.2, -0.5, 0.55) * 3.6;
+  c += warm * stripLight(d, 1.25, 0.12, -0.35, 0.5) * 1.4;
   c += uHi * stripLight(d, 2.7, 0.3, -0.2, 0.5) * 1.1;
   // A slatted light wall behind the ring. The inner face of the band mirrors
   // it, which gives the streaked highlights of a polished jewel.
   float behind = smoothstep(0.05, 0.6, -d.z);
-  float slats = smoothstep(0.35, 0.75, 0.5 + 0.5 * sin(atan(d.x, -d.z) * 7.0 + 0.8));
+  float slats = smoothstep(0.12, 0.88, 0.5 + 0.5 * sin(atan(d.x, -d.z) * 5.0 + 0.8));
   float rise = smoothstep(-0.55, 0.15, d.y) * fall(0.95, 0.35, d.y);
-  c += mix(uHi, vec3(1.0), 0.45) * behind * slats * rise * 2.1;
+  c += warm * behind * slats * rise * 2.1;
   c += uMid * behind * rise * 0.35;
   c += uMid * exp(-abs(d.y + 0.08) * 9.0) * 0.5;
   c += uMid * fall(-0.35, -1.0, d.y) * 0.7;
   float sweep = fall(0.2, 0.0, abs(d.x * 0.8 + d.y * 0.6 - sin(uTime * 2.4) * 1.3));
-  c += vec3(1.0) * sweep * uPulse * 1.8;
+  c += warm * sweep * uPulse * 1.8;
   return c;
+}
+
+/* Rolls light off without changing its hue. Rolling each channel on its own lets red and green
+   clip together, and gold turns lime. The brightest channel is compressed, the rest follow it,
+   and only a hot highlight is allowed to drift toward white. */
+vec3 rollOff(vec3 c) {
+  float m = max(c.r, max(c.g, c.b));
+  float rolled = m / (1.0 + m * 0.42);
+  c *= rolled / max(m, 1e-4);
+  float peak = max(c.r, max(c.g, c.b));
+  c /= max(1.0, peak);
+  float white = smoothstep(1.6, 4.0, m) * 0.3;
+  return mix(c, vec3(max(c.r, max(c.g, c.b))), white);
 }
 
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - uRes) / min(uRes.x, uRes.y);
   // The opening starts far back in the dark and drifts in.
   float arrive = 1.0 - pow(1.0 - uReveal, 3.0);
-  vec3 ro = vec3(0.0, 0.0, mix(5.3, 4.1, arrive));
+  vec3 ro = vec3(0.0, 0.0, mix(5.3, 3.8, arrive));
   vec3 rd = normalize(vec3(uv * 1.2, -3.0));
   float pixel = 2.2 / min(uRes.x, uRes.y);
 
@@ -167,15 +189,29 @@ void main() {
     // Colored glass over a mirror: lights keep the brand hue and turn white
     // only at grazing angles.
     vec3 tint = mix(uMid, uHi, 0.25);
-    vec3 mirrored = reflection * mix(tint * 1.25, vec3(1.0), fresnel);
+    vec3 mirrored = reflection * mix(tint * 1.25, mix(uHi, vec3(1.0), 0.3), fresnel);
     vec3 through = studio(refract(rd, n, 0.69)) * tint;
     vec3 depth = mix(uLo * 0.5, uMid * 0.6, facing * facing);
     color = depth * 0.5 + mirrored * 0.9 + through * 0.22;
     color += uHi * pow(1.0 - facing, 3.0) * (0.3 + 0.6 * uEnergy);
     vec3 keyHalf = normalize(normalize(vec3(0.35, 0.9, 0.55)) + v);
-    color += vec3(1.0) * pow(max(dot(n, keyHalf), 0.0), 140.0) * 2.4;
-    color = color / (1.0 + color * 0.36);
-    color = pow(color, vec3(0.82));
+    // A soft key light, not a pin: a tight exponent sparkles along the rim as the normal turns.
+    color += mix(uHi, vec3(1.0), 0.6) * pow(max(dot(n, keyHalf), 0.0), 36.0) * 0.9;
+    // The glint is part of the mark: a catch-light fixed at one o'clock on screen, whatever
+    // the ring is doing. It sits on the outer rim and is the only fixed light on the band.
+    vec2 glintAt = (uv - GLINT) * vec2(1.0, 1.7);
+    float glint = exp(-dot(glintAt, glintAt) / 0.0022);
+    color += mix(uHi, vec3(1.0), 0.7) * glint * 4.2;
+    color *= EXPOSURE;
+    color = rollOff(color);
+    // The theme colors arrive in linear light; this takes them most of the way back to what a screen shows.
+    color = pow(color, vec3(0.45));
+    // A shallow S-curve: deeper shade and cleaner lights, so the band keeps its form.
+    color = mix(color, color * color * (3.0 - 2.0 * color), 0.6);
+    // Gold keeps its saturation through the tone curve, so it never settles into bronze.
+    float luma = dot(color, vec3(0.299, 0.587, 0.114));
+    // Lights drift toward the ramp's pale gold, not toward yellow.
+    color = clamp(mix(vec3(luma), color, 1.0 - 0.4 * smoothstep(0.55, 0.95, luma)), 0.0, 1.0);
     // Opening: the metal stays dark until fire has run around the band. It starts at one point
     // and runs both ways, so the two fronts meet on the far side and there is no seam where lit
     // metal would sit against unlit. The body resolves behind each front.
@@ -194,8 +230,9 @@ void main() {
     color += uMid * bloom * bloom * 0.55;
     color += uMid * (1.0 - lit) * pow(1.0 - facing, 2.0) * (1.0 - settled) * 0.9;
     // The flame is the brightest thing in the opening; roll it off so it glows instead of
-    // clipping to flat white.
-    color = color / (1.0 + max(color - 0.92, 0.0) * 1.6);
+    // clipping to flat white. Once the ring has settled it is already in display range, and
+    // rolling it off again would cap its brightest light at 70%.
+    color = mix(rollOff(color), color, settled);
     alpha = 1.0;
   }
 
@@ -205,21 +242,39 @@ void main() {
     alpha = edge;
   }
 
-  float halo = exp(-max(nearest, 0.0) * (7.5 - 3.0 * uEnergy)) * (0.16 + 0.34 * uEnergy + 0.1 * uPulse);
+  // At rest the light around the ring is a soft contact glow, close to the band and gone a short
+  // way out, so it never reads as an outline. The slow smoke and embers belong to the lit states
+  // (aura above its idle level), and a small ring has no glow at all.
+  float halo;
+  float alive = smoothstep(0.35, 0.6, uAura);
+  float contact = exp(-max(nearest, 0.0) * 16.0) * 0.07 * uGlow;
+  float spread = exp(-max(nearest, 0.0) * (7.5 - 3.0 * uEnergy)) * (0.1 * uEnergy + 0.1 * uPulse + 0.16 * alive);
+  halo = contact + spread * uGlow;
   // A corona that moves like slow smoke: light drawn up and off the band.
   // Two layers sliding past each other, so the smoke curls instead of scrolling.
   vec2 drift = uv * 2.1 + vec2(0.0, -uTime * 0.16);
   float smoke = fbm(drift + 0.9 * vec2(fbm(drift * 0.7 + uTime * 0.05), fbm(drift * 0.7 - uTime * 0.04)));
-  float corona = exp(-max(nearest, 0.0) * 2.6) * smoothstep(0.32, 0.85, smoke) * uAura;
-  halo = halo * mix(1.0, 0.55 + 0.9 * smoke, uAura) + corona * 0.42;
-  halo += embers(uv) * uAura * 0.9;
+  float corona = exp(-max(nearest, 0.0) * 2.6) * smoothstep(0.32, 0.85, smoke) * uAura * alive;
+  halo = halo * mix(1.0, 0.55 + 0.9 * smoke, alive) + corona * 0.42 * uGlow;
+  halo += embers(uv) * uAura * alive * 0.9;
   halo *= smoothstep(0.0, 0.5, uReveal);
-  halo *= mix(0.55, 1.0, uDark);
+  halo *= uDark;
   // The glow must reach zero before the edge of the canvas, or the square shows.
   halo *= fall(1.0, 0.62, length(uv));
   vec3 haloColor = mix(uMid, uHi, 0.35);
-  float outAlpha = alpha + (1.0 - alpha) * halo;
-  vec3 outColor = color * alpha + haloColor * halo * (1.0 - alpha);
+  // On a pale page a glow is invisible and only dirties the edge. The ring instead casts a soft
+  // warm shadow, heavier toward its lower side, so it sits on the page.
+  float below = smoothstep(0.35, -0.65, uv.y / 0.65);
+  float shadow = (1.0 - uDark) * exp(-max(nearest, 0.0) * 6.0) * (0.05 + 0.12 * below);
+  // Inside the opening the page shows through clean: find where this ray crosses the band's plane.
+  vec3 planeO = toRing(ro);
+  vec3 planeD = toRing(ro + rd) - planeO;
+  float planeT = -planeO.y / (abs(planeD.y) < 1e-4 ? 1e-4 : planeD.y);
+  vec3 planeAt = planeO + planeD * planeT;
+  float opening = fall(RADIUS - 0.06, RADIUS - 0.2, length(planeAt.xz));
+  shadow *= (1.0 - opening) * fall(1.0, 0.62, length(uv));
+  float outAlpha = alpha + (1.0 - alpha) * (halo + shadow);
+  vec3 outColor = color * alpha + (haloColor * halo + uLo * 0.12 * shadow) * (1.0 - alpha);
   gl_FragColor = vec4(outColor, outAlpha);
 }
 `;

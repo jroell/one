@@ -14,7 +14,6 @@ import {
   type RunId,
 } from "@t3tools/contracts";
 import {
-  ArrowRightIcon,
   CheckIcon,
   ChevronDownIcon,
   Columns2Icon,
@@ -75,6 +74,7 @@ import { useClientSettings, updateClientSettings } from "../hooks/useSettings";
 import { formatRelativeTimeLabel, formatShortTimestamp } from "../timestampFormat";
 import { DiffFilePathCopyButton } from "./DiffFilePathCopyButton";
 import { DiffPanelLoadingState, DiffPanelShell, type DiffPanelMode } from "./DiffPanelShell";
+import { MiddleTruncate } from "./ui/middle-truncate";
 import { DiffStatLabel } from "./chat/DiffStatLabel";
 import { binaryPatchPaths } from "./diffs/binaryPatchPaths";
 import { AnnotatableCodeView, type AnnotatableCodeViewHandle } from "./diffs/AnnotatableCodeView";
@@ -138,6 +138,9 @@ const ALL_REPOSITORIES = "__all_repositories__";
 const THREAD_FOLDER = "__thread_folder__";
 const NO_GIT_REPOSITORIES: ReturnType<typeof threadChangedRepositories> = Object.freeze([]);
 const NO_TURN_DIFF_SECTIONS: ReadonlyArray<TurnDiffSection> = [];
+/** From this many files the folder tree opens by default, since a flat list of them cannot be scanned. */
+const LARGE_DIFF_FILE_COUNT = 100;
+const FILE_TREE_CHOICE_SCHEMA = Schema.NullOr(Schema.Boolean);
 const DIFF_FILE_TREE_STORAGE_KEY = "t3code.diffFileTreeOpen";
 
 const EMPTY_COLLAPSED_DIFF_FILE_KEYS: ReadonlySet<string> = new Set();
@@ -295,10 +298,11 @@ export default function DiffPanel({
   const wordWrap = wordWrapOverride ?? settings.wordWrap;
   const diffIgnoreWhitespace =
     useDiffPanelSessionStore((state) => state.ignoreWhitespace) ?? settings.diffIgnoreWhitespace;
-  const [fileTreeOpen, setFileTreeOpen] = useLocalStorage(
+  // Null until the person chooses, so a large diff can open on its folders and a small one on the list.
+  const [fileTreeChoice, setFileTreeOpen] = useLocalStorage(
     DIFF_FILE_TREE_STORAGE_KEY,
-    false,
-    Schema.Boolean,
+    null,
+    FILE_TREE_CHOICE_SCHEMA,
   );
   const [hideTestFiles, setHideTestFiles] = useHideTestFiles();
   const [baseRefQuery, setBaseRefQuery] = useState("");
@@ -852,6 +856,7 @@ export default function DiffPanel({
   const allDiffFilesCollapsed = areAllDiffFilesCollapsed(shownFileKeys, collapsedDiffFileKeys);
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
   const summaryFileCount = lazySource?.files?.length ?? renderableFiles.length;
+  const fileTreeOpen = fileTreeChoice ?? summaryFileCount >= LARGE_DIFF_FILE_COUNT;
   const fileTreeEntries = diffFileTreeEntries(renderableFiles.filter(isFileShown));
   const codeViewReveal = useCodeViewFileReveal();
   // Lazy files that sat above the saved position load again only when asked for.
@@ -1034,6 +1039,21 @@ export default function DiffPanel({
   // Two pickers leave no room for these in a phone-width panel, where a split view cannot fit anyway.
   const narrowHeaderHidden =
     repositorySections.length > 0 ? "@max-[30rem]/diff-header:hidden" : undefined;
+  const fileCountLabel =
+    summaryFileCount > 0 ? (
+      <span className="shrink-0" data-one-diff-summary="">
+        {gt("{count, plural, one {{count} file} other {{count} files}}", {
+          count: summaryFileCount,
+        })}
+      </span>
+    ) : null;
+  const diffStatLabel = (
+    <DiffStatLabel
+      additions={diffLineStat.additions}
+      deletions={diffLineStat.deletions}
+      layout="inline"
+    />
+  );
   const headerRow = (
     <>
       <div className="@container/diff-refs flex min-w-0 flex-1 items-center gap-3 [-webkit-app-region:no-drag]">
@@ -1313,25 +1333,10 @@ export default function DiffPanel({
               base: comparisonBaseRef,
             })}
           >
+            {fileCountLabel}
             <Tooltip>
-              <TooltipTrigger
-                render={
-                  // Too narrow for both refs, keep the target readable and drop the head, which
-                  // is the thread's own branch.
-                  <span className="flex min-w-[min(3rem,calc(100%-2.75rem))] items-center gap-2 overflow-hidden @max-[20rem]/diff-refs:hidden" />
-                }
-              >
-                <span className="min-w-0 max-w-48 truncate">{comparisonHeadRef}</span>
-                <ArrowRightIcon className="size-3.5 shrink-0 opacity-70" />
-              </TooltipTrigger>
-              <TooltipPopup side="top">
-                {`${comparisonHeadRef} → ${comparisonBaseRef}`}
-              </TooltipPopup>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={<span aria-hidden className="hidden @max-[20rem]/diff-refs:inline" />}
-              >
+              <TooltipTrigger render={<span aria-hidden className="shrink-0" />}>
+                {summaryFileCount > 0 ? <span className="me-2">·</span> : null}
                 <T>vs</T>
               </TooltipTrigger>
               <TooltipPopup side="top">
@@ -1352,12 +1357,12 @@ export default function DiffPanel({
             >
               <ComboboxTrigger
                 render={<Button variant="ghost-muted" size="xs" />}
-                className="min-w-9 max-w-48 shrink-0"
+                className="min-w-9 max-w-48 shrink"
                 aria-label={gt("Change comparison target. Currently {base}", {
                   base: comparisonBaseRef,
                 })}
               >
-                <span className="min-w-0 truncate">{comparisonBaseRef}</span>
+                <MiddleTruncate value={comparisonBaseRef} showTitle={false} />
                 <ChevronDownIcon className="size-3.5 shrink-0 opacity-70" />
               </ComboboxTrigger>
               <ComboboxPopup
@@ -1451,25 +1456,25 @@ export default function DiffPanel({
             </Combobox>
           </div>
         )}
-        {summaryFileCount > 0 ? (
+        {summaryFileCount > 0 && !canSelectBranchBase ? (
           <span
             className={cn(
               "flex shrink-0 items-baseline gap-1.5 text-xs text-muted-foreground tabular-nums",
               narrowHeaderHidden,
             )}
-            data-one-diff-summary=""
           >
-            <span>
-              {gt("{count, plural, one {{count} file} other {{count} files}}", {
-                count: summaryFileCount,
-              })}
-            </span>
+            {fileCountLabel}
             <span aria-hidden>·</span>
-            <DiffStatLabel
-              additions={diffLineStat.additions}
-              deletions={diffLineStat.deletions}
-              layout="inline"
-            />
+            {diffStatLabel}
+          </span>
+        ) : summaryFileCount > 0 ? (
+          <span
+            className={cn(
+              "shrink-0 text-xs text-muted-foreground tabular-nums @max-[40rem]/diff-header:hidden",
+              narrowHeaderHidden,
+            )}
+          >
+            {diffStatLabel}
           </span>
         ) : null}
       </div>
@@ -1539,7 +1544,7 @@ export default function DiffPanel({
               onCheckedChange={(checked) => setWordWrapOverride(Boolean(checked))}
             >
               <span className="flex items-center gap-2">
-                <TextWrapIcon className="size-3.5" />
+                <TextWrapIcon className="size-4" />
                 {gt("Wrap lines")}
               </span>
             </DropdownMenuCheckboxItem>
@@ -1550,7 +1555,7 @@ export default function DiffPanel({
               }
             >
               <span className="flex items-center gap-2">
-                <PilcrowIcon className="size-3.5" />
+                <PilcrowIcon className="size-4" />
                 {gt("Hide whitespace changes")}
               </span>
             </DropdownMenuCheckboxItem>
@@ -1560,7 +1565,7 @@ export default function DiffPanel({
                 onCheckedChange={(checked) => setHideTestFiles(Boolean(checked))}
               >
                 <span className="flex items-center gap-2">
-                  <FlaskConicalOffIcon className="size-3.5" />
+                  <FlaskConicalOffIcon className="size-4" />
                   {gt("Hide test files")}
                 </span>
               </DropdownMenuCheckboxItem>
@@ -1571,7 +1576,7 @@ export default function DiffPanel({
                 onCheckedChange={(checked) => setFileTreeOpen(Boolean(checked))}
               >
                 <span className="flex items-center gap-2">
-                  <FolderTreeIcon className="size-3.5" />
+                  <FolderTreeIcon className="size-4" />
                   {gt("Show file tree")}
                 </span>
               </DropdownMenuCheckboxItem>

@@ -1,4 +1,5 @@
 import { observeResize } from "~/lib/observeResize";
+import { ORB_OPEN_ANGLE, ORB_REST, ORB_SUPERSAMPLE, glowForSize } from "./oneOrbRest";
 import { ONE_ORB_FRAGMENT_SHADER, ONE_ORB_VERTEX_SHADER } from "./oneOrbShader";
 
 export type OneOrbState = "idle" | "listening" | "thinking" | "speaking";
@@ -16,16 +17,21 @@ type OrbPose = Readonly<{
 }>;
 
 const POSES: Record<OneOrbState, OrbPose> = {
-  idle: { tilt: 1.02, spinSpeed: 0, sway: 0.42, pulse: 0, baseEnergy: 0, aura: 0.3 },
+  // 0.78 foreshortens the band to the mark's own silhouette: a silhouette 0.7 as tall as wide, leaning 29 degrees.
+  idle: {
+    tilt: ORB_REST.tilt,
+    spinSpeed: 0,
+    sway: 0,
+    pulse: 0,
+    baseEnergy: 0,
+    aura: ORB_REST.aura,
+  },
   listening: { tilt: 1.46, spinSpeed: 0, sway: 0.12, pulse: 0, baseEnergy: 0.12, aura: 0.5 },
   thinking: { tilt: 1.12, spinSpeed: 1.9, sway: 0, pulse: 1, baseEnergy: 0.06, aura: 0.75 },
   speaking: { tilt: 1.26, spinSpeed: 0, sway: 0.24, pulse: 0, baseEnergy: 0.1, aura: 0.55 },
 };
 
-/** The resting angle that shows the opening of the ring. The band looks the same every half turn. */
-const OPEN_ANGLE = 0.48;
-
-const MAX_PIXEL_RATIO = 2;
+const MAX_PIXEL_RATIO = 2 * ORB_SUPERSAMPLE;
 const LARGE_RING_PX = 300;
 /**
  * Backing-store scale ceilings for a large ring, best first. A ring starts at the first and
@@ -75,13 +81,15 @@ export type OrbMotion = Readonly<{
 
 /** The nearest angle where the ring rests open; the band looks the same every half turn. */
 function restAngle(spin: number): number {
-  return OPEN_ANGLE + Math.PI * Math.round((spin - OPEN_ANGLE) / Math.PI);
+  return ORB_OPEN_ANGLE + Math.PI * Math.round((spin - ORB_OPEN_ANGLE) / Math.PI);
 }
 
-/** Where the glow settles for a pose: its base, the idle breathing and the live sound level. */
-function energyTarget(state: OneOrbState, time: number, level: number): number {
-  const breathing = state === "idle" ? 0.035 * (1 + Math.sin(time * 1.3)) : 0;
-  return Math.min(1, POSES[state].baseEnergy + breathing + Math.min(1, Math.max(0, level)));
+/**
+ * Where the glow settles for a pose: its base and the live sound level. An idle ring does not
+ * breathe, so at rest it is the same picture as the static mark (public/mark).
+ */
+function energyTarget(state: OneOrbState, _time: number, level: number): number {
+  return Math.min(1, POSES[state].baseEnergy + Math.min(1, Math.max(0, level)));
 }
 
 /** True when nothing is still easing toward the pose, so only the slow smoke and sway move. */
@@ -228,6 +236,7 @@ const UNIFORM_NAMES = {
   dark: "uDark",
   aura: "uAura",
   reveal: "uReveal",
+  glow: "uGlow",
 } as const;
 
 /** Everything the GPU holds for the ring. A lost context takes all of it. */
@@ -329,7 +338,11 @@ export function startOneOrb(
     // A resting ring keeps its full resolution: it is what people look at, and its last frame
     // stays on screen. Its cost is bounded by ATTENTION_MS instead.
     const cap = pixelRatioCap(canvas.clientWidth, budget.step);
-    const ratio = Math.min(window.devicePixelRatio || 1, cap);
+    const density = window.devicePixelRatio || 1;
+    const ratio = Math.min(
+      canvas.clientWidth <= LARGE_RING_PX ? density * ORB_SUPERSAMPLE : density,
+      cap,
+    );
     const width = Math.max(1, Math.round(canvas.clientWidth * ratio));
     const height = Math.max(1, Math.round(canvas.clientHeight * ratio));
     if (canvas.width !== width || canvas.height !== height) {
@@ -338,6 +351,7 @@ export function startOneOrb(
     }
     gl.viewport(0, 0, width, height);
     gl.uniform2f(resources.uniforms.res, width, height);
+    gl.uniform1f(resources.uniforms.glow, glowForSize(canvas.clientWidth));
   };
   applyColors();
   resize();
@@ -349,7 +363,7 @@ export function startOneOrb(
   let visible: boolean | null = null;
   let last = performance.now();
   let time = 0;
-  let spin = OPEN_ANGLE;
+  let spin = ORB_OPEN_ANGLE;
   let sway = POSES[input.getState()].sway;
   let tilt = POSES[input.getState()].tilt;
   let pulse = 0;

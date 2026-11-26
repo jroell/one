@@ -350,39 +350,41 @@ function UsageChartTooltip({
   return (
     <div
       ref={tooltipRef}
-      className="usage-tooltip pointer-events-none absolute z-10 min-w-36 max-w-full text-xs"
+      className="usage-tooltip m-floating pointer-events-none absolute z-10 min-w-36 max-w-full text-xs"
       style={{
         left: "var(--usage-tooltip-left, 0px)",
         top: "var(--usage-tooltip-top, 0px)",
       }}
     >
       <div className="mb-1 text-muted-foreground">{label}</div>
-      {series.map((band) => {
-        const presentation = band.provider === null ? null : PROVIDER_PRESENTATION[band.provider];
-        const bandLabel = presentation === null ? gt("Others") : presentation.label;
-        return (
-          <div key={band.key} className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span
-                aria-hidden
-                className="usage-tooltip-swatch"
-                style={{ background: band.color }}
-              />
-              {presentation === null ? null : (
-                <ProviderInstanceIcon
-                  driverKind={presentation.driverKind}
-                  displayName={bandLabel}
-                  iconClassName="size-3"
+      {series
+        .filter((band) => seriesValue(band, column) > 0)
+        .map((band) => {
+          const presentation = band.provider === null ? null : PROVIDER_PRESENTATION[band.provider];
+          const bandLabel = presentation === null ? gt("Others") : presentation.label;
+          return (
+            <div key={band.key} className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  aria-hidden
+                  className="usage-tooltip-swatch"
+                  style={{ background: band.color }}
                 />
-              )}
-              {bandLabel}
-            </span>
-            <span className="text-foreground tabular-nums">
-              {format(seriesValue(band, column))}
-            </span>
-          </div>
-        );
-      })}
+                {presentation === null ? null : (
+                  <ProviderInstanceIcon
+                    driverKind={presentation.driverKind}
+                    displayName={bandLabel}
+                    iconClassName="size-3"
+                  />
+                )}
+                {bandLabel}
+              </span>
+              <span className="text-foreground tabular-nums">
+                {format(seriesValue(band, column))}
+              </span>
+            </div>
+          );
+        })}
       <div className="mt-1 flex items-center justify-between gap-3 border-t border-border pt-1">
         <span className="text-muted-foreground">
           <T>Total</T>
@@ -425,11 +427,18 @@ function UsageChartPlot({
   readonly children?: React.ReactNode;
 }) {
   const gt = useGT();
-  // The pointer and the keyboard each hold their own selection; the pointer wins while it is on the
-  // plot, and leaving it hands the tooltip back to the keyboard's day.
-  const [pointerIndex, setPointerIndex] = useState<number | null>(null);
+  const locale = useLocale();
+  // One selection carries its own tooltip position, so the values shown and the place they are shown
+  // at always come from the same input. The keyboard's day is also kept as an anchor: the pointer
+  // leaving the plot hands the tooltip back to it.
+  const [selected, setSelected] = useState<{
+    readonly index: number;
+    readonly x: number;
+    readonly y: number;
+    readonly by: "pointer" | "key";
+  } | null>(null);
   const [keyIndex, setKeyIndex] = useState<number | null>(null);
-  const hoverIndex = pointerIndex ?? keyIndex;
+  const hoverIndex = selected?.index ?? null;
   const plotRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoverPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -461,6 +470,7 @@ function UsageChartPlot({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- positions the hover tooltip through plot CSS variables before paint and on ResizeObserver
   useLayoutEffect(() => {
+    hoverPositionRef.current = selected === null ? null : { x: selected.x, y: selected.y };
     if (hoverIndex === null) return;
     positionTooltip();
 
@@ -469,7 +479,7 @@ function UsageChartPlot({
     if (plot === null || tooltip === null) return;
 
     return observeResize([plot, tooltip], positionTooltip);
-  }, [hoverIndex, positionTooltip]);
+  }, [hoverIndex, selected, positionTooltip]);
 
   const handleMove = (event: React.MouseEvent<HTMLDivElement>) => {
     const plot = plotRef.current;
@@ -483,9 +493,12 @@ function UsageChartPlot({
       bars === undefined
         ? Math.round(fraction * (periods.length - 1))
         : Math.floor(fraction * periods.length);
-    hoverPositionRef.current = { x: localX, y: localY };
-    positionTooltip();
-    setPointerIndex(Math.min(periods.length - 1, Math.max(0, index)));
+    setSelected({
+      index: Math.min(periods.length - 1, Math.max(0, index)),
+      x: localX,
+      y: localY,
+      by: "pointer",
+    });
   };
 
   const slotPosition = (index: number) => {
@@ -497,12 +510,20 @@ function UsageChartPlot({
     return { x: slot * plot.clientWidth, y: plot.clientHeight * 0.2 };
   };
 
-  /** Arrow keys walk the periods, Home and End jump to the ends, Escape lets go. */
+  const keySelection = (index: number) => {
+    const position = slotPosition(index);
+    return position === null ? null : { index, ...position, by: "key" as const };
+  };
+
+  /**
+   * Arrow keys walk the periods, Home and End jump to the ends. Escape dismisses the tooltip and the
+   * keyboard's day together; a pointer parked over the plot brings nothing back until it moves.
+   */
   const handleKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (periods.length === 0) return;
     if (event.key === "Escape") {
+      setSelected(null);
       setKeyIndex(null);
-      if (pointerIndex === null) hoverPositionRef.current = null;
       return;
     }
     const last = periods.length - 1;
@@ -519,21 +540,24 @@ function UsageChartPlot({
               : null;
     if (next === null) return;
     event.preventDefault();
-    hoverPositionRef.current = slotPosition(next);
+    setSelected(keySelection(next));
     setKeyIndex(next);
   };
 
+  const listFormat = new Intl.ListFormat(locale, { style: "short", type: "unit" });
   const keyPeriod = keyIndex === null ? undefined : periods[keyIndex];
   const announcement =
     keyPeriod === undefined || keyIndex === null
       ? ""
       : gt("{period}: {values}. Total {total}", {
           period: formatTooltipPeriod(keyPeriod),
-          values: series
-            .map(
-              (band) => `${seriesName(band, gt)} ${format(seriesValue(band, columns[keyIndex]))}`,
-            )
-            .join(", "),
+          values: listFormat.format(
+            series
+              .filter((band) => seriesValue(band, columns[keyIndex]) > 0)
+              .map(
+                (band) => `${seriesName(band, gt)} ${format(seriesValue(band, columns[keyIndex]))}`,
+              ),
+          ),
           total: format(columns[keyIndex]?.total ?? 0),
         });
 
@@ -553,13 +577,14 @@ function UsageChartPlot({
       className="usage-plot relative min-h-56 flex-1"
       onMouseMove={handleMove}
       onMouseLeave={() => {
-        setPointerIndex(null);
-        hoverPositionRef.current = keyIndex === null ? null : slotPosition(keyIndex);
+        setSelected((current) =>
+          current?.by === "pointer" ? (keyIndex === null ? null : keySelection(keyIndex)) : current,
+        );
       }}
       onKeyDown={handleKey}
       onBlur={() => {
         setKeyIndex(null);
-        if (pointerIndex === null) hoverPositionRef.current = null;
+        setSelected((current) => (current?.by === "key" ? null : current));
       }}
     >
       <div role="status" aria-live="polite" className="sr-only">
@@ -708,7 +733,7 @@ export function UsageProviderChart({
             ? scale.ticks.map((tick) => (
                 <span
                   key={tick}
-                  className="absolute right-0 -translate-y-1/2 text-3xs text-muted-foreground tabular-nums"
+                  className="usage-axis-label absolute right-0 -translate-y-1/2 text-3xs tabular-nums"
                   style={{ top: `${(toY(tick) / VIEW_HEIGHT) * 100}%` }}
                 >
                   {tick === 0 ? "0" : axisFormat(tick)}
@@ -765,10 +790,7 @@ export function UsageProviderChart({
         </UsageChartPlot>
       </div>
 
-      <div
-        aria-hidden
-        className="flex justify-between pl-16 text-3xs text-muted-foreground uppercase"
-      >
+      <div aria-hidden className="usage-axis-label flex justify-between pl-16 text-3xs uppercase">
         <span>{periods[0] === undefined ? "" : formatPeriod(periods[0])}</span>
         <span>
           {periods[Math.floor(periods.length / 2)] === undefined

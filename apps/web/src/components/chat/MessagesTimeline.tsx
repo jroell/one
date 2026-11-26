@@ -1,4 +1,3 @@
-import { OneMark } from "~/one/OneMark";
 import { T, useGT, useMessages, Var } from "gt-react";
 import type { SideThreadOpenIntent } from "@t3tools/client-runtime/side-thread";
 import type { ThreadRunSummary } from "@t3tools/client-runtime/state/models";
@@ -116,6 +115,14 @@ import {
   NO_FOLLOW_UP,
 } from "~/one/chatFollowUpTarget";
 import { ChatNav } from "~/one/ChatNav";
+import { chatFoldLabel } from "~/one/chatFoldLabel";
+import { ChatNoticeLine } from "~/one/ChatNoticeLine";
+import {
+  ChatNoticePlanContext,
+  isNoticeEntry,
+  NO_CHAT_NOTICES,
+  planChatNotices,
+} from "~/one/chatNotices";
 import { ChatWaitingLine } from "~/one/ChatWaitingLine";
 import { resolveOutlineCurrentIndex } from "~/one/chatOutlineLayout";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
@@ -178,6 +185,9 @@ function timelineListStateFor(identity: string): {
     },
   };
 }
+
+/** Chat mode's room, below the composer's own inset, for the last line to rest above it. */
+const CHAT_END_GAP_PX = 24;
 
 const TIMELINE_LIST_HEADER = <div className="h-3 sm:h-4" />;
 const TIMELINE_LIST_FADE_HEADER = (
@@ -463,7 +473,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
 }: MessagesTimelineProps) {
   const gt = useGT();
   const canvas = useChatCanvas();
-  const contentInsetEndAdjustment = resolveTimelineEndInset(composerInsetEnd, canvas);
+  const chatMode = useWorkspaceMode() === "chat";
+  // Chat mode rests the last line a little further above the composer, clear of the pill's band.
+  const contentInsetEndAdjustment =
+    resolveTimelineEndInset(composerInsetEnd, canvas) + (chatMode ? CHAT_END_GAP_PX : 0);
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // Snapshot restore positions on identity changes; ongoing scroll writes must not move them.
   // Find open at the opening is part of the snapshot: opening find later
@@ -780,7 +793,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const pendingApprovalRequestIds = new Set(
     pendingApprovals.filter(isVisiblePendingApproval).map((approval) => approval.requestId),
   );
-  const chatMode = useWorkspaceMode() === "chat";
   // Chat mode keeps a running turn's reads and commands behind the working line.
   const quietedEntryIds =
     chatMode && isWorking && latestRun?.turnEnded !== true
@@ -954,6 +966,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   } | null>(null);
   const [minimapAtEnd, setMinimapAtEnd] = useState(false);
   const outlineShownRef = useRef(false);
+  const chatProgressRef = useRef<HTMLDivElement | null>(null);
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
       onAnchorReady(anchorMessageId, info.anchorIndex);
@@ -1055,6 +1068,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
       );
     }
     setMinimapAtEnd(physicallyAtEnd);
+    const progressTrack = chatProgressRef.current;
+    if (chatMode && progressTrack && viewport) {
+      const range = viewport.scrollHeight - viewport.clientHeight;
+      const read = range > 1 ? Math.min(1, Math.max(0, viewport.scrollTop / range)) : 0;
+      progressTrack.style.setProperty("--one-chat-read", read.toFixed(3));
+      // Shown while a long answer is being read; the finished page needs no line.
+      progressTrack.style.setProperty(
+        "--one-chat-read-visible",
+        range > 1 && viewport.scrollTop > 8 && !physicallyAtEnd ? "1" : "0",
+      );
+    }
   });
 
   const minimapRefreshFrameRef = useRef<number | null>(null);
@@ -1122,7 +1146,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
     }
   };
 
+  // The turn ladder shows while the list scrolls and for a moment after; a flag on the scroller
+  // drives it from CSS, so a scroll event never renders React.
+  const scrollingFlagTimerRef = useRef<number | null>(null);
+  const flagScrolling = () => {
+    const viewport = listRef.current?.getScrollableNode();
+    if (!viewport) return;
+    viewport.dataset.scrolling = "";
+    if (scrollingFlagTimerRef.current !== null) window.clearTimeout(scrollingFlagTimerRef.current);
+    scrollingFlagTimerRef.current = window.setTimeout(() => {
+      delete viewport.dataset.scrolling;
+      scrollingFlagTimerRef.current = null;
+    }, 900);
+  };
+
   const handleScroll = () => {
+    flagScrolling();
     if (restoringThreadPosition || listRef.current?.getState?.().data !== rows) return;
     const isAtEnd = rememberPosition(liveFollowEnabled && !anchoredEndSpace);
     if (isAtEnd !== undefined && !citationPositioning) {
@@ -1195,6 +1234,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       .map((approval) => [approval.requestId, approval]),
   );
   const approvalSubjects = deriveApprovalSubjects(timelineEntries, pendingApprovalRequestIds);
+  const noticePlan = chatMode ? planChatNotices(rows) : NO_CHAT_NOTICES;
   const followUpTarget = chatMode
     ? resolveChatFollowUpTarget(rows, {
         turnRunning: isWorking,
@@ -1493,9 +1533,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
           <AudioPreviewUnmountContext value={onAudioUnmount}>
             <ChatArrivalContext value={arrival}>
               <ApprovalSubjectContext value={approvalSubjects}>
-                <ChatFollowUpContext value={followUpTarget}>
-                  <TimelineRowContent row={item} />
-                </ChatFollowUpContext>
+                <ChatNoticePlanContext value={noticePlan}>
+                  <ChatFollowUpContext value={followUpTarget}>
+                    <TimelineRowContent row={item} />
+                  </ChatFollowUpContext>
+                </ChatNoticePlanContext>
               </ApprovalSubjectContext>
             </ChatArrivalContext>
           </AudioPreviewUnmountContext>
@@ -1510,6 +1552,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     sharedState,
     arrivalFresh: arrival.fresh,
     approvalSubjects,
+    noticePlan,
     followUpTarget,
   };
   const timelineListFooter = (
@@ -1655,6 +1698,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 onSelect={selectMinimapItem}
                 onWheel={forwardMinimapWheel}
                 onShownChange={onOutlineShownChange}
+                progressRef={chatProgressRef}
               >
                 {minimap}
               </ChatNav>
@@ -1780,6 +1824,15 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
 
   const arrival = use(ChatArrivalContext);
   const followUp = use(ChatFollowUpContext);
+  // Chat mode lifts a turn's notices out of its activity rows into one quiet line.
+  const noticePlan = use(ChatNoticePlanContext).get(row.id);
+  const workEntries =
+    row.kind === "work" && noticePlan !== undefined
+      ? row.groupedEntries.filter((entry) => !isNoticeEntry(entry))
+      : row.kind === "work"
+        ? row.groupedEntries
+        : null;
+  const showsWorkLog = isWorkLogRow && (row.kind !== "work" || (workEntries?.length ?? 0) > 0);
   return (
     <div
       {...chatArrivalProps(arrival, row.kind === "message" ? row.id : null)}
@@ -1814,7 +1867,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       }
       data-message-role={row.kind === "message" ? row.message.role : undefined}
     >
-      {isWorkLogRow ? (
+      {showsWorkLog ? (
         <WorkLogBlock
           continues={row.continuesWorkLog}
           layout={
@@ -1828,7 +1881,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           {row.kind === "work" ? (
             <WorkGroupSection
               anchorKey={row.id}
-              groupedEntries={row.groupedEntries}
+              groupedEntries={workEntries ?? row.groupedEntries}
               isExpandedToolGroup={row.isExpandedToolGroup}
               displayLabel={row.displayLabel}
             />
@@ -1838,6 +1891,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           {row.kind === "thinking" ? <ThinkingTimelineRow row={row} /> : null}
         </WorkLogBlock>
       ) : null}
+      {noticePlan !== undefined ? <ChatNoticeLine notices={noticePlan.notices} /> : null}
       {row.kind === "turn-fold" ? <TurnFoldTimelineRow key={row.id} row={row} /> : null}
       {row.kind === "attempt-fold" ? <AttemptFoldTimelineRow row={row} /> : null}
       {row.kind === "context-compaction" ? <ContextCompactionTimelineRow row={row} /> : null}
@@ -2022,17 +2076,15 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
   const { loading, error, toggle } = useDeferredWorkLoading(row, () =>
     ctx.onToggleTurnFold(row.runId),
   );
+  const m = useMessages();
+  const label = useWorkspaceMode() === "chat" ? chatFoldLabel(row, m) : row.label;
 
   return (
     <div
       className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1"
       data-one-turn-start={row.startsTurn ? "" : undefined}
+      data-one-fold={row.quiet ? "quiet" : undefined}
     >
-      {row.startsTurn ? (
-        <span aria-hidden data-one-answer-mark="">
-          <OneMark className="size-5" />
-        </span>
-      ) : null}
       <div className="relative flex items-center gap-1">
         <button
           type="button"
@@ -2043,7 +2095,7 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
           className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
         >
           <span>
-            {row.label}
+            {label}
             {error ? ` · ${error}` : ""}
           </span>
           {row.expanded ? (

@@ -67,7 +67,9 @@ export function OneOrb({
         aria-hidden="true"
         className={cn("absolute inset-0 size-full", availability !== "live" && "invisible")}
       />
-      {availability !== "live" ? <OneMark className="absolute inset-[18%] size-[64%]" /> : null}
+      {availability !== "live" ? (
+        <OneMark className="absolute inset-0 size-full" size={128} />
+      ) : null}
     </div>
   );
 }

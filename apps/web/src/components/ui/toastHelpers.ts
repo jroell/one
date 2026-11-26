@@ -12,12 +12,15 @@ export type StackedThreadToastOptions = {
   actionProps?: ComponentPropsWithoutRef<"button">;
   actionVariant?: ThreadToastData["actionVariant"];
   data?: Omit<ThreadToastData, "actionLayout">;
+  /** A recoverable error offers a Retry button instead of saying "try again" in the text. */
+  onRetry?: () => void;
 };
 
 export function stackedThreadToast(
   options: StackedThreadToastOptions,
 ): ToastManagerAddOptions<ThreadToastData> {
-  const { type, title, description, timeout, priority, actionProps, actionVariant, data } = options;
+  const { type, title, description, timeout, priority, actionProps, actionVariant, data, onRetry } =
+    options;
 
   const mergedData: ThreadToastData = {
     ...(data !== undefined ? data : {}),
@@ -25,6 +28,9 @@ export function stackedThreadToast(
   };
   if (actionVariant !== undefined) {
     mergedData.actionVariant = actionVariant;
+  }
+  if (onRetry !== undefined) {
+    mergedData.onRetry = onRetry;
   }
 
   const payload: ToastManagerAddOptions<ThreadToastData> = {

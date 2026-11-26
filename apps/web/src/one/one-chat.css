@@ -1,12 +1,28 @@
-/* Chat mode reading experience: answer typography, quiet turn chrome, the
-   "In this chat" outline and the arrival of a new answer. Colors come from the
-   theme tokens, so custom themes follow. one.css owns the mode switch, the
-   composer and the lane width. */
+/* Chat mode: a reading place, not a coding workspace. Answers are set like a
+   page (a serif face, a 66 character measure, a 30px line), the work behind an
+   answer sits behind one quiet line, and figures read as figures. Colors come
+   from the theme tokens, so custom themes follow. one.css owns the mode switch
+   and the lane width. */
 
 html[data-one-mode="chat"] {
-  /* About 70 characters of the body face at 17px. */
-  --one-chat-measure: 34rem;
+  --one-chat-face: var(--one-serif);
+  --one-chat-size: 1.125rem;
+  --one-chat-leading: 1.6667;
+  --one-chat-measure: 66ch;
   --one-chat-outline-row: 2rem;
+  /* The fade above a dock that has the scroll-to-end pill, and the clear band under the pill. */
+  --one-chat-dock-fade: 6rem;
+  --one-chat-pill-band: 2.5rem;
+  /* Room past the composer for the last line of an answer to rest above it. */
+  --one-chat-end-gap: 1.5rem;
+  /* Space between the line boxes' own leading: a question sits 20px from its answer and
+     56px from the next question, with the action row's 30px counted in the second. */
+  --one-chat-pair-gap: 0.875rem;
+  --one-chat-turn-gap: 1.625rem;
+}
+
+html[data-one-mode="chat"][data-chat-reading-face="sans"] {
+  --one-chat-face: var(--font-sans);
 }
 
 /* ------------------------------------------------------- answer typography */
@@ -14,10 +30,14 @@ html[data-one-mode="chat"] {
 html[data-one-mode="chat"]
   :is([data-message-role="assistant"], [data-timeline-row-kind="sent-message"])
   .chat-markdown {
-  font-size: 1.0625rem;
-  line-height: 1.7;
+  font-family: var(--one-chat-face);
+  font-size: var(--one-chat-size);
+  line-height: var(--one-chat-leading);
   font-kerning: normal;
   font-variant-ligatures: common-ligatures;
+  font-variant-numeric: lining-nums;
+  hanging-punctuation: first last;
+  quotes: "\201C" "\201D" "\2018" "\2019";
 
   & > :is(p, ul, ol, h1, h2, h3, h4, h5, h6, blockquote, hr) {
     max-width: var(--one-chat-measure);
@@ -37,50 +57,58 @@ html[data-one-mode="chat"]
   }
 
   & :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--one-chat-face);
     text-wrap: balance;
     font-weight: 600;
     letter-spacing: -0.012em;
   }
 
   & > h1 {
-    margin-top: 2.25rem;
+    margin-top: 2.5rem;
     margin-bottom: 0.75rem;
-    font-size: 1.5rem;
-    line-height: 1.25;
+    font-size: 1.75rem;
+    line-height: 1.2;
   }
 
   & > h2 {
-    margin-top: 2rem;
+    margin-top: 2.25rem;
     margin-bottom: 0.625rem;
-    font-size: 1.3125rem;
-    line-height: 1.3;
+    font-size: 1.4375rem;
+    line-height: 1.28;
   }
 
   & > h3 {
-    margin-top: 1.75rem;
+    margin-top: 2rem;
     margin-bottom: 0.5rem;
-    font-size: 1.125rem;
+    font-size: 1.1875rem;
     line-height: 1.35;
   }
 
   & > h4 {
-    margin-top: 1.5rem;
+    margin-top: 1.75rem;
     margin-bottom: 0.4rem;
-    font-size: 1.0625rem;
+    font-size: 1.125rem;
+    font-style: italic;
     line-height: 1.4;
   }
 
   & > :is(h5, h6) {
-    margin-top: 1.25rem;
+    margin-top: 1.5rem;
     margin-bottom: 0.35rem;
-    font-size: 0.9375rem;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
     line-height: 1.4;
-    letter-spacing: 0;
+    letter-spacing: 0.02em;
     color: var(--muted-foreground);
   }
 
-  /* A heading follows its paragraph closely and leads into its own text. */
+  /* A heading leads into its own text. */
   & > :is(h1, h2, h3, h4, h5, h6) + * {
+    margin-top: 0;
+  }
+
+  /* An answer that opens with a heading does not need space above it. */
+  & > :is(h1, h2, h3):first-child {
     margin-top: 0;
   }
 
@@ -102,15 +130,17 @@ html[data-one-mode="chat"]
 
   & li::marker {
     color: var(--muted-foreground);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
   }
 
-  /* A quote or callout reads as an aside: set apart, quieter, same voice. */
+  /* A quote or callout reads as an aside: set apart, in the same voice. */
   & blockquote {
-    margin-block: 1.5em;
+    margin-block: 1.75em;
     border-inline-start: 2px solid color-mix(in srgb, var(--one-brand) 55%, transparent);
-    padding-inline-start: 1.125rem;
-    color: var(--muted-foreground);
-    font-size: 0.9875em;
+    padding-inline-start: 1.25rem;
+    color: color-mix(in srgb, var(--foreground) 78%, transparent);
+    font-style: italic;
 
     & > * + * {
       margin-top: 0.75em;
@@ -122,63 +152,191 @@ html[data-one-mode="chat"]
   }
 
   & hr {
-    margin-block: 2rem;
-    border-color: color-mix(in srgb, var(--border) 70%, transparent);
+    margin-block: 2.25rem;
+    border-color: var(--one-hairline);
   }
 
   & strong {
     font-weight: 650;
   }
 
-  /* Code is secondary here: a quiet surface, a smaller face, no heavy frame. */
-  & .chat-markdown-codeblock {
-    margin-block: 1.5em;
-    border-color: color-mix(in srgb, var(--border) 55%, transparent);
-    border-radius: 0.75rem;
-    background-color: color-mix(in srgb, var(--code-background, var(--muted)) 45%, transparent);
-    font-size: 0.875rem;
-  }
-
-  & .chat-markdown-codeblock-header {
-    color: var(--muted-foreground);
-    font-size: 0.75rem;
-  }
-
   & :not(pre) > code {
     border-color: transparent;
     background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
-    font-size: 0.875em;
+    font-size: 0.85em;
+  }
+}
+
+/* ----------------------------------------------------------------- figures */
+
+/* Code and tables are figures: a hairline above and below, the caption under them, no box.
+   They run the width of the lane, wider than the text measure. */
+html[data-one-mode="chat"]
+  :is([data-message-role="assistant"], [data-timeline-row-kind="sent-message"])
+  .chat-markdown {
+  & .chat-markdown-codeblock {
+    display: flex;
+    flex-direction: column;
+    margin-block: 2rem;
+    border: 0;
+    border-block: 1px solid var(--one-hairline);
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    font-size: 0.875rem;
+    line-height: 1.6;
   }
 
-  /* Tables get air: a quiet header, soft row lines, roomy cells. */
-  & .chat-markdown-table-container {
-    margin-block: 1.75em;
+  & .chat-markdown-codeblock pre {
+    padding: 1rem 0.25rem;
   }
 
+  /* The caption sits under the figure: what it is on the left, what to do with it on the right. */
+  & .chat-markdown-codeblock-header,
+  & [data-one-table-header] {
+    order: 2;
+    min-height: 2rem;
+    padding: 0.25rem 0 0.375rem;
+    border: 0;
+    background: transparent;
+    color: var(--one-text-quiet, var(--muted-foreground));
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+  }
+
+  /* The caption names the language in words; the file-type glyph is another color to read past. */
+  & .chat-markdown-codeblock-header span:has(> svg[data-pierre-icon]) {
+    display: none;
+  }
+
+  & [data-one-code-lang],
+  & [data-one-table-caption] {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    letter-spacing: 0;
+    color: var(--muted-foreground);
+  }
+
+  /* The actions wait until the figure is pointed at; touch screens always show them. */
+  & .chat-markdown-codeblock-header button,
+  & [data-one-table-header] button {
+    opacity: 0.55;
+  }
+
+  &
+    :is(.chat-markdown-codeblock, [data-one-table]):is(:hover, :focus-within)
+    :is(.chat-markdown-codeblock-header, [data-one-table-header])
+    button {
+    opacity: 1;
+  }
+
+  & [data-one-table] {
+    display: flex;
+    flex-direction: column;
+    margin-block: 2rem;
+    border: 0;
+    border-block: 1px solid var(--one-hairline);
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+  }
+
+  & [data-one-table-label] {
+    display: none;
+  }
+
+  & [data-one-table-caption] {
+    display: inline;
+  }
+
+  & [data-one-table-header] {
+    justify-content: space-between;
+  }
+
+  /* Plain rows: sans, tabular figures, sentence-case headers, one hairline between rows. */
   & table {
+    font-family: var(--font-sans);
     font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.5;
   }
 
-  & th,
-  & td {
-    padding-block: 0.65rem;
+  & :is(th, td) {
+    padding: 0.6rem 1rem 0.6rem 0;
+  }
+
+  & :is(th, td):last-child {
+    padding-inline-end: 0;
   }
 
   & thead th {
-    border-bottom-color: color-mix(in srgb, var(--border) 85%, transparent);
+    border-bottom: 1px solid var(--one-hairline);
+    background: transparent;
     color: var(--muted-foreground);
     font-size: 0.8125rem;
     font-weight: 500;
-    letter-spacing: 0.01em;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  & tbody tr:nth-child(even) td,
+  & tbody tr:hover td {
+    background: transparent;
   }
 
   & tbody td {
-    border-bottom-color: color-mix(in srgb, var(--border) 50%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
   }
 
   & tbody tr:last-child td {
     border-bottom-color: transparent;
   }
+}
+
+/* An image on its own line is a figure: a hairline above, its alt text as the caption below. */
+html[data-one-mode="chat"]
+  :is([data-message-role="assistant"], [data-timeline-row-kind="sent-message"])
+  .chat-markdown
+  > p[data-one-figure] {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  margin-block: 2rem;
+  padding-block: 1rem 0.5rem;
+  border-block: 1px solid var(--one-hairline);
+
+  & [data-one-figure-caption] {
+    display: block;
+    margin-top: 0.625rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+}
+
+@media (hover: none) {
+  html[data-one-mode="chat"]
+    .chat-markdown
+    :is(.chat-markdown-codeblock-header, [data-one-table-header])
+    button {
+    opacity: 1;
+  }
+}
+
+/* Reasoning, opened from the work log, is an aside: small, quiet, never the answer's size. */
+html[data-one-mode="chat"] [data-one-work-details] .chat-markdown {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+
+/* Only Chat mode shows the caption that names a table's shape or an image's alt text. */
+:is([data-one-table-caption], [data-one-figure-caption]) {
+  display: none;
 }
 
 /* ------------------------------------------------------------ user messages */
@@ -192,31 +350,260 @@ html[data-one-mode="chat"] [data-user-message-bubble] {
 }
 
 html[data-one-mode="chat"] .chat-markdown.user-message-markdown {
+  font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.6;
 }
 
+/* ------------------------------------------------------------- turn rhythm */
+
+/* A question and its answer are a pair, 20px apart; pairs are 56px apart. The spacing lives on
+   the question's row and the answer's row, so the list's own measuring stays exact. */
 html[data-one-mode="chat"] [data-timeline-row-kind="message"][data-message-role="user"] {
-  padding-top: 1.25rem;
+  padding-top: var(--one-chat-turn-gap);
+  padding-bottom: var(--one-chat-pair-gap);
+}
+
+html[data-one-mode="chat"] [data-timeline-row-kind="message"][data-message-role="assistant"] {
+  padding-bottom: 0;
+}
+
+/* A question's actions sit beside its bubble, so the bubble's row is no taller than the bubble. */
+html[data-one-mode="chat"] [data-message-role="user"] > .group {
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+html[data-one-mode="chat"] [data-message-role="user"] [data-one-message-actions] {
+  width: auto;
+  max-width: none;
+}
+
+/* On a phone the question's time stamp leaves its actions; the icons stay. */
+@media (max-width: 40rem) {
+  html[data-one-mode="chat"] [data-message-role="user"] [data-one-message-actions] p {
+    display: none;
+  }
+}
+
+/* A turn's action row (copy, fork, time) waits until the answer is pointed at. */
+html[data-one-mode="chat"] [data-one-message-actions] {
+  opacity: 0;
+  transition: opacity 160ms var(--one-ease-out);
+}
+
+html[data-one-mode="chat"]
+  :is([data-message-role]:hover, [data-message-role]:focus-within)
+  [data-one-message-actions] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  html[data-one-mode="chat"] [data-one-message-actions] {
+    opacity: 0.7;
+  }
 }
 
 /* -------------------------------------------------------------- quiet chrome */
 
-/* "Worked for 12s" and the live working line sit between the question and the
-   answer without a rule of their own. */
+/* The work behind an answer is one quiet line: "Thought for 4s", "Used 3 tools". It has no
+   rule, no per-turn mark and no time stamp; opening it shows the full log. */
 html[data-one-mode="chat"]
   :is([data-timeline-row-kind="turn-fold"], [data-timeline-row-kind="working"])
   > div {
   border-bottom-color: transparent;
 }
 
-/* Nothing is working while the turn waits on the person, so the mark holds still. */
-html[data-one-mode="chat"] [data-chat-waiting] .one-working-mark > svg {
-  animation: none;
+html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] {
+  padding-bottom: 0.875rem;
+}
+
+html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] > div {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] button {
-  font-size: 0.8125rem;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+}
+
+html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] button:is(:hover, :focus-visible),
+html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] button[aria-expanded="true"] {
+  color: var(--foreground);
+}
+
+html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] span[data-slot="tooltip-trigger"] {
+  display: none;
+}
+
+/* An opened log leaves room before the answer that follows it. */
+html[data-one-mode="chat"]
+  :is(
+    [data-timeline-row-kind="work"],
+    [data-timeline-row-kind="work-live"],
+    [data-timeline-row-kind="work-toggle"]
+  ) {
+  padding-bottom: 0.75rem;
+}
+
+/* The live line leads with the flat 16px glyph, never the lit ring: it breathes while the turn
+   works and holds still while it waits on the person. */
+html[data-one-mode="chat"]
+  :is([data-timeline-row-kind="working"], [data-chat-waiting])
+  .one-working-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+html[data-one-mode="chat"]
+  :is([data-timeline-row-kind="working"], [data-chat-waiting])
+  .one-working-mark
+  > svg {
+  animation: none;
+}
+
+@keyframes one-chat-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.88);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-one-mode="chat"] [data-timeline-row-kind="working"] .one-working-mark > svg {
+    animation: one-chat-breathe 2.4s ease-in-out infinite;
+  }
+
+  html[data-one-mode="chat"] [data-chat-waiting] .one-working-mark > svg {
+    animation: none;
+  }
+}
+
+/* ----------------------------------------------------- notices and failures */
+
+/* A turn's notices (a server that did not start, a warning) are one quiet line at its end. It
+   opens to the full text, wrapped and never cut off. */
+.one-chat-notice,
+.one-chat-failure {
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 0.25rem 0.25rem 0;
+}
+
+.one-chat-notice-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+  margin: 0;
+  border: 0;
+  border-radius: 0.375rem;
+  background: none;
+  padding: 0 0.25rem;
+  color: color-mix(in srgb, var(--foreground) 60%, transparent);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color 140ms var(--one-ease-out);
+}
+
+.one-chat-notice-toggle:is(:hover, :focus-visible, [aria-expanded="true"]) {
+  color: var(--foreground);
+}
+
+.one-chat-notice-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--one-brand) 70%, transparent);
+  outline-offset: 1px;
+}
+
+@media (pointer: coarse) {
+  .one-chat-notice-toggle {
+    min-height: 2.75rem;
+  }
+}
+
+.one-chat-notice-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: var(--warning, var(--one-brand));
+}
+
+.one-chat-notice[data-level="error"] .one-chat-notice-dot {
+  background: var(--destructive);
+}
+
+.one-chat-notice[data-level="info"] .one-chat-notice-dot {
+  background: var(--muted-foreground);
+}
+
+.one-chat-notice-chevron {
+  opacity: 0.6;
+  transition: rotate 180ms var(--one-ease-out);
+}
+
+.one-chat-notice-toggle[aria-expanded="true"] .one-chat-notice-chevron {
+  rotate: 90deg;
+}
+
+.one-chat-notice-body {
+  position: relative;
+  margin: 0.25rem 0 0.25rem 0.75rem;
+  border-inline-start: 1px solid var(--one-hairline);
+  padding: 0.25rem 2.5rem 0.25rem 1rem;
+}
+
+.one-chat-notice-body > * + * {
+  margin-top: 0.75rem;
+}
+
+.one-chat-notice-text {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.one-chat-copy {
+  position: absolute;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 0;
+}
+
+/* A turn that failed speaks in the answer's own voice: one sentence, the detail behind a line. */
+.one-chat-failure {
+  margin-top: 0.75rem;
+  border-inline-start: 2px solid var(--destructive);
+  padding-inline-start: 1rem;
+}
+
+.one-chat-failure[data-tone="warning"] {
+  border-inline-start-color: var(--warning, var(--one-brand));
+}
+
+.one-chat-failure-headline {
+  margin: 0 0 0.25rem;
+  font-family: var(--one-chat-face);
+  font-size: var(--one-chat-size);
+  line-height: var(--one-chat-leading);
+}
+
+.one-chat-failure-action {
+  margin-top: 0.5rem;
 }
 
 /* ---------------------------------------------------------------- the outline */
@@ -314,6 +701,12 @@ html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] button {
 
 .one-chat-outline-item {
   height: var(--one-chat-outline-row);
+  transition: opacity 320ms var(--one-ease-out) 240ms;
+
+  /* A turn's entry eases in a beat after the outline itself, so it follows the answer. */
+  @starting-style {
+    opacity: 0;
+  }
 }
 
 .one-chat-outline-button {
@@ -360,75 +753,261 @@ html[data-one-mode="chat"] [data-timeline-row-kind="turn-fold"] button {
 
 /* ------------------------------------------------------------------ arrival */
 
-/* A new answer fades up once, on opacity and transform only. The row drops its
-   marker when the animation ends, so scrolling back or remounting never replays it. */
-@keyframes one-chat-arrive {
+/* A new answer arrives a paragraph at a time: each block rises 4px and fades in, a beat after
+   the one before. Opacity and transform only, so the row's height is final on the first frame.
+   The row carries the marker for 1.6s and drops it, so scrolling back or a remount never replays
+   it. A streaming answer reveals each block as it is added (index.css), with the same rise. */
+@keyframes one-chat-reveal {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
 }
 
-html[data-one-mode="chat"] [data-chat-arrival] {
-  animation: one-chat-arrive 220ms var(--one-ease-out) both;
+/* Holds the marker for as long as the reveal lasts; the row drops it when this ends. */
+@keyframes one-chat-arrive {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-one-mode="chat"] [data-chat-arrival] {
+    animation: one-chat-arrive 1600ms linear both;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown:not([data-streaming]) > * {
+    animation: one-chat-reveal 480ms var(--one-ease-out) both;
+    animation-delay: calc(var(--one-reveal-index, 0) * 80ms);
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(2) {
+    --one-reveal-index: 1;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(3) {
+    --one-reveal-index: 2;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(4) {
+    --one-reveal-index: 3;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(5) {
+    --one-reveal-index: 4;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(6) {
+    --one-reveal-index: 5;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(7) {
+    --one-reveal-index: 6;
+  }
+
+  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(n + 8) {
+    --one-reveal-index: 7;
+  }
+
+  /* While an answer streams, a new block fades in and rises as it is added (one shot). */
+  html[data-one-mode="chat"] .chat-markdown[data-streaming] > * {
+    transition:
+      opacity 520ms var(--one-ease-out),
+      transform 520ms var(--one-ease-out);
+
+    @starting-style {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------- dock */
+
+/* The composer's dock runs to the window's bottom edge and is opaque, so no line of the answer
+   shows in the strip around the composer. While the view is scrolled away from the end the dock
+   gains a clear band for the scroll-to-end pill, and a fade above it, so text passes out of sight
+   before it reaches the pill. At the end there is no fade: the last line rests above the composer. */
+html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--background);
+}
+
+html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 100%;
+  z-index: -1;
+  height: calc(var(--one-chat-dock-fade) + var(--one-chat-pill-band));
+  pointer-events: none;
+  background:
+    linear-gradient(
+        to bottom,
+        transparent 0,
+        color-mix(in srgb, var(--background) 55%, transparent) 38%,
+        color-mix(in srgb, var(--background) 92%, transparent) 70%,
+        var(--background) 100%
+      )
+      top / 100% var(--one-chat-dock-fade) no-repeat,
+    linear-gradient(var(--background), var(--background)) bottom / 100% var(--one-chat-pill-band)
+      no-repeat;
+  opacity: 0;
+  transition: opacity 180ms var(--one-ease-out);
+}
+
+html[data-one-mode="chat"]
+  [data-chat-composer-overlay][data-composer-dock][data-scroll-to-end-shown]::after {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-one-mode="chat"] [data-chat-arrival] {
-    animation: none;
-  }
-
-  .one-chat-outline-list::after,
-  .one-chat-outline-button {
+  html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock]::after {
     transition: none;
   }
 }
 
+/* The composer keeps the same finished rim in Chat mode as in Code mode: the rim follows the
+   rounder corner. */
+html[data-one-mode="chat"] [data-slot="composer-host"]::after {
+  border-radius: 1.625rem;
+}
+
+/* ------------------------------------------------------- reading position */
+
+/* A hairline under the header grows along the answer as it is read. It is set from the scroll
+   handler through one custom property, so scrolling re-renders nothing. */
+.one-chat-progress {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: calc((100% - min(var(--chat-content-max-width, 43rem), 100%)) / 2);
+  height: 2px;
+  pointer-events: none;
+}
+
+.one-chat-progress > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: color-mix(in srgb, var(--one-brand) 50%, transparent);
+  transform: scaleX(var(--one-chat-read, 0));
+  transform-origin: left;
+  opacity: var(--one-chat-read-visible, 0);
+  transition: opacity 240ms var(--one-ease-out);
+}
+
+.one-chat-progress > span:dir(rtl) {
+  transform-origin: right;
+}
+
+/* The outline's rail already says where you are, so the hairline stands down beside it. */
+.one-chat-nav:has(.one-chat-outline) > .one-chat-progress {
+  display: none;
+}
+
 /* --------------------------------------------------------------- follow-ups */
 
-/* Under the last answer. The row holds its height before it shows, so the
-   answer never moves when the turn ends and the actions fade in. */
+/* Under the last answer: three ways to carry it on, set as prompts. Each is a short title over
+   one line saying what it does, under its own hairline. The columns wrap to one on a phone. The
+   block keeps its height before it shows, so the answer never moves when the turn ends. Once the
+   turn ends they ease in, a beat apart (a transition, so a remount of a finished answer shows
+   them at rest). */
 .one-chat-followups {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.25rem 0;
-  opacity: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  column-gap: 1.5rem;
+  max-width: var(--one-chat-measure, 66ch);
+  min-height: 4.75rem;
+  margin: 0.5rem 0.25rem 0;
   visibility: hidden;
-  transition:
-    opacity 200ms var(--one-ease-out),
-    visibility 0s linear 200ms;
 }
 
 .one-chat-followups[data-ready] {
-  opacity: 1;
   visibility: visible;
-  transition-delay: 0s;
 }
 
-/* A quiet row of small chips: no blur to repaint while the list scrolls. */
 .one-chat-followup {
-  min-height: 2rem;
-  padding-inline: 0.625rem;
-  color: var(--muted-foreground);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  min-height: 4.75rem;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--one-hairline);
+  border-radius: 0 0 0.5rem 0.5rem;
+  background: none;
+  padding: 0.875rem 0.5rem 0.875rem 0;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 320ms var(--one-ease-out),
+    transform 320ms var(--one-ease-out),
+    background-color 140ms var(--one-ease-out);
 }
 
-.one-chat-followup:hover,
+.one-chat-followups[data-ready] .one-chat-followup {
+  opacity: 1;
+  transform: none;
+  transition-delay:
+    calc(120ms + var(--one-followup-index, 0) * 80ms),
+    calc(120ms + var(--one-followup-index, 0) * 80ms), 0s;
+}
+
+.one-chat-followup:nth-child(2) {
+  --one-followup-index: 1;
+}
+
+.one-chat-followup:nth-child(3) {
+  --one-followup-index: 2;
+}
+
+.one-chat-followup-title {
+  font-family: var(--one-chat-face);
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
+
+.one-chat-followup-hint {
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.one-chat-followup:is(:hover, :focus-visible) {
+  background: var(--one-row-hover, color-mix(in srgb, var(--foreground) 5%, transparent));
+}
+
 .one-chat-followup:focus-visible {
-  color: var(--foreground);
+  outline: 2px solid color-mix(in srgb, var(--one-brand) 70%, transparent);
+  outline-offset: -2px;
 }
 
 @media (pointer: coarse) {
   .one-chat-followup {
-    min-height: 2.75rem;
+    min-height: 3.5rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .one-chat-followups {
+  .one-chat-followup {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .one-chat-outline-list::after,
+  .one-chat-outline-button,
+  .one-chat-outline-item {
     transition: none;
   }
 }

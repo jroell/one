@@ -249,6 +249,10 @@ it("re-enables Save when a When editor closes on an expression it could not pars
       <KeybindingsSettingsPanel />
     </RegistryProvider>,
   );
+  // A row shows its "When" line while it has focus (its default condition is hidden otherwise).
+  const pill = screen.getByRole("button", { name: /^Edit shortcut for Terminal: toggle:/ });
+  await expect.element(pill).toBeVisible();
+  (pill.element() as HTMLElement).focus();
   const whenTrigger = screen.getByRole("button", { name: "Edit when clause for Terminal: toggle" });
   const expression = screen.getByRole("textbox", { name: "When expression" });
 
@@ -322,6 +326,9 @@ it("shows a command's alternate keys on one row, as glyphs, with its condition i
       }),
     )
     .toBeVisible();
+  // The condition is the default one, so it shows only once the row has focus.
+  expect(screen.getByRole("button", { name: "Edit when clause for Chat: new" }).query()).toBeNull();
+  (chatNewKeys.first().element() as HTMLElement).focus();
   const condition = screen.getByRole("button", { name: "Edit when clause for Chat: new" });
   await expect.element(condition).toHaveTextContent("not in the terminal");
 });

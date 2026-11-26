@@ -194,3 +194,23 @@ it("swaps the collapsed composer's send button for Stop while a turn can be stop
   await screen.rerender(collapsed({ canInterrupt: false }));
   await expect.element(screen.getByRole("button", { name: "Send message" })).toBeVisible();
 });
+
+it("draws Stop as a neutral raised button with a gold square, not as the product's red", async () => {
+  await using screen = await render(<ComposerPrimaryActions {...setup()} />);
+  const stop = screen.getByRole("button", { name: "Stop generation" }).element() as HTMLElement;
+  const channels = (color: string) =>
+    color
+      .match(/[\d.]+/g)!
+      .slice(0, 3)
+      .map(Number);
+  const [red, green, blue] = channels(getComputedStyle(stop).backgroundColor);
+  // Red would have a red channel far above the others; a neutral surface stays within a warm tint.
+  expect(red! - Math.max(green!, blue!)).toBeLessThan(30);
+  const probe = document.createElement("span");
+  probe.style.color = "var(--gold-600)";
+  document.body.append(probe);
+  const gold = getComputedStyle(probe).color;
+  probe.remove();
+  expect(getComputedStyle(stop).color).toBe(gold);
+  expect(stop.querySelector("svg")).not.toBeNull();
+});

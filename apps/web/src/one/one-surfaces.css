@@ -845,38 +845,18 @@ html:not([data-one-mode="chat"]) [data-one-assistant] .chat-markdown {
 }
 
 html:not([data-one-mode="chat"]) [data-one-answer] {
-  padding-block-start: 0.25rem;
+  padding-block-start: 0;
 }
 
-[data-one-answer-mark] {
-  display: none;
-}
-
-html:not([data-one-mode="chat"]) [data-one-answer-mark] {
-  position: absolute;
-  inset-inline-start: 0.375rem;
-  inset-block-start: 0.5rem;
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 3px var(--one-brand-glow));
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  html:not([data-one-mode="chat"]) [data-one-answer-mark] {
-    animation: one-details-in 320ms var(--one-ease-out) both;
-  }
-}
-
-/* Between turns: the user's message opens a turn with room above it. */
+/* Turns read as pairs: 20px from a question to its answer, 56px from one pair to the next. The
+   user's message opens a pair with the room above it. */
 html:not([data-one-mode="chat"]) [data-timeline-row-kind="message"][data-message-role="user"] {
-  padding-block-start: 0.75rem;
+  padding-block-start: 2rem;
 }
 
 /* The hover actions under a bubble keep their row, so the reply starts under it. */
 html:not([data-one-mode="chat"]) [data-one-message-actions] {
-  margin-block-end: -1.25rem;
+  margin-block-end: -1.5rem;
 }
 
 html:not([data-one-mode="chat"]) [data-one-turn-start] {
@@ -920,14 +900,17 @@ html:not([data-one-mode="chat"]) .messages-timeline-scroll.topbar-scroll-fade {
     var(--app-scrollbar-width) 100%;
 }
 
-/* The tick ladder at the left edge is a map of the conversation. It is barely there until you
-   reach for it, and each tick then names its turn in a card on hover. */
+/* The tick ladder at the left edge is a map of the conversation. It shows while the list scrolls
+   or the pointer is over the left gutter, and is hidden at rest. Each tick then names its turn in
+   a card on hover. */
 html:not([data-one-mode="chat"]) [data-testid="timeline-minimap"][data-persistent-gutter="true"] {
-  opacity: 0.14;
+  opacity: 0;
 }
 
 html:not([data-one-mode="chat"])
-  [data-testid="timeline-minimap"][data-persistent-gutter="true"]:is(:hover, :focus-within) {
+  [data-testid="timeline-minimap"][data-persistent-gutter="true"]:is(:hover, :focus-within),
+html:not([data-one-mode="chat"]):has(.messages-timeline-scroll[data-scrolling])
+  [data-testid="timeline-minimap"][data-persistent-gutter="true"] {
   opacity: 1;
 }
 
@@ -957,42 +940,164 @@ html:not([data-one-mode="chat"])
   opacity: 0.8;
 }
 
-/* A turn that opens with "Worked for …" carries its ring on that line, so the control and the mark
-   read as one header, and the answer below it needs no ring of its own. */
+/* The turn header is one quiet line, in the answer's column. Work shorter than five seconds keeps
+   it out of sight until the turn is hovered or focused; the row keeps its height, so the list
+   never re-measures when it shows. */
 html:not([data-one-mode="chat"]) [data-one-turn-start] {
-  position: relative;
   padding-inline-start: 1.875rem;
 }
 
-html:not([data-one-mode="chat"]) [data-one-turn-start] > [data-one-answer-mark] {
-  inset-block-start: 0.5rem;
+html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-within) button {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-one-mode="chat"]) [data-one-fold="quiet"] button {
+    transition: opacity var(--one-hover-ms) var(--one-ease-hover);
+  }
 }
 
 /* ================================================================== approval card */
 
-/* One warning hue carries the card: border, label and glow. Gold stays on Approve alone. The tint
-   is 6% of the warning token over the page, which keeps it from going brown on dark. */
-html [role="group"][data-v2-item-type="approval_request"] {
-  background-color: color-mix(in srgb, var(--warning) 6%, transparent);
-  box-shadow:
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    inset 0 0 0 1px color-mix(in srgb, var(--warning) 42%, transparent);
+/*
+ * The card is the Raised material, one 16px inset, and three parts: a header that names the
+ * change, the change itself, and an action bar under a hairline. The warning hue shows once, as a
+ * 3px edge on the left; gold stays on Approve alone. It replaces the older card in one.css, so
+ * the glow and the padding that rule sets are reset here.
+ */
+html [role="group"][data-approval-card] {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-block: 0.5rem;
+  padding: 0;
+  border-radius: var(--m-radius-raised);
+  background-color: color-mix(in srgb, var(--warning) 4%, var(--m-raised));
+  background-image: none;
+  box-shadow: var(--m-shadow-raised), var(--m-lit);
 }
 
-/* What is being approved: the command in full, or the first lines of the change. */
-[data-v2-item-type="approval_request"] code[data-approval-detail] {
-  display: block;
-  padding: 0.375rem 0.625rem;
-  border-radius: 0.5rem;
+html:not(.dark) [role="group"][data-approval-card] {
+  background-color: color-mix(in srgb, var(--warning) 5%, var(--m-raised));
+  --m-rim-raised-hi: color-mix(in srgb, var(--one-brand) 38%, transparent);
+  --m-rim-raised-mid: color-mix(in srgb, var(--one-brand) 35%, transparent);
+  --m-rim-raised-lo: color-mix(in srgb, var(--one-brand) 35%, transparent);
+}
+
+html [role="group"][data-approval-card]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--warning) 0 3px, transparent 3px);
+  box-shadow: none;
+  opacity: 1;
+  animation: none;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html [role="group"][data-approval-card] {
+    animation: one-details-in 320ms var(--one-ease-out) both;
+  }
+}
+
+[data-approval-header] {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0.625rem;
+}
+
+[data-approval-title] {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: var(--foreground);
+}
+
+[data-approval-path] {
+  display: flex;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+[data-approval-path-directory] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-approval-path-name],
+[data-approval-meta] {
+  flex-shrink: 0;
+}
+
+[data-approval-meta] {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+[data-approval-notes] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 1rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The change is one band across the card, with a hairline above it. It has no border of its own,
+   so the card and its content are the only two levels. */
+[data-approval-content] {
+  border-top: 1px solid var(--one-hairline);
   background-color: var(--one-tint);
-  box-shadow: inset 0 0 0 1px var(--one-hairline);
+}
+
+[data-approval-content="command"] {
+  display: block;
+  max-height: 10rem;
+  padding: 0.625rem 1rem;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  -webkit-user-select: text;
+  user-select: text;
+  scrollbar-width: thin;
+}
+
+[data-approval-content="command"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+[data-approval-content="hunk"] {
+  display: flex;
+  flex-direction: column;
 }
 
 [data-approval-hunk-lines] {
-  overflow: hidden;
-  border-radius: 0.5rem;
-  background-color: var(--one-tint);
-  box-shadow: inset 0 0 0 1px var(--one-hairline);
+  padding-block: 0.25rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   line-height: 1.25rem;
@@ -1000,20 +1105,20 @@ html [role="group"][data-v2-item-type="approval_request"] {
 
 [data-approval-hunk-lines] > div {
   display: grid;
-  grid-template-columns: 2.75rem 1.25rem minmax(0, 1fr);
+  grid-template-columns: 3rem 1.25rem minmax(0, 1fr);
   align-items: baseline;
 }
 
 [data-approval-hunk-lines] > div > code {
   min-width: 0;
-  padding-inline-end: 0.5rem;
+  padding-inline-end: 1rem;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   color: var(--foreground);
 }
 
 [data-approval-hunk-number] {
-  padding-inline-end: 0.5rem;
+  padding-inline: 1rem 0.5rem;
   text-align: end;
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
@@ -1038,4 +1143,190 @@ html [role="group"][data-v2-item-type="approval_request"] {
 
 [data-approval-hunk-lines] > [data-kind="delete"] [data-approval-hunk-sign] {
   color: var(--diff-deletion-foreground);
+}
+
+/* One style for "Show full diff", with the lines it would add. */
+[data-approval-full-diff] {
+  align-self: flex-start;
+  margin: 0.125rem 1rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  color: var(--muted-foreground);
+}
+
+[data-approval-footer] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--one-hairline);
+}
+
+[data-approval-status] {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+[data-approval-actions] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-inline-start: auto;
+}
+
+[data-approval-stale] {
+  font-size: 0.8125rem;
+  color: var(--warning-foreground);
+}
+
+/* ======================================================================== the shimmer */
+
+/*
+ * One shimmer for every live label (work rows, the working line, the sidebar's title rewrite and
+ * the worktree setup stages). A band as wide as 30% of the text sweeps across in 1.6s, eased, and
+ * rests 0.6s before the next pass. The text never drops below 70% brightness, and the band's mask
+ * is a raised cosine, so no letter is ever split into a bright half and a dim half. These rules
+ * replace the stepped utility in index.css. Reduced motion shows the text at rest.
+ */
+:root {
+  --one-shimmer-band: 0.3;
+  --one-shimmer-min: 70%;
+  --one-shimmer-sweep: 1.6s;
+  --one-shimmer-pause: 0.6s;
+  --one-shimmer-edge: calc(100% * var(--one-shimmer-band) / (1 + 2 * var(--one-shimmer-band)));
+}
+
+:has(> .live-activity-focus) {
+  color: color-mix(in srgb, var(--foreground) var(--one-shimmer-min), var(--background));
+}
+
+.live-activity-focus {
+  right: auto;
+  left: calc(var(--one-shimmer-band) * -100%);
+  width: calc(100% * (1 + 2 * var(--one-shimmer-band)));
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0%) 0,
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.125),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.25),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.375),
+    rgb(0 0 0 / 100%) calc(var(--one-shimmer-edge) * 0.5),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.625),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.75),
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.875),
+    rgb(0 0 0 / 0%) var(--one-shimmer-edge),
+    rgb(0 0 0 / 0%) 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 0%) 0,
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.125),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.25),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.375),
+    rgb(0 0 0 / 100%) calc(var(--one-shimmer-edge) * 0.5),
+    rgb(0 0 0 / 85%) calc(var(--one-shimmer-edge) * 0.625),
+    rgb(0 0 0 / 50%) calc(var(--one-shimmer-edge) * 0.75),
+    rgb(0 0 0 / 15%) calc(var(--one-shimmer-edge) * 0.875),
+    rgb(0 0 0 / 0%) var(--one-shimmer-edge),
+    rgb(0 0 0 / 0%) 100%
+  );
+  animation: one-shimmer-sweep calc(var(--one-shimmer-sweep) + var(--one-shimmer-pause)) linear
+    infinite;
+  animation-play-state: var(--visible-animation-state, paused);
+}
+
+.live-activity-focus-counter {
+  animation: one-shimmer-sweep-counter calc(var(--one-shimmer-sweep) + var(--one-shimmer-pause))
+    linear infinite;
+  animation-play-state: var(--visible-animation-state, paused);
+}
+
+.live-activity-focus-aligned {
+  width: calc(100% / (1 + 2 * var(--one-shimmer-band)));
+  margin-inline-start: var(--one-shimmer-edge);
+}
+
+/* The sweep takes 1.6 of the 2.2s cycle (72.73%) and the overlay then waits off the text. */
+@keyframes one-shimmer-sweep {
+  0% {
+    transform: translateX(0);
+    animation-timing-function: ease-in-out;
+  }
+  72.73%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes one-shimmer-sweep-counter {
+  0% {
+    transform: translateX(0);
+    animation-timing-function: ease-in-out;
+  }
+  72.73%,
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  .live-activity-focus {
+    animation: none;
+    opacity: 0;
+  }
+
+  .live-activity-focus-counter {
+    animation: none;
+  }
+}
+
+/* ===================================================================== the stop button */
+
+/* Stop fires on every run, so it is a neutral raised button with a gold square. Red is for the
+   confirmation of something destructive. */
+[data-composer-stop] {
+  color: var(--gold-600);
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--m-raised));
+  box-shadow:
+    inset 0 0 0 1px var(--m-rim-raised-mid),
+    var(--m-lit);
+}
+
+.dark [data-composer-stop] {
+  color: var(--gold-400);
+}
+
+@media (hover: hover) {
+  [data-composer-stop]:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--foreground) 10%, var(--m-raised));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-composer-stop] {
+    transition:
+      background-color var(--one-hover-ms) var(--one-ease-hover),
+      scale var(--one-move-ms) var(--one-ease-spring);
+  }
+
+  [data-composer-stop]:active:not(:disabled) {
+    scale: 0.94;
+    transition-duration: var(--one-hover-ms), var(--one-press-ms);
+  }
+}
+
+/* The preview's loading and failure states keep the room three lines take, so the card does not
+   jump when the lines arrive. */
+[data-approval-preview-state] {
+  display: flex;
+  min-height: 3.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding-inline: 1rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
 }

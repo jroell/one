@@ -1,11 +1,8 @@
 import { useGT } from "gt-react";
 import { MoonIcon, SunIcon } from "lucide-react";
-import type { CSSProperties } from "react";
-import {
-  STANDARD_THEME_PREVIEW_COLORS as SHARED_STANDARD_THEME_PREVIEW_COLORS,
-  THEME_PREVIEW_RENDER_SPECS,
-} from "@t3tools/shared/themePreview";
+import { STANDARD_THEME_PREVIEW_COLORS as SHARED_STANDARD_THEME_PREVIEW_COLORS } from "@t3tools/shared/themePreview";
 import { cn } from "../../lib/utils";
+import { ThemeWireframe } from "./ThemeWireframe";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   getThemeColorsForMode,
@@ -36,25 +33,28 @@ export type ThemeCardDefinition = {
 export type ThemeMode = ThemeAppearance | "system";
 export type ThemeCardPreviewColors = ThemeCardPreview["colors"];
 
+/** The app's own warm surfaces, so the default theme's tiles draw what the app looks like. */
 const STANDARD_THEME_PREVIEW_COLORS: Record<
   ThemeAppearance,
   Readonly<Record<ThemePreviewRole, string>>
 > = {
   light: {
-    sidebar: "#fafafa",
-    surface: "#ffffff",
-    accentSurface: "#f4f4f5",
-    messageSurface: "#e4e4e7",
     ...SHARED_STANDARD_THEME_PREVIEW_COLORS.light,
-    accent: "#b98f1f",
-    messageAction: "#b98f1f",
+    sidebar: "#f4efe4",
+    canvas: "#fbf8f1",
+    surface: "#fffdf8",
+    accentSurface: "#ece4d0",
+    messageSurface: "#eee6d2",
+    accent: "#b0841a",
+    messageAction: "#b0841a",
   },
   dark: {
-    sidebar: "#0f0f10",
-    surface: "#121212",
-    accentSurface: "#27272a",
-    messageSurface: "#27272a",
     ...SHARED_STANDARD_THEME_PREVIEW_COLORS.dark,
+    sidebar: "#11110f",
+    canvas: "#0d0d0b",
+    surface: "#1b1b18",
+    accentSurface: "#26241e",
+    messageSurface: "#2a2820",
     accent: "#d9b450",
     messageAction: "#d9b450",
   },
@@ -100,60 +100,31 @@ export function getThemeCardDefinition(theme: ThemeDefinition): ThemeCardDefinit
   };
 }
 
-function getThemePreviewStyle(
-  colors: ThemeCardPreviewColors,
-  mode: ThemeAppearance,
-): CSSProperties {
-  const spec = THEME_PREVIEW_RENDER_SPECS[mode];
-  const modeBase = `color-mix(in oklab, ${colors.canvas} ${spec.baseWeight * 100}%, ${spec.baseTarget})`;
-  const accentPosition = `${spec.accent.center[0] * 100}% ${spec.accent.center[1] * 100}%`;
-  const actionPosition = `${spec.action.center[0] * 100}% ${spec.action.center[1] * 100}%`;
-  return {
-    backgroundColor: modeBase,
-    backgroundImage: [
-      `radial-gradient(circle at ${accentPosition} in oklab, ${colors.accent} 0%, color-mix(in oklab, ${colors.accent} ${spec.accent.middleOpacity * 100}%, transparent) ${spec.accent.middleOffset * 100}%, transparent ${spec.accent.endOffset * 100}%)`,
-      `radial-gradient(circle at ${actionPosition} in oklab, color-mix(in oklab, ${colors.messageAction} ${spec.action.startOpacity * 100}%, transparent) 0%, transparent ${spec.action.endOffset * 100}%)`,
-    ].join(", "),
-  };
-}
-
-function themePreviewEdgeShadow(mode: ThemeAppearance): string {
-  return mode === "dark"
-    ? "inset 0 0 0 1px rgb(255 255 255 / 0.14), 0 1px 2px rgb(0 0 0 / 0.18)"
-    : "inset 0 0 0 1px rgb(0 0 0 / 0.10), 0 1px 2px rgb(0 0 0 / 0.08)";
-}
-
-export function ThemePreviewCircle({
+/** A theme drawn as the app: its sidebar, canvas, a surface, a message, a button, in its own colors. */
+export function ThemePreviewMini({
   colors,
-  mode,
+  size = "tile",
   className,
 }: {
   colors: ThemeCardPreviewColors;
   mode: ThemeAppearance;
+  /** `tile` is the Appearance card preview; `row` is the same drawing at the size of a list row. */
+  size?: "tile" | "row";
   className?: string;
 }) {
   return (
-    <span
-      aria-hidden
+    <ThemeWireframe
       className={cn(
-        "relative block size-14 shrink-0 overflow-hidden rounded-full border-2 border-background",
+        size === "row" ? "h-6 w-9 rounded-md" : "h-14 w-[5.25rem]",
+        "shrink-0",
         className,
       )}
-      style={{ boxShadow: themePreviewEdgeShadow(mode) }}
-    >
-      <span
-        className="absolute inset-0 rounded-full"
-        style={{
-          ...getThemePreviewStyle(colors, mode),
-          filter: `blur(${THEME_PREVIEW_RENDER_SPECS[mode].blurAt56Px}px)`,
-          transform: `scale(${THEME_PREVIEW_RENDER_SPECS[mode].scale})`,
-        }}
-      />
-    </span>
+      panes={[{ colors }]}
+    />
   );
 }
 
-export function ThemePreviewCircles({
+export function ThemePreviewMinis({
   label,
   activeModes,
   onSelectMode,
@@ -182,7 +153,7 @@ export function ThemePreviewCircles({
                   }
                   aria-pressed={isPicked}
                   className={cn(
-                    "relative flex size-[68px] shrink-0 transform-gpu cursor-pointer items-center justify-center rounded-full p-1.5 outline-none transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-5 focus-visible:outline-foreground/60",
+                    "relative flex shrink-0 transform-gpu cursor-pointer items-center justify-center rounded-lg p-1.5 outline-none transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-5 focus-visible:outline-foreground/60",
                     isPicked && "hover:scale-100",
                   )}
                   onClick={(event) => {
@@ -191,7 +162,7 @@ export function ThemePreviewCircles({
                   }}
                   type="button"
                 >
-                  <ThemePreviewCircle colors={preview.colors} mode={mode} />
+                  <ThemePreviewMini colors={preview.colors} mode={mode} />
                   {isPicked ? (
                     <>
                       <span

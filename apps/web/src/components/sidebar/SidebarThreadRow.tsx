@@ -724,6 +724,8 @@ type SidebarThreadRowProps = {
   environmentMachine: EnvironmentMachineKind;
   project: EnvironmentProject | null;
   projectDisplayName: string | null;
+  /** The project's name when the list shows it once as a header, so a focused row still names it. */
+  accessibleProjectName?: string | null;
   providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
   timestampFormat: TimestampFormat;
   onThreadClick: (event: ReactMouseEvent, threadRef: ScopedThreadRef) => void;
@@ -1020,7 +1022,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   };
   const handleContextMenu = (event: ReactMouseEvent) => {
     event.preventDefault();
-    onContextMenu(threadRef, { x: event.clientX, y: event.clientY }, contextMenuSourceOf(event));
+    // Open beside the row, not over the title it acts on.
+    const rowRect = event.currentTarget.getBoundingClientRect();
+    onContextMenu(threadRef, { x: rowRect.right + 6, y: rowRect.top }, contextMenuSourceOf(event));
   };
   const handleKeyDown = (event: ReactKeyboardEvent) => {
     if (event.target !== event.currentTarget) return;
@@ -1189,7 +1193,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const accessibility = resolveSidebarRowAccessibility({
     title: thread.title,
     statusLabel: pendingSync ? gt("Pending") : (topStatus?.label ?? null),
-    projectDisplayName: props.projectDisplayName,
+    projectDisplayName: props.projectDisplayName ?? props.accessibleProjectName ?? null,
     isActive: props.isActive,
   });
 
@@ -2049,9 +2053,10 @@ export const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props
               onClick={props.onSelect}
               onContextMenu={(event) => {
                 event.preventDefault();
+                const rowRect = event.currentTarget.getBoundingClientRect();
                 props.onContextMenu(
                   threadRef,
-                  { x: event.clientX, y: event.clientY },
+                  { x: rowRect.right + 6, y: rowRect.top },
                   contextMenuSourceOf(event),
                 );
               }}

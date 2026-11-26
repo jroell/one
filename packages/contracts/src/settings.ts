@@ -360,6 +360,10 @@ export type HtmlPreviewWidth = typeof HtmlPreviewWidth.Type;
 export const EffortDisplay = Schema.Literals(["label", "bars"]);
 export type EffortDisplay = typeof EffortDisplay.Type;
 
+/** The face Chat mode sets answers in. Code mode keeps the interface face either way. */
+export const ChatReadingFace = Schema.Literals(["serif", "sans"]);
+export type ChatReadingFace = typeof ChatReadingFace.Type;
+
 export const ToolCallVisibility = Schema.Literals(["showAll", "hideSuccessful", "hideAll", "zen"]);
 export type ToolCallVisibility = typeof ToolCallVisibility.Type;
 
@@ -550,6 +554,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   toolCallVisibility: ToolCallVisibility.pipe(
     Schema.withDecodingDefault(Effect.succeed("showAll" as const)),
+  ),
+  chatReadingFace: ChatReadingFace.pipe(
+    Schema.withDecodingDefault(Effect.succeed("serif" as const)),
   ),
   screenReaderAnnouncements: ScreenReaderAnnouncements.pipe(
     Schema.withDecodingDefault(Effect.succeed("status" as const)),
@@ -2162,6 +2169,7 @@ export const ClientSettingsPatch = Schema.Struct({
   boringSidebarEnabled: Schema.optionalKey(Schema.Boolean),
   boringSidebarMultilineRows: Schema.optionalKey(Schema.Boolean),
   toolCallVisibility: Schema.optionalKey(ToolCallVisibility),
+  chatReadingFace: Schema.optionalKey(ChatReadingFace),
   screenReaderAnnouncements: Schema.optionalKey(ScreenReaderAnnouncements),
   screenReaderWindowTitle: Schema.optionalKey(Schema.Boolean),
   threadDetailsUsageEnabled: Schema.optionalKey(Schema.Boolean),

@@ -814,8 +814,8 @@ export const FLEET_ROUTE_PITCH = 22;
 /** How far that column may reach into the gap above and below its card's place. */
 const PILL_OVERHANG = 9;
 /**
- * A card stacks an optional "This device" badge, the name (one or two lines) and the state (up to
- * two lines), each `line` tall, inside `padding`. `nameLine` is the most characters of a name the
+ * A machine's card stacks a row of chips (its connection, and "This device"), the name (one or two
+ * lines) and the links line (up to two lines), each `line` tall, inside `padding`. `nameLine` is the most characters of a name the
  * narrowest card sets on one line.
  */
 const CARD = { padding: 12, line: 16, badge: 18, stateLines: 2, nameLine: 13 };
@@ -824,7 +824,8 @@ const CARD = { padding: 12, line: 16, badge: 18, stateLines: 2, nameLine: 13 };
 export function fleetCardHeight(host: FleetNode): number {
   if (host.kind === "connect") return OFFER.height;
   const nameLines = host.label.length > CARD.nameLine ? 2 : 1;
-  const badge = host.kind === "environment" && host.thisDevice ? CARD.badge : 0;
+  // Every machine's card carries its connection chip (and "This device" beside it) on a row of its own.
+  const badge = host.kind === "environment" ? CARD.badge : 0;
   return CARD.padding + badge + (nameLines + CARD.stateLines) * CARD.line;
 }
 /** Routes enter a card as one bundle: this far apart, and never wider than `spread`. */

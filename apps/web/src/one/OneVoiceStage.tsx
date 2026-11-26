@@ -53,6 +53,10 @@ const SEND_STALL_MS = 6_000;
 const START_REFUSED_MS = 2_500;
 /** How long a spoken question may sit in recording, transcription or cleanup before it is given up on. */
 const SEND_OPERATION_MS = 60_000;
+/** How long a request that went out may wait for the thread to show its run before it is given up on. */
+const SEND_ACCEPT_MS = 60_000;
+/** How long a turn that was being followed may be missing from the thread before it is given up on. */
+const TURN_LOST_MS = 10_000;
 /** How long speech may take to begin before an idle synthesizer is taken to have dropped it. */
 const SPEECH_START_MS = 4_000;
 /** How long an utterance the engine holds back may wait for its start event before it is retried once, then given up on. */
@@ -210,10 +214,15 @@ function ActiveVoiceStage({
   const tookTooLong = gt("Voice input took too long");
   const notSent = gt("The question was not sent");
   const sentToSideChat = gt("That went to a side chat, so there is no reply to read here");
-  const latest = useRef({ bridge, messages, tookTooLong, notSent, sentToSideChat });
+  const notices = {
+    notAccepted: gt("The question was not accepted in time"),
+    held: gt("The question is held in the queue, so there is no reply to read yet"),
+    lost: gt("The reply is no longer available"),
+  };
+  const latest = useRef({ bridge, messages, tookTooLong, notSent, sentToSideChat, notices });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge, messages and notices for the frame loop, timers and speech effect below
   useEffect(() => {
-    latest.current = { bridge, messages, tookTooLong, notSent, sentToSideChat };
+    latest.current = { bridge, messages, tookTooLong, notSent, sentToSideChat, notices };
   });
 
   const submit = () => {
@@ -408,10 +417,14 @@ function ActiveVoiceStage({
     if (recordingPhase === "error") {
       const message = latest.current.bridge?.error;
       dispatchVoiceSession(message ? { type: "failed", message } : { type: "failed" });
-    } else if (ownTurn === "open" && recordingPhase === "idle") {
+    } else if (
+      recordingPhase === "idle" &&
+      (ownTurn === "open" || (threadRef !== null && ownTurn === "ended"))
+    ) {
+      // A run that ended before it started (cancelled) is still the question's turn.
       dispatchVoiceSession({ type: "working" });
     }
-  }, [stage, ownTurn, recordingPhase]);
+  }, [stage, ownTurn, recordingPhase, threadRef]);
 
   // A send that never starts a turn (nothing to send, no provider) must not leave the ring spinning.
   const sendStalled =
@@ -428,16 +441,48 @@ function ActiveVoiceStage({
   // A question stuck in recording, transcription or cleanup has one deadline for the whole send,
   // counted from the moment it was sent and kept across the recorder's phases. It ends in an
   // error with Try again. The send timeout above only runs while the recorder is idle.
-  const sending = stage === "sending";
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a spoken question whose recorder operation never finishes; cleared when the session leaves sending
+  const transcribing = stage === "sending" && session.messageId === null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a spoken question whose recorder operation never finishes; cleared when its request goes out or the session leaves sending
   useEffect(() => {
-    if (!sending) return;
+    if (!transcribing) return;
     const timer = window.setTimeout(() => {
       if (ownsMicrophone()) latest.current.bridge?.cancel();
       dispatchVoiceSession({ type: "failed", message: latest.current.tookTooLong });
     }, SEND_OPERATION_MS);
     return () => window.clearTimeout(timer);
-  }, [sending]);
+  }, [transcribing]);
+
+  // Once the request is out, the thread must show its run; transcription no longer applies.
+  const awaitingRun = stage === "sending" && session.messageId !== null && ownTurn === "unknown";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a request the thread never shows; cleared when its run appears
+  useEffect(() => {
+    if (!awaitingRun) return;
+    const timer = window.setTimeout(
+      () => dispatchVoiceSession({ type: "failed", message: latest.current.notices.notAccepted }),
+      SEND_ACCEPT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [awaitingRun]);
+
+  // A queued question the person holds will not run, and a turn that vanished from the thread
+  // after it was followed will not answer: both end the wait with a plain message.
+  const turnHeld = (stage === "sending" || stage === "thinking") && ownTurn === "held";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- releases the stage when the question's run is held in the queue
+  useEffect(() => {
+    if (turnHeld) {
+      dispatchVoiceSession({ type: "failed", message: latest.current.notices.held });
+    }
+  }, [turnHeld]);
+  const turnLost = stage === "thinking" && ownTurn === "unknown";
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a followed turn that is gone from the thread; cleared if it returns
+  useEffect(() => {
+    if (!turnLost) return;
+    const timer = window.setTimeout(
+      () => dispatchVoiceSession({ type: "failed", message: latest.current.notices.lost }),
+      TURN_LOST_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [turnLost]);
 
   // Sending or thinking: read the answer once the turn is over and it has finished streaming.
   // The finished answer can be seen without any frame that showed the thread working.

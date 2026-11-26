@@ -411,11 +411,6 @@ html[data-one-mode="chat"] {
   --chat-content-max-width: 43rem;
 }
 
-html[data-one-mode="chat"] .chat-markdown {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-}
-
 html[data-one-mode-transition]::view-transition-old(root),
 html[data-one-mode-transition]::view-transition-new(root) {
   animation-duration: 280ms;
@@ -429,29 +424,6 @@ html[data-one-mode="chat"] [data-slot="composer-host"],
 html[data-one-mode="chat"] [data-slot="composer-host"]::before,
 html[data-one-mode="chat"] [data-chat-composer-main-surface] {
   border-radius: 1.625rem;
-}
-
-/* A still wash of the brand color behind the conversation: two gradients,
-   painted once. */
-html[data-one-mode="chat"] [data-workspace-area="conversation"]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      42rem 28rem at 28% 0%,
-      color-mix(in oklch, var(--one-brand) 13%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      36rem 26rem at 82% 12%,
-      color-mix(in oklch, var(--one-ring-hi) 9%, transparent),
-      transparent 72%
-    );
-  background-repeat: no-repeat;
-  opacity: 0.9;
 }
 
 /* ----------------------------------------------------------- chat welcome */

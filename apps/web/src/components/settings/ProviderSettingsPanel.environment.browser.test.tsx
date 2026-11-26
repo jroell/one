@@ -11,6 +11,13 @@ import {
 import * as Cause from "effect/Cause";
 import * as Duration from "effect/Duration";
 import { AsyncResult, type Atom } from "effect/reactivity";
+import {
+  createBrowserHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -173,6 +180,9 @@ vi.mock(import("../ProviderUpdatesAction"), async (original) => ({
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { EnvironmentProviderSettings } from "./ProviderSettingsPanel";
 import { SettingsBreadcrumb } from "./SettingsBreadcrumb";
+import { SettingsPageHeader } from "./SettingsPageHeader";
+import { useProviderInstanceRoute } from "./useProviderInstanceRoute";
+import { Route as ProvidersRoute } from "../../routes/_chat.settings.providers";
 
 const environmentId = EnvironmentId.make("remote-device");
 const codexId = ProviderInstanceId.make("codex");
@@ -501,24 +511,49 @@ describe("EnvironmentProviderSettings provider list", () => {
   });
 });
 
+describe("EnvironmentProviderSettings page", () => {
+  it("titles an opened provider by its name and shows its default name as a real value", async () => {
+    await setup();
+    await setProviders([provider()]);
+    await using _screen = await render(
+      <>
+        <SettingsPageHeader />
+        {panel({ targetInstanceId: codexId })}
+      </>,
+      { router: "/settings/providers" },
+    );
+
+    await expect.element(page.getByRole("heading", { level: 1 })).toHaveTextContent("Codex");
+    await expect
+      .element(page.getByText("Its account, setup, runtime and models on this device."))
+      .toBeVisible();
+    const name = page.getByRole("textbox", { name: "Codex" });
+    await expect.element(name).toHaveValue("Codex");
+  });
+});
+
 describe("EnvironmentProviderSettings account email", () => {
-  it("keeps the email behind a Hidden pill until it is revealed, and hides it again", async () => {
+  it("keeps the email behind a Hidden pill until its Show button reveals it, and hides it again", async () => {
     await setup();
     const email = "developer@example.com";
     await setProviders([{ ...provider(), auth: { status: "authenticated", email } }]);
     await using _screen = await render(panel({ targetInstanceId: codexId }));
     const toggle = page.getByRole("button", { name: "Toggle account email visibility" });
+    // The value (or its pill) and a small Show or Hide button sit side by side.
+    const shown = () => toggle.element().parentElement!.textContent;
 
-    await expect.element(toggle).toMatchTextContent("Hidden");
-    await expect.element(toggle).not.toMatchTextContent("developer@example.com");
+    await expect.poll(shown).toContain("Hidden");
+    expect(shown()).not.toContain("developer@example.com");
+    await expect.element(toggle).toHaveTextContent("Show");
 
     await userEvent.click(toggle);
-    await expect.element(toggle).toMatchTextContent("developer@example.com");
+    await expect.poll(shown).toContain("developer@example.com");
     await expect.element(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect.element(toggle).toHaveTextContent("Hide");
 
     await userEvent.click(toggle);
-    await expect.element(toggle).toMatchTextContent("Hidden");
-    await expect.element(toggle).not.toMatchTextContent("developer@example.com");
+    await expect.poll(shown).toContain("Hidden");
+    expect(shown()).not.toContain("developer@example.com");
   });
 });
 
@@ -677,5 +712,123 @@ describe("EnvironmentProviderSettings health check interval", () => {
 
     await expect.element(input).toHaveValue("300");
     expect(state.updateSettings).not.toHaveBeenCalled();
+  });
+});
+
+/** The provider page through a real router: its address, Back and Forward, and the breadcrumb. */
+function providersRouter(entry: string) {
+  // The browser's own history: Back and Forward arrive as popstate, which a memory history never
+  // sends, and which the router asks its blockers about.
+  window.history.replaceState(null, "", entry);
+  const root = createRootRoute();
+  function Page() {
+    const { instanceId, onSelectInstance } = useProviderInstanceRoute();
+    return (
+      <RegistryContext.Provider value={appAtomRegistry}>
+        <SettingsBreadcrumb pathname="/settings/providers" />
+        <SettingsPageHeader />
+        <div className="@container/providers">
+          <EnvironmentProviderSettings
+            environmentId={environmentId}
+            environmentLabel="Remote device"
+            {...(instanceId === undefined ? {} : { targetInstanceId: instanceId })}
+            onSelectInstance={onSelectInstance}
+          />
+        </div>
+      </RegistryContext.Provider>
+    );
+  }
+  const route = createRoute({
+    getParentRoute: () => root,
+    path: "/settings/providers",
+    validateSearch: ProvidersRoute.options.validateSearch!,
+    component: Page,
+  });
+  return createRouter({
+    routeTree: root.addChildren([route]),
+    history: createBrowserHistory(),
+  });
+}
+
+describe("provider page through the router", () => {
+  const rowButton = () => page.getByRole("button", { name: "Open Codex" });
+  const heading = () => page.getByRole("heading", { level: 1 });
+  const upserts = () =>
+    state.mutateProviderInstance.mock.calls.filter(
+      ([operation]) => (operation as { operation: string }).operation === "upsert",
+    );
+
+  async function openPage(entry = "/settings/providers") {
+    await setup();
+    await setProviders([provider()]);
+    const router = providersRouter(entry);
+    const screen = await render(<RouterProvider router={router} />, { router: false });
+    return { router, screen };
+  }
+
+  it("opens a provider from the keyboard, focuses its title, and returns focus to its row on Back and again on Forward", async () => {
+    const { router, screen } = await openPage();
+    await using _screen = screen;
+    await expect.element(rowButton()).toBeVisible();
+    (rowButton().element() as HTMLElement).focus();
+
+    await userEvent.keyboard("{Enter}");
+
+    await expect.poll(() => router.state.location.search).toEqual({ instanceId: codexId });
+    await expect.element(heading()).toHaveTextContent("Codex");
+    await expect.element(heading()).toHaveFocus();
+
+    await act(async () => router.history.back());
+    await expect.element(rowButton()).toHaveFocus();
+    expect(router.state.location.search).toEqual({});
+
+    await act(async () => router.history.forward());
+    await expect.element(heading()).toHaveTextContent("Codex");
+    await expect.element(heading()).toHaveFocus();
+  });
+
+  it("commits a name being typed when browser Back leaves the provider", async () => {
+    const { router, screen } = await openPage();
+    await using _screen = screen;
+    await expect.element(rowButton()).toBeVisible();
+    await userEvent.click(rowButton(), { position: { x: 5, y: 5 } });
+    const name = page.getByRole("textbox", { name: "Codex" });
+    await expect.element(name).toBeVisible();
+    await userEvent.fill(name, "Work");
+    await expect.element(name).toHaveFocus();
+    expect(upserts()).toHaveLength(0);
+
+    await act(async () => router.history.back());
+
+    await expect.poll(() => upserts().length).toBe(1);
+    expect(upserts()[0]![0]).toMatchObject({
+      operation: "upsert",
+      instanceId: codexId,
+      instance: { displayName: "Work" },
+    });
+  });
+
+  it("commits a name being typed when the breadcrumb returns to the list, and lands on its row", async () => {
+    const { screen } = await openPage("/settings/providers?instanceId=codex");
+    await using _screen = screen;
+    const name = page.getByRole("textbox", { name: "Codex" });
+    await userEvent.fill(name, "Work");
+
+    await userEvent.click(
+      page.getByRole("navigation", { name: "Settings breadcrumb" }).getByRole("button", {
+        name: "Providers",
+      }),
+    );
+
+    await expect.poll(() => upserts().length).toBe(1);
+    await expect.element(rowButton()).toBeVisible();
+  });
+
+  it("opens a provider straight from its address, titled by its name", async () => {
+    const { screen } = await openPage("/settings/providers?instanceId=codex");
+    await using _screen = screen;
+    await expect.element(heading()).toHaveTextContent("Codex");
+    await expect.element(page.getByRole("textbox", { name: "Codex" })).toBeVisible();
+    await expect.element(rowButton()).not.toBeInTheDocument();
   });
 });

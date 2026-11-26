@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { approvalHunkPreview, approvalPreviewFor } from "./approvalHunk";
+import {
+  MAX_INPUT_CHARS,
+  MAX_LINE_CHARS,
+  approvalHunkPreview,
+  approvalPreviewFor,
+} from "./approvalHunk";
 
 const patch = [
   "diff --git a/src/math.ts b/src/math.ts",
@@ -45,6 +50,21 @@ describe("approvalHunkPreview", () => {
     expect(approvalHunkPreview("Binary files a/x and b/x differ")).toBeNull();
     expect(approvalHunkPreview("")).toBeNull();
   });
+
+  it("cuts a single 130,000-character line", () => {
+    const wide = ["@@ -1,2 +1,2 @@", " keep", `+${"x".repeat(130_000)}`].join("\n");
+    const preview = approvalHunkPreview(wide)!;
+    expect(preview.lines[1]!.text).toHaveLength(MAX_LINE_CHARS + 1);
+    expect(preview.lines[1]!.text.endsWith("…")).toBe(true);
+  });
+
+  it("reads only the first part of an enormous patch and cannot count what it did not read", () => {
+    const rows = Array.from({ length: 100_000 }, (_, index) => `+row ${index}`);
+    const enormous = ["@@ -0,0 +1,100000 @@", ...rows].join("\n");
+    const preview = approvalHunkPreview(enormous)!;
+    expect(preview.lines).toHaveLength(8);
+    expect(preview.hidden).toBeNull();
+  });
 });
 
 describe("approvalPreviewFor", () => {
@@ -57,24 +77,24 @@ describe("approvalPreviewFor", () => {
     expect(preview.lines[1]).toEqual({ kind: "delete", text: "removed", number: 4 });
   });
 
-  it("computes the first hunk from before and after text with a change in the middle", () => {
+  it("shows recorded before and after text as an unnumbered excerpt, since its offset is unknown", () => {
     const old = ["one", "two", "three", "four", "five", "six", "seven"].join("\n");
     const next = ["one", "two", "three", "FOUR", "five", "six", "seven"].join("\n");
     const preview = approvalPreviewFor({ oldStr: old, newStr: next })!;
-    expect(preview.lines.find((line) => line.kind === "delete")).toEqual({
-      kind: "delete",
-      text: "four",
-      number: 4,
-    });
-    expect(preview.lines.find((line) => line.kind === "add")).toEqual({
-      kind: "add",
-      text: "FOUR",
-      number: 4,
-    });
-    expect(preview.lines.map((line) => line.kind)).toContain("context");
+    expect(preview.lines.map((line) => [line.kind, line.text])).toEqual([
+      ["context", "one"],
+      ["context", "two"],
+      ["context", "three"],
+      ["delete", "four"],
+      ["add", "FOUR"],
+      ["context", "five"],
+      ["context", "six"],
+      ["context", "seven"],
+    ]);
+    expect(preview.lines.every((line) => line.number === null)).toBe(true);
   });
 
-  it("shows the lines added after existing code, numbered by the new file", () => {
+  it("shows lines added after existing code without numbering them from line 1", () => {
     const preview = approvalPreviewFor({ oldStr: before, newStr: before + clamp })!;
     const added = preview.lines.filter((line) => line.kind === "add");
     expect(added.map((line) => line.text)).toEqual([
@@ -83,20 +103,29 @@ describe("approvalPreviewFor", () => {
       "  return Math.min(Math.max(value, min), max);",
       "}",
     ]);
-    expect(added[1]!.number).toBe(5);
+    expect(added.every((line) => line.number === null)).toBe(true);
   });
 
-  it("shows a new file's first lines as additions and counts the rest", () => {
+  it("numbers a new file's lines only when the change is recorded as an addition", () => {
     const text = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join("\n");
-    const preview = approvalPreviewFor({ oldStr: undefined, newStr: text })!;
+    const preview = approvalPreviewFor({ oldStr: "", newStr: text, operation: "add" })!;
     expect(preview.lines).toHaveLength(8);
     expect(preview.lines.every((line) => line.kind === "add")).toBe(true);
     expect(preview.lines[7]).toEqual({ kind: "add", text: "line 8", number: 8 });
     expect(preview.hidden).toBe(12);
   });
 
-  it("shows a deleted file's first lines as removals", () => {
-    const preview = approvalPreviewFor({ oldStr: "a\nb\nc\n", newStr: "" })!;
+  it("does not call one-sided recorded content an addition when nothing proves the file was empty", () => {
+    const preview = approvalPreviewFor({ newStr: "alpha\nbeta\n" })!;
+    expect(preview.lines).toEqual([
+      { kind: "plain", text: "alpha", number: null },
+      { kind: "plain", text: "beta", number: null },
+    ]);
+    expect(approvalPreviewFor({ oldStr: "gone\n" })!.lines[0]!.kind).toBe("plain");
+  });
+
+  it("shows a deleted file's first lines as removals when the change is recorded as a deletion", () => {
+    const preview = approvalPreviewFor({ oldStr: "a\nb\nc\n", newStr: "", operation: "delete" })!;
     expect(preview.lines).toEqual([
       { kind: "delete", text: "a", number: 1 },
       { kind: "delete", text: "b", number: 2 },
@@ -106,8 +135,23 @@ describe("approvalPreviewFor", () => {
 
   it("has nothing to show for identical text, and bails out above the size limit", () => {
     expect(approvalPreviewFor({ oldStr: before, newStr: before })).toBeNull();
-    const big = "x".repeat(60_000);
+    const big = "x".repeat(MAX_INPUT_CHARS / 2 + 1);
     expect(approvalPreviewFor({ oldStr: big, newStr: `${big}y` })).toBeNull();
     expect(approvalPreviewFor({})).toBeNull();
+  });
+
+  it("gives two large, completely dissimilar texts a preview without a diff search", () => {
+    const side = (tag: string) =>
+      Array.from({ length: 4_000 }, (_, index) => `${tag} ${index} ${"q".repeat(10)}`).join("\n");
+    const old = side("old");
+    const next = side("new");
+    expect(old.length + next.length).toBeLessThan(MAX_INPUT_CHARS);
+    const preview = approvalPreviewFor({ oldStr: old, newStr: next })!;
+    expect(preview.lines).toHaveLength(8);
+  });
+
+  it("cuts one very long recorded line", () => {
+    const preview = approvalPreviewFor({ oldStr: "a", newStr: "b".repeat(150_000) })!;
+    expect(preview.lines.every((line) => line.text.length <= MAX_LINE_CHARS + 1)).toBe(true);
   });
 });

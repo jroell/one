@@ -106,7 +106,7 @@ describe("buildShortcutSections", () => {
         "Chat",
         [
           [
-            "Chat: new",
+            "New",
             null,
             [
               ["Ctrl", "N"],
@@ -203,7 +203,7 @@ describe("buildShortcutSections", () => {
     const sections = build([{ command: "thread.jump.3", key: "mod+3" }]);
 
     expect(sections.flatMap((section) => section.rows.map((row) => row.label))).toEqual([
-      "Thread: jump to 3",
+      "Jump to 3",
     ]);
   });
 
@@ -343,5 +343,21 @@ describe("buildShortcutSections", () => {
 
     expect(rowsOf("diff")[0]).toBe(all.find((row) => row.command === "diff.toggle"));
     expect(rowsOf("d")[0]).toBe(all.find((row) => row.command === "diff.toggle"));
+  });
+
+  it("drops the heading's own word from a row's label, still finds it by the full name, and lists next then previous together", () => {
+    const sections = build([
+      { command: "thread.pin", key: "mod+p" },
+      { command: "thread.previous", key: "mod+[" },
+      { command: "thread.next", key: "mod+]" },
+      { command: "terminal.toggle", key: "mod+j" },
+    ]);
+    const labels = (id: string) =>
+      sections.find((section) => section.id === id)!.rows.map((row) => row.label);
+    expect(labels("thread")).toEqual(["Next", "Previous", "Pin"]);
+    // "Terminal" is not the View heading's word, so that row keeps it.
+    expect(labels("view")).toEqual(["Terminal: toggle"]);
+    const found = build([{ command: "thread.next", key: "mod+]" }], { query: "thread: next" });
+    expect(found.flatMap((section) => section.rows.map((row) => row.label))).toEqual(["Next"]);
   });
 });

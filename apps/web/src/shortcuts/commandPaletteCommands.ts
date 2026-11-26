@@ -9,6 +9,7 @@ import {
 import { overlayModeForCommand } from "../components/CommandPalette.logic";
 import { APPEARANCE_OPTIONS, notifyThemeSaveFailure } from "../components/CommandPaletteThemeItems";
 import { toggleThemeEditorForTheme } from "../components/settings/themeEditorStore";
+import { isUsagePage } from "../components/sidebar/mainAppLocation";
 import { toggleShortcutsDialog } from "../components/shortcuts/shortcutsDialogStore";
 import { toastManager } from "../components/ui/toast";
 import { getThemeSnapshot, setAppearanceMode } from "../hooks/useTheme";
@@ -81,7 +82,7 @@ export function installCommandPaletteCommands(
           ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) ===
             "preview"
           : false,
-        usagePageOpen: router.state.location.pathname === "/usage",
+        usagePageOpen: isUsagePage(router.state.location.pathname),
       };
     },
   };

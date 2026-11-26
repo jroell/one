@@ -43,7 +43,7 @@ import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import ThreadSidebar from "./Sidebar";
 import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
-import { isAppModalPage } from "./sidebar/mainAppLocation";
+import { isAppModalPage, isUsagePage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import { useSidebarStageBackdropVariant } from "./SidebarStageBackdrop";
 import {
@@ -131,7 +131,7 @@ function readInitialThreadSidebarWidth(): number {
 }
 
 function readUsagePageOpen(router: AnyRouter) {
-  return router.state.location.pathname === "/usage";
+  return isUsagePage(router.state.location.pathname);
 }
 
 function isKeybindingCaptureTarget(event: KeyboardEvent) {
@@ -330,7 +330,7 @@ function registerAppShellCommands(router: AnyRouter, shellElement: Element): () 
 function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
   const gt = useGT();
   const router = useRouter();
-  const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
+  const usagePageOpen = useLocation({ select: (location) => isUsagePage(location.pathname) });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar } = useSidebar();
   const mobileSidebarSheetMounted = useMobileSidebarSheetMounted();

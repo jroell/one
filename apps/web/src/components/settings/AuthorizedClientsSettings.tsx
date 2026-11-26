@@ -593,16 +593,27 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
 export function RevokeOtherClientsAction({
   clientSessions,
   isRevoking,
+  error = null,
   onRevoke,
 }: {
   readonly clientSessions: ReadonlyArray<ServerClientSessionRecord> | null;
   readonly isRevoking: boolean;
+  /** Why the last revoke failed, when it did. */
+  readonly error?: string | null;
   readonly onRevoke: () => void;
 }) {
   const gt = useGT();
   const [confirming, setConfirming] = useState(false);
-  // The button that had focus leaves the page with its branch. The next button to mount takes
-  // focus: Cancel when the question opens, the launcher when it closes.
+  // A confirmed revoke is followed through its pending state to its result, which is spoken and
+  // shown in the status line below.
+  const [requested, setRequested] = useState(false);
+  const [sawRevoking, setSawRevoking] = useState(false);
+  if (requested && isRevoking && !sawRevoking) setSawRevoking(true);
+  const finished = requested && sawRevoking && !isRevoking;
+  // The status line stays in the row through every state, so focus has somewhere to rest when the
+  // button that held it is replaced or disabled.
+  const statusRef = useRef<HTMLSpanElement>(null);
+  // Cancel takes focus when the question opens, and the launcher when Cancel closes it.
   const focusNextRef = useRef(false);
   const takeFocus = (node: HTMLButtonElement | null) => {
     if (node === null || !focusNextRef.current) return;
@@ -611,16 +622,30 @@ export function RevokeOtherClientsAction({
   };
   const canRevoke = !isRevoking && canRevokeOtherClients(clientSessions);
   const prompt = gt("Sign out every other client?");
+  const statusText = confirming
+    ? prompt
+    : isRevoking
+      ? gt("Revoking other clients…")
+      : finished
+        ? (error ?? gt("Other clients signed out."))
+        : "";
   return (
     <div className="flex min-h-11 items-center justify-end gap-2 border-t border-(--settings-hairline) px-3 sm:px-4">
-      <span role="status" className="sr-only">
-        {confirming ? prompt : ""}
+      <span
+        ref={statusRef}
+        role="status"
+        tabIndex={-1}
+        className={cn(
+          "me-auto text-xs outline-none",
+          finished && error !== null
+            ? "text-destructive-foreground"
+            : "text-(--settings-description)",
+        )}
+      >
+        {statusText}
       </span>
       {confirming ? (
         <>
-          <span aria-hidden className="me-auto text-xs text-(--settings-description)">
-            {prompt}
-          </span>
           <Button
             ref={takeFocus}
             size="sm"
@@ -637,8 +662,11 @@ export function RevokeOtherClientsAction({
             variant="destructive-outline"
             disabled={!canRevoke}
             onClick={() => {
-              focusNextRef.current = true;
+              // Focus moves before the buttons are replaced, to the line that reports the result.
+              statusRef.current?.focus();
               setConfirming(false);
+              setRequested(true);
+              setSawRevoking(false);
               onRevoke();
             }}
           >
@@ -653,6 +681,7 @@ export function RevokeOtherClientsAction({
           disabled={!canRevoke}
           onClick={() => {
             focusNextRef.current = true;
+            setRequested(false);
             setConfirming(true);
           }}
         >

@@ -12,6 +12,8 @@ import { COMMAND_SECTIONS, commandSectionFor } from "../../shortcuts/commandSect
 import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import {
   commandLabel,
+  commandLabelUnder,
+  commandPairLeader,
   describeWhen,
   whenAstToExpression,
   whenForPlatform,
@@ -30,6 +32,13 @@ export interface ShortcutSheetRow {
   readonly keysJoiner: "or" | "to";
   /** Every key the row stands for, so filtering finds a key a collapsed family does not draw. */
   readonly matchKeys: ReadonlyArray<ReadonlyArray<string>>;
+}
+
+function sortLabel(row: ShortcutSheetRow, resolve: MessageResolver): string {
+  const leader = commandPairLeader(row.command);
+  return leader === null
+    ? row.label
+    : `${commandLabelUnder(leader, commandSectionFor(leader), resolve)}~`;
 }
 
 export interface ShortcutSheetSection {
@@ -289,7 +298,8 @@ function buildShortcutRows(
           row: {
             id,
             command: binding.command,
-            label: commandLabel(binding.command, resolve),
+            // Under a heading that is already the command's first word, "Thread: next" is "Next".
+            label: commandLabelUnder(binding.command, commandSectionFor(binding.command), resolve),
             qualifier:
               expression === "" || expression === DEFAULT_WHEN ? null : describeWhen(when, resolve),
           },
@@ -356,6 +366,7 @@ export function buildShortcutSections(
     needle === "" ||
     [
       row.label,
+      commandLabel(row.command, resolve),
       row.command,
       row.qualifier ?? "",
       ...row.matchKeys.flatMap((caps) => [
@@ -377,8 +388,11 @@ export function buildShortcutSections(
           {
             id: section.id,
             title: resolve(section.title),
+            // A pair (next, previous) is read together: the second sorts right after the first.
             rows: rows.toSorted((left, right) =>
-              left.label.localeCompare(right.label, undefined, { numeric: true }),
+              sortLabel(left, resolve).localeCompare(sortLabel(right, resolve), undefined, {
+                numeric: true,
+              }),
             ),
           },
         ]

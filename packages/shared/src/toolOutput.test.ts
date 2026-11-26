@@ -204,6 +204,24 @@ describe("toolOutputIndicatesFailure", () => {
   });
 });
 
+describe("toolOutputImages in ACP content wrappers", () => {
+  const png = { type: "image", mimeType: "image/png", data: "AAAA" };
+
+  it("finds an image the provider wrapped, with or without _meta", () => {
+    expect(toolOutputImages([{ type: "content", content: png }])).toEqual([
+      { mimeType: "image/png", data: "AAAA" },
+    ]);
+    expect(toolOutputImages([{ type: "content", _meta: {}, content: png }])).toEqual([
+      { mimeType: "image/png", data: "AAAA" },
+    ]);
+    expect(toolOutputImages({ type: "content", content: png })).toHaveLength(1);
+  });
+
+  it("leaves a wrapper with other keys alone", () => {
+    expect(toolOutputImages([{ type: "content", extra: true, content: png }])).toEqual([]);
+  });
+});
+
 describe("toolOutputImages", () => {
   const mcpImage = { type: "image", data: "AAAA", mimeType: "image/png" };
   const claudeImage = {

@@ -1,5 +1,5 @@
 import type { RuntimeRequestId } from "@t3tools/contracts";
-import { turnItemDetailRevision } from "@t3tools/client-runtime/work-log/item-detail";
+import * as DateTime from "effect/DateTime";
 import { createContext } from "react";
 
 import type { ToolCallDiffTarget } from "~/diffPanelStore";
@@ -31,8 +31,33 @@ export function deriveApprovalSubjects(
   entries: ReadonlyArray<TimelineEntry>,
   pendingApprovals: ReadonlySet<RuntimeRequestId>,
 ): ReadonlyMap<RuntimeRequestId, ApprovalSubject> {
-  if (pendingApprovals.size === 0) return NO_SUBJECTS;
-  const changes = new Map<string, ApprovalSubject>();
+  return scanApprovals(entries, pendingApprovals).subjects;
+}
+
+/**
+ * The file change entries a pending approval card already names. The card's header carries the
+ * path, so the edit row above it would repeat it and leaves the rows while the card shows.
+ */
+export function approvalCoveredEntryIds(
+  entries: ReadonlyArray<TimelineEntry>,
+  pendingApprovals: ReadonlySet<RuntimeRequestId> | undefined,
+): ReadonlySet<string> {
+  return pendingApprovals === undefined || pendingApprovals.size === 0
+    ? NO_ENTRY_IDS
+    : scanApprovals(entries, pendingApprovals).coveredEntryIds;
+}
+
+const NO_ENTRY_IDS: ReadonlySet<string> = new Set();
+
+function scanApprovals(
+  entries: ReadonlyArray<TimelineEntry>,
+  pendingApprovals: ReadonlySet<RuntimeRequestId>,
+): {
+  subjects: ReadonlyMap<RuntimeRequestId, ApprovalSubject>;
+  coveredEntryIds: ReadonlySet<string>;
+} {
+  if (pendingApprovals.size === 0) return { subjects: NO_SUBJECTS, coveredEntryIds: NO_ENTRY_IDS };
+  const changes = new Map<string, { subject: ApprovalSubject; entryId: string }>();
   const requests: Array<{ requestId: RuntimeRequestId; key: string }> = [];
   for (const entry of entries) {
     if (entry.kind !== "work") continue;
@@ -42,15 +67,20 @@ export function deriveApprovalSubjects(
     if (item.type === "file_change") {
       const files = item.changes?.length ?? 0;
       changes.set(key, {
-        path: item.fileName,
-        moreFiles: Math.max(0, files - 1),
-        additions: item.additions ?? null,
-        deletions: item.deletions ?? null,
-        diffStr: item.diffStr?.trim() ? item.diffStr : null,
-        diffTarget: {
-          threadId: entry.entry.projectedItem?.sourceThreadId ?? item.threadId,
-          itemId: entry.entry.projectedItem?.sourceItemId ?? item.id,
-          revision: turnItemDetailRevision(item),
+        entryId: entry.id,
+        subject: {
+          path: item.fileName,
+          moreFiles: Math.max(0, files - 1),
+          additions: item.additions ?? null,
+          deletions: item.deletions ?? null,
+          diffStr: item.diffStr?.trim() ? item.diffStr : null,
+          diffTarget: {
+            threadId: entry.entry.projectedItem?.sourceThreadId ?? item.threadId,
+            itemId: entry.entry.projectedItem?.sourceItemId ?? item.id,
+            // A waiting item keeps the shared "live" revision, which would reuse its first answer
+            // after an in-place update. The card follows the item's own update time instead.
+            revision: DateTime.formatIso(item.updatedAt),
+          },
         },
       });
     } else if (
@@ -62,11 +92,17 @@ export function deriveApprovalSubjects(
     }
   }
   const subjects = new Map<RuntimeRequestId, ApprovalSubject>();
+  const coveredEntryIds = new Set<string>();
   for (const { requestId, key } of requests) {
-    const subject = changes.get(key);
-    if (subject) subjects.set(requestId, subject);
+    const change = changes.get(key);
+    if (!change) continue;
+    subjects.set(requestId, change.subject);
+    coveredEntryIds.add(change.entryId);
   }
-  return subjects.size === 0 ? NO_SUBJECTS : subjects;
+  return {
+    subjects: subjects.size === 0 ? NO_SUBJECTS : subjects,
+    coveredEntryIds: coveredEntryIds.size === 0 ? NO_ENTRY_IDS : coveredEntryIds,
+  };
 }
 
 function nativeItemKey(item: {

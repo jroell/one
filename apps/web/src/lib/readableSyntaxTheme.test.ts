@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { readableOnLightCode, readableSyntaxColor } from "./readableSyntaxTheme";
+import { ONE_LIGHT_PALETTE } from "./oneSyntaxTheme";
+import { readableOnLightCode } from "./readableSyntaxTheme";
 
 function luminance(hex: string): number {
   const [r, g, b] = [1, 3, 5].map((start) => {
@@ -28,16 +29,11 @@ describe("readableOnLightCode", () => {
     }
   });
 
-  it("keeps tokens that differed only in lightness apart, in pierre-light's order", () => {
-    // [lighter, darker] in pierre-light: comment/punctuation, operator/number, property/decorator.
-    for (const [lighter, darker] of [
-      ["#737373", "#636363"],
-      ["#08c0ef", "#1ca1c7"],
-      ["#009fff", "#1a85d4"],
-    ] as const) {
-      expect(luminance(readableSyntaxColor(lighter))).toBeGreaterThan(
-        luminance(readableSyntaxColor(darker)) + 0.02,
-      );
+  it("holds 4.5:1 on every light code surface in the One light palette", () => {
+    for (const [role, color] of Object.entries(ONE_LIGHT_PALETTE)) {
+      for (const surface of LIGHT_CODE_SURFACES) {
+        expect(contrast(color, surface), `${role} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 

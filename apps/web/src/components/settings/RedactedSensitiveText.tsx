@@ -2,6 +2,7 @@ import { useGT } from "gt-react";
 import { useState } from "react";
 
 import { cn } from "../../lib/utils";
+import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 const REDACTED_TEXT_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -39,33 +40,37 @@ export function RedactedSensitiveText(props: {
   if (!value) return null;
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            aria-label={props.ariaLabel}
-            aria-pressed={revealed}
-            className={cn(
-              "inline-flex min-w-0 cursor-pointer items-center gap-2 rounded-sm text-2xs leading-normal text-(--settings-description) transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
-              props.className,
-            )}
-            onClick={() => setRevealed((current) => !current)}
-          >
-            {revealed ? (
-              <span className="min-w-0 truncate tabular-nums text-foreground">{value}</span>
-            ) : (
-              <span className="inline-flex h-5 items-center rounded-full bg-foreground/8 px-2 font-medium">
-                {gt("Hidden", { $context: "a value kept out of sight until revealed" })}
-              </span>
-            )}
-            <span className="shrink-0 underline-offset-2 hover:underline">
+    <span
+      className={cn(
+        "inline-flex min-w-0 items-center gap-2 text-2xs leading-normal text-(--settings-description)",
+        props.className,
+      )}
+    >
+      {revealed ? (
+        <span className="min-w-0 truncate tabular-nums text-foreground">{value}</span>
+      ) : (
+        <span className="inline-flex h-5 items-center rounded-full bg-foreground/8 px-2 font-medium">
+          {gt("Hidden", { $context: "a value kept out of sight until revealed" })}
+        </span>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              size="micro"
+              variant="outline"
+              className="shrink-0"
+              aria-label={props.ariaLabel}
+              aria-pressed={revealed}
+              onClick={() => setRevealed((current) => !current)}
+            >
               {revealed ? gt("Hide") : gt("Show")}
-            </span>
-          </button>
-        }
-      />
-      <TooltipPopup side="top">{revealed ? props.hideTooltip : props.revealTooltip}</TooltipPopup>
-    </Tooltip>
+            </Button>
+          }
+        />
+        <TooltipPopup side="top">{revealed ? props.hideTooltip : props.revealTooltip}</TooltipPopup>
+      </Tooltip>
+    </span>
   );
 }
