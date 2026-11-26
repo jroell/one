@@ -68,9 +68,33 @@ export function rememberGuidedReturn(threadKey: string, target: GuidedReturn): b
   return true;
 }
 
-export function clearGuidedReturn(threadKey: string): void {
-  const { [threadKey]: _gone, ...rest } = read();
-  write(rest);
+const TOPICS_KEY = "one:guided-topics";
+
+function readTopics(): Readonly<Record<string, string>> {
+  try {
+    const parsed: unknown = JSON.parse(window.sessionStorage.getItem(TOPICS_KEY) ?? "{}");
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Remembers which thread answered a topic, so asking about it again can reopen that thread. */
+export function rememberGuidedTopic(topicKey: string, threadKey: string): void {
+  try {
+    window.sessionStorage.setItem(
+      TOPICS_KEY,
+      JSON.stringify({ ...readTopics(), [topicKey]: threadKey }),
+    );
+  } catch {
+    // Without storage a topic simply starts a new thread each time.
+  }
+}
+
+/** The thread last started for this topic in this session, if any. */
+export function guidedTopicThread(topicKey: string): string | null {
+  const threadKey = readTopics()[topicKey];
+  return typeof threadKey === "string" ? threadKey : null;
 }
 
 export function useGuidedReturn(threadKey: string): GuidedReturn | null {

@@ -1,4 +1,5 @@
 import {
+  parseScopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
   scopedThreadKey,
@@ -16,6 +17,7 @@ import { RegistryContext } from "@effect/atom-react";
 import { useRouter } from "@tanstack/react-router";
 
 import { useComposerDraftStore } from "~/composerDraftStore";
+import { readThreadShell, useThreadShell } from "~/state/entities";
 import { createScratchProjectActions } from "~/hooks/useScratchProject";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -40,7 +42,12 @@ import {
   firstProviderWithUsageLeft,
   providerReady,
 } from "./guidedModel";
-import { rememberGuidedReturn, type GuidedReturn } from "./guidedReturn";
+import {
+  guidedTopicThread,
+  rememberGuidedReturn,
+  rememberGuidedTopic,
+  type GuidedReturn,
+} from "./guidedReturn";
 import { setWorkspaceMode } from "./workspaceMode";
 
 export interface StartConversationInput {
@@ -49,6 +56,11 @@ export interface StartConversationInput {
   /** Notes and instructions to the model. Sent with the message, never shown to the person. */
   readonly hiddenContext: string;
   readonly returnTo?: GuidedReturn;
+  /**
+   * Names what the conversation is about. When a thread started for this key in this session still
+   * exists and has an answer, it is opened instead of a new one, and nothing is sent.
+   */
+  readonly topicKey?: string;
 }
 
 export type GuidedConversationInput = StartConversationInput & {
@@ -71,7 +83,11 @@ export type GuidedConversationFailure =
   | "send-failed";
 
 export type GuidedConversationResult =
-  | { readonly ok: true; readonly threadKey: string }
+  | {
+      readonly ok: true;
+      readonly threadKey: string;
+      /** An earlier thread for the topic was opened. */ readonly reused?: true;
+    }
   | {
       readonly ok: false;
       readonly reason: GuidedConversationFailure;
@@ -90,6 +106,9 @@ export interface GuidedConversationDeps {
     environmentId: EnvironmentId,
   ) => Promise<{ readonly draftKey: string; readonly threadKey: string } | null>;
   readonly discardDraft: (draftKey: string) => void;
+  /** Whether the thread still exists and its latest run finished with an answer. */
+  readonly threadHasAnswer: (threadKey: string) => boolean;
+  readonly openThread: (threadKey: string) => void;
   readonly navigateTo: (href: string) => void;
   readonly composer: () => ComposerSendBridge | null;
   readonly composerFor: (
@@ -178,6 +197,13 @@ export async function startGuidedConversation(
     };
   }
 
+  const earlier = input.topicKey === undefined ? null : guidedTopicThread(input.topicKey);
+  if (earlier !== null && deps.threadHasAnswer(earlier)) {
+    if (input.returnTo) rememberGuidedReturn(earlier, input.returnTo);
+    setWorkspaceMode("chat");
+    deps.openThread(earlier);
+    return { ok: true, threadKey: earlier, reused: true };
+  }
   const environmentId = deps.scratchEnvironmentId();
   if (environmentId === null) return { ok: false, reason: "no-scratch-environment" };
   if (!deps.supportsAgentContext(environmentId)) return { ok: false, reason: "server-too-old" };
@@ -223,6 +249,7 @@ export async function startGuidedConversation(
     });
   }
   if (input.returnTo) rememberGuidedReturn(draft.threadKey, input.returnTo);
+  if (input.topicKey !== undefined) rememberGuidedTopic(input.topicKey, draft.threadKey);
   return { ok: true, threadKey: draft.threadKey };
 }
 
@@ -306,6 +333,18 @@ function useGuidedConversationDeps(): {
           >[0],
         ),
     navigateTo: (href) => void router.navigate({ href }),
+    threadHasAnswer: (threadKey) => {
+      const ref = parseScopedThreadKey(threadKey);
+      return ref !== null && readThreadShell(ref)?.latestRun?.status === "completed";
+    },
+    openThread: (threadKey) => {
+      const ref = parseScopedThreadKey(threadKey);
+      if (ref === null) return;
+      void router.navigate({
+        to: "/$environmentId/$threadId",
+        params: { environmentId: ref.environmentId, threadId: ref.threadId },
+      });
+    },
     composer: getComposerSend,
     composerFor: waitForComposerSend,
     providersFor: (environmentId) => providers.get(environmentId) ?? [],
@@ -334,7 +373,15 @@ export type ConversationAvailability =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: string };
 
-export function useConversationAvailability(): ConversationAvailability {
+/** Whether asking about this topic reopens an earlier thread that has an answer, which needs no provider. */
+function useTopicThreadReusable(topicKey: string | undefined): boolean {
+  const threadKey = topicKey === undefined ? null : guidedTopicThread(topicKey);
+  const shell = useThreadShell(threadKey === null ? null : parseScopedThreadKey(threadKey));
+  return shell?.latestRun?.status === "completed";
+}
+
+export function useConversationAvailability(topicKey?: string): ConversationAvailability {
+  const reusable = useTopicThreadReusable(topicKey);
   const { environments, providers, scratchEnvironmentId, timestampFormat } =
     useGuidedConversationDeps();
   // A usage window that resets while the page is open frees the button; the minute clock sees it.
@@ -343,7 +390,7 @@ export function useConversationAvailability(): ConversationAvailability {
     now: Date.parse(`${minute}:00.000Z`),
     timestampFormat,
   });
-  return availability.ok ? { ok: true } : { ok: false, reason: availability.reason };
+  return availability.ok || reusable ? { ok: true } : { ok: false, reason: availability.reason };
 }
 
 /**
@@ -354,11 +401,13 @@ export function useStartConversation(): (input: StartConversationInput) => Promi
   const { deps, environments, providers, scratchEnvironmentId, timestampFormat } =
     useGuidedConversationDeps();
   return async (input) => {
+    const earlier = input.topicKey === undefined ? null : guidedTopicThread(input.topicKey);
+    const reusable = earlier !== null && deps.threadHasAnswer(earlier);
     const availability = conversationAvailability(environments, providers, scratchEnvironmentId, {
       now: Date.now(),
       timestampFormat,
     });
-    if (!availability.ok) throw new Error(availability.reason);
+    if (!availability.ok && !reusable) throw new Error(availability.reason);
     const result = await startGuidedConversation(input, deps);
     if (!result.ok) {
       throw new Error(

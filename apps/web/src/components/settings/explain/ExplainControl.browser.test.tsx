@@ -12,6 +12,7 @@ import type { ConversationAvailability, StartConversationInput } from "./convers
 const state = vi.hoisted(() => ({
   availability: { ok: true } as ConversationAvailability,
   start: vi.fn<(input: StartConversationInput) => Promise<void>>(),
+  availabilityKeys: [] as Array<string | undefined>,
   // Settings shows `viewed`; the conversation opens on `conversation`.
   viewed: null as string | null,
   conversation: null as string | null,
@@ -43,7 +44,10 @@ vi.mock(import("./explainFacts"), () => ({
 
 vi.mock(import("./conversation"), async (original) => ({
   ...(await original()),
-  useConversationAvailability: () => state.availability,
+  useConversationAvailability: (topicKey?: string) => {
+    state.availabilityKeys.push(topicKey);
+    return state.availability;
+  },
   useStartConversation: () => state.start,
 }));
 
@@ -151,6 +155,9 @@ describe("the Explain control", () => {
     expect(input.hiddenContext).toContain("Never invent a feature");
     expect(input.returnTo?.href).toContain("/settings/providers");
     expect(input.returnTo?.label).toBe("Providers");
+    // The topic id is the key its thread is reopened under, for the button and for the start.
+    expect(input.topicKey).toBe("usage-hub");
+    expect(state.availabilityKeys).toContain("usage-hub");
   });
 
   it("explains with Ask One turned off, and says in words why, when no provider is connected", async () => {

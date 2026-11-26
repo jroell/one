@@ -55,7 +55,8 @@ function ExplainPopover({
   const m = useMessages();
   const router = useRouter({ warn: false });
   const pageTitle = useSettingsPageIntro()?.title;
-  const availability = useConversationAvailability();
+  // The key lets an answered topic reopen its thread, which needs no provider.
+  const availability = useConversationAvailability(topicId);
   const startConversation = useStartConversation();
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -77,6 +78,7 @@ function ExplainPopover({
     const input: StartConversationInput = {
       visibleText: m(topic.question),
       hiddenContext: buildHiddenContext(topicId, setup),
+      topicKey: topicId,
       ...(router === undefined
         ? {}
         : {

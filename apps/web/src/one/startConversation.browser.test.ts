@@ -21,7 +21,10 @@ const RETURN = { label: "Settings / Providers", href: "/settings/providers" };
 
 /** Whatever a test remembered about a way back is gone when the test ends. */
 function freshReturns(): Disposable {
-  const clear = () => window.sessionStorage.removeItem("one:guided-return");
+  const clear = () => {
+    window.sessionStorage.removeItem("one:guided-return");
+    window.sessionStorage.removeItem("one:guided-topics");
+  };
   clear();
   return {
     [Symbol.dispose]: () => {
@@ -67,6 +70,8 @@ function deps(overrides: Partial<GuidedConversationDeps> = {}) {
     navigateTo,
     composer: () => sent.composer,
     composerFor: async () => sent.composer,
+    threadHasAnswer: () => false,
+    openThread: vi.fn(),
     providersFor: () => [],
     now: () => NOW,
     setDraftModel: vi.fn(),
@@ -388,4 +393,45 @@ it("refuses to send into the main composer's thread when the caller is showing a
     value,
   );
   expect(same.ok).toBe(true);
+});
+
+it("opens the thread already started for a topic, with its way back, instead of making a new one", async () => {
+  using _returns = freshReturns();
+  const first = deps();
+  const started = await startGuidedConversation(
+    { ...input, topicKey: "usage-providers", returnTo: RETURN },
+    first.value,
+  );
+  expect(started).toEqual({ ok: true, threadKey: "environment:local:thread-1" });
+
+  const openThread = vi.fn();
+  const openScratchDraft = vi.fn();
+  const again = deps({
+    threadHasAnswer: (key) => key === "environment:local:thread-1",
+    openThread,
+    openScratchDraft,
+  });
+  const reopened = await startGuidedConversation(
+    {
+      ...input,
+      topicKey: "usage-providers",
+      returnTo: { label: "Providers", href: "/settings/providers" },
+    },
+    again.value,
+  );
+  expect(reopened).toEqual({ ok: true, threadKey: "environment:local:thread-1", reused: true });
+  expect(openThread).toHaveBeenCalledExactlyOnceWith("environment:local:thread-1");
+  expect(openScratchDraft).not.toHaveBeenCalled();
+  expect(again.sent.send).not.toHaveBeenCalled();
+});
+
+it("starts a new thread for a topic whose earlier thread is gone or never answered, and for a different topic", async () => {
+  using _returns = freshReturns();
+  await startGuidedConversation({ ...input, topicKey: "usage-providers" }, deps().value);
+  for (const topicKey of ["usage-providers", "guest-links"]) {
+    const next = deps({ threadHasAnswer: () => false });
+    const result = await startGuidedConversation({ ...input, topicKey }, next.value);
+    expect(result.ok && result.reused).toBeUndefined();
+    expect(next.sent.send).toHaveBeenCalledOnce();
+  }
 });
