@@ -38,6 +38,11 @@ const standaloneControls = [
   },
 ] as const;
 
+/** Empties the module-level toast queue when the test ends, so the next test starts clean. */
+function emptyToastQueue(): Disposable {
+  return { [Symbol.dispose]: () => toastManager.close() };
+}
+
 describe("shared control focus", () => {
   it.each(standaloneControls)(
     "a $name focused with the keyboard draws a 2px focus outline 2px clear of its edge",
@@ -248,6 +253,7 @@ describe("switch", () => {
 describe("toast", () => {
   it("draws no countdown line, since Base UI keeps its dismissal timers private and resets them on updates", async () => {
     await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
+    using _queue = emptyToastQueue();
     toastManager.add({ type: "info", title: "Timed toast", timeout: 60_000 });
     await expect.element(page.getByText("Timed toast")).toBeVisible();
 
@@ -257,8 +263,9 @@ describe("toast", () => {
 
   it("marks its type with a status-colored icon and draws no colored edge", async () => {
     await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
+    using _queue = emptyToastQueue();
     toastManager.add({ type: "error", title: "Could not save", timeout: 60_000 });
-    await expect.element(page.getByText("Could not save")).toBeVisible();
+    await expect.element(page.getByText("Could not save").first()).toBeVisible();
 
     const toast = document.querySelector<HTMLElement>("[data-slot=toast-viewport] > [data-type]")!;
     const icon = toast.querySelector<SVGElement>("[data-slot=toast-icon] svg")!;
@@ -267,25 +274,26 @@ describe("toast", () => {
     toastManager.close();
   });
 
-  it("shows one toast at a time with a +N count and runs the Retry action of a recoverable error", async () => {
+  it("shows one toast at a time with a +N count, runs the Retry action of a recoverable error, and shows the waiting toast after it", async () => {
     const retry = vi.fn();
     await using _screen = await render(<ToastProvider>{null}</ToastProvider>);
-    toastManager.add({
+    using _queue = emptyToastQueue();
+    const errorId = toastManager.add({
       type: "error",
       title: "Could not archive",
       timeout: 60_000,
       data: { onRetry: retry },
     });
-    const secondId = toastManager.add({ type: "info", title: "Second notice", timeout: 60_000 });
-    await expect.element(page.getByText("Second notice")).toBeVisible();
+    toastManager.add({ type: "info", title: "Second notice", timeout: 60_000 });
+    await expect.element(page.getByText("Could not archive").first()).toBeVisible();
 
     expect(document.querySelectorAll("[data-slot=toast-viewport] > [data-type]")).toHaveLength(1);
     expect(document.querySelector("[data-slot=toast-count]")?.textContent).toBe("+1");
 
-    toastManager.close(secondId);
-    await expect.element(page.getByText("Could not archive")).toBeVisible();
-    await userEvent.click(page.getByRole("button", { name: "Retry" }));
+    await userEvent.click(document.querySelector<HTMLElement>('[data-slot="toast-retry"]')!);
     expect(retry).toHaveBeenCalledOnce();
+    await expect.element(page.getByText("Second notice")).toBeVisible();
+    toastManager.close(errorId);
     toastManager.close();
   });
 });
@@ -487,6 +495,51 @@ describe("the material ramp", () => {
       expect(resolved("var(--background)")).toBe(resolved("var(--m-base)"));
       expect(resolved("var(--sidebar)")).toBe(resolved("var(--m-base)"));
     }));
+});
+
+describe("the opaque glass fallbacks", () => {
+  it("are built from core tokens, so a theme color that is defined but unusable cannot make them transparent", () => {
+    const root = document.documentElement;
+    root.dataset.themeId = "test-theme";
+    root.style.setProperty("--app-theme-surface-overlay", "not a color");
+    root.style.setProperty("--app-theme-canvas", "rgb(20, 20, 30)");
+    root.style.setProperty("--app-theme-text", "rgb(240, 240, 240)");
+    try {
+      const [, , , alpha] = rgba(resolved("var(--m-opaque)"));
+      expect(alpha).toBe(1);
+    } finally {
+      delete root.dataset.themeId;
+      for (const name of ["surface-overlay", "canvas", "text"]) {
+        root.style.removeProperty(`--app-theme-${name}`);
+      }
+    }
+  });
+
+  it("the no-blur rule matches the light dialog's selector specificity and sets the opaque color", () => {
+    const rules: CSSSupportsRule[] = [];
+    const visit = (list: CSSRuleList) => {
+      for (const rule of list) {
+        if (rule instanceof CSSSupportsRule && rule.conditionText.includes("backdrop-filter")) {
+          rules.push(rule);
+        } else if ("cssRules" in rule) {
+          visit((rule as CSSGroupingRule).cssRules);
+        }
+      }
+    };
+    for (const sheet of document.styleSheets) {
+      try {
+        visit(sheet.cssRules);
+      } catch {
+        // A cross-origin sheet cannot be read.
+      }
+    }
+    const fallback = rules
+      .flatMap((rule) => [...rule.cssRules])
+      .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
+      .find((rule) => rule.selectorText.includes(":root:not(.dark) .dialog-glass"));
+    expect(fallback, "a no-blur rule for the light dialog").toBeDefined();
+    expect(fallback!.style.getPropertyValue("background-color")).toBe("var(--m-opaque)");
+  });
 });
 
 describe("surface levels in a chosen theme", () => {

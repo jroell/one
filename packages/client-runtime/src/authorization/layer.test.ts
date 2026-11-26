@@ -389,6 +389,95 @@ describe("RemoteEnvironmentAuthorization", () => {
     }),
   );
 
+  it.effect(
+    "names a direct DPoP connection by the signer's public thumbprint, not by its token",
+    () =>
+      Effect.gen(function* () {
+        const harness = yield* makeHarness({
+          responses: [
+            websocketTicket("direct-ticket-1"),
+            websocketTicket("direct-ticket-2"),
+            websocketTicket("direct-ticket-3"),
+          ],
+          descriptor: DESCRIPTOR,
+          credentials: [
+            [
+              "direct-1",
+              new DpopConnectionCredential({
+                accessToken: "direct-token-1",
+                expiresAtEpochMs: Number.MAX_SAFE_INTEGER,
+              }),
+            ],
+          ],
+        });
+        const connect = Effect.gen(function* () {
+          const remote = yield* RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization;
+          return yield* remote.authorizeDirectDpop({
+            expectedEnvironmentId: ENVIRONMENT_ID,
+            connectionId: "direct-1",
+            httpBaseUrl: ENDPOINT.httpBaseUrl,
+            wsBaseUrl: ENDPOINT.wsBaseUrl,
+          });
+        }).pipe(Effect.provide(harness.layer));
+
+        const first = yield* connect;
+        expect(first.credentialId).toBe("dpop:thumbprint-1");
+        expect(first.credentialId).not.toContain("direct-token-1");
+
+        // The host renews the access token; the signer is unchanged.
+        const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore.pipe(
+          Effect.provide(harness.layer),
+        );
+        yield* credentials.put(
+          "direct-1",
+          new DpopConnectionCredential({
+            accessToken: "direct-token-2",
+            expiresAtEpochMs: Number.MAX_SAFE_INTEGER,
+          }),
+        );
+        const renewed = yield* connect;
+        expect(renewed.credentialId).toBe(first.credentialId);
+
+        yield* Ref.set(harness.thumbprint, "thumbprint-2");
+        expect((yield* connect).credentialId).toBe("dpop:thumbprint-2");
+      }),
+  );
+
+  it.effect(
+    "names a T3 Connect connection by the signer and a digest of the account, never the token",
+    () =>
+      Effect.gen(function* () {
+        const cached = (accountId: string, accessToken: string) =>
+          new TokenStore.RemoteDpopAccessToken({
+            environmentId: ENVIRONMENT_ID,
+            accountId,
+            label: DESCRIPTOR.label,
+            endpoint: ENDPOINT,
+            accessToken,
+            expiresAtEpochMs: Number.MAX_SAFE_INTEGER,
+            dpopThumbprint: "thumbprint-1",
+          });
+        const connect = (token: TokenStore.RemoteDpopAccessToken) =>
+          Effect.gen(function* () {
+            const harness = yield* makeHarness({
+              initialToken: token,
+              descriptor: DESCRIPTOR,
+              responses: [websocketTicket("cached-ticket")],
+            });
+            return yield* Effect.gen(function* () {
+              const remote = yield* RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization;
+              return yield* remote.authorizeDpop({ expectedEnvironmentId: ENVIRONMENT_ID });
+            }).pipe(Effect.provide(harness.layer));
+          });
+        const first = yield* connect(cached("account-1", "access-token-1"));
+        const renewed = yield* connect(cached("account-1", "access-token-2"));
+        expect(first.credentialId).toMatch(/^dpop:thumbprint-1:[0-9a-f]+$/);
+        expect(first.credentialId).not.toContain("account-1");
+        expect(first.credentialId).not.toContain("access-token");
+        expect(renewed.credentialId).toBe(first.credentialId);
+      }),
+  );
+
   it.effect("renews another direct host while the first host is unresponsive", () =>
     Effect.gen(function* () {
       const started = Promise.withResolvers<void>();

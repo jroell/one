@@ -722,17 +722,19 @@ function providersRouter(entry: string) {
   window.history.replaceState(null, "", entry);
   const root = createRootRoute();
   function Page() {
-    const { instanceId, onSelectInstance } = useProviderInstanceRoute();
+    const { instanceId, onSelectInstance, returnFocusRow } = useProviderInstanceRoute();
     return (
       <RegistryContext.Provider value={appAtomRegistry}>
         <SettingsBreadcrumb pathname="/settings/providers" />
         <SettingsPageHeader />
+        <input aria-label="Unrelated field" />
         <div className="@container/providers">
           <EnvironmentProviderSettings
             environmentId={environmentId}
             environmentLabel="Remote device"
             {...(instanceId === undefined ? {} : { targetInstanceId: instanceId })}
             onSelectInstance={onSelectInstance}
+            {...(returnFocusRow === undefined ? {} : { returnFocusRow })}
           />
         </div>
       </RegistryContext.Provider>
@@ -785,6 +787,26 @@ describe("provider page through the router", () => {
     await act(async () => router.history.forward());
     await expect.element(heading()).toHaveTextContent("Codex");
     await expect.element(heading()).toHaveFocus();
+
+    // The second Back lands on the row again: the list entry kept which provider it was left by.
+    await act(async () => router.history.back());
+    await expect.element(rowButton()).toHaveFocus();
+  });
+
+  it("leaves a field outside the provider page alone when a move keeps the same provider open", async () => {
+    const { router, screen } = await openPage("/settings/providers?instanceId=codex");
+    await using _screen = screen;
+    const unrelated = page.getByRole("textbox", { name: "Unrelated field" });
+    await userEvent.fill(unrelated, "draft");
+    await expect.element(unrelated).toHaveFocus();
+
+    await act(async () =>
+      router.navigate({ to: "/settings/providers", search: { instanceId: codexId }, hash: "top" }),
+    );
+
+    await expect.poll(() => router.state.location.hash).toBe("top");
+    await expect.element(unrelated).toHaveFocus();
+    expect(upserts()).toHaveLength(0);
   });
 
   it("commits a name being typed when browser Back leaves the provider", async () => {
@@ -821,7 +843,9 @@ describe("provider page through the router", () => {
     );
 
     await expect.poll(() => upserts().length).toBe(1);
-    await expect.element(rowButton()).toBeVisible();
+    // A provider opened from its address has no list entry behind it; the breadcrumb's list entry
+    // remembers it, so focus lands on its row.
+    await expect.element(rowButton()).toHaveFocus();
   });
 
   it("opens a provider straight from its address, titled by its name", async () => {

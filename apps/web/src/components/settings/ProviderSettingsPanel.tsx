@@ -56,12 +56,7 @@ import {
 } from "../../hooks/useSettings";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useRegisterSettingsBreadcrumbTail } from "./settingsBreadcrumbTail";
-import {
-  commitFocusedField,
-  focusProviderTarget,
-  rememberOpenedProvider,
-  takeOpenedProvider,
-} from "./providerInstanceFocus";
+import { commitFocusedField, focusProviderTarget } from "./providerInstanceFocus";
 import { ensureLocalApi } from "../../localApi";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { cn } from "../../lib/utils";
@@ -327,6 +322,8 @@ interface ProviderSettingsTarget {
   readonly instanceId?: ProviderInstanceId;
   /** Opens a provider as its own page, or goes back to the list when null. */
   readonly onSelectInstance?: (instanceId: ProviderInstanceId | null) => void;
+  /** The row to focus when the list is shown. */
+  readonly returnFocusRow?: string | undefined;
   readonly scoped?: boolean;
   readonly environmentIds?: readonly EnvironmentId[];
   readonly projectIds?: readonly ProjectId[];
@@ -486,6 +483,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
               : undefined
           }
           onSelectInstance={target.onSelectInstance}
+          returnFocusRow={target.returnFocusRow}
           projectIds={target.projectIds ?? []}
         />
       ) : null}
@@ -498,12 +496,14 @@ function RemoteSessionGatedProviderSettings({
   deviceTabs,
   targetInstanceId,
   onSelectInstance,
+  returnFocusRow,
   projectIds,
 }: {
   readonly environment: EnvironmentPresentation;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
   readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
+  readonly returnFocusRow?: string | undefined;
   readonly projectIds: readonly ProjectId[];
 }) {
   const sessionState = useEnvironmentSessionState(environment.environmentId);
@@ -519,6 +519,7 @@ function RemoteSessionGatedProviderSettings({
       deviceTabs={deviceTabs}
       targetInstanceId={targetInstanceId}
       onSelectInstance={onSelectInstance}
+      returnFocusRow={returnFocusRow}
       projectIds={projectIds}
     />
   );
@@ -530,6 +531,7 @@ function AccessGatedProviderSettings({
   deviceTabs,
   targetInstanceId,
   onSelectInstance,
+  returnFocusRow,
   projectIds,
 }: {
   readonly environment: EnvironmentPresentation;
@@ -537,6 +539,7 @@ function AccessGatedProviderSettings({
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
   readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
+  readonly returnFocusRow?: string | undefined;
   readonly projectIds: readonly ProjectId[];
 }) {
   const access = classifyProviderEnvironmentAccess({
@@ -561,6 +564,7 @@ function AccessGatedProviderSettings({
       deviceTabs={deviceTabs}
       targetInstanceId={targetInstanceId}
       onSelectInstance={onSelectInstance}
+      returnFocusRow={returnFocusRow}
       projectIds={projectIds}
     />
   );
@@ -576,6 +580,8 @@ interface EnvironmentProviderSettingsProps {
   readonly targetInstanceId?: ProviderInstanceId | undefined;
   /** Opens a provider as its own page, or goes back to the list when null. */
   readonly onSelectInstance?: ((instanceId: ProviderInstanceId | null) => void) | undefined;
+  /** The row to focus when the list is shown, from the history entry the list came back to. */
+  readonly returnFocusRow?: string | undefined;
   readonly projectIds?: readonly ProjectId[];
   readonly readOnly?: boolean;
 }
@@ -595,6 +601,7 @@ function EnvironmentProviderSettingsBody({
   deviceTabs,
   targetInstanceId,
   onSelectInstance,
+  returnFocusRow,
   projectIds = NO_PROJECT_IDS,
 }: EnvironmentProviderSettingsProps) {
   const searchableSetting = useSearchableSetting();
@@ -833,10 +840,12 @@ function EnvironmentProviderSettingsBody({
 
   const selectedRow = rows.find((row) => row.instanceId === selectedInstanceId) ?? null;
   const targetInstanceMissing = selectedInstanceId !== null && selectedRow === null;
+  // The provider this page opened last, for a list that returns without the router's help.
+  const openedFrom = useRef<string | null>(null);
   const selectInstance = useStableCallback((instanceId: ProviderInstanceId | null) => {
     // Leaving a provider commits the field being typed in; opening one remembers where from.
     commitFocusedField();
-    if (instanceId !== null) rememberOpenedProvider(instanceId);
+    if (instanceId !== null) openedFrom.current = instanceId;
     setSelectedInstanceId(instanceId);
     onSelectInstance?.(instanceId);
   });
@@ -845,8 +854,11 @@ function EnvironmentProviderSettingsBody({
   const openProviderId = selectedRow === null ? null : selectedRow.instanceId;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves DOM focus to the page that just replaced the focused control
   useEffect(() => {
-    focusProviderTarget(openProviderId, openProviderId === null ? takeOpenedProvider() : null);
-  }, [openProviderId]);
+    focusProviderTarget(
+      openProviderId,
+      openProviderId === null ? (returnFocusRow ?? openedFrom.current) : null,
+    );
+  }, [openProviderId, returnFocusRow]);
   const backToList = useStableCallback(() => selectInstance(null));
   useRegisterSettingsBreadcrumbTail(
     selectedRow === null
@@ -1082,7 +1094,9 @@ function EnvironmentProviderSettingsBody({
           <div className="flex min-h-11 min-w-0 items-center gap-2 px-3 sm:px-4">{deviceTabs}</div>
         ) : null}
         {readOnlyNotice}
-        {renderProviderInstance(selectedRow, "editor")}
+        <div data-provider-editor="" className="contents">
+          {renderProviderInstance(selectedRow, "editor")}
+        </div>
         {isAddInstanceDialogOpen && !readOnly ? (
           <AddProviderInstanceDialog
             open

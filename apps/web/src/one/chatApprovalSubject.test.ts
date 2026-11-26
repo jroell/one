@@ -135,6 +135,29 @@ describe("deriveApprovalSubjects", () => {
     expect(other.has(second)).toBe(false);
   });
 
+  it("carries every file of the approval with its operation, old path and type", () => {
+    const structured = {
+      ...change,
+      changes: [
+        { operation: "update", path: "a.ts" },
+        { operation: "rename", oldPath: "b.ts", path: "c.ts" },
+        { operation: "add", path: "logo.png", fileType: "file", mimeType: "image/png" },
+        { operation: "delete", path: "d.ts" },
+      ],
+    } satisfies OrchestrationV2TurnItem;
+    const subject = deriveApprovalSubjects(
+      entriesOf([user, structured, request("file-change", pending, 2)]),
+      new Set([pending]),
+    ).get(pending)!;
+    expect(subject.changes).toEqual([
+      { operation: "update", path: "a.ts" },
+      { operation: "rename", oldPath: "b.ts", path: "c.ts" },
+      { operation: "add", path: "logo.png", fileType: "file", mimeType: "image/png" },
+      { operation: "delete", path: "d.ts" },
+    ]);
+    expect(subject.moreFiles).toBe(3);
+  });
+
   it("gives a waiting change a new detail revision each time the item is updated in place", () => {
     const waiting = { ...change, status: "waiting" as const };
     const later = DateTime.makeUnsafe("2026-10-06T10:00:05Z");

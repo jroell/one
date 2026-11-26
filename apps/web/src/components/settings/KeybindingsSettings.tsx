@@ -82,6 +82,7 @@ import {
   buildWhenVariableOptions,
   collapseAlternateRows,
   commandActionLabel,
+  keybindingHeadingArea,
   commandLabel,
   DEFAULT_WHEN_VARIABLE,
   describeWhen,
@@ -1059,7 +1060,7 @@ function KeybindingRowTitle({ row }: { row: KeybindingRow }) {
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="flex items-center gap-2" />}>
-        {commandActionLabel(row.command, m)}
+        {commandActionLabel(row.command, m, keybindingHeadingArea(row.command))}
         <KeybindingSourceBadge source={row.source} />
       </TooltipTrigger>
       <TooltipPopup side="top">{row.command}</TooltipPopup>

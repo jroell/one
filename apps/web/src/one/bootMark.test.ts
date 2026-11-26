@@ -2,6 +2,7 @@
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
+import { BUILT_IN_THEMES, getThemeColorsForAppearance } from "@t3tools/shared/themePalettes";
 import { describe, expect, it } from "vite-plus/test";
 
 import { ONE_MARK_LIT_AXIS, ONE_MARK_LIT_STOPS, ONE_MARK_PATHS } from "./oneMarkPaths";
@@ -68,5 +69,20 @@ describe("boot screen mark", () => {
     expect(html).not.toMatch(/<script type="module" src="\/src\/one\//);
     expect(html).toContain("const ringTintTable");
     expect(html).toContain(".boot-ring-image:not([data-tinted])");
+  });
+
+  it("gives the ring each built-in theme's action color in both modes, as the app's ring uses", () => {
+    const start = html.indexOf("const BUILT_IN_THEME_PALETTES");
+    const table = html.slice(start, html.indexOf("const BUILT_IN_THEME_MODES", start));
+    const palettes = new Function(
+      `${table.replace("const BUILT_IN_THEME_PALETTES =", "return")}`,
+    )() as Record<string, Record<"light" | "dark", { ring: string }>>;
+    for (const theme of BUILT_IN_THEMES) {
+      for (const mode of ["light", "dark"] as const) {
+        expect(palettes[theme.id]?.[mode]?.ring, `${theme.id} ${mode}`).toBe(
+          getThemeColorsForAppearance(theme, mode)?.messageAction,
+        );
+      }
+    }
   });
 });

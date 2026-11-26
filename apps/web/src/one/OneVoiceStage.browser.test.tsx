@@ -24,6 +24,8 @@ import {
 import { setWorkspaceMode } from "./workspaceMode";
 
 const saved = vi.hoisted(() => ({
+  /** The thread's sync status; only "live" means the connection delivers what the server does. */
+  status: "live" as "live" | "synchronizing" | "cached",
   rows: [] as ReadonlyArray<unknown>,
   runs: [] as ReadonlyArray<{
     id: string;
@@ -39,6 +41,8 @@ vi.mock(import("../state/entities"), async (original) => {
     ...actual,
     useThreadVisibleTurnItems: ((ref: ScopedThreadRef | null) =>
       ref === null ? actual.useThreadVisibleTurnItems(null) : saved.rows) as never,
+    useThreadStatus: ((ref: ScopedThreadRef | null) =>
+      ref === null ? actual.useThreadStatus(null) : saved.status) as never,
     useQuietThreadProjection: ((ref: ScopedThreadRef | null) =>
       ref === null
         ? actual.useQuietThreadProjection(null)
@@ -77,6 +81,7 @@ type MicrophonePhase =
 
 /** Stands in for the main composer's dictation: the microphone is the boundary being faked. */
 function setup() {
+  saved.status = "live";
   saved.rows = [];
   saved.runs = [];
   const microphone = {
@@ -1013,6 +1018,125 @@ it("voice chat gives up when the turn it was following disappears from the threa
   expect(screen.getByText("The reply is no longer available").element()).toBeVisible();
 });
 
+const CONNECTION_LOST =
+  "Lost the connection. Your question was sent; the answer will appear in the thread.";
+
+it("voice chat stops waiting 20 seconds after the connection drops during its running turn, and says so aloud", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [savedRun("run-q", "message-q", "running")];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+
+  // The socket drops: the thread keeps its last projection, with the run still running.
+  saved.status = "cached";
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(19_999));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+  expect(voice.spoken).toEqual([]);
+
+  await act(() => vi.advanceTimersByTime(1));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "speaking");
+  expect(screen.getByText(CONNECTION_LOST).element()).toBeVisible();
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([CONNECTION_LOST]);
+
+  // Once it has been said, the person can act again.
+  await act(() => voice.spoken[0]?.onend?.(new Event("end") as SpeechSynthesisEvent));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+});
+
+it("voice chat keeps following its turn when the connection returns within the grace, and reads the answer", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+  const question = savedQuestion("item-1", "message-q", "why is the sky blue", "run-q");
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.rows = [question];
+  saved.runs = [savedRun("run-q", "message-q", "running")];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+
+  saved.status = "cached";
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(12_000));
+  // The reconnect catches up, then the thread is live again with the finished turn.
+  saved.status = "synchronizing";
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(3_000));
+  saved.status = "live";
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  // The run keeps going on a live connection for longer than the grace; that is not a lost turn.
+  await act(() => vi.advanceTimersByTime(30_000));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+  saved.rows = [question, savedReply("item-2", "Light bends inside each drop.", "run-q")];
+  saved.runs = [savedRun("run-q", "message-q", "completed")];
+  await screen.rerender(voice.stage(false, [], false, SAVED_THREAD));
+
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "speaking");
+  expect(voice.spoken.map((utterance) => utterance.text)).toEqual([
+    "Light bends inside each drop.",
+  ]);
+});
+
+it("voice chat does not count the time of an earlier drop against a later one", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [savedRun("run-q", "message-q", "running")];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+
+  for (const _drop of [1, 2]) {
+    saved.status = "cached";
+    await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+    await act(() => vi.advanceTimersByTime(15_000));
+    saved.status = "live";
+    await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  }
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+});
+
+it("voice chat stops waiting on a queued turn once its connection has been gone 20 seconds", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  saved.runs = [
+    savedRun("run-other", "message-9", "running"),
+    savedRun("run-q", "message-q", "queued"),
+  ];
+  await voice.finishTranscribing("message-q");
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "thinking");
+
+  saved.status = "cached";
+  await screen.rerender(voice.stage(true, [], false, SAVED_THREAD));
+  await act(() => vi.advanceTimersByTime(20_000));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "speaking");
+  expect(screen.getByText(CONNECTION_LOST).element()).toBeVisible();
+});
+
 it("voice chat gives up 60 seconds after a request went out that the thread never shows", async () => {
   using voice = setup();
   await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
@@ -1073,6 +1197,22 @@ it("voice chat says a question that became a side chat has no reply to read, and
   expect(
     screen.getByText("That went to a side chat, so there is no reply to read here").element(),
   ).toBeVisible();
+});
+
+it("voice chat listens again at once when dictation ended with no text, not after the 6 second send timeout", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [], false, SAVED_THREAD), NO_ROUTER);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "sending");
+  // The composer's dictation ended with an empty transcript, so no turn request was ever made.
+  await voice.endSend((report) => report.notSent("none"));
+
+  expect(stageOf(screen)).toHaveAttribute("data-one-voice-stage", "listening");
+  expect(screen.getByText("The question was not sent").element()).toBeVisible();
+  expect(voice.microphone.submits).toBe(1);
 });
 
 it("voice chat does not read a later row from a run it already read, and listens again instead", async () => {

@@ -242,9 +242,19 @@ export function dismissContextMenu(restoreFocus = true): void {
   activeContextMenuDismiss = null;
 }
 
+/**
+ * Where a menu opens. `flipTo` is the right edge the menu takes instead when it will not fit
+ * to the right of `x`: the left edge of the thing the menu acts on, so it never covers it.
+ */
+export interface ContextMenuPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly flipTo?: number;
+}
+
 export function showContextMenuFallback<T extends string>(
   items: readonly ContextMenuItem<T>[],
-  position?: { x: number; y: number },
+  position?: ContextMenuPoint,
   source?: ContextMenuSource,
 ): Promise<T | null> {
   dismissContextMenu();
@@ -606,6 +616,16 @@ export function showContextMenuFallback<T extends string>(
 
       requestAnimationFrame(() => {
         if (!parentTrigger) {
+          const flipTo = position?.flipTo;
+          if (flipTo !== undefined && level === 0) {
+            menu.style.width = "max-content";
+            const { width } = menu.getBoundingClientRect();
+            const fitsRight = preferredLeft + width <= window.innerWidth - 4;
+            if (!fitsRight && flipTo - width >= 4) {
+              clampMenuPosition(menu, flipTo - width, preferredTop);
+              return;
+            }
+          }
           clampMenuPosition(menu, preferredLeft, preferredTop);
           return;
         }

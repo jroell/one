@@ -13,14 +13,6 @@ export function hasVisibleToastAction(actionProps: unknown): boolean {
   return children != null && children !== false && children !== "";
 }
 
-export function shouldHideCollapsedToastContent(
-  visibleToastIndex: number,
-  visibleToastCount: number,
-): boolean {
-  if (visibleToastCount <= 1) return false;
-  return visibleToastIndex > 0;
-}
-
 type ToastWithHeight = {
   height?: number | null | undefined;
 };

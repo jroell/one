@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import {
+  createEnvironmentAuthorizationAtoms,
   createEnvironmentSessionAtoms,
   sessionDeniesScope,
 } from "@t3tools/client-runtime/state/session";
@@ -18,6 +19,12 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentAtomList, environmentIdsKey } from "./environmentAtomList";
 
 export const environmentSession = createEnvironmentSessionAtoms(connectionAtomRuntime);
+const authorizationAtoms = createEnvironmentAuthorizationAtoms(environmentSession);
+/** Which authorization an environment's figures belong to, and whether its grant is confirmed. */
+export const environmentAuthorization = authorizationAtoms.authorization;
+/** A removed environment that comes back, with any credential, starts a new authorization. */
+export const forgetEnvironmentAuthorization = (environmentId: EnvironmentId) =>
+  authorizationAtoms.forget(appAtomRegistry, environmentId);
 export const environmentSessionStatesAtom = environmentAtomList(
   "web-environment-session-states",
   environmentSession.sessionStateAtom,

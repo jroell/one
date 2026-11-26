@@ -1,8 +1,9 @@
 /**
- * Draws the static lit mark (public/mark) from the live ring's shader at its rest pose.
- * Run after any change to oneOrbShader.ts, oneOrbRest.ts or the gold ramp: `pnpm mark:render`
- * in apps/web. `--only 128` renders one CSS size. Output is lossless WebP per theme, size, density.
- */
+ * Draws the static lit mark (public/mark) from the live ring's shader at its rest pose, and
+ * stamps manifest.json with input and output hashes (markImages.test.ts checks them).
+ * Run `pnpm mark:render` in apps/web after changing the shader, rest pose or gold ramp.
+ * `--only 128` renders one CSS size and leaves the manifest alone.
+ */ import * as NodeCrypto from "node:crypto";
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
@@ -19,6 +20,14 @@ import {
 } from "../src/one/oneOrbRest.ts";
 import { renderRestRing } from "../src/one/oneOrbRestRender.ts";
 import { ONE_ORB_FRAGMENT_SHADER, ONE_ORB_VERTEX_SHADER } from "../src/one/oneOrbShader.ts";
+
+/** The files the pictures depend on; the manifest records their hashes. */
+const MARK_INPUTS = [
+  "src/one/oneOrbShader.ts",
+  "src/one/oneOrbRest.ts",
+  "src/one/oneOrbRestRender.ts",
+  "scripts/render-mark.mjs",
+];
 
 const root = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 const only = process.argv.includes("--only")
@@ -83,4 +92,29 @@ for (const theme of ["dark", "light"]) {
   }
 }
 console.log(`wrote ${(total / 1024).toFixed(0)} KB to public/mark`);
+
+const sha256 = async (file) =>
+  NodeCrypto.createHash("sha256")
+    .update(await NodeFSP.readFile(NodePath.resolve(root, file)))
+    .digest("hex");
+if (only === null) {
+  const inputs = {};
+  for (const file of MARK_INPUTS) inputs[file] = await sha256(file);
+  const files = {};
+  for (const theme of ["dark", "light"]) {
+    for (const size of ORB_MARK_SIZES) {
+      for (const density of ORB_MARK_DENSITIES) {
+        const name = orbMarkUrl(theme, size, density).slice(1);
+        files[name] = await sha256(NodePath.join("public", name));
+      }
+    }
+  }
+  await NodeFSP.writeFile(
+    NodePath.resolve(root, "public/mark/manifest.json"),
+    `${JSON.stringify({ inputs, files }, null, 2)}\n`,
+  );
+  console.log("stamped public/mark/manifest.json");
+} else {
+  console.log("partial run: manifest.json not updated");
+}
 await browser.close();

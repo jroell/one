@@ -323,3 +323,24 @@ describe("the pointer light on a primary button releases its observer", () => {
     expect(env.button.style.getPropertyValue("--one-my")).toBe("15px");
   });
 });
+
+describe("releasing a surface that closed without a pointer or key event", () => {
+  it("stops observing a reflection surface and a button removed while hovered, with no event after the removal", async () => {
+    using env = setup();
+    const released = vi.spyOn(ResizeObserver.prototype, "unobserve");
+    const disconnected = vi.spyOn(ResizeObserver.prototype, "disconnect");
+    env.move(env.plain.child, 120, 125);
+    env.move(env.button, 420, 115);
+    expect(disconnected).not.toHaveBeenCalled();
+
+    env.plain.element.remove();
+    env.button.remove();
+
+    // The resize observer reports both as gone; nothing else is dispatched.
+    await vi.waitFor(() => expect(disconnected).toHaveBeenCalled());
+    const watched = released.mock.calls.map(([target]) => target);
+    expect(disconnected.mock.calls.length > 0 || watched.includes(env.plain.element)).toBe(true);
+    released.mockRestore();
+    disconnected.mockRestore();
+  });
+});

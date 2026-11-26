@@ -1024,7 +1024,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     event.preventDefault();
     // Open beside the row, not over the title it acts on.
     const rowRect = event.currentTarget.getBoundingClientRect();
-    onContextMenu(threadRef, { x: rowRect.right + 6, y: rowRect.top }, contextMenuSourceOf(event));
+    // With no room on the right, the web menu opens to the left of the row instead (flipTo).
+    const position = { x: rowRect.right + 6, y: rowRect.top, flipTo: rowRect.left - 6 };
+    onContextMenu(threadRef, position, contextMenuSourceOf(event));
   };
   const handleKeyDown = (event: ReactKeyboardEvent) => {
     if (event.target !== event.currentTarget) return;

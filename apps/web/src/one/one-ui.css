@@ -334,6 +334,18 @@ html[data-theme-id=""].dark {
   }
 }
 
+/* The opaque fallbacks cannot depend on a theme's own colors being valid: a value that is defined but
+   unusable makes the whole declaration invalid and the surface transparent. Core tokens are always
+   valid, and the default theme's own tint is a literal. */
+:root {
+  --m-opaque: color-mix(in srgb, var(--foreground) 6%, var(--background));
+}
+
+html:not([data-theme-id]),
+html[data-theme-id=""] {
+  --m-opaque: var(--m-floating);
+}
+
 /* A chosen theme derives the materials from its own surfaces and brand color. The brand color
    falls back from the action color to the accent to a named default, so a theme that omits a role
    never leaves a recipe token invalid (an invalid fill computes to transparent). */
@@ -2294,7 +2306,7 @@ html[data-theme-id=""] {
   [data-slot="sheet-popup"],
   [data-slot="tooltip-popup"],
   .m-floating {
-    background-color: var(--m-floating, var(--ui-surface-overlay, var(--popover, Canvas)));
+    background-color: var(--m-opaque);
     background-image: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -2306,15 +2318,20 @@ html[data-theme-id=""] {
   }
 }
 
+/* Without backdrop blur a translucent fill would sit over unblurred content, so the surface is
+   opaque. The selectors match the normal rule's specificity, `:root:not(.dark) .dialog-glass`
+   included, and the color is built from core tokens only (see --m-opaque). */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   [data-app-modal],
   .dialog-glass,
+  :root:not(.dark) .dialog-glass,
   .dropdown-glass,
   [data-slot="preview-card-popup"],
   [data-slot="sheet-popup"],
   [data-slot="tooltip-popup"],
   .m-floating {
-    background-color: var(--m-floating);
+    background-color: var(--m-opaque);
+    background-image: none;
   }
 }
 

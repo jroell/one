@@ -11,9 +11,9 @@ import { shortcutConflictKey, shortcutForContext, spokenKeycapName } from "../..
 import { COMMAND_SECTIONS, commandSectionFor } from "../../shortcuts/commandSections";
 import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import {
+  commandActionLabel,
   commandLabel,
-  commandLabelUnder,
-  commandPairLeader,
+  commandSortKey,
   describeWhen,
   whenAstToExpression,
   whenForPlatform,
@@ -32,13 +32,6 @@ export interface ShortcutSheetRow {
   readonly keysJoiner: "or" | "to";
   /** Every key the row stands for, so filtering finds a key a collapsed family does not draw. */
   readonly matchKeys: ReadonlyArray<ReadonlyArray<string>>;
-}
-
-function sortLabel(row: ShortcutSheetRow, resolve: MessageResolver): string {
-  const leader = commandPairLeader(row.command);
-  return leader === null
-    ? row.label
-    : `${commandLabelUnder(leader, commandSectionFor(leader), resolve)}~`;
 }
 
 export interface ShortcutSheetSection {
@@ -60,13 +53,19 @@ interface DraftRow {
 const NUMBERED_FAMILIES = [
   {
     prefix: "thread.jump.",
-    label: (first: string, last: string, resolve: MessageResolver) =>
+    area: "thread",
+    full: (first: string, last: string, resolve: MessageResolver) =>
       resolve(msg("Thread: jump to thread {first} to {last}", { first, last })),
+    short: (first: string, last: string, resolve: MessageResolver) =>
+      resolve(msg("Jump to thread {first} to {last}", { first, last })),
   },
   {
     prefix: "modelPicker.jump.",
-    label: (first: string, last: string, resolve: MessageResolver) =>
+    area: "modelPicker",
+    full: (first: string, last: string, resolve: MessageResolver) =>
       resolve(msg("Model picker: jump to model {first} to {last}", { first, last })),
+    short: (first: string, last: string, resolve: MessageResolver) =>
+      resolve(msg("Jump to model {first} to {last}", { first, last })),
   },
 ] as const;
 
@@ -211,7 +210,10 @@ function collapseNumberedFamilies(
     rows.push({
       ...first.draft.row,
       id: key,
-      label: family.label(String(first.number), String(last.number), resolve),
+      // Under a heading that names the family's area, the area word is left off.
+      label: (commandSectionFor(first.draft.row.command) === family.area
+        ? family.short
+        : family.full)(String(first.number), String(last.number), resolve),
       keys: [first.draft.keys[0]!, last.draft.keys[0]!],
       keysJoiner: "to",
       matchKeys: sorted.flatMap((member) => member.draft.keys),
@@ -298,8 +300,8 @@ function buildShortcutRows(
           row: {
             id,
             command: binding.command,
-            // Under a heading that is already the command's first word, "Thread: next" is "Next".
-            label: commandLabelUnder(binding.command, commandSectionFor(binding.command), resolve),
+            // Under a heading that already names the command's area, "Thread: next" is "Next".
+            label: commandActionLabel(binding.command, resolve, commandSectionFor(binding.command)),
             qualifier:
               expression === "" || expression === DEFAULT_WHEN ? null : describeWhen(when, resolve),
           },
@@ -388,9 +390,9 @@ export function buildShortcutSections(
           {
             id: section.id,
             title: resolve(section.title),
-            // A pair (next, previous) is read together: the second sorts right after the first.
+            // The order Settings lists commands in: by area, with a pair (next, previous) together.
             rows: rows.toSorted((left, right) =>
-              sortLabel(left, resolve).localeCompare(sortLabel(right, resolve), undefined, {
+              commandSortKey(left.command).localeCompare(commandSortKey(right.command), undefined, {
                 numeric: true,
               }),
             ),

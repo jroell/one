@@ -5,11 +5,21 @@ import { createContext } from "react";
 import type { ToolCallDiffTarget } from "~/diffPanelStore";
 import type { TimelineEntry } from "~/session-logic";
 
+export interface ApprovalSubjectChange {
+  readonly operation: string;
+  readonly path: string;
+  readonly oldPath?: string | undefined;
+  readonly fileType?: string | undefined;
+  readonly mimeType?: string | undefined;
+}
+
 /** What a file change approval asks to change, read from the file change item it names. */
 export interface ApprovalSubject {
   readonly path: string;
   /** Further files in the same change. */
   readonly moreFiles: number;
+  /** Every file the approval touches, with what happens to it. */
+  readonly changes: ReadonlyArray<ApprovalSubjectChange>;
   readonly additions: number | null;
   readonly deletions: number | null;
   /** The matched change's own patch, when the item carries one. */
@@ -71,6 +81,13 @@ function scanApprovals(
         subject: {
           path: item.fileName,
           moreFiles: Math.max(0, files - 1),
+          changes: (item.changes ?? []).map((change) => ({
+            operation: change.operation,
+            path: change.path,
+            oldPath: change.oldPath,
+            fileType: change.fileType,
+            mimeType: change.mimeType,
+          })),
           additions: item.additions ?? null,
           deletions: item.deletions ?? null,
           diffStr: item.diffStr?.trim() ? item.diffStr : null,

@@ -3,6 +3,9 @@ import {
   managedCapabilityDenial,
   type ManagedPolicySummary,
 } from "@t3tools/contracts";
+import type { AtomCommandResult } from "@t3tools/client-runtime/state/runtime";
+import * as Cause from "effect/Cause";
+import { AsyncResult } from "effect/reactivity";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
@@ -13,6 +16,7 @@ import {
   AuthorizedClientsHeaderAction,
   RevokeOtherClientsAction,
 } from "./AuthorizedClientsSettings";
+import { revokeOthersOutcome, type RevokeOthersOutcome } from "./ConnectionsSettings.logic";
 
 const localId = EnvironmentId.make("local");
 const serviceId = EnvironmentId.make("service");
@@ -130,83 +134,92 @@ describe("RevokeOtherClientsAction", () => {
     await expect.element(screen.getByRole("status")).toHaveTextContent("");
   });
 
-  it("keeps focus on the status line through a real pending revoke, and announces the pending and finished states", async () => {
-    // The parent sets isRevoking before its first await and clears it when the request settles,
-    // and the list has no other client afterwards, so the launcher ends up disabled.
-    let settle: (error: string | null) => void = () => {};
+  /**
+   * The parent the real page is: it sets isRevoking before its first await, holds the request, and
+   * turns the settled result into an outcome with the page's own function.
+   */
+  function pendingRevoke() {
+    let settle: (result: AtomCommandResult<unknown, unknown>) => void = () => {};
     function Parent() {
       const [revoking, setRevoking] = useState(false);
       const [sessions, setSessions] = useState([{ current: true }, { current: false }]);
-      const [error, setError] = useState<string | null>(null);
+      const [outcome, setOutcome] = useState<RevokeOthersOutcome | null>(null);
       return (
         <RevokeOtherClientsAction
           clientSessions={sessions as never}
           isRevoking={revoking}
-          error={error}
+          outcome={outcome}
           onRevoke={() => {
             setRevoking(true);
-            setError(null);
-            void new Promise<string | null>((resolve) => {
+            setOutcome(null);
+            void new Promise<AtomCommandResult<unknown, unknown>>((resolve) => {
               settle = resolve;
-            }).then((failure) => {
-              if (failure === null) setSessions([{ current: true }]);
-              setError(failure);
+            }).then((result) => {
+              const next = revokeOthersOutcome(result, (error) =>
+                error instanceof Error ? error.message : "unknown",
+              );
+              if (next.kind === "revoked") setSessions([{ current: true }]);
+              setOutcome(next);
               setRevoking(false);
             });
           }}
         />
       );
     }
-    await using screen = await render(<Parent />);
-    const status = () => screen.getByRole("status");
+    return { Parent, settle: (result: AtomCommandResult<unknown, unknown>) => settle(result) };
+  }
 
+  async function confirmByKeyboard(screen: Awaited<ReturnType<typeof render>>) {
     await vi.waitFor(() => screen.getByRole("button", { name: "Revoke others" }).element());
     (screen.getByRole("button", { name: "Revoke others" }).element() as HTMLElement).focus();
     await userEvent.keyboard("{Enter}");
     await userEvent.keyboard("{Tab}{Enter}");
+  }
+
+  it("keeps focus on the status line through a pending revoke and announces pending, then finished", async () => {
+    const { Parent, settle } = pendingRevoke();
+    await using screen = await render(<Parent />);
+    const status = () => screen.getByRole("status");
+
+    await confirmByKeyboard(screen);
 
     await expect.element(status()).toMatchTextContent("Revoking other clients…");
     await expect.element(status()).toHaveFocus();
     expect(document.activeElement).not.toBe(document.body);
 
-    await act(async () => settle(null));
+    await act(async () => settle(AsyncResult.success(1)));
     await expect.element(status()).toMatchTextContent("Other clients signed out.");
     await expect.element(status()).toHaveFocus();
+    // No other client is left, so the launcher ends up disabled.
     await expect.element(screen.getByRole("button", { name: "Revoke others" })).toBeDisabled();
   });
 
   it("says why a revoke failed on the same line", async () => {
-    let settle: (error: string | null) => void = () => {};
-    function Parent() {
-      const [revoking, setRevoking] = useState(false);
-      const [error, setError] = useState<string | null>(null);
-      return (
-        <RevokeOtherClientsAction
-          clientSessions={[{ current: true }, { current: false }] as never}
-          isRevoking={revoking}
-          error={error}
-          onRevoke={() => {
-            setRevoking(true);
-            void new Promise<string | null>((resolve) => {
-              settle = resolve;
-            }).then((failure) => {
-              setError(failure);
-              setRevoking(false);
-            });
-          }}
-        />
-      );
-    }
+    const { Parent, settle } = pendingRevoke();
     await using screen = await render(<Parent />);
-    await vi.waitFor(() => screen.getByRole("button", { name: "Revoke others" }).element());
-    (screen.getByRole("button", { name: "Revoke others" }).element() as HTMLElement).focus();
-    await userEvent.keyboard("{Enter}");
-    await userEvent.keyboard("{Tab}{Enter}");
-    await act(async () => settle("The server did not answer."));
+    await confirmByKeyboard(screen);
+    await act(async () =>
+      settle(AsyncResult.failure(Cause.fail(new Error("The server did not answer.")))),
+    );
     await expect
       .element(screen.getByRole("status"))
       .toMatchTextContent("The server did not answer.");
     await expect.element(screen.getByRole("status")).toHaveFocus();
+  });
+
+  it("does not report a revoke the session interrupted as a success", async () => {
+    const { Parent, settle } = pendingRevoke();
+    await using screen = await render(<Parent />);
+    await confirmByKeyboard(screen);
+    await act(async () => settle(AsyncResult.failure(Cause.interrupt())));
+    await expect
+      .element(screen.getByRole("status"))
+      .toMatchTextContent("Stopped before the other clients were signed out.");
+    expect(screen.getByRole("status").element().textContent).not.toContain(
+      "Other clients signed out.",
+    );
+    // The other client is still there to revoke.
+    await expect.element(screen.getByRole("button", { name: "Revoke others" })).toBeEnabled();
   });
 
   it("has nothing to revoke while this is the only client", async () => {

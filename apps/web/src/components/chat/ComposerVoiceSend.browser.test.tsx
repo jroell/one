@@ -41,6 +41,30 @@ vi.mock(
   },
 );
 
+// The microphone and its transcription are the faked boundary: while a test has dictation under way,
+// the composer is handed the queue a real dictation session would own. Everything else stays real.
+const dictation = vi.hoisted(() => ({
+  active: false,
+  queued: null as null | { submit: (text: string) => void; dropped: (() => void) | undefined },
+}));
+vi.mock(import("../../speech/useEnvironmentSpeechInput"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    useEnvironmentSpeechInput: ((input) => {
+      const real = actual.useEnvironmentSpeechInput(input);
+      return dictation.active
+        ? {
+            ...real,
+            blocksSubmission: true,
+            submitAfterDictation: (submit, dropped) =>
+              void (dictation.queued = { submit, dropped }),
+          }
+        : real;
+    }) as typeof actual.useEnvironmentSpeechInput,
+  };
+});
+
 vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   ...(await original()),
   trackRpcRequestSent: () => {},
@@ -174,6 +198,34 @@ it("voice chat is told the composer sent nothing when the draft is empty", async
   const report = await speak("");
 
   await vi.waitFor(() => expect(report.calls).toEqual([["notSent", "none"]]));
+  expect(dispatchedMessages()).toEqual([]);
+});
+
+/** The person is still dictating when voice chat asks the composer to send what they say. */
+function dictating(): Disposable {
+  dictation.active = true;
+  dictation.queued = null;
+  return {
+    [Symbol.dispose]() {
+      dictation.active = false;
+      dictation.queued = null;
+    },
+  };
+}
+
+it("voice chat is told the composer sent nothing when the dictation it was waiting on ended with no text", async () => {
+  using _dictation = dictating();
+  await using _app = await openThread("voice-dictation-empty", "queue");
+
+  const report = await speak("");
+  // The composer waits for the dictation to hand over a transcript before it sends anything.
+  expect(report.calls).toEqual([]);
+  expect(dictation.queued).not.toBeNull();
+
+  // The dictation ended in "No speech was detected": the session drops the queued send.
+  dictation.queued?.dropped?.();
+
+  expect(report.calls).toEqual([["notSent", "none"]]);
   expect(dispatchedMessages()).toEqual([]);
 });
 

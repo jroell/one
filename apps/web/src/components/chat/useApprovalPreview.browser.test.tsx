@@ -13,7 +13,15 @@ function Probe({
 }) {
   const state = useApprovalPreview(source);
   seen.push(state);
-  return <p>{state.ready ? (state.preview?.lines[0]?.text ?? "empty") : "pending"}</p>;
+  return (
+    <p>
+      {state.ready
+        ? (state.preview?.lines.map((line) => (
+            <span key={`${line.kind}:${line.text}`}>{line.text}</span>
+          )) ?? "empty")
+        : "pending"}
+    </p>
+  );
 }
 
 it("renders the card before the preview is computed, even for a tiny change", async () => {

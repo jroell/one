@@ -1,3 +1,4 @@
+import { GTProvider } from "gt-react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
@@ -323,16 +324,72 @@ describe("UsageProviderChart daily bars", () => {
     await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 1"));
   });
 
+  it("moves within one bar without re-observing the plot, and places a keyboard day again after a resize", async () => {
+    const container = document.createElement("div");
+    container.style.width = "600px";
+    await using screen = await render(chart("day"), { container, router: false });
+    const plot = screen.getByRole("group", { name: "Daily cost by provider" }).element();
+    const tooltip = () => screen.container.querySelector<HTMLElement>(".usage-tooltip");
+    const pointerAt = (share: number) => {
+      const bounds = plot.getBoundingClientRect();
+      plot.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientX: bounds.left + bounds.width * share,
+          clientY: bounds.top + bounds.height * 0.5,
+        }),
+      );
+    };
+
+    const observed = vi.spyOn(ResizeObserver.prototype, "observe");
+    try {
+      pointerAt(0.05);
+      await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 1"));
+      const afterFirstMove = observed.mock.calls.length;
+      const firstLeft = plot.style.getPropertyValue("--usage-tooltip-left");
+      for (const share of [0.08, 0.12, 0.2, 0.3]) pointerAt(share);
+      await vi.waitFor(() =>
+        expect(plot.style.getPropertyValue("--usage-tooltip-left")).not.toBe(firstLeft),
+      );
+      expect(tooltip()?.textContent).toContain("Aug 1");
+      expect(observed.mock.calls.length).toBe(afterFirstMove);
+    } finally {
+      observed.mockRestore();
+    }
+
+    // The keyboard's day has no coordinates of its own: it follows the plot when it is resized.
+    plot.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    plot.dispatchEvent(new MouseEvent("mouseleave"));
+    plot.focus();
+    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+    await vi.waitFor(() => expect(tooltip()?.textContent).toContain("Aug 2"));
+    const slotLeft = () => {
+      const bounds = plot.getBoundingClientRect();
+      return tooltip()!.getBoundingClientRect().left - bounds.left;
+    };
+    const wide = slotLeft();
+    container.style.width = "300px";
+    await vi.waitFor(() => expect(slotLeft()).toBeLessThan(wide - 40));
+  });
+
+  // Last in the file: choosing a locale in the provider stays in effect for later tests.
   it("joins the announced values with the locale's list format", async () => {
-    await using screen = await render(chart("day"), { router: false });
-    screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
-    await userEvent.keyboard("{ArrowRight}");
-    const announced = () => screen.container.querySelector('[role="status"]')?.textContent ?? "";
-    await vi.waitFor(() => expect(announced()).toContain("Aug 1"));
-    const values = new Intl.ListFormat("en", { style: "short", type: "unit" }).format([
+    // Japanese joins unit lists with a space, so a plain ", " join cannot satisfy this.
+    const locale = "ja";
+    const values = new Intl.ListFormat(locale, { style: "short", type: "unit" }).format([
       "Codex $20.00",
       "Claude Code $10.00",
     ]);
-    expect(announced()).toBe(`Aug 1: ${values}. Total $30.00`);
+    expect(values).not.toBe("Codex $20.00, Claude Code $10.00");
+    await using screen = await render(
+      <GTProvider locale={locale} translations={{ [locale]: {} }}>
+        {chart("day")}
+      </GTProvider>,
+      { router: false },
+    );
+    screen.getByRole("group", { name: "Daily cost by provider" }).element().focus();
+    await userEvent.keyboard("{ArrowRight}");
+    const announced = () => screen.container.querySelector('[role="status"]')?.textContent ?? "";
+    await vi.waitFor(() => expect(announced()).toContain(`: ${values}. Total $30.00`));
   });
 });

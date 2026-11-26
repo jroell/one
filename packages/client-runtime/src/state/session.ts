@@ -16,7 +16,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { HttpClient } from "effect/http";
-import { AsyncResult, Atom } from "effect/reactivity";
+import { AsyncResult, Atom, type AtomRegistry } from "effect/reactivity";
 
 import * as RemoteEnvironmentAuthorization from "../authorization/service.ts";
 import * as EnvironmentRegistry from "../connection/registry.ts";
@@ -285,4 +285,95 @@ export function createEnvironmentSessionAtoms<R, E>(
   const atoms = makeEnvironmentSessionAtoms(runtime);
   sessionAtomsByRuntime.set(runtime, atoms);
   return atoms;
+}
+
+/**
+ * Which authorization an environment's reads belong to. `generation` changes when the credential
+ * does (replaced, signed out, paired again), not when the same credential reconnects; the last one
+ * is kept while there is no connection. `confirmed` is true once a session check has answered for
+ * that generation and stays so through a reconnect; the session atom keeps the old grant meanwhile.
+ */
+export interface EnvironmentAuthorization {
+  readonly generation: string;
+  readonly confirmed: boolean;
+}
+
+let nextGeneration = 0;
+let nextConnectionId = 0;
+const connectionIds = new WeakMap<object, number>();
+
+/**
+ * What identifies the grant a connection was prepared with: the bearer token, none, or the DPoP
+ * signer. A DPoP connection that does not name its signer is told apart per connection, which is the
+ * conservative reading.
+ */
+function credentialIdentity(prepared: PreparedConnection): string {
+  const authorization = prepared.httpAuthorization;
+  if (authorization === null) return "anonymous";
+  if (authorization._tag === "Bearer") return `bearer:${authorization.token}`;
+  if (prepared.credentialId !== undefined) return prepared.credentialId;
+  let id = connectionIds.get(prepared);
+  if (id === undefined) {
+    id = nextConnectionId += 1;
+    connectionIds.set(prepared, id);
+  }
+  return `connection:${id}`;
+}
+
+interface AuthorizationState {
+  readonly identity: string;
+  readonly generation: string;
+  /** The session result that was already there when this generation began: it belongs to the last one. */
+  readonly stale: unknown;
+  confirmed: boolean;
+}
+
+export function createEnvironmentAuthorizationAtoms<E>(input: {
+  readonly preparedConnectionValueAtom: (
+    environmentId: EnvironmentId,
+  ) => Atom.Atom<Option.Option<PreparedConnection>>;
+  readonly sessionStateAtom: (
+    environmentId: EnvironmentId,
+  ) => Atom.Atom<AsyncResult.AsyncResult<AuthSessionState, E>>;
+}) {
+  const states = new Map<EnvironmentId, AuthorizationState>();
+  /**
+   * The environment was removed. Whatever credential it comes back with, including the identical
+   * one, is a new authorization: the next connection starts a generation nothing was kept under.
+   */
+  const removals = Atom.family((_environmentId: EnvironmentId) => Atom.make(0));
+  const forget = (registry: AtomRegistry.AtomRegistry, environmentId: EnvironmentId) => {
+    const state = states.get(environmentId);
+    if (state === undefined) return;
+    states.set(environmentId, { ...state, identity: "removed" });
+    registry.set(removals(environmentId), registry.get(removals(environmentId)) + 1);
+  };
+  const authorization = Atom.family((environmentId: EnvironmentId) =>
+    Atom.make((get): EnvironmentAuthorization => {
+      get(removals(environmentId));
+      const prepared = Option.getOrNull(get(input.preparedConnectionValueAtom(environmentId)));
+      const result = get(input.sessionStateAtom(environmentId));
+      let state = states.get(environmentId);
+      if (prepared !== null) {
+        const identity = credentialIdentity(prepared);
+        if (state?.identity !== identity) {
+          nextGeneration += 1;
+          state = {
+            identity,
+            generation: `g${nextGeneration}`,
+            stale: state === undefined ? null : result,
+            confirmed: false,
+          };
+          states.set(environmentId, state);
+        }
+        if (AsyncResult.isSuccess(result) && !result.waiting && result !== state.stale) {
+          state.confirmed = true;
+        }
+      }
+      return state === undefined
+        ? { generation: "none", confirmed: false }
+        : { generation: state.generation, confirmed: state.confirmed };
+    }).pipe(Atom.withLabel(`environment-authorization:${environmentId}`)),
+  );
+  return { authorization, forget };
 }

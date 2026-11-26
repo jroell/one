@@ -7,6 +7,7 @@ import {
   startOneOrb,
   type OneOrbState,
 } from "./oneOrbRenderer";
+import { ORB_SUPERSAMPLE } from "./oneOrbRest";
 
 /** Just enough of a WebGL context for the ring: every call is recorded, nothing is drawn. */
 function createStubGl() {
@@ -380,8 +381,12 @@ describe("how often the ring draws", () => {
     env.intersect(true);
     env.run(100);
     const resting = env.gl.drawArrays.mock.calls.length;
-    env.run(6);
-    expect(env.gl.drawArrays.mock.calls.length - resting).toBeLessThanOrEqual(1);
+    // A resting ring draws about every 50ms; where the 16ms frames fall against that beat
+    // decides whether a short window holds one draw or two, so measure over a longer one.
+    env.run(20);
+    const restingDraws = env.gl.drawArrays.mock.calls.length - resting;
+    expect(restingDraws).toBeLessThanOrEqual(Math.ceil((20 * 16) / RESTING_FRAME_MS) + 1);
+    expect(restingDraws).toBeLessThan(10);
 
     state = "thinking";
     orb.wake();
@@ -425,7 +430,9 @@ describe("the backing store scale of a large ring", () => {
     const orb = start(env, "thinking");
     env.intersect(true);
     env.run(SLOW_FRAMES_BEFORE_STEP_DOWN * 4, 40);
-    expect(env.canvas.width).toBe(400);
+    // A ring of 300px or less draws at twice the screen's density (ORB_SUPERSAMPLE), and slow
+    // frames do not lower it: 200px x 2 x 2.
+    expect(env.canvas.width).toBe(200 * 2 * ORB_SUPERSAMPLE);
     orb.dispose();
   });
 });
@@ -598,9 +605,10 @@ describe("the backing store scale of a resting ring", () => {
     });
     if (!orb) throw new Error("the ring did not start");
     env.intersect(true);
-    expect(env.canvas.width).toBe(400);
+    // The full resolution of a small ring is twice the screen's density (ORB_SUPERSAMPLE).
+    expect(env.canvas.width).toBe(200 * 2 * ORB_SUPERSAMPLE);
     for (let frame = 0; frame < 60; frame++) env.step(16);
-    expect(env.canvas.width).toBe(400);
+    expect(env.canvas.width).toBe(200 * 2 * ORB_SUPERSAMPLE);
     orb.dispose();
   });
 });

@@ -33,32 +33,47 @@ export type ThemeCardDefinition = {
 export type ThemeMode = ThemeAppearance | "system";
 export type ThemeCardPreviewColors = ThemeCardPreview["colors"];
 
-/** The app's own warm surfaces, so the default theme's tiles draw what the app looks like. */
+/**
+ * The default theme's tiles draw the app's own material: its base, raised and card surfaces and its
+ * brand gold (the `--m-*` tokens in one-ui.css). The values are copied here because a tile for the
+ * other mode cannot be read from the page; `ThemePreviewCircles.browser.test.tsx` resolves the
+ * tokens in both modes and fails when these drift.
+ */
+export const STANDARD_TILE_MATERIAL = {
+  light: {
+    base: "#fcfcfc",
+    raised: "#fffaf0",
+    card: "#fffbf2",
+    floating: "#fbf8f0",
+    brand: "#b98f1f",
+  },
+  dark: {
+    base: "#0a0908",
+    raised: "#17130e",
+    card: "#2b231a",
+    floating: "#211c14",
+    brand: "#d9b450",
+  },
+} as const satisfies Record<ThemeAppearance, Record<string, string>>;
+
+const standardTileColors = (mode: ThemeAppearance): Readonly<Record<ThemePreviewRole, string>> => {
+  const material = STANDARD_TILE_MATERIAL[mode];
+  return {
+    ...SHARED_STANDARD_THEME_PREVIEW_COLORS[mode],
+    sidebar: material.base,
+    canvas: material.base,
+    surface: material.raised,
+    accentSurface: material.card,
+    messageSurface: material.card,
+    accent: material.brand,
+    messageAction: material.brand,
+  };
+};
+
 const STANDARD_THEME_PREVIEW_COLORS: Record<
   ThemeAppearance,
   Readonly<Record<ThemePreviewRole, string>>
-> = {
-  light: {
-    ...SHARED_STANDARD_THEME_PREVIEW_COLORS.light,
-    sidebar: "#f4efe4",
-    canvas: "#fbf8f1",
-    surface: "#fffdf8",
-    accentSurface: "#ece4d0",
-    messageSurface: "#eee6d2",
-    accent: "#b0841a",
-    messageAction: "#b0841a",
-  },
-  dark: {
-    ...SHARED_STANDARD_THEME_PREVIEW_COLORS.dark,
-    sidebar: "#11110f",
-    canvas: "#0d0d0b",
-    surface: "#1b1b18",
-    accentSurface: "#26241e",
-    messageSurface: "#2a2820",
-    accent: "#d9b450",
-    messageAction: "#d9b450",
-  },
-};
+> = { light: standardTileColors("light"), dark: standardTileColors("dark") };
 
 export const STANDARD_THEME_CARDS: ReadonlyArray<ThemeCardDefinition> = [
   {

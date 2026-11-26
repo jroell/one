@@ -1,7 +1,13 @@
 import { expect, it, vi } from "vite-plus/test";
 
 import { act, fakeTimers, render } from "../../test/render";
-import { CHAT_ARRIVAL_EXPIRY_MS, useChatArrival, type ArrivalMessage } from "./chatArrival";
+import {
+  CHAT_ARRIVAL_EXPIRY_MS,
+  useChatArrival,
+  useChatArrivalProps,
+  type ArrivalMessage,
+  type ChatArrival,
+} from "./chatArrival";
 
 const user = (id: string): ArrivalMessage => ({ id, role: "user" });
 const assistant = (id: string): ArrivalMessage => ({ id, role: "assistant" });
@@ -95,4 +101,52 @@ it("opening another thread and unmounting leave no arrival expiry pending", asyn
   expect(vi.getTimerCount()).toBe(1);
   await screen.unmount();
   expect(vi.getTimerCount()).toBe(0);
+});
+
+function Row({ arrival, id }: { arrival: ChatArrival; id: string }) {
+  const props = useChatArrivalProps(arrival, id);
+  return <div data-row={id} {...props} />;
+}
+
+function Rows({
+  messages,
+  mounted,
+}: {
+  messages: ReadonlyArray<ArrivalMessage>;
+  mounted: boolean;
+}) {
+  const arrival = useChatArrival("thread", () => messages, true);
+  return mounted ? <Row arrival={arrival} id="a2" /> : null;
+}
+
+const marked = (container: HTMLElement) =>
+  container.querySelector("[data-row]")?.hasAttribute("data-chat-arrival") ?? null;
+
+it("a row that remounts after its reveal started carries no mark, and the one that is playing keeps it", async () => {
+  await using screen = await render(<Rows messages={opening} mounted={false} />, {
+    router: false,
+  });
+  await screen.rerender(<Rows messages={arrived} mounted />);
+  expect(marked(screen.container)).toBe(true);
+
+  const row = screen.container.querySelector("[data-row]")!;
+  await act(async () => {
+    row.dispatchEvent(
+      new AnimationEvent("animationstart", { animationName: "one-chat-arrive", bubbles: true }),
+    );
+  });
+  expect(marked(screen.container)).toBe(true);
+
+  await screen.rerender(<Rows messages={arrived} mounted={false} />);
+  await screen.rerender(<Rows messages={arrived} mounted />);
+  expect(marked(screen.container)).toBe(false);
+});
+
+it("a row that remounts before its reveal started still plays it", async () => {
+  await using screen = await render(<Rows messages={opening} mounted={false} />, {
+    router: false,
+  });
+  await screen.rerender(<Rows messages={arrived} mounted={false} />);
+  await screen.rerender(<Rows messages={arrived} mounted />);
+  expect(marked(screen.container)).toBe(true);
 });

@@ -1,4 +1,9 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+  type AtomCommandResult,
+} from "@t3tools/client-runtime/state/runtime";
 import * as DateTime from "effect/DateTime";
 import { msg } from "gt-react";
 
@@ -534,4 +539,21 @@ export function describeConnectDeviceClient(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
   return bits.length > 0 ? [...new Set(bits)].join(" · ") : resolve(msg("Unknown device"));
+}
+
+/** How the last revoke of other clients ended: only a response from the server is a success. */
+export type RevokeOthersOutcome =
+  | { readonly kind: "revoked" }
+  | { readonly kind: "failed"; readonly message: string }
+  /** Stopped before the server answered, such as by losing the session. */
+  | { readonly kind: "interrupted" };
+
+/** The outcome a revoke result stands for; losing the session mid-request is not a success. */
+export function revokeOthersOutcome(
+  result: AtomCommandResult<unknown, unknown>,
+  failureMessage: (error: unknown) => string,
+): RevokeOthersOutcome {
+  if (result._tag === "Success") return { kind: "revoked" };
+  if (isAtomCommandInterrupted(result)) return { kind: "interrupted" };
+  return { kind: "failed", message: failureMessage(squashAtomCommandFailure(result)) };
 }

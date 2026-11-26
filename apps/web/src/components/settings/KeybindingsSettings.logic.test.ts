@@ -6,6 +6,7 @@ import {
   parseKeybindingShortcut,
 } from "@t3tools/shared/keybindings";
 
+import { m, type MessageResolver } from "../../i18n/messages";
 import { resolveShortcutCommand } from "../../keybindings";
 
 import {
@@ -581,19 +582,29 @@ describe("spokenShortcutLabel", () => {
     expect(spokenShortcutLabel(shortcut("escape"), "Linux x86_64")).toBe("Esc");
   });
 
-  it("names a command without the group heading it is listed under, and keeps context the heading lacks", () => {
-    const label = (command: string) => commandActionLabel(command as never);
-    expect(label("thread.next")).toBe("Next");
-    expect(label("thread.regenerateTitle")).toBe("Regenerate title");
-    expect(label("thread.jump.3")).toBe("Jump to 3");
-    expect(label("terminal.split")).toBe("Split");
-    expect(label("composer.sendBackground")).toBe("Start in background");
-    // The heading says "Composer" or "Threads", not these.
-    expect(label("modelPicker.toggle")).toBe("Model picker: toggle");
-    expect(label("thread.copyReference")).toBe("Pull request: copy link or thread");
-    expect(label("sidebar.toggle")).toBe("Sidebar: toggle");
-    // Search and screen readers still get the full name.
+  it("names a command without the heading's area, and keeps context the heading lacks", () => {
+    const label = (command: string, heading?: string) =>
+      commandActionLabel(command as never, undefined, heading);
+    expect(label("thread.next", "thread")).toBe("Next");
+    expect(label("thread.regenerateTitle", "thread")).toBe("Regenerate title");
+    expect(label("thread.jump.3", "thread")).toBe("Jump to 3");
+    expect(label("terminal.split", "terminal")).toBe("Split");
+    expect(label("composer.sendBackground", "composer")).toBe("Start in background");
+    // The heading names another area, or none: the full name stays.
+    expect(label("modelPicker.toggle", "composer")).toBe("Model picker: toggle");
+    expect(label("thread.copyReference", "thread")).toBe("Pull request: copy link or thread");
+    expect(label("chat.new", "thread")).toBe("Chat: new");
+    expect(label("thread.next")).toBe("Thread: next");
     expect(commandLabel("thread.next" as never)).toBe("Thread: next");
+  });
+
+  it("builds the short name from its own message, so a language that words the full name differently still gets it", () => {
+    // A resolver standing for another language: every message comes back marked.
+    const marked = ((message, variables) =>
+      typeof message === "string" ? `xx ${m(message, variables)}` : message) as MessageResolver;
+    expect(commandActionLabel("thread.next" as never, marked, "thread")).toBe("xx Next");
+    expect(commandActionLabel("thread.jump.3" as never, marked, "thread")).toBe("xx Jump to 3");
+    expect(commandActionLabel("thread.next" as never, marked)).toBe("xx Thread: next");
   });
 
   it("lists a pair of commands together, next then previous, rather than by name", () => {

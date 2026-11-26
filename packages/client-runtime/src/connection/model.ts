@@ -170,6 +170,12 @@ export interface PreparedConnection {
   readonly socketUrl: string;
   readonly httpAuthorization: PreparedHttpAuthorization | null;
   readonly target: ConnectionTarget;
+  /**
+   * Names the DPoP signer (and the account, for T3 Connect) the connection was authorized with. It
+   * stays the same through token renewals and reconnects and changes when the signer does. It is a
+   * public key thumbprint, never the access token or key material, and is absent for bearer routes.
+   */
+  readonly credentialId?: string;
   /** What the server said about itself while this connection was prepared. */
   readonly descriptor?: ExecutionEnvironmentDescriptor;
 }

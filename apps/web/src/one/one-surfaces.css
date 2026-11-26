@@ -1330,3 +1330,68 @@ html [role="group"][data-approval-card]::after {
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }
+
+/* The files an approval touches: one row each, with what happens to it. */
+[data-approval-files] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 1rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+[data-approval-files] ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+[data-approval-files] li {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+[data-approval-file-verb] {
+  flex-shrink: 0;
+  width: 3.5rem;
+  color: var(--muted-foreground);
+}
+
+[data-approval-file-path] {
+  display: flex;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+[data-approval-files] > button {
+  align-self: flex-start;
+  font-size: 0.75rem;
+}
+
+/* An excerpt's name, and a line that lacks its final newline. */
+[data-approval-hunk-lines] > [data-kind="label"] {
+  padding: 0.25rem 1rem 0;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted-foreground);
+}
+
+[data-approval-hunk-lines] > [data-kind="label"]:not(:first-child) {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--one-hairline);
+}
+
+[data-approval-no-newline] {
+  margin-inline-start: 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}

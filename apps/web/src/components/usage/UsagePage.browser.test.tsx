@@ -61,26 +61,6 @@ describe("UsagePage reopening", () => {
     await expect.element(page.getByText("Updating…")).not.toBeInTheDocument();
   });
 
-  it("does not replay figures of a machine that lost access when the reopened page is still waiting", async () => {
-    view.partial = false;
-    view.environments = [
-      status("reopenA", { summary: summary("reopenA", [["codex", 40]]) }),
-      status("reopenB", { summary: summary("reopenB", [["claude", 60]]) }),
-    ];
-    const first = await open();
-    await expect.element(page.getByText(/of \$100\.00 in the last/)).toBeVisible();
-    await first[Symbol.asyncDispose]();
-
-    // A has lost diagnostics access and B's summary is still pending.
-    view.environments = [
-      status("reopenA", { canReadDiagnostics: false }),
-      status("reopenB", { isPending: true }),
-    ];
-    await using _second = await render(<UsagePage />, { router: "/usage" });
-    await expect.element(page.getByText("Reading usage…")).toBeVisible();
-    expect(document.body.textContent).not.toContain("$100.00");
-  });
-
   it("sizes the cold skeleton by the providers last shown for the selection, and zero when none were", async () => {
     view.partial = false;
     view.environments = [
@@ -179,7 +159,7 @@ describe("UsagePage reopening", () => {
     expect(title.fontWeight).toBe("500");
   });
 
-  it("leads the breakdown with the active metric, and explains Unpriced with the same-model hint", async () => {
+  it("leads the breakdown with the active metric, and explains Unpriced with the pricing reason only", async () => {
     view.partial = false;
     const unpriced: UsageBucket = {
       ...bucket("codex", 0, "desk"),
@@ -208,9 +188,9 @@ describe("UsagePage reopening", () => {
         ),
       )
       .toBeVisible();
-    await expect
-      .element(page.getByText("It looks like codex-model, which is recorded under its plain name."))
-      .toBeVisible();
+    // A routed "openai/codex-model" and a separate "codex-model" row share a suffix and nothing else
+    // known, so the page does not claim they are the same model.
+    expect(document.body.textContent).not.toContain("It looks like");
   });
 
   it("fades both edges of the scroll area, and lights the refresh icon only while something is being read", async () => {

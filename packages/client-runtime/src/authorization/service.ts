@@ -60,6 +60,26 @@ export interface AuthorizedRemoteEnvironment {
   readonly socketUrl: string;
   readonly httpAuthorization: PreparedHttpAuthorization;
   readonly descriptor?: ExecutionEnvironmentDescriptor;
+  /** See `PreparedConnection.credentialId`. */
+  readonly credentialId?: string;
+}
+
+/**
+ * The public thumbprint of the signing key. A T3 Connect token is also tied to its account, whose
+ * id is folded in as a short digest so the account never appears in the value.
+ */
+function dpopCredentialId(thumbprint: string, accountId?: string): string {
+  if (accountId === undefined) return `dpop:${thumbprint}`;
+  let high = 0xdeadbeef;
+  let low = 0x41c6ce57;
+  for (const unit of accountId) {
+    const code = unit.codePointAt(0) ?? 0;
+    high = Math.imul(high ^ code, 2654435761);
+    low = Math.imul(low ^ code, 1597334677);
+  }
+  high = Math.imul(high ^ (high >>> 16), 2246822507) ^ Math.imul(low ^ (low >>> 13), 3266489909);
+  low = Math.imul(low ^ (low >>> 16), 2246822507) ^ Math.imul(high ^ (high >>> 13), 3266489909);
+  return `dpop:${thumbprint}:${(high >>> 0).toString(16)}${(low >>> 0).toString(16)}`;
 }
 
 export interface AuthorizedRemoteHttpEnvironment {
@@ -626,6 +646,15 @@ export const make = Effect.gen(function* () {
         connectionMethod: "direct",
       });
       const connection = { connectionId: input.connectionId, httpBaseUrl: input.httpBaseUrl };
+      const thumbprint = yield* signer.thumbprint.pipe(
+        Effect.mapError(
+          () =>
+            new ConnectionBlockedError({
+              reason: "configuration",
+              ...translatableDetail(msg("Could not load the environment authorization key.")),
+            }),
+        ),
+      );
       const openSocket = (credential: DpopConnectionCredential) =>
         resolveRemoteDpopWebSocketConnectionUrl({
           wsBaseUrl: input.wsBaseUrl,
@@ -662,6 +691,7 @@ export const make = Effect.gen(function* () {
         socketUrl: socket.success,
         descriptor,
         httpAuthorization: directHttpAuthorization(connection, credential),
+        credentialId: dpopCredentialId(thumbprint),
       };
     },
   );
@@ -696,7 +726,12 @@ export const make = Effect.gen(function* () {
       token: TokenStore.RemoteDpopAccessToken,
       socketUrl: string,
       descriptor: ExecutionEnvironmentDescriptor,
-    ) => ({ ...httpAuthorization(token, endpoint?.httpBaseUrl), socketUrl, descriptor });
+    ) => ({
+      ...httpAuthorization(token, endpoint?.httpBaseUrl),
+      socketUrl,
+      descriptor,
+      credentialId: dpopCredentialId(token.dpopThumbprint, token.accountId),
+    });
     // A cached token comes without a descriptor. That read needs no ticket, so
     // it runs beside the ticket request, and a failed ticket abandons it.
     const openSocket = Effect.fnUntraced(function* (issued: IssuedDpopToken, timeoutMs?: number) {

@@ -6,7 +6,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { toastManager } from "~/components/ui/toast";
 import { useStableCallback } from "~/hooks/useStableCallback";
-import { useQuietThreadProjection, useThreadVisibleTurnItems } from "~/state/entities";
+import {
+  useQuietThreadProjection,
+  useThreadStatus,
+  useThreadVisibleTurnItems,
+} from "~/state/entities";
+import { threadTranscriptMayLag } from "~/threadSync";
 import { OneOrb, type OneOrbState } from "./OneOrb";
 import {
   getCommittedVoiceThreadKey,
@@ -57,6 +62,8 @@ const SEND_OPERATION_MS = 60_000;
 const SEND_ACCEPT_MS = 60_000;
 /** How long a turn that was being followed may be missing from the thread before it is given up on. */
 const TURN_LOST_MS = 10_000;
+/** How long a followed turn may go without a live thread connection before voice chat stops waiting on it. */
+const RECONNECT_GRACE_MS = 20_000;
 /** How long speech may take to begin before an idle synthesizer is taken to have dropped it. */
 const SPEECH_START_MS = 4_000;
 /** How long an utterance the engine holds back may wait for its start event before it is retried once, then given up on. */
@@ -218,6 +225,9 @@ function ActiveVoiceStage({
     notAccepted: gt("The question was not accepted in time"),
     held: gt("The question is held in the queue, so there is no reply to read yet"),
     lost: gt("The reply is no longer available"),
+    disconnected: gt(
+      "Lost the connection. Your question was sent; the answer will appear in the thread.",
+    ),
   };
   const latest = useRef({ bridge, messages, tookTooLong, notSent, sentToSideChat, notices });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge, messages and notices for the frame loop, timers and speech effect below
@@ -483,6 +493,31 @@ function ActiveVoiceStage({
     );
     return () => window.clearTimeout(timer);
   }, [turnLost]);
+
+  // A dropped connection keeps the last projection, so an open run stays open and nothing else
+  // would end the wait. Only a thread that is not live starts the clock; a connected queue never does.
+  const threadStatus = useThreadStatus(threadRef);
+  const connectionLost =
+    threadRef !== null &&
+    (stage === "sending" || stage === "thinking") &&
+    ownTurn === "open" &&
+    threadTranscriptMayLag({ shellExists: true, status: threadStatus });
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- gives up on a followed turn whose thread stayed disconnected; cleared when the thread is live again
+  useEffect(() => {
+    if (!connectionLost) return;
+    const timer = window.setTimeout(() => {
+      // Read aloud like a reply, so the person hears why voice chat stopped waiting.
+      dispatchVoiceSession({
+        type: "replied",
+        reply: {
+          id: `connection-lost:${getVoiceSession().submission ?? ""}`,
+          text: latest.current.notices.disconnected,
+          runId: null,
+        },
+      });
+    }, RECONNECT_GRACE_MS);
+    return () => window.clearTimeout(timer);
+  }, [connectionLost]);
 
   // Sending or thinking: read the answer once the turn is over and it has finished streaming.
   // The finished answer can be seen without any frame that showed the thread working.

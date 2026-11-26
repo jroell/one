@@ -5,6 +5,7 @@ import {
 import { compileResolvedKeybindingsConfig } from "@t3tools/shared/keybindings";
 import { describe, expect, it } from "vite-plus/test";
 
+import { commandActionLabel } from "../settings/KeybindingsSettings.logic";
 import { buildShortcutSections } from "./ShortcutsDialog.logic";
 
 const build = (
@@ -179,7 +180,7 @@ describe("buildShortcutSections", () => {
       .filter((row) => /jump/i.test(row.label));
     expect(jumpRows.map((row) => [row.label, row.qualifier, row.keys, row.keysJoiner])).toEqual([
       [
-        "Thread: jump to thread 1 to 9",
+        "Jump to thread 1 to 9",
         "in the terminal",
         [
           ["Ctrl", "1"],
@@ -345,7 +346,7 @@ describe("buildShortcutSections", () => {
     expect(rowsOf("d")[0]).toBe(all.find((row) => row.command === "diff.toggle"));
   });
 
-  it("drops the heading's own word from a row's label, still finds it by the full name, and lists next then previous together", () => {
+  it("drops the heading's area from a row's label, finds it by the full name, and orders it as Settings does", () => {
     const sections = build([
       { command: "thread.pin", key: "mod+p" },
       { command: "thread.previous", key: "mod+[" },
@@ -354,10 +355,30 @@ describe("buildShortcutSections", () => {
     ]);
     const labels = (id: string) =>
       sections.find((section) => section.id === id)!.rows.map((row) => row.label);
+    // The same order Settings lists: next and previous together, then the rest.
     expect(labels("thread")).toEqual(["Next", "Previous", "Pin"]);
-    // "Terminal" is not the View heading's word, so that row keeps it.
+    // And the same names: the one function Settings uses for a Threads row.
+    expect(labels("thread")).toEqual(
+      ["thread.next", "thread.previous", "thread.pin"].map((command) =>
+        commandActionLabel(command as never, undefined, "thread"),
+      ),
+    );
+    // "Terminal" is not the View heading's area, so that row keeps it.
     expect(labels("view")).toEqual(["Terminal: toggle"]);
     const found = build([{ command: "thread.next", key: "mod+]" }], { query: "thread: next" });
     expect(found.flatMap((section) => section.rows.map((row) => row.label))).toEqual(["Next"]);
+  });
+
+  it("names a collapsed numbered family without its heading's area", () => {
+    const sections = build(
+      THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
+        command,
+        key: `mod+${index + 1}`,
+      })),
+    );
+    const thread = sections.find((section) => section.id === "thread")!;
+    expect(thread.rows.map((row) => row.label)).toEqual([
+      expect.stringMatching(/^Jump to thread 1 to \d+$/),
+    ]);
   });
 });

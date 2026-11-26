@@ -22,17 +22,20 @@ export function recalledProviderCount(key: string, fallback: number): number {
   return providerCounts.get(key) ?? fallback;
 }
 
-/** An environment that can contribute to the figures, with the model filter it is queried by. */
+/**
+ * An environment contributing to the figures, with the authorization generation that produced them
+ * (see `EnvironmentAuthorization`) and the model filter it is queried by.
+ */
 export interface UsageContributor {
   readonly id: string;
+  readonly generation: string;
   readonly modelFilter: string;
 }
 
 /**
- * The key of one view: the environments that actually contribute (those authorized to read usage,
- * so a machine that lost access changes it), the model filter each is asked with, the hidden
- * providers, and the period with its time zone and resolution. Figures are only ever replayed for
- * the exact view that produced them.
+ * The key of one view: the environments that contribute, each at the authorization generation it
+ * answered under (only those whose grant is confirmed and allows usage), the model filter each is
+ * asked with, the hidden providers, and the period with its time zone and resolution.
  */
 export function usageViewKey(view: {
   readonly contributors: readonly UsageContributor[];
@@ -42,7 +45,7 @@ export function usageViewKey(view: {
   readonly resolution: string | undefined;
 }): string {
   const contributors = view.contributors
-    .map((entry) => `${entry.id}:${entry.modelFilter}`)
+    .map((entry) => `${entry.id}@${entry.generation}:${entry.modelFilter}`)
     .toSorted()
     .join(",");
   const hidden = [...view.hiddenProviders].toSorted().join(",");
@@ -52,19 +55,30 @@ export function usageViewKey(view: {
 /** Enough for the views a person flips between; older ones go first. */
 const MAX_SNAPSHOTS = 6;
 
+/*
+ * Invariant: kept figures replay only for the exact view that produced them, while every contributor
+ * is still at the authorization generation it answered under with a confirmed grant. Events that stop
+ * a replay: revoke, replaced credentials, removal, re-pairing, sign-out, another filter, zone or period.
+ */
 const snapshots = new Map<
   string,
-  { readonly contributors: readonly string[]; readonly value: unknown }
+  {
+    readonly contributors: readonly { readonly id: string; readonly generation: string }[];
+    readonly value: unknown;
+  }
 >();
 
 /** The last settled figures for a view, kept for this session so reopening shows them at once. */
 export function rememberSnapshot<Snapshot>(
   key: string,
-  contributors: readonly string[],
+  contributors: readonly UsageContributor[],
   snapshot: Snapshot,
 ): void {
   snapshots.delete(key);
-  snapshots.set(key, { contributors, value: snapshot });
+  snapshots.set(key, {
+    contributors: contributors.map(({ id, generation }) => ({ id, generation })),
+    value: snapshot,
+  });
   for (const oldest of snapshots.keys()) {
     if (snapshots.size <= MAX_SNAPSHOTS) break;
     snapshots.delete(oldest);
@@ -75,9 +89,15 @@ export function recalledSnapshot<Snapshot>(key: string): Snapshot | null {
   return (snapshots.get(key)?.value as Snapshot | undefined) ?? null;
 }
 
-/** Drops every kept view that included this environment, for when it is gone or loses access. */
-export function forgetEnvironmentSnapshots(environmentId: string): void {
+/**
+ * Keeps only the views whose contributors are all still current: present, authorized and confirmed
+ * at the generation they answered under. `current` maps those environments to their generation, so
+ * an environment that was removed (absent from it) or replaced (another generation) evicts its views.
+ */
+export function pruneSnapshots(current: ReadonlyMap<string, string>): void {
   for (const [key, entry] of snapshots) {
-    if (entry.contributors.includes(environmentId)) snapshots.delete(key);
+    if (entry.contributors.some(({ id, generation }) => current.get(id) !== generation)) {
+      snapshots.delete(key);
+    }
   }
 }

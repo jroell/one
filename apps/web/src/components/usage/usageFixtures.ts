@@ -78,6 +78,7 @@ export function status(
     isConnected: true,
     error: null,
     summary: null,
+    generation: "g1",
     ...overrides,
   };
 }

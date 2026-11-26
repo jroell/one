@@ -7,7 +7,7 @@ import { useSettingsScope } from "../components/settings/SettingsScopeContext";
 import { useProviderInstanceRoute } from "../components/settings/useProviderInstanceRoute";
 
 function SettingsProvidersRoute() {
-  const { instanceId, onSelectInstance } = useProviderInstanceRoute();
+  const { instanceId, onSelectInstance, returnFocusRow } = useProviderInstanceRoute();
   const { environment, scope } = useSettingsScope();
   const gt = useGT();
   if (!environment) {
@@ -25,6 +25,7 @@ function SettingsProvidersRoute() {
       {...(instanceId ? { instanceId } : {})}
       // A provider is a page of its own: its address names it, so it can be linked and reloaded.
       onSelectInstance={onSelectInstance}
+      {...(returnFocusRow ? { returnFocusRow } : {})}
       projectIds={
         scope.kind === "project" || scope.kind === "checkout"
           ? scope.members

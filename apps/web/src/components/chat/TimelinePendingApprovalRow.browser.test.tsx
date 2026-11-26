@@ -77,6 +77,7 @@ it("shows the first hunk of the exact change being approved and opens its full d
       {
         path: "/repo/src/math.ts",
         moreFiles: 0,
+        changes: [],
         additions: 2,
         deletions: 1,
         diffStr: patch,
@@ -114,6 +115,7 @@ it("offers the full diff when the matched change has no preview to show", async 
       {
         path: "/repo/src/math.ts",
         moreFiles: 0,
+        changes: [],
         additions: 2,
         deletions: 1,
         diffStr: null,
@@ -134,6 +136,7 @@ it("tells a screen reader which preview line is added, removed or unchanged, wit
     row(approval({}), {
       path: "/repo/src/math.ts",
       moreFiles: 0,
+      changes: [],
       additions: 2,
       deletions: 1,
       diffStr: patch,
@@ -173,6 +176,7 @@ function pendingDetailRow(detail: ReturnType<typeof Atom.make>, onOpenToolDiff =
               {
                 path: "/repo/src/math.ts",
                 moreFiles: 0,
+                changes: [],
                 additions: null,
                 deletions: null,
                 diffStr: null,
@@ -323,6 +327,7 @@ it("shows the new text when a waiting change is updated in place, asking for its
               {
                 path: "/repo/src/math.ts",
                 moreFiles: 0,
+                changes: [],
                 additions: null,
                 deletions: null,
                 diffStr: null,
@@ -349,6 +354,7 @@ it("lays the card out as header, change and action bar on one 16px inset, with t
     row(approval({}), {
       path: "/repo/src/math.ts",
       moreFiles: 0,
+      changes: [],
       additions: 2,
       deletions: 1,
       diffStr: patch,
@@ -381,4 +387,114 @@ it("lays the card out as header, change and action bar on one 16px inset, with t
     "0px",
   );
   expect(card.textContent!.match(/math\.ts/g)).toHaveLength(1);
+});
+
+// Shaped like the file_change items the ACP projection emits: one change per file, with the
+// operation the provider recorded and `oldPath` on a rename.
+function filesSubject(
+  changes: ReadonlyArray<{
+    operation: string;
+    path: string;
+    oldPath?: string;
+    fileType?: string;
+    mimeType?: string;
+  }>,
+  overrides: Partial<ApprovalSubject> = {},
+): ApprovalSubject {
+  return {
+    path: changes[0]?.path ?? "/repo/a.ts",
+    moreFiles: Math.max(0, changes.length - 1),
+    changes,
+    additions: null,
+    deletions: null,
+    diffStr: null,
+    diffTarget,
+    ...overrides,
+  };
+}
+
+async function renderFiles(subject: ApprovalSubject) {
+  return render(row(approval({}), subject), { router: false });
+}
+
+it("names a rename in the header, with the old and the new path", async () => {
+  await using screen = await renderFiles(
+    filesSubject([{ operation: "rename", oldPath: "/repo/src/a.ts", path: "/repo/src/b.ts" }]),
+  );
+  const title = screen.container.querySelector("[data-approval-title]")!;
+  expect(title.textContent).toMatch(/^Rename\s*src\/a\.ts\s*→\s*src\/b\.ts/);
+});
+
+it("names a delete and an add in the header with their path", async () => {
+  await using screen = await renderFiles(
+    filesSubject([{ operation: "delete", path: "/repo/src/gone.ts" }]),
+  );
+  expect(screen.container.querySelector("[data-approval-title]")!.textContent).toMatch(
+    /^Delete\s*src\/gone\.ts/,
+  );
+  await using added = await renderFiles(
+    filesSubject([{ operation: "add", path: "/repo/src/new.ts" }]),
+  );
+  expect(added.container.querySelector("[data-approval-title]")!.textContent).toMatch(
+    /^Add\s*src\/new\.ts/,
+  );
+});
+
+it("lists every file of a mixed approval with its operation, and names the approval by its size", async () => {
+  await using screen = await renderFiles(
+    filesSubject([
+      { operation: "update", path: "/repo/src/edit.ts" },
+      { operation: "rename", oldPath: "/repo/src/old.ts", path: "/repo/src/renamed.ts" },
+      { operation: "delete", path: "/repo/src/removed.ts" },
+    ]),
+  );
+  expect(screen.container.querySelector("[data-approval-title]")!.textContent).toContain(
+    "Change 3 files",
+  );
+  const rows = [...screen.container.querySelectorAll("[data-approval-files] li")].map((item) =>
+    item.textContent?.replace(/\s+/g, ""),
+  );
+  expect(rows).toEqual([
+    "Editsrc/edit.ts",
+    "Renamesrc/old.ts→src/renamed.ts",
+    "Deletesrc/removed.ts",
+  ]);
+});
+
+it("keeps showing the files, with the full diff, when the patch was omitted", async () => {
+  await using screen = await renderFiles(
+    filesSubject([
+      { operation: "update", path: "/repo/big/one.ts" },
+      { operation: "update", path: "/repo/big/two.ts" },
+    ]),
+  );
+  expect(screen.container.querySelectorAll("[data-approval-files] li")).toHaveLength(2);
+  expect(screen.container.querySelector("[data-approval-title]")!.textContent).toContain(
+    "Edit 2 files",
+  );
+  await expect.element(screen.getByRole("button", { name: "Show full diff" })).toBeVisible();
+});
+
+it("folds files past five behind a count and shows them all on request", async () => {
+  const changes = Array.from({ length: 8 }, (_, index) => ({
+    operation: "update",
+    path: `/repo/src/file-${index}.ts`,
+  }));
+  await using screen = await renderFiles(filesSubject(changes));
+  expect(screen.container.querySelectorAll("[data-approval-files] li")).toHaveLength(5);
+  await screen.getByRole("button", { name: "3 more files" }).click();
+  expect(screen.container.querySelectorAll("[data-approval-files] li")).toHaveLength(8);
+  await screen.getByRole("button", { name: "Show fewer files" }).click();
+  expect(screen.container.querySelectorAll("[data-approval-files] li")).toHaveLength(5);
+});
+
+it("shows the file type a single file carries, which only the list can show", async () => {
+  await using screen = await renderFiles(
+    filesSubject([
+      { operation: "add", path: "/repo/logo.png", fileType: "file", mimeType: "image/png" },
+    ]),
+  );
+  expect(screen.container.querySelector("[data-approval-files]")!.textContent).toContain(
+    "file, image/png",
+  );
 });

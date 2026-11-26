@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  forgetEnvironmentSnapshots,
+  pruneSnapshots,
   recalledProviderCount,
   recalledSnapshot,
   rememberProviderCount,
@@ -51,29 +51,52 @@ describe("usageSkeletonMemory", () => {
 describe("kept figures", () => {
   const view = (
     ids: readonly string[],
-    overrides: { modelFilter?: string; timeZone?: string } = {},
+    overrides: { modelFilter?: string; timeZone?: string; generation?: string } = {},
   ) =>
     usageViewKey({
-      contributors: ids.map((id) => ({ id, modelFilter: overrides.modelFilter ?? "null" })),
+      contributors: ids.map((id) => ({
+        id,
+        generation: overrides.generation ?? "g1",
+        modelFilter: overrides.modelFilter ?? "null",
+      })),
       hiddenProviders: new Set(),
       windowDays: 30,
       timeZone: overrides.timeZone ?? "UTC",
       resolution: "day",
     });
+  const contributors = (ids: readonly string[], generation = "g1") =>
+    ids.map((id) => ({ id, generation, modelFilter: "null" }));
 
-  it("does not replay figures that included a machine which is no longer a contributor", () => {
-    // Usage was settled with machines A and B; A then loses diagnostics access and the page is
-    // reopened while B's summary is still pending.
-    rememberSnapshot(view(["reopen-A", "reopen-B"]), ["reopen-A", "reopen-B"], { total: 100 });
+  it("never replays figures that included a machine which is no longer a contributor", () => {
+    rememberSnapshot(view(["reopen-A", "reopen-B"]), contributors(["reopen-A", "reopen-B"]), {
+      total: 100,
+    });
     expect(recalledSnapshot(view(["reopen-B"]))).toBeNull();
-    expect(recalledSnapshot(view(["reopen-A", "reopen-B"]))).toEqual({ total: 100 });
+  });
 
-    forgetEnvironmentSnapshots("reopen-A");
-    expect(recalledSnapshot(view(["reopen-A", "reopen-B"]))).toBeNull();
+  it("does not return the old figures when the same machines come back under a new generation", () => {
+    // Credentials replaced, or the machine removed and paired again: same ids, new generation.
+    rememberSnapshot(view(["gen-A", "gen-B"]), contributors(["gen-A", "gen-B"]), { total: 100 });
+    expect(recalledSnapshot(view(["gen-A", "gen-B"], { generation: "g2" }))).toBeNull();
+    expect(recalledSnapshot(view(["gen-A", "gen-B"]))).toEqual({ total: 100 });
+  });
+
+  it("evicts the views of an environment that was removed or replaced, keeping the others", () => {
+    rememberSnapshot(view(["prune-A", "prune-B"]), contributors(["prune-A", "prune-B"]), { v: 1 });
+    rememberSnapshot(view(["prune-B"]), contributors(["prune-B"]), { v: 2 });
+
+    // A is gone from the list: its view goes, B's stays.
+    pruneSnapshots(new Map([["prune-B", "g1"]]));
+    expect(recalledSnapshot(view(["prune-A", "prune-B"]))).toBeNull();
+    expect(recalledSnapshot(view(["prune-B"]))).toEqual({ v: 2 });
+
+    // B replaced: its view goes too, even if the old key is asked for again.
+    pruneSnapshots(new Map([["prune-B", "g2"]]));
+    expect(recalledSnapshot(view(["prune-B"]))).toBeNull();
   });
 
   it("keys the model filter and the time zone, so another query never replays", () => {
-    rememberSnapshot(view(["query-A"]), ["query-A"], { total: 1 });
+    rememberSnapshot(view(["query-A"]), contributors(["query-A"]), { total: 1 });
     expect(recalledSnapshot(view(["query-A"], { modelFilter: '{"only":"x"}' }))).toBeNull();
     expect(recalledSnapshot(view(["query-A"], { timeZone: "Asia/Tokyo" }))).toBeNull();
     expect(recalledSnapshot(view(["query-A"]))).toEqual({ total: 1 });
@@ -81,7 +104,7 @@ describe("kept figures", () => {
 
   it("holds only the most recent views", () => {
     for (let index = 0; index < 8; index += 1) {
-      rememberSnapshot(view([`bound-${index}`]), [`bound-${index}`], { index });
+      rememberSnapshot(view([`bound-${index}`]), contributors([`bound-${index}`]), { index });
     }
     expect(recalledSnapshot(view(["bound-0"]))).toBeNull();
     expect(recalledSnapshot(view(["bound-1"]))).toBeNull();

@@ -423,6 +423,88 @@ describe("MessagesTimeline work rows", () => {
     expect(matches).toHaveLength(1);
   });
 
+  it("replaces the edit row with a card that lists every file, its operation and its old path", async () => {
+    const approvalId = RuntimeRequestId.make("edit-approval");
+    const item = (id: string, ordinal: number, type: string, extra: object) =>
+      ({
+        id: TurnItemId.make(id),
+        threadId: ThreadId.make("thread"),
+        runId: RunId.make("run"),
+        nodeId: null,
+        providerThreadId: null,
+        providerTurnId: ProviderTurnId.make("turn"),
+        nativeItemRef: {
+          driver: ProviderDriverKind.make("acp"),
+          nativeId: "edit-1",
+          strength: "strong" as const,
+        },
+        parentItemId: null,
+        ordinal,
+        title: null,
+        startedAt: DateTime.makeUnsafe(CREATED_AT),
+        completedAt: null,
+        updatedAt: DateTime.makeUnsafe(CREATED_AT),
+        status: "waiting" as const,
+        type,
+        ...extra,
+      }) as OrchestrationV2TurnItem;
+    const entries = deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        item("edit", 1, "file_change", {
+          fileName: "src/unique-name.ts",
+          changes: [
+            { operation: "update", path: "src/unique-name.ts" },
+            { operation: "rename", oldPath: "src/before-name.ts", path: "src/after-name.ts" },
+            { operation: "delete", path: "src/removed-name.ts" },
+          ],
+        }),
+        item("ask", 2, "approval_request", {
+          requestId: approvalId,
+          requestKind: "file-change",
+          prompt: "Edit src/unique-name.ts",
+        }),
+      ].map((it) => ({
+        position: it.ordinal,
+        visibility: "local" as const,
+        sourceThreadId: it.threadId,
+        sourceItemId: it.id,
+        item: it,
+      })),
+      optimisticMessages: [],
+    });
+    await using screen = await renderTimeline(entries, {
+      isWorking: true,
+      runningRunId: RunId.make("run"),
+      latestRun: {
+        runId: RunId.make("run"),
+        status: "running",
+        startedAt: CREATED_AT,
+        completedAt: null,
+      } as never,
+      pendingApprovals: [
+        {
+          requestId: approvalId,
+          requestKind: "file-change",
+          createdAt: CREATED_AT,
+          detail: "Changed files",
+          responseCapability: "live",
+        } as never,
+      ],
+      canOperateThread: true,
+      onRespondToApproval: async () => {},
+    });
+    await expect.element(screen.getByRole("group", { name: "File change approval" })).toBeVisible();
+    const text = screen.container.textContent!.replace(/\s+/g, "");
+    // The edit row is gone and the card names each file once, with what happens to it.
+    for (const expected of [
+      "Editsrc/unique-name.ts",
+      "Renamesrc/before-name.ts→src/after-name.ts",
+      "Deletesrc/removed-name.ts",
+    ]) {
+      expect(text.split(expected)).toHaveLength(2);
+    }
+  });
+
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
     const props = baseProps();
     const runId = RunId.make("completed-run");

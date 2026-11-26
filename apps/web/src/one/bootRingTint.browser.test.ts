@@ -1,7 +1,7 @@
 import indexHtml from "../../index.html?raw";
 import { describe, expect, it } from "vite-plus/test";
 
-import { restRingUrl } from "./restRingPicture";
+import { holdRestRing } from "./restRingPicture";
 
 /** The boot screen's two inline functions, taken from index.html as they run before the app loads. */
 function bootTint() {
@@ -52,7 +52,7 @@ describe("the boot screen's recolored ring against the ring drawn by the shader"
         hi: `color-mix(in oklch, ${action} 36%, white)`,
       };
       const exact = await pixelsOf(
-        await restRingUrl({ ...ring, dark: mode === "dark", size: 112, density: 1 }),
+        await holdRestRing({ ...ring, dark: mode === "dark", size: 112, density: 1 }).picture,
       );
       const gold = await pixelsOf(`/mark/ring-${mode}-112@1x.webp`);
       const boot = bootTint();

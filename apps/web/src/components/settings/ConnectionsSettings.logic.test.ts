@@ -1,3 +1,5 @@
+import * as Cause from "effect/Cause";
+import { AsyncResult } from "effect/reactivity";
 import { type DesktopWslState, EnvironmentId } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -7,6 +9,7 @@ import {
   resolveAccessEnvironmentId,
   resolveCurrentOriginPairingUrl,
   resolveTailscaleServeBaseUrl,
+  revokeOthersOutcome,
   selectQrEndpointOption,
   togglePairingScopeSelection,
 } from "./ConnectionsSettings.logic";
@@ -235,5 +238,24 @@ describe("isServerNetworkAccessible", () => {
     { authPolicy: null, directEndpoints: served, expected: false },
   ] as const)("$authPolicy with $directEndpoints.length endpoints", (row) => {
     expect(isServerNetworkAccessible(row)).toBe(row.expected);
+  });
+});
+
+describe("revokeOthersOutcome", () => {
+  const message = (error: unknown) => (error instanceof Error ? error.message : "unknown");
+
+  it("calls only a server answer a success, and an interrupted request neither a success nor a failure", () => {
+    expect(revokeOthersOutcome(AsyncResult.success(2), message)).toEqual({ kind: "revoked" });
+    expect(revokeOthersOutcome(AsyncResult.failure(Cause.interrupt()), message)).toEqual({
+      kind: "interrupted",
+    });
+    expect(
+      revokeOthersOutcome(AsyncResult.failure(Cause.fail(new Error("Not allowed."))), message),
+    ).toEqual({ kind: "failed", message: "Not allowed." });
+    // A defect that arrives as bare text is read as an error with that text.
+    expect(revokeOthersOutcome(AsyncResult.failure(Cause.die("Server error")), message)).toEqual({
+      kind: "failed",
+      message: "Server error",
+    });
   });
 });

@@ -8,7 +8,11 @@ import { msg } from "gt-react";
 
 import { isWebUrl } from "./browser/webUrl";
 import { requestConfirmDialog } from "./confirmDialog";
-import { dismissContextMenu, showContextMenuFallback } from "./contextMenuFallback";
+import {
+  dismissContextMenu,
+  showContextMenuFallback,
+  type ContextMenuPoint,
+} from "./contextMenuFallback";
 import { readBrowserClientSettings, writeBrowserClientSettings } from "./clientPersistenceStorage";
 import { m } from "./i18n/messages";
 
@@ -51,11 +55,13 @@ export function createLocalApi(): LocalApi {
     contextMenu: {
       show: async <T extends string>(
         items: readonly ContextMenuItem<T>[],
-        position?: { x: number; y: number },
+        position?: ContextMenuPoint,
         source?: ContextMenuSource,
       ): Promise<T | null> => {
         if (window.desktopBridge) {
-          return window.desktopBridge.showContextMenu(items, position, source) as Promise<T | null>;
+          // The native menu places itself; `flipTo` is for the web fallback only.
+          const point = position && { x: position.x, y: position.y };
+          return window.desktopBridge.showContextMenu(items, point, source) as Promise<T | null>;
         }
         return showContextMenuFallback(items, position, source);
       },

@@ -1,7 +1,7 @@
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import type { UsageProviderKind } from "@t3tools/contracts";
 import { T, useGT, useLocale, useMessages } from "gt-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { DailyTotals, HourlyTotals } from "@t3tools/shared/usageMerge";
 import {
@@ -428,26 +428,39 @@ function UsageChartPlot({
 }) {
   const gt = useGT();
   const locale = useLocale();
-  // One selection carries its own tooltip position, so the values shown and the place they are shown
-  // at always come from the same input. The keyboard's day is also kept as an anchor: the pointer
-  // leaving the plot hands the tooltip back to it.
+  // The selection is the period and where it came from. Pointer coordinates live in a ref, so moving
+  // inside one period neither renders nor re-attaches observers; the keyboard's period has no
+  // coordinates and is placed from the plot's current size each time. The keyboard's day is also
+  // kept as an anchor: the pointer leaving the plot hands the tooltip back to it.
   const [selected, setSelected] = useState<{
     readonly index: number;
-    readonly x: number;
-    readonly y: number;
     readonly by: "pointer" | "key";
   } | null>(null);
   const [keyIndex, setKeyIndex] = useState<number | null>(null);
   const hoverIndex = selected?.index ?? null;
+  const isOpen = selected !== null;
   const plotRef = useRef<HTMLDivElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const hoverPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  const selectedRef = useRef(selected);
+  const frameRef = useRef(0);
+
+  const slotPosition = (index: number) => {
+    const plot = plotRef.current;
+    if (plot === null) return null;
+    const last = periods.length - 1;
+    const slot =
+      bars === undefined ? (last === 0 ? 0 : index / last) : (index + 0.5) / periods.length;
+    return { x: slot * plot.clientWidth, y: plot.clientHeight * 0.2 };
+  };
 
   const positionTooltip = () => {
     const plot = plotRef.current;
     const tooltip = tooltipRef.current;
-    const hoverPosition = hoverPositionRef.current;
-    if (plot === null || tooltip === null || hoverPosition === null) return;
+    const current = selectedRef.current;
+    if (plot === null || tooltip === null || current === null) return;
+    const anchor = current.by === "key" ? slotPosition(current.index) : pointerRef.current;
+    if (anchor === null) return;
 
     const gap = 12;
     const tooltipWidth = tooltip.offsetWidth;
@@ -455,31 +468,37 @@ function UsageChartPlot({
     const plotWidth = plot.clientWidth;
     const plotHeight = plot.clientHeight;
     const preferredLeft =
-      hoverPosition.x + gap + tooltipWidth <= plotWidth
-        ? hoverPosition.x + gap
-        : hoverPosition.x - gap - tooltipWidth;
+      anchor.x + gap + tooltipWidth <= plotWidth ? anchor.x + gap : anchor.x - gap - tooltipWidth;
     const preferredTop =
-      hoverPosition.y + gap + tooltipHeight <= plotHeight
-        ? hoverPosition.y + gap
-        : hoverPosition.y - gap - tooltipHeight;
+      anchor.y + gap + tooltipHeight <= plotHeight
+        ? anchor.y + gap
+        : anchor.y - gap - tooltipHeight;
     const left = Math.min(Math.max(0, preferredLeft), Math.max(0, plotWidth - tooltipWidth));
     const top = Math.min(Math.max(0, preferredTop), Math.max(0, plotHeight - tooltipHeight));
     plot.style.setProperty("--usage-tooltip-left", `${left}px`);
     plot.style.setProperty("--usage-tooltip-top", `${top}px`);
   };
+  // Observers and frames call the latest closure, which sees the current periods and bars.
+  const positionRef = useRef(positionTooltip);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- positions the hover tooltip through plot CSS variables before paint and on ResizeObserver
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- positions the hover tooltip through plot CSS variables before paint
   useLayoutEffect(() => {
-    hoverPositionRef.current = selected === null ? null : { x: selected.x, y: selected.y };
-    if (hoverIndex === null) return;
-    positionTooltip();
+    positionRef.current = positionTooltip;
+    selectedRef.current = selected;
+    if (selected !== null) positionTooltip();
+  });
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- re-places the tooltip when the plot or the tooltip changes size
+  useLayoutEffect(() => {
+    if (!isOpen) return;
     const plot = plotRef.current;
     const tooltip = tooltipRef.current;
     if (plot === null || tooltip === null) return;
+    return observeResize([plot, tooltip], () => positionRef.current());
+  }, [isOpen]);
 
-    return observeResize([plot, tooltip], positionTooltip);
-  }, [hoverIndex, selected, positionTooltip]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- cancels a pending pointer frame when the chart unmounts
+  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
 
   const handleMove = (event: React.MouseEvent<HTMLDivElement>) => {
     const plot = plotRef.current;
@@ -493,26 +512,19 @@ function UsageChartPlot({
       bars === undefined
         ? Math.round(fraction * (periods.length - 1))
         : Math.floor(fraction * periods.length);
-    setSelected({
-      index: Math.min(periods.length - 1, Math.max(0, index)),
-      x: localX,
-      y: localY,
-      by: "pointer",
-    });
-  };
-
-  const slotPosition = (index: number) => {
-    const plot = plotRef.current;
-    if (plot === null) return null;
-    const last = periods.length - 1;
-    const slot =
-      bars === undefined ? (last === 0 ? 0 : index / last) : (index + 0.5) / periods.length;
-    return { x: slot * plot.clientWidth, y: plot.clientHeight * 0.2 };
-  };
-
-  const keySelection = (index: number) => {
-    const position = slotPosition(index);
-    return position === null ? null : { index, ...position, by: "key" as const };
+    pointerRef.current = { x: localX, y: localY };
+    const period = Math.min(periods.length - 1, Math.max(0, index));
+    setSelected((current) =>
+      current?.index === period && current.by === "pointer"
+        ? current
+        : { index: period, by: "pointer" },
+    );
+    if (frameRef.current === 0) {
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = 0;
+        positionRef.current();
+      });
+    }
   };
 
   /**
@@ -522,6 +534,8 @@ function UsageChartPlot({
   const handleKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (periods.length === 0) return;
     if (event.key === "Escape") {
+      // A press that closes the tooltip is spent; the next one reaches the dialog around the page.
+      if (selected !== null || keyIndex !== null) event.stopPropagation();
       setSelected(null);
       setKeyIndex(null);
       return;
@@ -540,7 +554,7 @@ function UsageChartPlot({
               : null;
     if (next === null) return;
     event.preventDefault();
-    setSelected(keySelection(next));
+    setSelected({ index: next, by: "key" });
     setKeyIndex(next);
   };
 
@@ -578,7 +592,11 @@ function UsageChartPlot({
       onMouseMove={handleMove}
       onMouseLeave={() => {
         setSelected((current) =>
-          current?.by === "pointer" ? (keyIndex === null ? null : keySelection(keyIndex)) : current,
+          current?.by === "pointer"
+            ? keyIndex === null
+              ? null
+              : { index: keyIndex, by: "key" as const }
+            : current,
         );
       }}
       onKeyDown={handleKey}

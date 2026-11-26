@@ -34,6 +34,12 @@ describe("compareReviewFiles", () => {
     ).toEqual(["a/root.ts", "a/sub/part.ts", "a-b/ext.ts"]);
   });
 
+  it("keeps two folders that collate equal apart, so their files never interleave", () => {
+    expect(
+      order([{ path: "folder01/a.ts" }, { path: "folder1/m.ts" }, { path: "folder01/z.ts" }]),
+    ).toEqual(["folder01/a.ts", "folder01/z.ts", "folder1/m.ts"]);
+  });
+
   it("puts binaries after text files in their own folder, before its subfolders", () => {
     expect(
       order([

@@ -5,9 +5,10 @@ import {
 import { msg, T, useGT, useMessages } from "gt-react";
 import { ShieldIcon } from "lucide-react";
 import { useTurnItemDetail } from "../../state/queries";
+import { APPROVAL_FILES_SHOWN, approvalHeaderVerb, approvalVerb } from "./approvalChanges";
 import { type ApprovalHunkLine } from "./approvalHunk";
 import { useApprovalPreview } from "./useApprovalPreview";
-import { memo, use } from "react";
+import { memo, use, useState } from "react";
 import { type PendingApproval } from "../../session-logic";
 import { Badge } from "../ui/badge";
 import { InlineButton } from "../ui/button";
@@ -19,6 +20,7 @@ import {
   relativeToWorkspace,
   splitPathForEllipsis,
   type ApprovalSubject,
+  type ApprovalSubjectChange,
 } from "~/one/chatApprovalSubject";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 import { ToolActivityIconView, type WorkEntryIconName } from "./TimelineToolActivityIcon";
@@ -60,7 +62,17 @@ const APPROVAL_PRESENTATION = {
   { icon: WorkEntryIconName; label: string; title: string; detailLabel: string }
 >;
 
-/** The file a change asks to touch: its name always shows, its directory gives way to an ellipsis. */
+function PathLabel({ path, workspaceRoot }: { path: string; workspaceRoot: string | undefined }) {
+  const { directory, name } = splitPathForEllipsis(relativeToWorkspace(path, workspaceRoot));
+  return (
+    <>
+      {directory ? <span data-approval-path-directory="">{directory}</span> : null}
+      <span data-approval-path-name="">{name}</span>
+    </>
+  );
+}
+
+/** The title says what the approval really is, and names the file when there is only one. */
 function ApprovalSubjectTitle({
   subject,
   workspaceRoot,
@@ -71,9 +83,8 @@ function ApprovalSubjectTitle({
   readonly label: string;
 }) {
   const gt = useGT();
-  const { directory, name } = splitPathForEllipsis(
-    relativeToWorkspace(subject.path, workspaceRoot),
-  );
+  const files = subject.changes.length;
+  const verb = approvalHeaderVerb(subject.changes);
   const counts =
     subject.additions !== null && subject.deletions !== null
       ? gt("+{additions} −{deletions}", {
@@ -81,16 +92,37 @@ function ApprovalSubjectTitle({
           deletions: subject.deletions,
         })
       : null;
-  const more =
-    subject.moreFiles > 0
-      ? gt("{count, plural, one {and {count} more file} other {and {count} more files}}", {
-          count: subject.moreFiles,
-        })
-      : null;
+  if (files > 1) {
+    const text =
+      verb === "add"
+        ? gt("Add {count} files", { count: files })
+        : verb === "delete"
+          ? gt("Delete {count} files", { count: files })
+          : verb === "rename"
+            ? gt("Rename {count} files", { count: files })
+            : verb === "edit"
+              ? gt("Edit {count} files", { count: files })
+              : gt("Change {count} files", { count: files });
+    return (
+      <>
+        <span data-approval-verb="">{text}</span>
+        {counts ? <span data-approval-meta="">{counts}</span> : null}
+      </>
+    );
+  }
+  const only = subject.changes[0];
+  const target = only?.path ?? subject.path;
+  const singleVerb = only === undefined ? "edit" : approvalVerb(only);
   return (
     <>
       <span data-approval-verb="">
-        <T>Edit</T>
+        {singleVerb === "add"
+          ? gt("Add")
+          : singleVerb === "delete"
+            ? gt("Delete")
+            : singleVerb === "rename"
+              ? gt("Rename")
+              : gt("Edit")}
       </span>
       <Tooltip>
         <TooltipTrigger
@@ -103,15 +135,87 @@ function ApprovalSubjectTitle({
             />
           }
         >
-          {directory ? <span data-approval-path-directory="">{directory}</span> : null}
-          <span data-approval-path-name="">{name}</span>
+          {singleVerb === "rename" && only?.oldPath ? (
+            <>
+              <PathLabel path={only.oldPath} workspaceRoot={workspaceRoot} />
+              <span aria-hidden> → </span>
+            </>
+          ) : null}
+          <PathLabel path={target} workspaceRoot={workspaceRoot} />
         </TooltipTrigger>
-        <TooltipPopup side="top">{subject.path}</TooltipPopup>
+        <TooltipPopup side="top">{target}</TooltipPopup>
       </Tooltip>
       {counts ? <span data-approval-meta="">{counts}</span> : null}
-      {more ? <span data-approval-meta="">{more}</span> : null}
     </>
   );
+}
+
+/**
+ * Every file the approval touches, with what happens to it, so nothing the work log row showed
+ * is lost when the card stands in for that row. Five show; the rest fold behind a count.
+ */
+function ApprovalFileList({
+  changes,
+  workspaceRoot,
+}: {
+  readonly changes: ReadonlyArray<ApprovalSubjectChange>;
+  readonly workspaceRoot: string | undefined;
+}) {
+  const gt = useGT();
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? changes : changes.slice(0, APPROVAL_FILES_SHOWN);
+  const folded = changes.length - visible.length;
+  const verbLabel = (change: ApprovalSubjectChange) => {
+    switch (approvalVerb(change)) {
+      case "add":
+        return gt("Add");
+      case "delete":
+        return gt("Delete");
+      case "rename":
+        return gt("Rename");
+      case "edit":
+        return gt("Edit");
+    }
+  };
+  return (
+    <div data-approval-files="">
+      <ul aria-label={gt("Files in this change")}>
+        {visible.map((change) => (
+          <li key={JSON.stringify([change.operation, change.oldPath, change.path])}>
+            <span data-approval-file-verb="">{verbLabel(change)}</span>
+            <code data-approval-file-path="">
+              {change.oldPath && change.oldPath !== change.path ? (
+                <>
+                  <PathLabel path={change.oldPath} workspaceRoot={workspaceRoot} />
+                  <span aria-hidden> → </span>
+                </>
+              ) : null}
+              <PathLabel path={change.path} workspaceRoot={workspaceRoot} />
+            </code>
+            {change.fileType || change.mimeType ? (
+              <span data-approval-meta="">
+                {[change.fileType, change.mimeType].filter(Boolean).join(", ")}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {changes.length > APPROVAL_FILES_SHOWN ? (
+        <InlineButton tone="muted" onClick={() => setExpanded((open) => !open)}>
+          {expanded
+            ? gt("Show fewer files")
+            : gt("{count, plural, one {{count} more file} other {{count} more files}}", {
+                count: folded,
+              })}
+        </InlineButton>
+      ) : null}
+    </div>
+  );
+}
+
+/** A single file whose type or mime type only the list shows. */
+function hasExtraDetail(change: ApprovalSubjectChange): boolean {
+  return Boolean(change.fileType || change.mimeType);
 }
 
 /** What a preview row is, for a reader who cannot see the sign and the tint. */
@@ -128,6 +232,8 @@ function useRowLabel() {
         return number === null ? gt("Unchanged line") : gt("Unchanged line {number}", { number });
       case "plain":
         return gt("Recorded line");
+      case "label":
+        return "";
     }
   };
 }
@@ -146,6 +252,8 @@ function ApprovalHunk({
 }) {
   const gt = useGT();
   const rowLabel = useRowLabel();
+  const excerptLabel = (key: string) =>
+    key === "before" ? gt("Before") : key === "after" ? gt("After") : gt("Recorded content");
   const { activeThreadEnvironmentId, turnItemSource } = use(TimelineRowCtx);
   // The wire item keeps no patch to stay small, so the exact matched item is fetched, as the
   // diff panel does for "Show full diff".
@@ -165,7 +273,10 @@ function ApprovalHunk({
           diffStr,
           oldStr: fetched?.oldStr,
           newStr: fetched?.newStr,
-          operation: fetched?.changes?.[0]?.operation,
+          operation:
+            (fetched?.changes ?? subject.changes).find((change) => change.path === subject.path)
+              ?.operation ?? fetched?.changes?.[0]?.operation,
+          path: subject.path,
         }
       : null,
   );
@@ -182,22 +293,34 @@ function ApprovalHunk({
     <div data-approval-content="hunk" data-approval-hunk="">
       {preview !== null ? (
         <div role="group" aria-label={gt("Change preview")} data-approval-hunk-lines="">
-          {preview.lines.map((line, index) => (
-            // A preview is a fixed, short list that never reorders.
-            // oxlint-disable-next-line react/no-array-index-key
-            <div key={index} data-kind={line.kind}>
-              <span aria-hidden data-approval-hunk-number="">
-                {line.number}
-              </span>
-              <span aria-hidden data-approval-hunk-sign="">
-                {line.kind === "add" ? "+" : line.kind === "delete" ? "−" : ""}
-              </span>
-              <code>
-                <span className="sr-only">{rowLabel(line)}: </span>
-                <span>{line.text || " "}</span>
-              </code>
-            </div>
-          ))}
+          {preview.lines.map((line, index) =>
+            line.kind === "label" ? (
+              // A preview is a fixed, short list that never reorders.
+              // oxlint-disable-next-line react/no-array-index-key
+              <div key={index} data-kind="label">
+                <span data-approval-hunk-label="">{excerptLabel(line.text)}</span>
+              </div>
+            ) : (
+              // oxlint-disable-next-line react/no-array-index-key -- a fixed, short list that never reorders
+              <div key={index} data-kind={line.kind}>
+                <span aria-hidden data-approval-hunk-number="">
+                  {line.number}
+                </span>
+                <span aria-hidden data-approval-hunk-sign="">
+                  {line.kind === "add" ? "+" : line.kind === "delete" ? "−" : ""}
+                </span>
+                <code>
+                  <span className="sr-only">{rowLabel(line)}: </span>
+                  <span>{line.text || " "}</span>
+                  {line.noNewline ? (
+                    <span data-approval-no-newline="">
+                      <T>No newline at end of file</T>
+                    </span>
+                  ) : null}
+                </code>
+              </div>
+            ),
+          )}
         </div>
       ) : loading ? (
         <div role="status" data-approval-preview-state="">
@@ -268,6 +391,9 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
           )}
         </div>
       </header>
+      {subject && (subject.changes.length > 1 || subject.changes.some(hasExtraDetail)) ? (
+        <ApprovalFileList changes={subject.changes} workspaceRoot={workspaceRoot} />
+      ) : null}
       {approval.appName ||
       (subject && !isGenericFileChangePrompt(approval.detail)) ||
       approval.reason ? (

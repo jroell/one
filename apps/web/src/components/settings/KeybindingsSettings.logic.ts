@@ -46,11 +46,12 @@ const PAIR_FOLLOWERS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** The command a paired command is listed right after ("thread.next" for "thread.previous"). */
-export function commandPairLeader(command: KeybindingCommand): KeybindingCommand | null {
+function commandPairLeader(command: KeybindingCommand): KeybindingCommand | null {
   return (PAIR_FOLLOWERS.get(String(command)) as KeybindingCommand | undefined) ?? null;
 }
 
-function commandSortKey(command: KeybindingCommand): string {
+/** The sort key of a command in a list read as groups of related actions: pairs sit together. */
+export function commandSortKey(command: KeybindingCommand): string {
   const leader = commandPairLeader(command);
   return leader === null ? String(command) : `${leader}~`;
 }
@@ -422,25 +423,25 @@ const KEYBINDING_GROUPS = [
     id: "threads",
     title: msg("Threads"),
     prefixes: ["thread", "chat", "pullRequest"],
-    redundantLabelPrefix: "thread",
+    headingArea: "thread",
   },
   {
     id: "composer",
     title: msg("Composer"),
     prefixes: ["composer", "modelPicker"],
-    redundantLabelPrefix: "composer",
+    headingArea: "composer",
   },
   {
     id: "terminal",
     title: msg("Terminal"),
     prefixes: ["terminal"],
-    redundantLabelPrefix: "terminal",
+    headingArea: "terminal",
   },
   {
     id: "preview",
     title: msg("Preview & diff"),
     prefixes: ["preview", "diff"],
-    redundantLabelPrefix: "preview",
+    headingArea: "preview",
   },
   {
     id: "appearance",
@@ -453,6 +454,10 @@ const OTHER_KEYBINDING_GROUP = {
   id: "other",
   title: msg("Other", { $context: "keybinding group" }),
 } as const;
+
+export function keybindingHeadingArea(command: KeybindingCommand): string | undefined {
+  return (keybindingGroupFor(command) as { readonly headingArea?: string }).headingArea;
+}
 
 function keybindingGroupFor(command: KeybindingCommand): { id: string; title: string } {
   const prefix = String(command).split(".")[0] ?? "";
@@ -718,41 +723,77 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "shortcuts.show": msg("Keyboard shortcuts: show"),
 };
 
+/** The area a command belongs to, the first part of its id ("thread" for "thread.next"). */
+function commandArea(command: KeybindingCommand): string {
+  return String(command).split(".")[0] ?? "";
+}
+
 /**
- * The label for a command shown under its group's heading: "Next" under "Threads", not
- * "Thread: next". Only a prefix that the heading already says is dropped, so "Pull request: copy
- * number" and "Model picker: toggle" keep the context their heading does not give.
+ * What a command is called under a heading that already names its area: "Next" under "Thread".
+ * Each is its own message, so every language words it itself instead of cutting a prefix off the
+ * full label.
+ */
+const COMMAND_ACTION_LABELS: Partial<Record<KeybindingCommand, string>> = {
+  "thread.stop": msg("Stop"),
+  "thread.previous": msg("Previous"),
+  "thread.next": msg("Next"),
+  "thread.settle": msg("Settle"),
+  "thread.pin": msg("Pin"),
+  "thread.regenerateTitle": msg("Regenerate title"),
+  "thread.undo": msg("Undo"),
+  "composer.sendAlternate": msg("Opposite queue or steer action"),
+  "composer.sendBackground": msg("Start in background"),
+  "composer.sendAndNewThread": msg("Send and start new thread"),
+  "composer.dictation": msg("Start or finish dictation"),
+  "composer.stash": msg("Stash"),
+  "composer.host": msg("Host"),
+  "composer.cycleHost": msg("Cycle host"),
+  "composer.effort": msg("Effort"),
+  "composer.increaseEffort": msg("Increase effort"),
+  "composer.decreaseEffort": msg("Decrease effort"),
+  "composer.mode": msg("Mode"),
+  "composer.workspace": msg("Workspace"),
+  "composer.previousWorktree": msg("Previous worktree"),
+  "composer.branch": msg("Branch"),
+  "terminal.toggle": msg("Toggle"),
+  "terminal.split": msg("Split"),
+  "terminal.splitVertical": msg("Split vertical"),
+  "terminal.new": msg("New"),
+  "terminal.close": msg("Close"),
+  "preview.toggle": msg("Toggle"),
+  "preview.refresh": msg("Refresh"),
+  "preview.zoomIn": msg("Zoom in"),
+  "preview.zoomOut": msg("Zoom out"),
+  "preview.resetZoom": msg("Reset zoom"),
+  "preview.focusUrl": msg("Focus URL"),
+  "preview.find": msg("Find on page"),
+  "chat.new": msg("New"),
+  "chat.newLocal": msg("New local"),
+  "chat.newWithoutProject": msg("New without project"),
+  "chat.find": msg("Find"),
+  "appearance.cycle": msg("Cycle"),
+};
+
+/**
+ * A command's label for a list under a heading for `headingArea` (a command area such as
+ * "thread"): the short action when the heading already names the command's area, and the full
+ * label otherwise, so "Pull request: copy number" keeps the context its heading does not give.
+ * Settings and the shortcut sheet both use this one function.
  */
 export function commandActionLabel(
   command: KeybindingCommand,
   resolve: MessageResolver = m,
+  headingArea?: string,
 ): string {
-  const group = keybindingGroupFor(command) as { readonly redundantLabelPrefix?: string };
-  return commandLabelUnder(command, group.redundantLabelPrefix, resolve);
-}
-
-/**
- * A command's label under a heading that names the command's own first word: the heading
- * "Thread" or "Composer" over "Thread: next" leaves "Next". Any other label is returned whole.
- */
-export function commandLabelUnder(
-  command: KeybindingCommand,
-  headingWord: string | undefined,
-  resolve: MessageResolver = m,
-): string {
-  const label = commandLabel(command, resolve);
-  const redundant = headingWord;
-  const separator = label.indexOf(": ");
-  if (redundant === undefined || separator === -1) return label;
-  const firstSegment = String(command).split(".")[0] ?? "";
-  if (
-    firstSegment !== redundant ||
-    label.slice(0, separator).toLowerCase() !== sentenceCaseCommandSegment(firstSegment, false)
-  ) {
-    return label;
+  const area = commandArea(command);
+  if (headingArea === undefined || headingArea !== area) return commandLabel(command, resolve);
+  const action = COMMAND_ACTION_LABELS[command];
+  if (action) return resolve(action);
+  const raw = String(command);
+  if (raw.startsWith("thread.jump.")) {
+    return resolve(msg("Jump to {n}", { n: raw.slice("thread.jump.".length) }));
   }
-  const rest = label.slice(separator + 2);
-  return rest.slice(0, 1).toUpperCase() + rest.slice(1);
+  return commandLabel(command, resolve);
 }
 
 export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {

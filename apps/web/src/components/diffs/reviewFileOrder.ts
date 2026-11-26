@@ -25,6 +25,9 @@ export function compareReviewFiles(a: ReviewFile, b: ReviewFile): number {
     }
     const byName = collator.compare(left[index]!, right[index]!);
     if (byName !== 0) return byName;
+    // Names that collate equal (`folder01`, `folder1`) are still two folders: break the tie on the
+    // exact name before going inside, or their files interleave.
+    if (left[index] !== right[index]) return left[index]! < right[index]! ? -1 : 1;
   }
   return 0;
 }

@@ -5,6 +5,7 @@ import { msg, useGT } from "gt-react";
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ComponentPropsWithoutRef,
   type KeyboardEvent,
@@ -30,12 +31,13 @@ import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import {
   buildVisibleToastLayout,
   hasVisibleToastAction,
-  shouldHideCollapsedToastContent,
   shouldRenderThreadScopedToast,
 } from "./toast.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
 import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
 import { useComposerAnchor } from "./useComposerAnchor";
+import { ToastQueue, type ToastQueueEvent, type WaitingToast } from "./toast.queue";
+import { Popover, PopoverPopup, PopoverTrigger } from "./popover";
 
 export type ThreadToastData = {
   threadRef?: ScopedThreadRef | null;
@@ -75,6 +77,9 @@ export type ThreadToastData = {
 };
 
 type BaseToastManager = ReturnType<typeof Toast.createToastManager<ThreadToastData>>;
+type BufferedToastManager = BaseToastManager & { readonly queue: ToastQueue | null };
+/** The thread whose scoped toasts may be shown; set by the viewport. */
+let queueActiveThreadRef: ScopedThreadRef | null = null;
 type ToastManagerListener = Parameters<BaseToastManager[" subscribe"]>[0];
 type ToastManagerEvent = Parameters<ToastManagerListener>[0];
 
@@ -83,31 +88,54 @@ type ToastManagerEvent = Parameters<ToastManagerListener>[0];
  * from before the first render (and while the root error view replaces the providers), so hold
  * those until a provider listens.
  */
-function createBufferedToastManager(): BaseToastManager {
+function createBufferedToastManager(options: { queued: boolean }): BufferedToastManager {
   const manager = Toast.createToastManager<ThreadToastData>();
   const listeners = new Set<ToastManagerListener>();
   const pending: ToastManagerEvent[] = [];
-  manager[" subscribe"]((event) => {
+  const deliver = (event: ToastManagerEvent) => {
     if (listeners.size === 0) {
-      pending.push(event);
+      // A queue keeps its own state and re-shows it when a provider mounts.
+      if (!options.queued) pending.push(event);
       return;
     }
     for (const listener of listeners) listener(event);
+  };
+  const queue = options.queued
+    ? new ToastQueue({
+        deliver: (event) => deliver(event as unknown as ToastManagerEvent),
+        isAttached: () => listeners.size > 0,
+        hasFocusWithin: () => {
+          const viewport = document.querySelector('[data-slot="toast-viewport"]');
+          return viewport !== null && viewport.contains(document.activeElement);
+        },
+        isRenderable: (toast) =>
+          shouldRenderThreadScopedToast(
+            toast.data as Parameters<typeof shouldRenderThreadScopedToast>[0],
+            queueActiveThreadRef,
+          ),
+      })
+    : null;
+  manager[" subscribe"]((event) => {
+    if (queue) queue.handle(event as unknown as ToastQueueEvent);
+    else deliver(event);
   });
   return {
     ...manager,
+    queue,
     " subscribe"(listener) {
       listeners.add(listener);
       for (const event of pending.splice(0)) listener(event);
+      queue?.attach();
       return () => {
         listeners.delete(listener);
+        if (listeners.size === 0) queue?.detach();
       };
     },
   };
 }
 
-const toastManager = createBufferedToastManager();
-const anchoredToastManager = createBufferedToastManager();
+const toastManager = createBufferedToastManager({ queued: true });
+const anchoredToastManager = createBufferedToastManager({ queued: false });
 type ToastId = ReturnType<typeof toastManager.add>;
 const threadToastVisibleTimeoutRemainingMs = new Map<ToastId, number>();
 
@@ -308,6 +336,63 @@ function ToastDescriptionAndExpandable({
   );
 }
 
+const NO_WAITING_TOASTS: readonly WaitingToast[] = [];
+
+/** "+N": the toasts waiting behind this one, with a way to show one now or dismiss it. */
+function WaitingToastsButton({ waiting }: { waiting: readonly WaitingToast[] }) {
+  const gt = useGT();
+  const queue = toastManager.queue!;
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <button
+            aria-label={gt("{count} more notifications", { count: waiting.length })}
+            className="ml-auto shrink-0 cursor-pointer rounded-full px-1.5 text-xs text-muted-foreground tabular-nums outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            data-slot="toast-count"
+            type="button"
+          />
+        }
+      >
+        +{waiting.length}
+      </PopoverTrigger>
+      <PopoverPopup align="end" className="w-72" data-slot="toast-waiting" side="top">
+        <ul className="flex flex-col gap-0.5 py-1" aria-label={gt("Waiting notifications")}>
+          {waiting.map((item) => {
+            const Icon = item.type ? TOAST_ICONS[item.type as keyof typeof TOAST_ICONS] : null;
+            return (
+              <li className="flex items-center gap-2" data-type={item.type} key={item.id}>
+                <button
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-(--ui-hover) focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  data-slot="toast-waiting-show"
+                  onClick={() => queue.promote(item.id)}
+                  type="button"
+                >
+                  {Icon ? (
+                    <span data-slot="toast-icon">
+                      <Icon className="size-4 shrink-0" />
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate">{item.title as ReactNode}</span>
+                </button>
+                <button
+                  aria-label={gt("Dismiss notification")}
+                  className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-(--ui-hover) hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  data-slot="toast-waiting-dismiss"
+                  onClick={() => toastManager.close(item.id)}
+                  type="button"
+                >
+                  <XIcon className="size-3" strokeWidth={2.25} />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </PopoverPopup>
+    </Popover>
+  );
+}
+
 type ToastIconComponent = (typeof TOAST_ICONS)[keyof typeof TOAST_ICONS];
 
 interface ToastBodyDescriptor {
@@ -359,7 +444,7 @@ function deriveToastBodyDescriptor(toast: {
 
 interface ToastBodyContentProps extends ToastBodyDescriptor {
   readonly toastId: ToastId;
-  readonly moreCount?: number;
+  readonly waiting?: readonly WaitingToast[];
   readonly actionProps: { readonly children?: ReactNode } | undefined;
   readonly toastData: ThreadToastData | undefined;
   readonly toastDescription: unknown;
@@ -368,7 +453,7 @@ interface ToastBodyContentProps extends ToastBodyDescriptor {
 
 function ToastBodyContent({
   toastId,
-  moreCount = 0,
+  waiting = NO_WAITING_TOASTS,
   stackedActionLayout,
   Icon,
   copyErrorText,
@@ -419,15 +504,7 @@ function ToastBodyContent({
             </div>
           ) : null}
           <Toast.Title className="min-w-0 wrap-break-word font-medium" data-slot="toast-title" />
-          {moreCount > 0 ? (
-            <span
-              aria-label={gt("{count} more notifications", { count: moreCount })}
-              className="ml-auto shrink-0 rounded-full px-1.5 text-xs text-muted-foreground tabular-nums"
-              data-slot="toast-count"
-            >
-              +{moreCount}
-            </span>
-          ) : null}
+          {waiting.length > 0 ? <WaitingToastsButton waiting={waiting} /> : null}
         </div>
         <ToastDescriptionAndExpandable
           toastData={toastData}
@@ -615,10 +692,20 @@ function Toasts({ position }: { position: ToastPosition }) {
   const visibleToasts = toasts.filter((toast) =>
     shouldRenderThreadScopedToast(toast.data, activeThreadRef),
   );
-  const queuedToastCount = Math.max(0, visibleToasts.length - 1);
-  // One toast at a time; the rest queue behind it and show as a +N count.
-  const visibleToastLayout = buildVisibleToastLayout(visibleToasts.slice(0, 1));
-  const anchor = useComposerAnchor(visibleToasts.length > 0);
+  // One toast is live at a time; an ended one stays mounted until its exit finishes, so Base UI
+  // can remove it and run its callbacks. The rest wait in the queue and show as a +N list.
+  const waiting = useSyncExternalStore(
+    toastManager.queue!.subscribe,
+    toastManager.queue!.getWaiting,
+    toastManager.queue!.getWaiting,
+  );
+  const visibleToastLayout = buildVisibleToastLayout(visibleToasts);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the queue which thread's scoped toasts may be shown
+  useEffect(() => {
+    queueActiveThreadRef = activeThreadRef;
+    toastManager.queue?.refresh();
+  }, [activeThreadRef]);
+  const anchor = useComposerAnchor(visibleToasts.length > 0, visibleToastLayout.frontmostHeight);
   const effectivePosition: ToastPosition = anchor ? "bottom-center" : position;
   const isTop = effectivePosition.startsWith("top");
 
@@ -656,10 +743,6 @@ function Toasts({ position }: { position: ToastPosition }) {
         }
       >
         {visibleToastLayout.items.map(({ toast, visibleIndex, offsetY }) => {
-          const hideCollapsedContent = shouldHideCollapsedToastContent(
-            visibleIndex,
-            visibleToastLayout.items.length,
-          );
           const bodyDescriptor = deriveToastBodyDescriptor(toast);
           const { stackedActionLayout, inlineContentEndPad } = bodyDescriptor;
 
@@ -746,14 +829,12 @@ function Toasts({ position }: { position: ToastPosition }) {
                   stackedActionLayout
                     ? "flex flex-col gap-2 py-2.5 pr-3.5"
                     : cn("py-3", "flex items-center justify-between gap-1.5", inlineContentEndPad),
-                  hideCollapsedContent &&
-                    "not-data-expanded:pointer-events-none not-data-expanded:opacity-0",
                 )}
               >
                 <ToastBodyContent
                   {...bodyDescriptor}
                   actionProps={toast.actionProps}
-                  moreCount={visibleIndex === 0 ? queuedToastCount : 0}
+                  waiting={visibleIndex === 0 ? waiting : NO_WAITING_TOASTS}
                   toastData={toast.data}
                   toastDescription={toast.description}
                   toastId={toast.id}

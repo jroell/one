@@ -27,6 +27,7 @@ import {
 
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { cn } from "../../lib/utils";
+import type { RevokeOthersOutcome } from "./ConnectionsSettings.logic";
 import { formatElapsedDurationLabel, formatExpiresInLabel } from "../../timestampFormat";
 import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
 import {
@@ -593,13 +594,13 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
 export function RevokeOtherClientsAction({
   clientSessions,
   isRevoking,
-  error = null,
+  outcome = null,
   onRevoke,
 }: {
   readonly clientSessions: ReadonlyArray<ServerClientSessionRecord> | null;
   readonly isRevoking: boolean;
-  /** Why the last revoke failed, when it did. */
-  readonly error?: string | null;
+  /** How the last revoke ended; null until one has. */
+  readonly outcome?: RevokeOthersOutcome | null;
   readonly onRevoke: () => void;
 }) {
   const gt = useGT();
@@ -626,8 +627,12 @@ export function RevokeOtherClientsAction({
     ? prompt
     : isRevoking
       ? gt("Revoking other clients…")
-      : finished
-        ? (error ?? gt("Other clients signed out."))
+      : finished && outcome !== null
+        ? outcome.kind === "revoked"
+          ? gt("Other clients signed out.")
+          : outcome.kind === "failed"
+            ? outcome.message
+            : gt("Stopped before the other clients were signed out.")
         : "";
   return (
     <div className="flex min-h-11 items-center justify-end gap-2 border-t border-(--settings-hairline) px-3 sm:px-4">
@@ -637,7 +642,7 @@ export function RevokeOtherClientsAction({
         tabIndex={-1}
         className={cn(
           "me-auto text-xs outline-none",
-          finished && error !== null
+          finished && outcome !== null && outcome.kind !== "revoked"
             ? "text-destructive-foreground"
             : "text-(--settings-description)",
         )}

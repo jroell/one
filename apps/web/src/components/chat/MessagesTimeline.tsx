@@ -105,7 +105,7 @@ import { cn } from "~/lib/utils";
 import { OneEmptyState } from "~/one/OneEmptyState";
 import { useWorkspaceMode } from "~/one/workspaceMode";
 import { quietedLiveWorkIds } from "~/one/chatQuietWork";
-import { ChatArrivalContext, chatArrivalProps, useChatArrival } from "~/one/chatArrival";
+import { ChatArrivalContext, useChatArrival, useChatArrivalProps } from "~/one/chatArrival";
 import { ApprovalSubjectContext, deriveApprovalSubjects } from "~/one/chatApprovalSubject";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { ChatFollowUps } from "~/one/ChatFollowUps";
@@ -825,7 +825,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     () =>
       rows.flatMap((row) =>
         row.kind === "message" && row.message.role !== "system"
-          ? [{ id: row.id, role: row.message.role }]
+          ? [{ id: row.id, role: row.message.role, streaming: row.message.streaming }]
           : [],
       ),
     chatMode && !prefersReducedMotion,
@@ -1823,6 +1823,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
     row.expanded === true;
 
   const arrival = use(ChatArrivalContext);
+  const arrivalProps = useChatArrivalProps(arrival, row.kind === "message" ? row.id : null);
   const followUp = use(ChatFollowUpContext);
   // Chat mode lifts a turn's notices out of its activity rows into one quiet line.
   const noticePlan = use(ChatNoticePlanContext).get(row.id);
@@ -1835,7 +1836,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
   const showsWorkLog = isWorkLogRow && (row.kind !== "work" || (workEntries?.length ?? 0) > 0);
   return (
     <div
-      {...chatArrivalProps(arrival, row.kind === "message" ? row.id : null)}
+      {...arrivalProps}
       className={cn(
         isWorkLogRow || isSubagentGroup
           ? undefined

@@ -33,6 +33,23 @@ describe("advanceArrivals", () => {
     expect(again).toBe(first);
   });
 
+  it("never marks an answer that streams in, so the end of its stream starts no reveal", () => {
+    const streaming = { ...assistant("a2"), streaming: true };
+    const first = advanceArrivals(onScreen, "thread-a", [...onScreenIds(), streaming], true);
+    expect(arrived(first)).toEqual([]);
+    const finished = advanceArrivals(first, "thread-a", [...onScreenIds(), assistant("a2")], true);
+    expect(arrived(finished)).toEqual([]);
+  });
+
+  it("drops the mark of an answer that turns out to be streaming", () => {
+    const marked = advanceArrivals(onScreen, "thread-a", [...onScreenIds(), assistant("a2")], true);
+    expect(arrived(marked)).toEqual(["a2"]);
+    const streaming = { ...assistant("a2"), streaming: true };
+    expect(
+      arrived(advanceArrivals(marked, "thread-a", [...onScreenIds(), streaming], true)),
+    ).toEqual([]);
+  });
+
   it("marks nothing for earlier history that loads above the thread", () => {
     const next = advanceArrivals(
       onScreen,

@@ -118,10 +118,11 @@ describe("approvalPreviewFor", () => {
   it("does not call one-sided recorded content an addition when nothing proves the file was empty", () => {
     const preview = approvalPreviewFor({ newStr: "alpha\nbeta\n" })!;
     expect(preview.lines).toEqual([
+      { kind: "label", text: "recorded", number: null },
       { kind: "plain", text: "alpha", number: null },
       { kind: "plain", text: "beta", number: null },
     ]);
-    expect(approvalPreviewFor({ oldStr: "gone\n" })!.lines[0]!.kind).toBe("plain");
+    expect(approvalPreviewFor({ oldStr: "gone\n" })!.lines[1]!.kind).toBe("plain");
   });
 
   it("shows a deleted file's first lines as removals when the change is recorded as a deletion", () => {
@@ -140,18 +141,103 @@ describe("approvalPreviewFor", () => {
     expect(approvalPreviewFor({})).toBeNull();
   });
 
-  it("gives two large, completely dissimilar texts a preview without a diff search", () => {
+  it("shows labelled excerpts, never a diff, for two large and completely dissimilar texts", () => {
     const side = (tag: string) =>
       Array.from({ length: 4_000 }, (_, index) => `${tag} ${index} ${"q".repeat(10)}`).join("\n");
     const old = side("old");
     const next = side("new");
     expect(old.length + next.length).toBeLessThan(MAX_INPUT_CHARS);
     const preview = approvalPreviewFor({ oldStr: old, newStr: next })!;
-    expect(preview.lines).toHaveLength(8);
+    expect(preview.lines.map((line) => line.kind)).toEqual([
+      "label",
+      "plain",
+      "plain",
+      "plain",
+      "label",
+      "plain",
+      "plain",
+      "plain",
+    ]);
+    expect(preview.lines.map((line) => line.text)[0]).toBe("before");
+    expect(preview.lines.map((line) => line.text)[4]).toBe("after");
+    expect(preview.lines.some((line) => line.kind === "add" || line.kind === "delete")).toBe(false);
+    expect(preview.lines[1]!.text).toBe(old.split("\n")[0]);
   });
 
   it("cuts one very long recorded line", () => {
     const preview = approvalPreviewFor({ oldStr: "a", newStr: "b".repeat(150_000) })!;
     expect(preview.lines.every((line) => line.text.length <= MAX_LINE_CHARS + 1)).toBe(true);
+  });
+});
+
+describe("approvalPreviewFor shows a real diff", () => {
+  const lines = (...rows: string[]) => `${rows.join("\n")}\n`;
+  const kinds = (text: { oldStr: string; newStr: string }) =>
+    approvalPreviewFor(text, 40)!.lines.map((line) => `${line.kind}:${line.text}`);
+
+  it("keeps replacements at both ends separate from the unchanged lines between them", () => {
+    const middle = Array.from({ length: 12 }, (_, index) => `same ${index}`);
+    const preview = kinds({
+      oldStr: lines("first old", ...middle, "last old"),
+      newStr: lines("first new", ...middle, "last new"),
+    });
+    expect(preview.filter((row) => row.startsWith("delete:"))).toEqual(["delete:first old"]);
+    expect(preview.filter((row) => row.startsWith("add:"))).toEqual(["add:first new"]);
+    expect(preview).toContain("context:same 0");
+    expect(preview.some((row) => row.startsWith("delete:same"))).toBe(false);
+  });
+
+  it("shows a moved line as one removal and one addition, not three", () => {
+    expect(kinds({ oldStr: lines("a", "b", "c", "d"), newStr: lines("d", "a", "b", "c") })).toEqual(
+      ["add:d", "context:a", "context:b", "context:c", "delete:d"],
+    );
+  });
+
+  it("shows a change that is only the final newline", () => {
+    const preview = approvalPreviewFor({ oldStr: "a\nb", newStr: "a\nb\n" })!;
+    expect(preview.lines).toEqual([
+      { kind: "context", text: "a", number: null },
+      { kind: "delete", text: "b", number: null, noNewline: true },
+      { kind: "add", text: "b", number: null },
+    ]);
+  });
+
+  it("numbers a patch's hunk by the patch, and not the unchanged lines or another file's headers", () => {
+    const two = [
+      "diff --git a/one.ts b/one.ts",
+      "--- a/one.ts",
+      "+++ b/one.ts",
+      "@@ -5,2 +5,2 @@",
+      " keep",
+      "-old one",
+      "+new one",
+      "diff --git a/two.ts b/two.ts",
+      "--- a/two.ts",
+      "+++ b/two.ts",
+      "@@ -1 +1 @@",
+      "-old two",
+      "+new two",
+    ].join("\n");
+    const first = approvalHunkPreview(two)!;
+    expect(first.lines).toEqual([
+      { kind: "context", text: "keep", number: 5 },
+      { kind: "delete", text: "old one", number: 6 },
+      { kind: "add", text: "new one", number: 6 },
+    ]);
+    expect(first.hidden).toBe(0);
+    expect(approvalHunkPreview(two, 8, "src/two.ts")!.lines).toEqual([
+      { kind: "delete", text: "old two", number: 1 },
+      { kind: "add", text: "new two", number: 1 },
+    ]);
+  });
+
+  it("ends a hunk where its header's lengths say it ends, even when more plus lines follow", () => {
+    const patch = ["@@ -1,1 +1,1 @@", "-a", "+b", "+++ b/next.ts", "+stray"].join("\n");
+    expect(approvalHunkPreview(patch)!.lines.map((line) => line.text)).toEqual(["a", "b"]);
+  });
+
+  it("reads concatenated bare hunks as one hunk and ignores the second", () => {
+    const patch = ["@@ -1 +1 @@", "-a", "+b", "@@ -9 +9 @@", "-c", "+d"].join("\n");
+    expect(approvalHunkPreview(patch)!.lines.map((line) => line.text)).toEqual(["a", "b"]);
   });
 });

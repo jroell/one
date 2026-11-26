@@ -82,9 +82,10 @@ import {
   recalledProviderCount,
   recalledSnapshot,
   rememberProviderCount,
-  forgetEnvironmentSnapshots,
+  pruneSnapshots,
   rememberSnapshot,
   selectionKey,
+  type UsageContributor,
   usageViewKey,
 } from "./usageSkeletonMemory";
 import { UsageSwitch } from "./UsageSwitch";
@@ -93,7 +94,6 @@ import {
   costTypeSegments,
   leadingProvider,
   modelShare,
-  plainNameOf,
   sortModelsByTokens,
   speedCostSegments,
   tokenTypeSegments,
@@ -237,6 +237,7 @@ export function UsagePage() {
     .filter((environment) => environment.canReadDiagnostics)
     .map((environment) => ({
       id: environment.environmentId,
+      generation: environment.generation,
       modelFilter: JSON.stringify(
         appAtomRegistry.get(serverEnvironment.usageModelFilterAtom(environment.environmentId)) ??
           null,
@@ -249,14 +250,25 @@ export function UsagePage() {
     timeZone: window.timeZone,
     resolution: window.resolution,
   });
-  const noAccess = environments
-    .filter((environment) => !environment.canReadDiagnostics)
-    .map((environment) => environment.environmentId)
+  // Every environment, not only the selected ones: a removed one is simply absent from this list.
+  const currentGenerations = environments
+    .filter((environment) => environment.canReadDiagnostics)
+    .map((environment) => `${environment.environmentId}@${environment.generation}`)
     .join(",");
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops kept figures that include an environment which lost diagnostics access
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- evicts kept figures whose environment was removed, replaced or lost its confirmed grant
   useEffect(() => {
-    for (const id of noAccess.split(",")) if (id !== "") forgetEnvironmentSnapshots(id);
-  }, [noAccess]);
+    pruneSnapshots(
+      new Map(
+        currentGenerations
+          .split(",")
+          .filter((entry) => entry !== "")
+          .map((entry) => {
+            const at = entry.lastIndexOf("@");
+            return [entry.slice(0, at), entry.slice(at + 1)] as const;
+          }),
+      ),
+    );
+  }, [currentGenerations]);
   const carried = shown ?? recalledSnapshot<NonNullable<typeof shown>>(viewKey);
   const merged = carried?.merged ?? answeredUsage;
   const shownWindow = carried?.window ?? window;
@@ -631,7 +643,7 @@ export function UsagePage() {
                   showChatGptSharing={showChatGptSharing}
                   selectionKey={selectionKey(selectedEnvironmentIds, hiddenProviders)}
                   viewKey={viewKey}
-                  contributorIds={contributors.map((contributor) => contributor.id)}
+                  contributors={contributors}
                   onSelectModel={selectUsageModel}
                 />
               )}
@@ -683,7 +695,7 @@ function UsageOverview({
   showChatGptSharing,
   selectionKey: selection,
   viewKey,
-  contributorIds,
+  contributors,
   onSelectModel,
 }: {
   readonly merged: MergedUsage;
@@ -699,7 +711,7 @@ function UsageOverview({
   readonly showChatGptSharing: boolean;
   readonly selectionKey: string;
   readonly viewKey: string;
-  readonly contributorIds: readonly string[];
+  readonly contributors: readonly UsageContributor[];
   readonly onSelectModel: (key: string) => void;
 }) {
   const gt = useGT();
@@ -756,8 +768,8 @@ function UsageOverview({
     // Only a settled answer counts, and a settled zero is one.
     if (loadingPartial) return;
     rememberProviderCount(selection, providerCount);
-    rememberSnapshot(viewKey, contributorIds, { window: shownWindow, merged });
-  }, [selection, providerCount, loadingPartial, viewKey, contributorIds, shownWindow, merged]);
+    rememberSnapshot(viewKey, contributors, { window: shownWindow, merged });
+  }, [selection, providerCount, loadingPartial, viewKey, contributors, shownWindow, merged]);
 
   return (
     <div aria-busy={loadingPartial} className="usage-stack">
@@ -1069,7 +1081,7 @@ function UsageOverview({
                             >
                               {column === "cost" ? (
                                 isModelCostUnknown(model) ? (
-                                  <UnpricedCell alias={plainNameOf(model, breakdownModels)} />
+                                  <UnpricedCell />
                                 ) : (
                                   formatUsd(model.costUsd, locale)
                                 )
@@ -1172,8 +1184,8 @@ function UsageOverview({
   );
 }
 
-/** "Unpriced" with the reason on hover or focus, and a hint when another row looks like the same model. */
-function UnpricedCell({ alias }: { readonly alias: string | null }) {
+/** "Unpriced" with the reason on hover or focus. */
+function UnpricedCell() {
   const gt = useGT();
   return (
     <Tooltip>
@@ -1181,16 +1193,9 @@ function UnpricedCell({ alias }: { readonly alias: string | null }) {
         <T>Unpriced</T>
       </TooltipTrigger>
       <TooltipPopup side="top">
-        <div className="flex max-w-60 flex-col gap-0.5">
-          <span>
-            {gt("No price is known for this model, so its cost is left out of the estimate.")}
-          </span>
-          {alias === null ? null : (
-            <span className="text-muted-foreground">
-              {gt("It looks like {name}, which is recorded under its plain name.", { name: alias })}
-            </span>
-          )}
-        </div>
+        <span className="block max-w-60">
+          {gt("No price is known for this model, so its cost is left out of the estimate.")}
+        </span>
       </TooltipPopup>
     </Tooltip>
   );

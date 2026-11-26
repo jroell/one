@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - reads the images and the stylesheet on disk.
+import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
@@ -42,5 +43,28 @@ describe("the static mark images in public/mark", () => {
     const token = (step: number) =>
       new RegExp(`--gold-${step}:\\s*(#[0-9a-f]{6})`, "i").exec(css)?.[1]?.toLowerCase();
     expect([ORB_GOLD.hi, ORB_GOLD.mid, ORB_GOLD.lo]).toEqual([token(300), token(500), token(700)]);
+  });
+
+  it("was drawn by the current shader, rest pose and script, and every file is the one the script wrote", () => {
+    const sha256 = (file: string) =>
+      NodeCrypto.createHash("sha256")
+        .update(NodeFS.readFileSync(NodePath.join(web, file)))
+        .digest("hex");
+    const manifest = JSON.parse(
+      NodeFS.readFileSync(NodePath.join(web, "public/mark/manifest.json"), "utf8"),
+    ) as { inputs: Record<string, string>; files: Record<string, string> };
+    const stale = Object.entries(manifest.inputs)
+      .filter(([file, hash]) => sha256(file) !== hash)
+      .map(([file]) => file);
+    expect(
+      stale,
+      "run `pnpm mark:render` in apps/web: these inputs changed since the pictures were drawn",
+    ).toEqual([]);
+    const expected = combinations.map(([theme, size, density]) =>
+      orbMarkUrl(theme, size, density).slice(1),
+    );
+    expect(Object.keys(manifest.files).sort()).toEqual([...expected].sort());
+    const changed = expected.filter((name) => sha256(`public/${name}`) !== manifest.files[name]);
+    expect(changed, "run `pnpm mark:render` in apps/web without --only").toEqual([]);
   });
 });

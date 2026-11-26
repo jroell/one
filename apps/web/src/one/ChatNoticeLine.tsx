@@ -38,67 +38,109 @@ function noticeLevel(entry: WorkLogEntry): "info" | "warning" | "error" {
     : "warning";
 }
 
+/** A notice the person must act on: a sign-in the notice offers, or an error. */
+function isActionableNotice(entry: WorkLogEntry): boolean {
+  const payload = entry.structuredPayload;
+  if (payload?.type !== "system_notice") return false;
+  return (
+    (payload.mcpSignIn !== undefined && payload.providerThreadId !== null) ||
+    noticeLevel(entry) === "error"
+  );
+}
+
+/** One notice that needs the person: a plain sentence, its sign-in beside it, the text behind it. */
+function ChatActionableNotice({ entry }: { readonly entry: WorkLogEntry }) {
+  const gt = useGT();
+  const { activeThreadEnvironmentId } = use(TimelineRowCtx);
+  const payload = entry.structuredPayload;
+  const signIn =
+    payload?.type === "system_notice" &&
+    payload.mcpSignIn !== undefined &&
+    payload.providerThreadId !== null
+      ? { payload, server: payload.mcpSignIn.server, providerThreadId: payload.providerThreadId }
+      : null;
+  return (
+    <ChatFailure
+      headline={
+        signIn !== null
+          ? gt("{server} could not start because it needs you to sign in.", {
+              server: signIn.server,
+            })
+          : gt("Something needs your attention.")
+      }
+      details={noticeText(entry)}
+      warning={noticeLevel(entry) !== "error"}
+      action={
+        signIn !== null ? (
+          <div className="one-chat-failure-action">
+            <McpSignInAction
+              environmentId={activeThreadEnvironmentId}
+              threadId={signIn.payload.threadId}
+              providerThreadId={signIn.providerThreadId}
+              server={signIn.server}
+              noticeAt={DateTime.toEpochMillis(signIn.payload.updatedAt)}
+            />
+          </div>
+        ) : undefined
+      }
+    />
+  );
+}
+
 /**
- * A turn's non-blocking notices as one quiet line: "1 notice", with a dot for how serious the
- * worst is. It opens to the full text, wrapped and never cut off, with a copy button and any
- * sign-in the notice offers.
+ * A turn's notices. Those the person must act on (a sign-in, an error) stay in view, one plain
+ * sentence each with the action beside it. The rest are one quiet line, "1 notice", that opens to
+ * the full text, wrapped and never cut off, with a copy button.
  */
 export function ChatNoticeLine({ notices }: { readonly notices: ReadonlyArray<WorkLogEntry> }) {
   const gt = useGT();
-  const { activeThreadEnvironmentId } = use(TimelineRowCtx);
   const [open, setOpen] = useState(false);
   const bodyId = useId();
-  if (notices.length === 0) return null;
-  const levels = notices.map(noticeLevel);
+  const actionable = notices.filter(isActionableNotice);
+  const calm = notices.filter((entry) => !isActionableNotice(entry));
+  const levels = calm.map(noticeLevel);
   const worst = levels.includes("error")
     ? "error"
     : levels.includes("warning")
       ? "warning"
       : "info";
   return (
-    <div className="one-chat-notice" data-chat-notice="" data-level={worst}>
-      <button
-        type="button"
-        className="one-chat-notice-toggle"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        data-scroll-anchor-ignore
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span className="one-chat-notice-dot" aria-hidden />
-        <span>
-          {gt("{count, plural, one {# notice} other {# notices}}", { count: notices.length })}
-        </span>
-        <ChevronRightIcon className="one-chat-notice-chevron size-3.5" aria-hidden />
-      </button>
-      {open ? (
-        <div id={bodyId} className="one-chat-notice-body">
-          {notices.map((entry) => {
-            const payload = entry.structuredPayload;
-            return (
-              <div key={entry.id}>
-                <p className="one-chat-notice-text">{noticeText(entry)}</p>
-                {payload?.type === "system_notice" &&
-                payload.mcpSignIn !== undefined &&
-                payload.providerThreadId !== null ? (
-                  <McpSignInAction
-                    environmentId={activeThreadEnvironmentId}
-                    threadId={payload.threadId}
-                    providerThreadId={payload.providerThreadId}
-                    server={payload.mcpSignIn.server}
-                    noticeAt={DateTime.toEpochMillis(payload.updatedAt)}
-                  />
-                ) : null}
-              </div>
-            );
-          })}
-          <CopyDetailButton
-            text={notices.map(noticeText).join("\n\n")}
-            label={gt("Copy notice text")}
-          />
+    <>
+      {actionable.map((entry) => (
+        <ChatActionableNotice key={entry.id} entry={entry} />
+      ))}
+      {calm.length > 0 ? (
+        <div className="one-chat-notice" data-chat-notice="" data-level={worst}>
+          <button
+            type="button"
+            className="one-chat-notice-toggle"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            data-scroll-anchor-ignore
+            onClick={() => setOpen((current) => !current)}
+          >
+            <span className="one-chat-notice-dot" aria-hidden />
+            <span>
+              {gt("{count, plural, one {# notice} other {# notices}}", { count: calm.length })}
+            </span>
+            <ChevronRightIcon className="one-chat-notice-chevron size-3.5" aria-hidden />
+          </button>
+          {open ? (
+            <div id={bodyId} className="one-chat-notice-body">
+              {calm.map((entry) => (
+                <p key={entry.id} className="one-chat-notice-text">
+                  {noticeText(entry)}
+                </p>
+              ))}
+              <CopyDetailButton
+                text={calm.map(noticeText).join("\n\n")}
+                label={gt("Copy notice text")}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
 

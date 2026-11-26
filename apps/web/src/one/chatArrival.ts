@@ -5,6 +5,8 @@ import { useStableCallback } from "~/hooks/useStableCallback";
 export interface ArrivalMessage {
   readonly id: string;
   readonly role: "user" | "assistant";
+  /** True while the answer streams in; it reveals block by block then, never as an arrival. */
+  readonly streaming?: boolean;
 }
 
 export interface ArrivalState {
@@ -50,9 +52,19 @@ export function advanceArrivals(
   const fresh = new Set([...previous.fresh].filter((id) => present.has(id)));
   const seen = new Set(previous.seen);
   for (const [index, message] of messages.entries()) {
+    // A streaming answer already reveals block by block; marking it would replay the whole
+    // reveal from hidden when the stream ends.
+    if (message.streaming === true) fresh.delete(message.id);
     if (seen.has(message.id)) continue;
     seen.add(message.id);
-    if (animate && index > anchorIndex && message.role === "assistant") fresh.add(message.id);
+    if (
+      animate &&
+      message.streaming !== true &&
+      index > anchorIndex &&
+      message.role === "assistant"
+    ) {
+      fresh.add(message.id);
+    }
   }
 
   const unchanged =
@@ -67,11 +79,16 @@ export function advanceArrivals(
 export interface ChatArrival {
   readonly fresh: ReadonlySet<string>;
   readonly settle: (messageId: string) => void;
+  /** True once a mounted row has started this message's reveal. */
+  readonly hasPlayed: (messageId: string) => boolean;
+  readonly markPlayed: (messageId: string) => void;
 }
 
 export const ChatArrivalContext = createContext<ChatArrival>({
   fresh: NONE,
   settle: () => {},
+  hasPlayed: () => false,
+  markPlayed: () => {},
 });
 
 /**
@@ -112,6 +129,12 @@ export function useChatArrival(
     ),
   );
   const fresh = current?.fresh ?? NONE;
+  // Message ids whose reveal has started on screen; a row that remounts inside the marker skips it.
+  const [played] = useState(() => new Set<string>());
+  const hasPlayed = useStableCallback((messageId: string) => played.has(messageId));
+  const markPlayed = useStableCallback((messageId: string) => {
+    played.add(messageId);
+  });
   // One expiry per message, started when it first shows as fresh, so a later arrival never moves it.
   const [expiries] = useState(() => new Map<string, ReturnType<typeof setTimeout>>());
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a mark whose row never mounted gets no animationend, so a timer retires it
@@ -140,20 +163,35 @@ export function useChatArrival(
     },
     [expiries],
   );
-  return { fresh, settle };
+  return { fresh, settle, hasPlayed, markPlayed };
 }
 
 const CHAT_ARRIVAL_ANIMATION = "one-chat-arrive";
 
-/** Row attributes: the marker CSS animates, and the end of that animation retires the mark. */
-export function chatArrivalProps(arrival: ChatArrival, messageId: string | null) {
-  if (messageId === null || !arrival.fresh.has(messageId)) return {};
+/**
+ * Row attributes: the marker CSS animates, and the end of that animation retires the mark. A
+ * message plays once: a remount after its reveal started never restarts it from hidden.
+ */
+export function useChatArrivalProps(arrival: ChatArrival, messageId: string | null) {
+  const canPlay = (id: string | null) =>
+    id !== null && arrival.fresh.has(id) && !arrival.hasPlayed(id);
+  // A recycled row container can be handed another message, so the claim is per message id.
+  const [claim, setClaim] = useState({ id: messageId, plays: canPlay(messageId) });
+  let plays = claim.plays;
+  if (claim.id !== messageId) {
+    plays = canPlay(messageId);
+    setClaim({ id: messageId, plays });
+  }
+  if (messageId === null || !plays || !arrival.fresh.has(messageId)) return {};
+  const own = (event: AnimationEvent<HTMLElement>) =>
+    event.target === event.currentTarget && event.animationName === CHAT_ARRIVAL_ANIMATION;
   return {
     "data-chat-arrival": "",
+    onAnimationStart: (event: AnimationEvent<HTMLElement>) => {
+      if (own(event)) arrival.markPlayed(messageId);
+    },
     onAnimationEnd: (event: AnimationEvent<HTMLElement>) => {
-      if (event.target === event.currentTarget && event.animationName === CHAT_ARRIVAL_ANIMATION) {
-        arrival.settle(messageId);
-      }
+      if (own(event)) arrival.settle(messageId);
     },
   };
 }

@@ -15,10 +15,15 @@ import { msg } from "gt-react";
 import { useState } from "react";
 
 import { mergeUsage, type EnvironmentUsage, type MergedUsage } from "@t3tools/shared/usageMerge";
-import { appAtomRegistry } from "../rpc/atomRegistry";
+import { appAtomRegistry, subscribeAtomChanges } from "../rpc/atomRegistry";
 import { environmentPresentations } from "./presentation";
 import { serverEnvironment } from "./server";
-import { environmentSession, readEnvironmentScope } from "./session";
+import {
+  environmentAuthorization,
+  environmentSession,
+  forgetEnvironmentAuthorization,
+  readEnvironmentScope,
+} from "./session";
 import { m } from "../i18n/messages";
 
 export interface EnvironmentUsageStatus {
@@ -29,6 +34,44 @@ export interface EnvironmentUsageStatus {
   readonly isConnected: boolean;
   readonly error: string | null;
   readonly summary: UsageSummary | null;
+  /** The authorization these figures belong to: changes on replaced credentials, removal, re-pairing. */
+  readonly generation: string;
+}
+
+// Removal ends an environment's authorization even when the same credential returns later and
+// whether or not Usage is open, so this watches the list for the life of the app.
+let presentEnvironments = new Set(
+  appAtomRegistry.get(environmentPresentations.presentationsAtom).keys(),
+);
+subscribeAtomChanges(environmentPresentations.presentationsAtom, (presentations) => {
+  for (const environmentId of presentEnvironments) {
+    if (!presentations.has(environmentId)) forgetEnvironmentAuthorization(environmentId);
+  }
+  presentEnvironments = new Set(presentations.keys());
+});
+
+/*
+ * Which authorization produced the figures a query shows. A query atom keeps its last value while it
+ * reads again, even after the machine's credentials were replaced or it was paired again, so a
+ * waiting value only counts when this module saw it settle under the current generation.
+ */
+const settledUnder = new Map<string, { readonly generation: string; readonly result: unknown }>();
+
+function summaryUnder(
+  queryKey: string,
+  generation: string,
+  result: AsyncResult.AsyncResult<UsageSummary, unknown>,
+): UsageSummary | null {
+  if (
+    AsyncResult.isSuccess(result) &&
+    !result.waiting &&
+    settledUnder.get(queryKey)?.result !== result
+  ) {
+    settledUnder.set(queryKey, { generation, result });
+  }
+  return settledUnder.get(queryKey)?.generation === generation
+    ? AsyncResult.getOrElse(result, () => null)
+    : null;
 }
 
 const usageByWindowAtom = Atom.family((windowKey: string) =>
@@ -39,11 +82,18 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
     const statuses: EnvironmentUsageStatus[] = [];
     for (const [environmentId, presentation] of presentations) {
       const isConnected = presentation.connection.phase === "connected";
+      const authorization = get(environmentAuthorization(environmentId));
       const sessionResult = get(environmentSession.sessionStateAtom(environmentId));
+      const hasSessionError = sessionResult._tag === "Failure";
+      // The session atom keeps the previous grant while a replacement check is in flight. Until the
+      // check has answered for this authorization, the grant is treated as not yet known.
       const access = resolveUsageAccess({
         connectionPhase: presentation.connection.phase,
-        session: AsyncResult.getOrElse(sessionResult, () => null),
-        hasSessionError: sessionResult._tag === "Failure",
+        session:
+          authorization.confirmed || hasSessionError
+            ? AsyncResult.getOrElse(sessionResult, () => null)
+            : null,
+        hasSessionError,
       });
       if (!access.canReadDiagnostics) {
         statuses.push({
@@ -52,28 +102,30 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
           isConnected,
           ...access,
           summary: null,
+          generation: authorization.generation,
         });
         continue;
       }
-      const result = get(
-        serverEnvironment.usageSummary({
-          environmentId,
-          input: usageSummaryInput(
-            input,
-            get(serverEnvironment.usageModelFilterAtom(environmentId)),
-          ),
-        }),
+      const query = usageSummaryInput(
+        input,
+        get(serverEnvironment.usageModelFilterAtom(environmentId)),
       );
-      const summary = AsyncResult.getOrElse(result, () => null);
+      const result = get(serverEnvironment.usageSummary({ environmentId, input: query }));
+      const summary = summaryUnder(
+        `${environmentId}|${JSON.stringify(query)}`,
+        authorization.generation,
+        result,
+      );
       statuses.push({
         environmentId,
         label: presentation.entry.target.label,
-        isPending: result.waiting,
+        isPending: result.waiting || (summary === null && AsyncResult.isSuccess(result)),
         canReadDiagnostics: true,
         isConnected,
         error:
           result._tag === "Failure" ? m(msg("This environment could not report usage.")) : null,
         summary,
+        generation: authorization.generation,
       });
     }
     return statuses;
@@ -214,7 +266,7 @@ export function useUsage(
     .filter((environment) => environment.canReadDiagnostics)
     .map(
       (environment) =>
-        `${environment.environmentId}:${JSON.stringify(
+        `${environment.environmentId}@${environment.generation}:${JSON.stringify(
           appAtomRegistry.get(serverEnvironment.usageModelFilterAtom(environment.environmentId)) ??
             null,
         )}`,

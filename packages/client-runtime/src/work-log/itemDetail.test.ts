@@ -285,6 +285,24 @@ describe("tool results wrapped in content blocks", () => {
     }
   });
 
+  it("keeps structured output beside a wrapped image and wrapped caption", () => {
+    const image = { type: "image", mimeType: "image/png", data: "AAAA" };
+    const item = toolItem({
+      content: [
+        { type: "content", content: image },
+        { type: "content", content: { type: "text", text: "Caption" } },
+      ],
+      structuredContent: { accounted: 21 },
+    });
+    expect(turnItemOutputText(item)).toBe(JSON.stringify({ accounted: 21 }, null, 2));
+    expect(turnItemOutputImages(item)).toHaveLength(1);
+    const bare = toolItem({
+      content: [image, { type: "text", text: "Caption" }],
+      structuredContent: { accounted: 21 },
+    });
+    expect(turnItemOutputText(item)).toBe(turnItemOutputText(bare));
+  });
+
   it("reports no text for a result that really is empty", () => {
     expect(turnItemOutputText(toolItem({ type: "text", text: "" }))).toBeNull();
     expect(

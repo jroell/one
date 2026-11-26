@@ -1,6 +1,7 @@
 import {
   MessageId,
   ProviderDriverKind,
+  ProviderThreadId,
   ProviderTurnId,
   RunId,
   RuntimeRequestId,
@@ -385,8 +386,12 @@ async function outlinePositionReadsWhileScrolling(listRef: TimelineProps["listRe
       },
     };
   };
-  using _timers = fakeTimers();
   const scroller = list.getScrollableNode() as HTMLElement;
+  // A scroll target past the measured content clamps to the end, where the outline reads nothing.
+  await vi.waitFor(() =>
+    expect(scroller.scrollHeight - scroller.clientHeight).toBeGreaterThan(1500 + 200),
+  );
+  using _timers = fakeTimers();
   scroller.scrollTop = 1500;
   scroller.dispatchEvent(new Event("scroll"));
   await act(() => vi.advanceTimersByTime(50));
@@ -760,6 +765,28 @@ it("Chat mode says Waiting for you while an approval is pending, and Code mode k
   }
 });
 
+it("Chat mode marks a working turn with the flat 16px glyph and no lit mark", async () => {
+  const turn = turnFixture({ approval: false, finished: false });
+  using _mode = inMode("chat");
+  await using screen = await renderTimeline({
+    ...baseProps(),
+    timelineEntries: turn.entries,
+    latestRun: turn.latestRun,
+    isWorking: true,
+    runningRunId: turn.runId,
+    activeTurnStartedAt: turn.latestRun.startedAt,
+  });
+  await vi.waitFor(() =>
+    expect(
+      screen.container.querySelector('[data-timeline-row-kind="working"] .one-working-mark'),
+    ).not.toBeNull(),
+  );
+  const mark = screen.container.querySelector<HTMLElement>(".one-working-mark")!;
+  expect(mark.querySelector("svg[data-one-glyph]")?.getAttribute("data-one-glyph")).toBe("16");
+  expect(mark.querySelector("img, [data-one-mark-vector]")).toBeNull();
+  expect(screen.container.querySelector("svg.one-mark, [data-one-mark]")).toBeNull();
+});
+
 /** A composer stand-in that records what the follow-up actions put in it. */
 function composerStandIn(initial: string) {
   const state = { value: initial, focused: 0, accepts: true };
@@ -949,7 +976,12 @@ it("Chat mode marks a newly arrived answer once and leaves answers already on sc
 });
 
 /** An answer, then what the run raised after it: a notice and/or a failed turn. */
-function noticeFixture(options: { notices?: number; failure?: boolean }) {
+function noticeFixture(options: {
+  notices?: number;
+  failure?: boolean;
+  signIn?: boolean;
+  errorNotice?: boolean;
+}) {
   const fixture = makeStreamingTimelineFixture();
   const [, , , user, work, assistant] = fixture.visibleTurnItems;
   if (user?.item.type !== "user_message" || work?.item.type !== "dynamic_tool") {
@@ -974,6 +1006,35 @@ function noticeFixture(options: { notices?: number; failure?: boolean }) {
         message: `MCP client for mem${index} timed out after 30 seconds. Add or adjust \`startup_timeout_sec\` in your config to give it longer to start.`,
       },
     }) as unknown as typeof work;
+  // Shaped like the Codex adapter's failed-start notice: no level, a sign-in, the CLI's own words.
+  const signInNotice = {
+    ...work,
+    position: work.position + 20,
+    sourceItemId: TurnItemId.make("notice-sign-in"),
+    item: {
+      ...work.item,
+      id: TurnItemId.make("notice-sign-in"),
+      type: "system_notice" as const,
+      status: "completed" as const,
+      providerThreadId: ProviderThreadId.make("codex-thread-1"),
+      title: "MCP server mem0 failed to start",
+      message: "mem0 requires reauthentication. Run `codex mcp login mem0` to sign in.",
+      mcpSignIn: { server: "mem0" },
+    },
+  } as unknown as typeof work;
+  const errorNotice = {
+    ...signInNotice,
+    position: work.position + 25,
+    sourceItemId: TurnItemId.make("notice-error"),
+    item: {
+      ...signInNotice.item,
+      id: TurnItemId.make("notice-error"),
+      title: "Workspace sync failed",
+      message: "EACCES: permission denied, open '/srv/app/.sync-lock'",
+      level: "error" as const,
+      mcpSignIn: undefined,
+    },
+  } as unknown as typeof work;
   const failure = {
     ...work,
     position: work.position + 30,
@@ -996,6 +1057,8 @@ function noticeFixture(options: { notices?: number; failure?: boolean }) {
       user,
       answer,
       ...Array.from({ length: options.notices ?? 0 }, (_, index) => notice(index)),
+      ...(options.signIn ? [signInNotice] : []),
+      ...(options.errorNotice ? [errorNotice] : []),
       ...(options.failure ? [failure] : []),
     ],
     optimisticMessages: [],
@@ -1032,6 +1095,31 @@ it("Chat mode folds a turn's notices into one quiet line that opens to the full 
       ),
     );
     expect(screen.container.querySelector("[data-chat-notice]")).toBeNull();
+  }
+});
+
+it("Chat mode keeps a notice that needs a sign-in or is an error in view in plain words, and folds only the rest", async () => {
+  const timelineEntries = noticeFixture({ notices: 1, signIn: true, errorNotice: true });
+  {
+    using _mode = inMode("chat");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await expect
+      .element(screen.getByText("mem0 could not start because it needs you to sign in."))
+      .toBeVisible();
+    await expect.element(screen.getByText("Something needs your attention.")).toBeVisible();
+    // Only the timed-out warning sits behind the count.
+    await expect.element(screen.getByRole("button", { name: "1 notice" })).toBeVisible();
+    // The CLI's words wait behind the disclosure instead of leading.
+    expect(screen.container.textContent).not.toContain("codex mcp login mem0");
+    expect(screen.container.textContent).not.toContain("EACCES");
+    await screen.getByRole("button", { name: "Technical details" }).first().click();
+    expect(screen.container.textContent).toContain("codex mcp login mem0");
+  }
+  {
+    using _mode = inMode("code");
+    await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
+    await expect.element(screen.getByText(/codex mcp login mem0/)).toBeVisible();
+    expect(screen.container.querySelector("[data-chat-failure]")).toBeNull();
   }
 });
 
@@ -1151,6 +1239,44 @@ it("Chat mode reveals a new answer one paragraph after another, and the reveal i
       "none",
     ]),
   );
+});
+
+it("Chat mode never replays the reveal on an answer that streamed in when its stream ends", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(false);
+  const props = baseProps();
+  const opening = [
+    message("ask-1", "user", "First question"),
+    message("answer-1", "assistant", "Hi"),
+  ];
+  await using screen = await renderTimeline({ ...props, timelineEntries: opening });
+  const question = message("ask-2", "user", "Next question");
+  const streamed = (text: string, streaming: boolean): Entry => {
+    const answer = message("answer-2", "assistant", text);
+    return answer.kind === "message"
+      ? { ...answer, message: { ...answer.message, streaming } }
+      : answer;
+  };
+  const body = "Alpha.\n\nBeta.\n\nGamma.";
+  await screen.rerender(
+    <MessagesTimeline {...props} timelineEntries={[...opening, question, streamed(body, true)]} />,
+  );
+  const answer = () => screen.container.querySelector<HTMLElement>('[data-message-id="answer-2"]')!;
+  await vi.waitFor(() => expect(answer().querySelector("[data-streaming]")).not.toBeNull());
+  expect(arrivals(screen.container)).toEqual([]);
+
+  await screen.rerender(
+    <MessagesTimeline {...props} timelineEntries={[...opening, question, streamed(body, false)]} />,
+  );
+  await vi.waitFor(() => expect(answer().querySelector("[data-streaming]")).toBeNull());
+  const paragraphs = [...answer().querySelectorAll<HTMLElement>(".chat-markdown > p")];
+  expect(paragraphs).toHaveLength(3);
+  expect(arrivals(screen.container)).toEqual([]);
+  expect(paragraphs.map((p) => getComputedStyle(p).animationName)).toEqual([
+    "none",
+    "none",
+    "none",
+  ]);
 });
 
 it("Chat mode marks no arrival under reduced motion, and Code mode marks none either", async () => {

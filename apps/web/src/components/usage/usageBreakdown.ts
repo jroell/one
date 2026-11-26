@@ -104,19 +104,3 @@ export function leadingProvider(
 export function wholePercent(share: number): string {
   return share > 0 && share < 0.005 ? "<1%" : `${Math.round(share * 100)}%`;
 }
-
-/**
- * The plain name of a model recorded under a vendor-prefixed one ("openai/gpt-6.1-sol") when the
- * same provider also has a row under the plain name. The two stay separate rows (the page cannot
- * know they are one model); this only lets the page say they look like the same one.
- */
-export function plainNameOf(
-  model: Pick<ModelTotals, "model" | "provider">,
-  models: readonly Pick<ModelTotals, "model" | "provider">[],
-): string | null {
-  const slash = model.model.indexOf("/");
-  if (slash < 0) return null;
-  const plain = model.model.slice(slash + 1);
-  const found = models.some((other) => other.provider === model.provider && other.model === plain);
-  return found ? plain : null;
-}

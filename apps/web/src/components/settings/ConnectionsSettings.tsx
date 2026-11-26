@@ -137,6 +137,8 @@ import {
   isServerNetworkAccessible,
   isTailscaleHttpsEndpoint,
   endpointDefaultPreferenceKey,
+  revokeOthersOutcome,
+  type RevokeOthersOutcome,
 } from "./ConnectionsSettings.logic";
 import {
   AdvertisedEndpointListRow,
@@ -358,6 +360,7 @@ function ConnectionsSettingsContent({
     string | null
   >(null);
   const [isRevokingOtherDesktopClients, setIsRevokingOtherDesktopClients] = useState(false);
+  const [lastRevokeOutcome, setRevokeOthersOutcome] = useState<RevokeOthersOutcome | null>(null);
   const [addBackendDialogOpen, setAddBackendDialogOpen] = useState(false);
   const [routeTarget, setRouteTarget] = useState<EnvironmentPresentation | null>(null);
   // An address the map already knows for the machine being added; remounts the dialog with it.
@@ -695,8 +698,15 @@ function ConnectionsSettingsContent({
     )
       return;
     setIsRevokingOtherDesktopClients(true);
+    setRevokeOthersOutcome(null);
     setDesktopAccessManagementMutationError(null);
     const result = await revokeOtherClients({ environmentId: accessEnvironmentId, input: null });
+    const outcome = revokeOthersOutcome(result, (error) =>
+      error instanceof Error
+        ? (thrownErrorMessage(error, resolveMessage) ?? error.message)
+        : gt("Failed to revoke other clients."),
+    );
+    setRevokeOthersOutcome(outcome);
     if (result._tag === "Success") {
       toastManager.add({
         type: "success",
@@ -706,18 +716,13 @@ function ConnectionsSettingsContent({
             : gt("{count, plural, other {Revoked {count} clients}}", { count: result.value }),
         description: gt("Other paired clients will need a new pairing link before reconnecting."),
       });
-    } else if (!isAtomCommandInterrupted(result)) {
-      const error = squashAtomCommandFailure(result);
-      const message =
-        error instanceof Error
-          ? (thrownErrorMessage(error, resolveMessage) ?? error.message)
-          : gt("Failed to revoke other clients.");
-      setDesktopAccessManagementMutationError(message);
+    } else if (outcome.kind === "failed") {
+      setDesktopAccessManagementMutationError(outcome.message);
       toastManager.add(
         stackedThreadToast({
           type: "error",
           title: gt("Could not revoke other clients"),
-          description: message,
+          description: outcome.message,
         }),
       );
     }
@@ -1496,7 +1501,7 @@ function ConnectionsSettingsContent({
                       : null
                   }
                   isRevoking={isRevokingOtherDesktopClients}
-                  error={desktopAccessManagementMutationError}
+                  outcome={lastRevokeOutcome}
                   onRevoke={requestRevokeOtherClients}
                 />
               ) : null}

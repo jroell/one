@@ -65,8 +65,10 @@ export function installOneReflections(): () => void {
       rect: null,
       measuredIn: -1,
       measuredAt: 0,
+      // Removing the element reports a size of zero: release it then, whichever way it closed.
       stopObserving: observeResize(element, () => {
         epoch++;
+        if (!element.isConnected) forget(element);
       }),
       x: null,
       y: null,
@@ -151,8 +153,8 @@ export function installOneReflections(): () => void {
     activeGlint = null;
   };
   const sweepDetached = () => {
-    for (const [element, entry] of tracked) {
-      if (entry.tier === "glint" && !element.isConnected) forget(element);
+    for (const element of tracked.keys()) {
+      if (!element.isConnected) forget(element);
     }
   };
 

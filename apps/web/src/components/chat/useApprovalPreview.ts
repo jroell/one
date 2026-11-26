@@ -6,32 +6,37 @@ import {
   type ApprovalPreviewSource,
 } from "./approvalHunk";
 
-type Job = () => void;
-
-const queue: Job[] = [];
-let draining = false;
+/** One task at a time, each in a timer turn of its own; a cancelled task leaves the queue. */
+export function createTaskQueue() {
+  const queue: Array<() => void> = [];
+  let draining = false;
+  const drain = () => {
+    const job = queue.shift();
+    if (job === undefined) {
+      draining = false;
+      return;
+    }
+    job();
+    setTimeout(drain, 0);
+  };
+  return (job: () => void): (() => void) => {
+    queue.push(job);
+    if (!draining) {
+      draining = true;
+      setTimeout(drain, 0);
+    }
+    return () => {
+      const index = queue.indexOf(job);
+      if (index !== -1) queue.splice(index, 1);
+    };
+  };
+}
 
 /**
- * One preview at a time, each in its own task. The work is bounded already; running it in a task
- * of its own means the card paints, and Approve and Decline answer, before any of it starts, and
- * many cards in a long thread never compute at once.
+ * One preview at a time, each in its own task. The card paints, and Approve and Decline answer,
+ * before any of it starts, and cards scrolled past never compute.
  */
-function schedule(job: Job): void {
-  queue.push(job);
-  if (draining) return;
-  draining = true;
-  setTimeout(drain, 0);
-}
-
-function drain(): void {
-  const job = queue.shift();
-  if (job === undefined) {
-    draining = false;
-    return;
-  }
-  job();
-  setTimeout(drain, 0);
-}
+const schedule = createTaskQueue();
 
 export interface ApprovalPreviewState {
   /** False until the preview for the current source has been computed. */
@@ -51,26 +56,22 @@ export function useApprovalPreview(source: ApprovalPreviewSource | null): Approv
   const oldStr = source?.oldStr;
   const newStr = source?.newStr;
   const operation = source?.operation;
+  const path = source?.path;
   const present = source !== null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the preview is computed in a queued task after paint, so it lands in state rather than in render
   useEffect(() => {
     if (!present) return;
-    let live = true;
-    const input = { diffStr, oldStr, newStr, operation };
-    schedule(() => {
-      if (live) setComputed({ source: input, preview: approvalPreviewFor(input) });
-    });
-    return () => {
-      live = false;
-    };
-  }, [present, diffStr, oldStr, newStr, operation]);
+    const input = { diffStr, oldStr, newStr, operation, path };
+    return schedule(() => setComputed({ source: input, preview: approvalPreviewFor(input) }));
+  }, [present, diffStr, oldStr, newStr, operation, path]);
   if (
     source === null ||
     computed === null ||
     computed.source.diffStr !== diffStr ||
     computed.source.oldStr !== oldStr ||
     computed.source.newStr !== newStr ||
-    computed.source.operation !== operation
+    computed.source.operation !== operation ||
+    computed.source.path !== path
   ) {
     return NOT_READY;
   }
