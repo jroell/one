@@ -45,6 +45,8 @@ export const Route = createFileRoute("/_chat/settings/providers")({
       : {}),
     // Set by the Usage page to start this provider's sign-in once; the section removes it.
     ...(raw.action === "sign-in" ? { action: "sign-in" as const } : {}),
+    // Set by an Ask One answer to open the dialog that adds a usage source once; the section removes it.
+    ...(raw.action === "add-hub" || raw.action === "add-http-source" ? { action: raw.action } : {}),
     ...(typeof raw.instanceId === "string" && raw.instanceId.trim()
       ? { instanceId: ProviderInstanceId.make(raw.instanceId) }
       : {}),

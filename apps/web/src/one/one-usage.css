@@ -1140,11 +1140,6 @@ button.usage-legend:active {
   }
 }
 
-.usage-metric[data-emphasis] {
-  background: color-mix(in srgb, var(--foreground) 5%, transparent);
-  box-shadow: inset 0 1px 0 0 var(--one-glass-rim-top);
-}
-
 .usage-metric > :first-child {
   font-size: 0.75rem;
   color: var(--usage-text-muted);

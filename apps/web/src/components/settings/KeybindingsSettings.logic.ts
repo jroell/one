@@ -751,7 +751,7 @@ const COMMAND_ACTION_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "thread.undo": msg("Undo"),
   "approval.approve": msg("Approve"),
   "approval.decline": msg("Decline"),
-  "composer.sendAlternate": msg("Opposite queue or steer action"),
+  "composer.sendAlternate": msg("Send the other way (interrupt or wait)"),
   "composer.sendBackground": msg("Start in background"),
   "composer.sendAndNewThread": msg("Send and start new thread"),
   "composer.dictation": msg("Start or finish dictation"),

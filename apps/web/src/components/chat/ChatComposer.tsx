@@ -2512,12 +2512,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposerRef.current(undefined, undefined, { voice: report });
   });
   const voiceCancel = useStableCallback(() => speechInput.cancelRecording());
+  const voiceOpenSetup = useStableCallback(() => speechInput.openSetup());
   // Sends one message for the app through the same send as a typed one. It needs an empty
   // composer in every slot, carries its notes on its own report so no later message can take
   // them, and succeeds only once the server accepted the turn. Any other outcome leaves the
   // composer empty, as the person had it.
   const sendForApp = useStableCallback(
-    (input: { readonly text: string; readonly agentContext: string }) =>
+    (input: { readonly text: string; readonly agentContext?: string }) =>
       new Promise<GuidedSendResult>((resolve) => {
         const composerEmpty =
           prompt.trim().length === 0 &&
@@ -2554,7 +2555,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         };
         submitComposerRef.current(undefined, undefined, {
           voice: {
-            agentContext: input.agentContext,
+            agentContext: input.agentContext ?? "",
             // The request going out is not yet an answer from the server.
             sent: () => {},
             accepted: (messageId) => settle({ ok: true, messageId }),
@@ -2578,18 +2579,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // Voice chat sends a spoken question on its own, so it is offered only when the
   // composer is free: nothing waiting for an answer, and no queued message being edited.
   // A fan-out to several models has no single thread whose reply could be read.
-  const voiceAvailable =
-    speechInput.available &&
+  const composerFreeForVoice =
     multipleModelSelections === null &&
     !dictationDisabled &&
     !isEditingQueuedMessage &&
     !isComposerApprovalState &&
     activePendingProgress === null;
-  // No transcription source is chosen yet: starting voice input opens Voice settings instead of recording.
+  // No transcription source is chosen (never chosen, or turned off): voice chat is still offered,
+  // so that pressing it can say why it cannot listen and open the setting that fixes it.
   const transcriptionDestination = useVoiceTranscriptionDestination();
   const voiceNeedsSetup =
     transcriptionDestination.grantId === null &&
-    transcriptionDestination.offerFirstRunSetup === true;
+    (transcriptionDestination.offerFirstRunSetup === true || transcriptionDestination.off === true);
+  const voiceAvailable =
+    composerFreeForVoice && (speechInput.available || transcriptionDestination.off === true);
   const voiceDraftEmpty =
     prompt.trim().length === 0 &&
     composerImages.length + composerFiles.length === 0 &&
@@ -2621,6 +2624,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       continuesDraft: voiceContinuesDraft,
       available: voiceAvailable,
       needsSetup: voiceNeedsSetup,
+      openSetup: voiceOpenSetup,
       draftEmpty: voiceDraftEmpty,
       phase: voicePhase,
       error: voiceError,
@@ -2640,6 +2644,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     routeKind,
     voiceAvailable,
     voiceNeedsSetup,
+    voiceOpenSetup,
     voiceDraftEmpty,
     voicePhase,
     voiceError,

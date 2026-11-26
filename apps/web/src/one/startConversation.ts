@@ -4,6 +4,7 @@ import {
   scopeThreadRef,
   scopedThreadKey,
 } from "@t3tools/client-runtime/environment";
+import { resolveProviderInstanceDisplayName } from "@t3tools/client-runtime/state/provider-instance-display";
 import {
   MESSAGE_AGENT_CONTEXT_MAX_CHARS,
   type EnvironmentId,
@@ -42,6 +43,7 @@ import {
   firstProviderWithUsageLeft,
   providerReady,
 } from "./guidedModel";
+import { refreshGuidedActions, rememberGuidedThread, type GuidedAction } from "./guidedThread";
 import {
   guidedTopicThread,
   rememberGuidedReturn,
@@ -53,14 +55,16 @@ import { setWorkspaceMode } from "./workspaceMode";
 export interface StartConversationInput {
   /** The first message exactly as the person sees it. */
   readonly visibleText: string;
-  /** Notes and instructions to the model. Sent with the message, never shown to the person. */
-  readonly hiddenContext: string;
+  /** Notes to the model. Sent with the message, never shown to the person. Absent: none. */
+  readonly hiddenContext?: string;
   readonly returnTo?: GuidedReturn;
   /**
    * Names what the conversation is about. When a thread started for this key in this session still
    * exists and has an answer, it is opened instead of a new one, and nothing is sent.
    */
   readonly topicKey?: string;
+  /** Places the answer points to, shown as chips under it (in-app paths only; at most three). */
+  readonly actions?: ReadonlyArray<GuidedAction>;
 }
 
 export type GuidedConversationInput = StartConversationInput & {
@@ -119,6 +123,11 @@ export interface GuidedConversationDeps {
   /** The providers of an environment, with their usage windows. */
   readonly providersFor: (environmentId: EnvironmentId) => ReadonlyArray<ServerProvider>;
   readonly now: () => number;
+  /** A provider instance's name as the person knows it. */
+  readonly providerName: (
+    environmentId: EnvironmentId,
+    instanceId: ModelSelection["instanceId"],
+  ) => string;
   /** Gives a draft the model it will send with. */
   readonly setDraftModel: (draftKey: string, selection: ModelSelection) => void;
 }
@@ -166,11 +175,14 @@ export async function startGuidedConversation(
   deps: GuidedConversationDeps,
 ): Promise<GuidedConversationResult> {
   if (input.visibleText.trim().length === 0) return { ok: false, reason: "empty-message" };
-  if (input.hiddenContext.length > MESSAGE_AGENT_CONTEXT_MAX_CHARS) {
+  if ((input.hiddenContext?.length ?? 0) > MESSAGE_AGENT_CONTEXT_MAX_CHARS) {
     return { ok: false, reason: "context-too-long" };
   }
   const sendThrough = async (bridge: ComposerSendBridge) => {
-    const sent = await bridge.send({ text: input.visibleText, agentContext: input.hiddenContext });
+    const sent = await bridge.send({
+      text: input.visibleText,
+      ...(input.hiddenContext === undefined ? {} : { agentContext: input.hiddenContext }),
+    });
     return sent;
   };
 
@@ -180,7 +192,7 @@ export async function startGuidedConversation(
     if (input.expectThreadKey !== undefined && bridge.threadKey !== input.expectThreadKey) {
       return { ok: false, reason: "wrong-thread" };
     }
-    if (!deps.supportsAgentContext(bridge.environmentId)) {
+    if (input.hiddenContext !== undefined && !deps.supportsAgentContext(bridge.environmentId)) {
       return { ok: false, reason: "server-too-old" };
     }
     setWorkspaceMode("chat");
@@ -200,6 +212,7 @@ export async function startGuidedConversation(
   const earlier = input.topicKey === undefined ? null : guidedTopicThread(input.topicKey);
   if (earlier !== null && deps.threadHasAnswer(earlier)) {
     if (input.returnTo) rememberGuidedReturn(earlier, input.returnTo);
+    if (input.actions) refreshGuidedActions(earlier, input.actions);
     setWorkspaceMode("chat");
     deps.openThread(earlier);
     return { ok: true, threadKey: earlier, reused: true };
@@ -227,8 +240,15 @@ export async function startGuidedConversation(
   if (choice.kind === "none") {
     return giveUp({ ok: false, reason: "usage-limit", resetsAt: choice.resetsAt });
   }
+  let asked = deps.providerName(environmentId, bridge.modelSelection.instanceId);
+  let skipped: { readonly name: string; readonly resetsAt: string | null } | undefined;
   if (choice.kind === "switch") {
     const { selection } = choice;
+    asked = deps.providerName(environmentId, selection.instanceId);
+    skipped = {
+      name: deps.providerName(environmentId, choice.passedOver.instanceId),
+      resetsAt: choice.passedOver.resetsAt,
+    };
     deps.setDraftModel(draft.draftKey, selection);
     bridge = await deps.composerFor(
       draft.draftKey,
@@ -250,6 +270,11 @@ export async function startGuidedConversation(
   }
   if (input.returnTo) rememberGuidedReturn(draft.threadKey, input.returnTo);
   if (input.topicKey !== undefined) rememberGuidedTopic(input.topicKey, draft.threadKey);
+  rememberGuidedThread(draft.threadKey, {
+    asked,
+    ...(skipped === undefined ? {} : { skipped }),
+    actions: input.actions ?? [],
+  });
   return { ok: true, threadKey: draft.threadKey };
 }
 
@@ -349,6 +374,12 @@ function useGuidedConversationDeps(): {
     composerFor: waitForComposerSend,
     providersFor: (environmentId) => providers.get(environmentId) ?? [],
     now: Date.now,
+    providerName: (environmentId, instanceId) => {
+      const provider = providers
+        .get(environmentId)
+        ?.find((entry) => entry.instanceId === instanceId);
+      return provider === undefined ? instanceId : resolveProviderInstanceDisplayName(provider);
+    },
     setDraftModel: (draftKey, selection) =>
       useComposerDraftStore
         .getState()
@@ -368,9 +399,12 @@ function useGuidedConversationDeps(): {
   };
 }
 
-/** Whether a conversation can start. `reason` is already translated. */
+/**
+ * Whether a conversation can start. `reason` is already translated. `reopens` is set when asking
+ * would open the topic's earlier thread instead of a new one, so the button can say "Continue".
+ */
 export type ConversationAvailability =
-  | { readonly ok: true }
+  | { readonly ok: true; readonly reopens?: true }
   | { readonly ok: false; readonly reason: string };
 
 /** Whether asking about this topic reopens an earlier thread that has an answer, which needs no provider. */
@@ -390,7 +424,8 @@ export function useConversationAvailability(topicKey?: string): ConversationAvai
     now: Date.parse(`${minute}:00.000Z`),
     timestampFormat,
   });
-  return availability.ok || reusable ? { ok: true } : { ok: false, reason: availability.reason };
+  if (reusable) return { ok: true, reopens: true };
+  return availability.ok ? { ok: true } : { ok: false, reason: availability.reason };
 }
 
 /**

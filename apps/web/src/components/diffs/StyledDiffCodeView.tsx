@@ -196,7 +196,7 @@ export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
     [data-change-icon="rename-pure"],
     [data-change-icon="rename-changed"]
   ) {
-  color: light-dark(var(--gold-600), var(--gold-400)) !important;
+  color: var(--ui-fill-shape) !important;
 }
 
 [data-diffs-header] [data-change-icon="new"] {

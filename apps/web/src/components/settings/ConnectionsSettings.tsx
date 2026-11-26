@@ -43,6 +43,7 @@ import {
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { useAccessEnvironment } from "./useAccessEnvironment";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import { CopyCommandButton } from "./CopyCommandButton";
 import { ExplainControl } from "./explain/ExplainControl";
 import { ManagedByOrganization } from "../ManagedPolicy";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
@@ -1258,32 +1259,37 @@ function ConnectionsSettingsContent({
               )
             : currentAuthPolicy === "loopback-browser"
               ? gt(
-                  "Only this machine can connect. Restart with a non-loopback host for remote pairing.",
+                  "Only this computer can connect. To let other devices connect, run t3 up --lan where the server starts.",
                 )
               : gt("Network exposure information is unavailable.")
       }
       control={
         !desktopBridge &&
         (currentAuthPolicy === "remote-reachable" || currentAuthPolicy === "loopback-browser") ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className="inline-flex">
-                  <Switch
-                    checked={isLocalBackendNetworkAccessible}
-                    disabled
-                    aria-label={gt("Enable network access")}
-                  />
-                </span>
-              }
-            />
-            <TooltipPopup side="top">
-              <T>
-                Network exposure changes restart the backend and must be controlled where the server
-                process is launched.
-              </T>
-            </TooltipPopup>
-          </Tooltip>
+          <div className="flex items-center gap-2">
+            {currentAuthPolicy === "loopback-browser" ? (
+              <CopyCommandButton command="t3 up --lan" />
+            ) : null}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="inline-flex">
+                    <Switch
+                      checked={isLocalBackendNetworkAccessible}
+                      disabled
+                      aria-label={gt("Enable network access")}
+                    />
+                  </span>
+                }
+              />
+              <TooltipPopup side="top">
+                <T>
+                  Network exposure changes restart the backend and must be controlled where the
+                  server process is launched.
+                </T>
+              </TooltipPopup>
+            </Tooltip>
+          </div>
         ) : undefined
       }
     />

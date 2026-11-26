@@ -118,14 +118,14 @@ export const watchDirectoryPath = (
           );
         });
 
-        const statIdentity = fs
-          .stat(entry)
-          .pipe(
-            Effect.map(
-              (info) =>
-                `${info.dev}:${info.ino.valueOrUndefined}:${info.birthtime.valueOrUndefined?.getTime()}`,
-            ),
-          );
+        const statIdentity = fs.stat(entry).pipe(
+          Effect.map(
+            (info) =>
+              // The modification time covers entries added or removed while the watches could not
+              // see them: macOS watches paths, so a directory renamed away and back is deaf in between.
+              `${info.dev}:${info.ino.valueOrUndefined}:${info.birthtime.valueOrUndefined?.getTime()}:${info.mtime.valueOrUndefined?.getTime()}`,
+          ),
+        );
         // One probe per second catches replacements the watches cannot see: a link target's
         // ancestors, or the entry becoming a link before macOS has armed the parent watch.
         // A missing entry probes as null and a link whose target is missing as "".

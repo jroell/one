@@ -24,7 +24,8 @@ export interface ComposerSendBridge {
   /** Sends `text` as the person's message with the app's notes beside it. Never edits a draft. */
   readonly send: (input: {
     readonly text: string;
-    readonly agentContext: string;
+    /** Notes for the model beside the text; absent for a plain message the person chose to send. */
+    readonly agentContext?: string;
   }) => Promise<GuidedSendResult>;
 }
 

@@ -74,9 +74,6 @@ function Host({ className, children, ...props }: ComponentProps<"div">) {
     >
       {children}
       <span aria-hidden="true" className="one-reflection" />
-      <span aria-hidden="true" className="one-reflection-glow">
-        <span />
-      </span>
     </div>
   );
 }

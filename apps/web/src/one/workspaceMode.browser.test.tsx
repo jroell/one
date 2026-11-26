@@ -1,6 +1,7 @@
 import { useLayoutEffect } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
+import "~/index.css";
 import { act, render } from "../../test/render";
 import {
   getWorkspaceMode,
@@ -147,4 +148,24 @@ it("a plain switch lands at once, even while a cross-fade to the same mode is wa
   expect(getWorkspaceMode()).toBe("chat");
   expect(root().oneMode).toBe("chat");
   fades.started[0]?.finish();
+});
+
+it("a mode switch never shows the old and the new layout together: the old one has left before the new one begins", async () => {
+  // The browser's own transition, with the marker the app sets, to read the pseudo-elements it builds.
+  document.documentElement.dataset.oneModeTransition = "test";
+  const transition = document.startViewTransition(() => {});
+  try {
+    await transition.ready;
+    const html = document.documentElement;
+    const old = getComputedStyle(html, "::view-transition-old(root)");
+    const arriving = getComputedStyle(html, "::view-transition-new(root)");
+    expect(old.animationName).toBe("one-mode-leave");
+    expect(arriving.animationName).toBe("one-mode-arrive");
+    const seconds = (value: string) => Number.parseFloat(value);
+    expect(seconds(arriving.animationDelay)).toBeGreaterThanOrEqual(seconds(old.animationDuration));
+  } finally {
+    transition.skipTransition();
+    await transition.finished.catch(() => {});
+    delete document.documentElement.dataset.oneModeTransition;
+  }
 });

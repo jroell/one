@@ -337,6 +337,7 @@ it("tests the selected model after download and preserves its transcript across 
             input.commitDraft(transcript, { start: transcript.length, end: transcript.length });
           },
           startWithResult: async () => "declined",
+          openSetup: () => {},
           submitAfterDictation: () => {},
           stop: async () => {},
           cancel: () => {},
@@ -635,11 +636,16 @@ it("turns off the settings that shape transcription while transcription is off, 
   );
   await expect.element(screen.getByRole("switch", { name: "Silence filtering" })).toBeDisabled();
   await expect.element(screen.getByRole("switch", { name: "Remove filler words" })).toBeDisabled();
+  // The page says voice input is off and offers the control that fixes it: the menu opens.
   await expect
-    .element(screen.getByText("Choose where to transcribe to change this.").first())
+    .element(screen.getByText("Voice input is off. Choose where your speech is turned into text."))
     .toBeVisible();
+  await screen.getByRole("button", { name: "Turn on voice input" }).first().click();
+  await expect.element(screen.getByRole("option", { name: "Off" })).toBeVisible();
+  await userEvent.keyboard("{Escape}");
 
   chooseAudioDestination({ kind: "environment", environmentId: EnvironmentId.make("missing") });
+  await vi.waitFor(() => expect(document.querySelector("[data-voice-off]")).toBeNull());
   await expect.element(screen.getByRole("switch", { name: "Silence filtering" })).toBeEnabled();
   await expect.element(screen.getByRole("switch", { name: "Remove filler words" })).toBeEnabled();
 });

@@ -1,9 +1,17 @@
 import { useGT } from "gt-react";
 import { MicIcon, MicOffIcon, RotateCcwIcon, XIcon } from "lucide-react";
-import { memo, useState, type ReactNode, type RefObject } from "react";
+import { memo, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { OneOrb, type OneOrbState } from "./OneOrb";
 import { captionWords } from "./voiceCaptionProgress";
+import {
+  EASE_ENTER_FALLBACK,
+  EASE_EXIT_FALLBACK,
+  EXIT_RATIO,
+  motionMs,
+  motionToken,
+  prefersReducedMotion,
+} from "./voiceStageMotion";
 
 /**
  * What the stage shows. Each one has its own shape and word, so none is told apart by sound or by
@@ -98,7 +106,7 @@ function StatusWord({ status }: { readonly status: string }) {
     setWords({ current: status, previous: words.current, turn: words.turn + 1 });
   }
   return (
-    <div className="one-voice-status-wrap">
+    <div className="one-voice-status-wrap" data-swapping={words.previous === null ? undefined : ""}>
       {words.previous === null ? null : (
         <span key={`out-${words.turn}`} className="one-voice-status-out" aria-hidden="true">
           {words.previous}
@@ -112,6 +120,89 @@ function StatusWord({ status }: { readonly status: string }) {
       </p>
     </div>
   );
+}
+
+/**
+ * When the transcript changes what it is (the question, the reply, a notice, nothing), the old text
+ * fades out first and the new text comes in after it, on the same two beats as the status word. Text
+ * that only grows (a reply streaming in) is left alone.
+ */
+function useCaptionSwap(
+  captionRef: RefObject<HTMLParagraphElement | null>,
+  leavingRef: RefObject<HTMLParagraphElement | null>,
+  kind: string,
+  caption: string,
+): {
+  readonly previous: { readonly text: string; readonly kind: string } | null;
+  readonly turn: number;
+} {
+  const key = `${kind}:${caption.length > 0}`;
+  const [exitedTurn, setExitedTurn] = useState(0);
+  const [seen, setSeen] = useState({
+    key,
+    text: caption,
+    kind,
+    previous: null as { text: string; kind: string } | null,
+    turn: 0,
+  });
+  if (seen.key !== key) {
+    setSeen({
+      key,
+      text: caption,
+      kind,
+      previous: { text: seen.text, kind: seen.kind },
+      turn: seen.turn + 1,
+    });
+  } else if (seen.text !== caption) {
+    setSeen({ ...seen, text: caption });
+  }
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- plays the old transcript's exit and removes its copy when it ends, then starts the new one's entrance
+  useLayoutEffect(() => {
+    const element = captionRef.current;
+    const leaving = leavingRef.current;
+    if (!element || seen.turn === 0) return;
+    const quick = motionMs(element, "--mo-quick", 180);
+    const exit = leaving?.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: quick * EXIT_RATIO,
+      easing: motionToken(element, "--ease-exit", EASE_EXIT_FALLBACK),
+      fill: "forwards",
+    });
+    let cancelled = false;
+    void exit?.finished.then(
+      () => {
+        if (!cancelled) setExitedTurn(seen.turn);
+      },
+      () => undefined,
+    );
+    if (!leaving) setExitedTurn(seen.turn);
+    if (prefersReducedMotion()) {
+      return () => {
+        cancelled = true;
+        exit?.cancel();
+      };
+    }
+    const entrance = element.animate(
+      [
+        { opacity: 0, transform: "translateY(8px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      {
+        duration: quick,
+        delay: quick * EXIT_RATIO,
+        easing: motionToken(element, "--ease-enter", EASE_ENTER_FALLBACK),
+        fill: "backwards",
+      },
+    );
+    return () => {
+      cancelled = true;
+      exit?.cancel();
+      entrance.cancel();
+    };
+  }, [seen.turn, captionRef, leavingRef]);
+  return {
+    previous: exitedTurn === seen.turn ? null : seen.previous,
+    turn: seen.turn,
+  };
 }
 
 function Control({
@@ -176,6 +267,8 @@ export function VoiceStageView({
 }: VoiceStageViewProps) {
   const gt = useGT();
   const hasCaption = caption.length > 0;
+  const leavingRef = useRef<HTMLParagraphElement | null>(null);
+  const swap = useCaptionSwap(captionRef, leavingRef, captionKind, caption);
   const eyebrow = !hasCaption
     ? null
     : captionKind === "heard"
@@ -232,16 +325,29 @@ export function VoiceStageView({
         >
           {eyebrow}
         </span>
-        <p
-          ref={captionRef}
-          className="one-voice-caption"
-          data-kind={captionKind}
-          role="region"
-          aria-label={gt("Voice chat transcript")}
-          tabIndex={hasCaption ? 0 : undefined}
-        >
-          <CaptionText text={caption} words={wordsEnabled} />
-        </p>
+        <div className="one-voice-caption-wrap">
+          {swap.previous === null || swap.previous.text.length === 0 ? null : (
+            <p
+              key={`out-${swap.turn}`}
+              ref={leavingRef}
+              className="one-voice-caption-out"
+              data-kind={swap.previous.kind}
+              aria-hidden="true"
+            >
+              {swap.previous.text}
+            </p>
+          )}
+          <p
+            ref={captionRef}
+            className="one-voice-caption"
+            data-kind={captionKind}
+            role="region"
+            aria-label={gt("Voice chat transcript")}
+            tabIndex={hasCaption ? 0 : undefined}
+          >
+            <CaptionText text={caption} words={wordsEnabled} />
+          </p>
+        </div>
       </div>
       <div className="one-voice-stage-actions">
         {showRetry ? (

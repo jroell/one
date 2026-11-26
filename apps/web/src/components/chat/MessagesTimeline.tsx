@@ -13,6 +13,7 @@ import type { ProviderApprovalDecision, RuntimeRequestId } from "@t3tools/contra
 import { WorkLogBlock } from "./WorkLog";
 import {
   clearApprovalDecision,
+  holdApprovalDecision,
   peekApprovalDecision,
   pruneApprovalDecisions,
 } from "~/one/approvalDecision";
@@ -127,6 +128,8 @@ import {
 import { ApprovalSubjectContext, deriveApprovalSubjects } from "~/one/chatApprovalSubject";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { ChatFollowUps } from "~/one/ChatFollowUps";
+import { GuidedThreadFooter } from "~/one/GuidedThreadFooter";
+import type { GuidedThreadInfo } from "~/one/guidedThread";
 import { useVoiceStageOpen } from "~/one/voiceSession";
 import {
   ChatFollowUpContext,
@@ -322,6 +325,8 @@ interface MessagesTimelineProps {
   /** Which request is waiting, so a second one of the same kind is announced too. */
   awaitingRequestId?: string | null;
   footer?: ReactNode;
+  /** What a guided thread says about itself: shown with the last answer, or under the question until one arrives. */
+  guided?: GuidedThreadInfo | null;
 
   listRef: React.RefObject<LegendListRef | null>;
   timelineEntries: ReadonlyArray<TimelineEntry>;
@@ -448,6 +453,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   providerStarting = null,
   worktreeSetup = null,
   footer = null,
+  guided = null,
   onCancelWorktreeSetup,
   retryableWorkspacePreparationRunIds = EMPTY_RUN_IDS,
   onRetryWorkspacePreparation,
@@ -908,20 +914,34 @@ const ConversationTimeline = memo(function ConversationTimeline({
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [leavingKey, onApprovalLeft]);
   // An answer kept for a request this timeline showed, once it is neither waiting nor leaving, is
-  // dropped, whichever way the request left (reduced motion skips the leaving state). Answers for
-  // requests another timeline shows are not this timeline's to drop.
+  // dropped, whichever way the request left (reduced motion skips the leaving state). While a
+  // timeline shows a request, lists elsewhere (child approvals) leave its answer to this timeline.
   const waitingKey = pendingApprovals.map((approval) => approval.requestId).join("|");
-  const shownApprovalIds = useRef(new Set<RuntimeRequestId>());
+  const shownApprovals = useRef(new Map<RuntimeRequestId, () => void>());
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops recorded approval answers for requests that are gone
   useEffect(() => {
     const waiting = new Set(waitingKey === "" ? [] : (waitingKey.split("|") as RuntimeRequestId[]));
     const leaving = new Set(leavingKey === "" ? [] : (leavingKey.split("|") as RuntimeRequestId[]));
-    const shown = shownApprovalIds.current;
-    for (const id of [...waiting, ...leaving]) shown.add(id);
+    const shown = shownApprovals.current;
+    for (const id of [...waiting, ...leaving]) {
+      if (!shown.has(id)) shown.set(id, holdApprovalDecision(id));
+    }
     const stays = (id: RuntimeRequestId) => waiting.has(id) || leaving.has(id);
-    pruneApprovalDecisions(shown, stays);
-    for (const id of shown) if (!stays(id)) shown.delete(id);
+    pruneApprovalDecisions(shown.keys(), stays);
+    for (const [id, release] of shown) {
+      if (stays(id)) continue;
+      release();
+      shown.delete(id);
+    }
   }, [waitingKey, leavingKey]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the holds when the timeline goes away
+  useEffect(() => {
+    const shown = shownApprovals.current;
+    return () => {
+      for (const release of shown.values()) release();
+      shown.clear();
+    };
+  }, []);
   const pendingApprovalRequestIds = new Set([
     ...visiblePendingApprovals.map((approval) => approval.requestId),
     ...leavingApprovals.keys(),
@@ -1486,6 +1506,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         turnRunning: isWorking,
         awaitingPerson: awaitingUser !== null || pendingApprovalRequestIds.size > 0,
         composerRef,
+        guided: guided ?? null,
       })
     : NO_FOLLOW_UP;
   // When the turn ends the follow-ups open beneath the answer. The list must not follow that
@@ -1880,6 +1901,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
       onGrow={onFooterGrow}
     >
       {footer}
+      {chatMode && guided && followUpTarget.rowId === null ? (
+        <div className="chat-content-lane">
+          <GuidedThreadFooter info={guided} answered={false} timestampFormat={timestampFormat} />
+        </div>
+      ) : null}
       {unmatchedPendingApprovals.length > 0 ? (
         <TimelineRowCtx value={sharedState}>
           <div className="messages-timeline-row-frame">
@@ -2167,6 +2193,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
   const arrival = use(ChatArrivalContext);
   const arrivalProps = useChatArrivalProps(arrival, row.kind === "message" ? row.id : null);
   const followUp = use(ChatFollowUpContext);
+  const { timestampFormat } = use(TimelineRowCtx);
   const stage = use(ChatStageContext);
   const handoffAnswerId = use(ChatHandoffAnswerContext);
   // Chat mode lifts a turn's notices out of its activity rows into one quiet line.
@@ -2266,7 +2293,20 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
       {stage !== null && stage.userRowId === row.id ? <ChatStageBlock stage={stage} /> : null}
       {followUp.rowId === row.id && followUp.composerRef !== null ? (
-        <ChatFollowUps ready={followUp.ready} composer={followUp.composerRef} />
+        <>
+          <ChatFollowUps
+            ready={followUp.ready}
+            composer={followUp.composerRef}
+            answer={followUp.answer}
+          />
+          {followUp.guided === null ? null : (
+            <GuidedThreadFooter
+              info={followUp.guided}
+              answered={followUp.ready}
+              timestampFormat={timestampFormat}
+            />
+          )}
+        </>
       ) : null}
     </div>
   );

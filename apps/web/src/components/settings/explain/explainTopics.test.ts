@@ -7,6 +7,12 @@ import { buildHiddenContext } from "./explainConversation";
 import { explainDocsUrl, explainTopic, EXPLAIN_TOPIC_IDS } from "./explainTopics";
 import { EMPTY_SETUP, type SetupSnapshot } from "./explainTypes";
 
+const ROUTE_TREE = import.meta.glob<string>("../../../routeTree.gen.ts", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+
 const DOCS = import.meta.glob<string>("../../../../../../docs/user/*.md", {
   query: "?raw",
   import: "default",
@@ -52,7 +58,8 @@ describe("explain topics", () => {
     (id) => {
       const topic = explainTopic(id);
       expect(topic.verdict, "a verdict line").toBeDefined();
-      const firstGlance = `${m(topic.whatItIs)} ${m(topic.verdict!)}`;
+      // The file name t3.json is the topic itself, not the format.
+      const firstGlance = `${m(topic.whatItIs)} ${m(topic.verdict!)}`.replaceAll("t3.json", "");
       // Terms that belong in the detail, where each is explained.
       for (const term of [
         /CLIProxyAPI/i,
@@ -113,5 +120,27 @@ describe("explain topics", () => {
     );
     expect(longest).toBeLessThan(MESSAGE_AGENT_CONTEXT_MAX_CHARS * 0.65);
     expect(buildHiddenContext("providers", large)).toContain("more, not listed");
+  });
+
+  it("sends every topic's action to a page that exists, with at most three per topic", () => {
+    const tree = Object.values(ROUTE_TREE)[0]!;
+    const block = tree.slice(tree.indexOf("export interface FileRoutesByFullPath"));
+    const routes = new Set(
+      [...block.slice(0, block.indexOf("}")).matchAll(/^\s+'(\/[^']*)':/gm)].map(
+        (match) => match[1]!,
+      ),
+    );
+    expect(routes.size).toBeGreaterThan(10);
+    for (const id of EXPLAIN_TOPIC_IDS) {
+      const actions = explainTopic(id).actions ?? [];
+      expect(actions.length, `${id} has one to three actions`).toBeGreaterThanOrEqual(1);
+      expect(actions.length, id).toBeLessThanOrEqual(3);
+      for (const action of actions) {
+        const url = new URL(action.href, "http://app.local");
+        expect(routes.has(url.pathname), `${id}: ${action.href}`).toBe(true);
+        expect(action.href.startsWith("/"), `${id}: ${action.href}`).toBe(true);
+        expect(m(action.label).length).toBeGreaterThan(0);
+      }
+    }
   });
 });

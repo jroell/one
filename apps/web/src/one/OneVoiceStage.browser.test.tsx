@@ -104,6 +104,8 @@ function setup() {
     submits: 0,
     available: true,
     needsSetup: false,
+    /** How many times the person pressed a notice's "Open Voice settings". */
+    setupOpened: 0,
     error: null as string | null,
     /** A start that was requested and has not begun recording (the permission prompt is open). */
     pendingStart: false,
@@ -129,6 +131,9 @@ function setup() {
       continuesDraft: continues,
       available: microphone.available,
       needsSetup: microphone.needsSetup,
+      openSetup: () => {
+        microphone.setupOpened += 1;
+      },
       draftEmpty: microphone.draftEmpty,
       phase: microphone.phase,
       error: microphone.error,
@@ -757,7 +762,7 @@ it("voice chat covers the content behind it from the keyboard, keeps its transcr
   expect(document.activeElement).toBe(composer);
 });
 
-it("starting voice chat without a transcription source explains it once, however often it is tried, and opens setup instead of listening", async () => {
+it("starting voice chat with no transcription source says why once, however often it is tried, and offers the setting instead of listening", async () => {
   using voice = setup();
   voice.needSetup();
   // The toast viewport reads the route, so this one renders with the test router.
@@ -771,13 +776,36 @@ it("starting voice chat without a transcription source explains it once, however
   });
 
   // Strict locators fail on a second matching toast.
-  await expect.element(page.getByText("Voice chat needs a transcription source")).toBeVisible();
+  await expect.element(page.getByText("Voice input is off")).toBeVisible();
   await expect
-    .element(page.getByText("Choose one under Transcribe with, then start voice chat again."))
+    .element(
+      page.getByText("Voice chat needs a place to turn your speech into text", { exact: false }),
+    )
     .toBeVisible();
   expect(getVoiceSession().stage).toBe("off");
-  // Each attempt still goes to Voice settings, where the recorder hook navigates.
-  expect(voice.microphone.signals).toHaveLength(2);
+  // The notice carries the control that fixes it; nothing opens until it is pressed.
+  expect(voice.microphone.setupOpened).toBe(0);
+  await page.getByRole("button", { name: "Open Voice settings" }).click();
+  expect(voice.microphone.setupOpened).toBe(1);
+  // The notice has done its job and goes.
+  await expect.element(page.getByText("Voice input is off")).not.toBeInTheDocument();
+});
+
+it("voice chat that stops hearing closes with a notice that opens Voice settings", async () => {
+  using voice = setup();
+  await using screen = await render(<ToastProvider>{voice.stage(false, [])}</ToastProvider>);
+  using _timers = fakeTimers();
+
+  await voice.start();
+  // The setting was turned off while voice chat was open: nothing is recording and nothing will.
+  await voice.setAvailable(false);
+  await voice.movePhase("idle");
+  await act(() => vi.advanceTimersByTime(2_500));
+  expect(screen.getByRole("dialog", { name: "Voice chat" }).query()).toBeNull();
+
+  await expect.element(page.getByText("Voice input is no longer available.")).toBeVisible();
+  await page.getByRole("button", { name: "Open Voice settings" }).click();
+  expect(voice.microphone.setupOpened).toBe(1);
 });
 
 const OTHER_QUESTION: VoiceStageMessage = {
@@ -1801,4 +1829,37 @@ it("a toast raised during voice chat appears when the whole screen unmounts unde
 
   await expect.element(page.getByText("Held held-by-unmount")).toBeVisible();
   toastManager.close("held-by-unmount");
+});
+
+it("a reply that streams in grows the transcript in place, with no fade out and in on each word", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+
+  await voice.start();
+  await press(screen.getByRole("button", { name: "Send what I said" }));
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, [OLD_REPLY, QUESTION]));
+  const streaming = (text: string) => ({ ...NEW_REPLY, text, streaming: true });
+
+  // The question gives way to the first words of the reply: one swap.
+  await screen.rerender(voice.stage(true, [OLD_REPLY, QUESTION, streaming("Light")]));
+  const leaving = stageOf(screen).querySelector<HTMLElement>(".one-voice-caption-out")!;
+  await vi.waitFor(() => expect(leaving.getAnimations()).toHaveLength(1));
+  leaving.getAnimations()[0]!.finish();
+  await vi.waitFor(() =>
+    expect(stageOf(screen).querySelector(".one-voice-caption-out")).toBeNull(),
+  );
+
+  // More words arrive: the same transcript grows and nothing leaves or enters.
+  const caption = stageOf(screen).querySelector<HTMLElement>(".one-voice-caption")!;
+  caption.getAnimations().forEach((animation) => animation.finish());
+  for (const text of ["Light bends", "Light bends inside", "Light bends inside each drop."]) {
+    await screen.rerender(voice.stage(true, [OLD_REPLY, QUESTION, streaming(text)]));
+    expect(stageOf(screen).querySelector(".one-voice-caption-out")).toBeNull();
+    expect(caption.textContent).toBe(text);
+    expect(caption.getAnimations()).toHaveLength(0);
+  }
 });

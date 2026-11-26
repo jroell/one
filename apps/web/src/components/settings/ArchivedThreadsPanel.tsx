@@ -354,12 +354,12 @@ export function ArchivedThreadsPanel() {
                   <ArchiveGhost
                     rows={[
                       {
-                        title: gt("Fix the flaky checkout test"),
-                        meta: gt("Archived 3 days ago · Created last week"),
+                        title: gt("Fix flaky checkout test"),
+                        meta: gt("Archived 3 days ago"),
                       },
                       {
-                        title: gt("Try the new export format"),
-                        meta: gt("Archived last month · Created in October"),
+                        title: gt("Try the new export"),
+                        meta: gt("Archived last month"),
                       },
                     ]}
                   />

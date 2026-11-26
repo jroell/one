@@ -3,8 +3,10 @@ import { useGT } from "gt-react";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { m } from "~/i18n/messages";
 
+import { readAnswerEnding } from "./chatQuickReplies";
 import { QUIZ_REQUEST } from "./chatQuiz";
 import { useAskForQuiz } from "./useAskForQuiz";
+import { useSendReply } from "./useSendReply";
 
 /**
  * Three ways to carry an answer into the next thought, most useful first. A pick puts a short stem
@@ -12,6 +14,48 @@ import { useAskForQuiz } from "./useAskForQuiz";
  * takes no room until the turn ends.
  */
 export function ChatFollowUps({
+  ready,
+  composer,
+  answer,
+}: {
+  readonly ready: boolean;
+  readonly composer: ComposerHandleRef;
+  readonly answer: string;
+}) {
+  const ending = readAnswerEnding(answer);
+  if (ending.kind === "none") return null;
+  if (ending.kind === "replies") return <ChatQuickReplies ready={ready} replies={ending.replies} />;
+  return <ChatFollowUpTrio ready={ready} composer={composer} />;
+}
+
+/** An answer that asks something is followed by ways to answer it, sent as the person's own words. */
+function ChatQuickReplies({
+  ready,
+  replies,
+}: {
+  readonly ready: boolean;
+  readonly replies: ReadonlyArray<string>;
+}) {
+  const gt = useGT();
+  const reply = useSendReply();
+  return (
+    <div
+      className="one-chat-followups one-chat-replies"
+      role="group"
+      aria-label={gt("Reply")}
+      data-ready={ready ? "" : undefined}
+      inert={!ready}
+    >
+      {replies.map((text) => (
+        <button key={text} type="button" className="one-chat-reply" onClick={() => reply(text)}>
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ChatFollowUpTrio({
   ready,
   composer,
 }: {

@@ -35,6 +35,9 @@ export type MoreExplainTopicId =
   | "source-control-providers"
   | "background-activity"
   | "browser-profiles"
+  | "provider-runtime"
+  | "project-file"
+  | "settings-scope"
   | "usage-sign-in"
   | "usage-no-accounts";
 
@@ -54,6 +57,12 @@ export type ExplainTopicId =
   | "linked-environments"
   | "workflows"
   | "preview-tunnel";
+
+/** A place an answer can send the person: `label` is translated, `href` an in-app path. */
+export interface ExplainAction {
+  readonly label: string;
+  readonly href: string;
+}
 
 export interface ExplainTopic {
   readonly id: ExplainTopicId;
@@ -82,6 +91,8 @@ export interface ExplainTopic {
   readonly notes: string;
   /** A page under docs/user, only where one covers the topic. */
   readonly docs?: { readonly page: string; readonly anchor?: string };
+  /** One to three places the answer can send the person, shown as chips under it. */
+  readonly actions?: ReadonlyArray<ExplainAction>;
   /** Names and states from this person's setup that bear on the question. */
   readonly facts: (setup: SetupSnapshot) => ReadonlyArray<string>;
 }

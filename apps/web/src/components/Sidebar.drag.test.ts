@@ -5,6 +5,7 @@ import {
   createSidebarCollisionDetection,
   createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
+  sidebarDragFloor,
 } from "./Sidebar.drag";
 import {
   isOptimisticDropReleased,
@@ -710,6 +711,34 @@ describe("lifted card clearance", () => {
       },
       offset,
     );
+
+  it("lets a row reach the first pinned slot, and keeps it below the label only when Pins is empty", () => {
+    // A pinned row sits at 192 under a header at 191. The old limit put the floor a label (24)
+    // below the header, 215, which left that row's slot out of reach.
+    expect(sidebarDragFloor({ headerTop: 191, firstPinnedTop: 192, labelHeight: 24 })).toBe(192);
+    expect(sidebarDragFloor({ headerTop: 191, firstPinnedTop: null, labelHeight: 24 })).toBe(215);
+    const limited = (floor: number) =>
+      restrictBelowSidebarLabel(
+        {
+          transform: { ...stationary, y: -500 },
+          containerNodeRect: rect(100, 500),
+          draggingNodeRect: rect(230, 38),
+          activatorEvent: null,
+          active: null,
+          activeNodeRect: null,
+          over: null,
+          overlayNodeRect: null,
+          scrollableAncestors: [],
+          scrollableAncestorRects: [],
+          windowRect: null,
+        },
+        floor - 100,
+      ).y;
+    // The lifted row (at 230) can travel 38 up to the first pinned row, not 15.
+    expect(
+      limited(sidebarDragFloor({ headerTop: 191, firstPinnedTop: 192, labelHeight: 24 })),
+    ).toBe(-38);
+  });
 
   it.each([36, 82])("keeps a %ipx row below empty Pins even past the top edge", (height) => {
     for (const pointerY of [150, 136, 100, 0]) {

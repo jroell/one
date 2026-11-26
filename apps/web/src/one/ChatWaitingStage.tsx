@@ -15,9 +15,6 @@ function StageBody({ stage }: { readonly stage: ChatStage }) {
   const { isPreparingWorktree } = use(TimelineRowActivityCtx);
   return (
     <>
-      {stage.question.length > 0 ? (
-        <p className="one-chat-stage-question">{stage.question}</p>
-      ) : null}
       <div className="one-chat-stage-live">
         <WorkingArc size={32} />
         <span className="one-chat-stage-caption">
@@ -41,8 +38,8 @@ function StageBody({ stage }: { readonly stage: ChatStage }) {
 }
 
 /**
- * The first seconds of a turn: the question restated and the working arc, drawn only if no answer
- * has started after 250ms. When the answer starts, the stub keeps no room and
+ * The first seconds of a turn: the working arc under the person's own message, drawn only if no
+ * answer has started after 250ms. When the answer starts, the stub keeps no room and
  * a ghost fades out on a layer over the timeline, because a row clips what leaves its own box.
  */
 export function ChatStageBlock({ stage }: { readonly stage: ChatStage }) {
@@ -71,6 +68,7 @@ export function ChatStageBlock({ stage }: { readonly stage: ChatStage }) {
       className="one-chat-stage"
       data-chat-stage=""
       data-leaving={leaving ? "" : undefined}
+      data-shown={shown ? "" : undefined}
       role={leaving ? undefined : "status"}
       aria-label={leaving ? undefined : gt("Working on an answer")}
       onAnimationStart={(event) => {

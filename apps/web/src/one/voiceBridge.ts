@@ -30,8 +30,10 @@ export type VoiceBridge = Readonly<{
   continuesDraft: (draftKey: string) => boolean;
   /** Dictation can start: voice input is set up and this composer may send. */
   available: boolean;
-  /** No transcription source is chosen yet, so starting opens Voice settings instead of recording. */
+  /** No transcription source is chosen (never chosen, or turned off), so voice chat cannot listen yet. */
   needsSetup: boolean;
+  /** Opens Voice settings at the row that chooses where speech is turned into text. */
+  openSetup: () => void;
   /** Nothing is typed or attached, so a spoken question is sent on its own. */
   draftEmpty: boolean;
   phase: VoiceInputPhase;

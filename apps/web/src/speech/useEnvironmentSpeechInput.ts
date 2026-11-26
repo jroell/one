@@ -144,6 +144,8 @@ export function useVoiceTranscriptionDestination() {
     ] === true;
   return {
     ...(hydrated && choice === null ? { offerFirstRunSetup: true } : {}),
+    /** The person turned transcription off in Voice settings, as opposed to never having chosen. */
+    ...(hydrated && choice === "off" ? { off: true } : {}),
     environmentId,
     ...(device ? { device: true, onDevice: appleSpeechAvailable } : {}),
     ...(provider ? { cloudProvider: provider } : {}),
@@ -595,6 +597,10 @@ export function useEnvironmentSpeechInput(input: HookInput) {
     blocksSubmission: voiceInputBlocksSubmission(state),
     freezesEditor: voiceInputBlocksSubmission(state),
     start,
+    /** Opens Voice settings at the row that chooses where speech is turned into text. */
+    openSetup: useStableCallback(() => {
+      void navigate({ to: "/settings/voice", hash: "voice-transcription-destination" });
+    }),
     /** Starts like `start` and reports whether this attempt recorded, failed or did nothing. */
     startWithResult,
     submitAfterDictation,

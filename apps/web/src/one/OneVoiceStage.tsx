@@ -11,6 +11,7 @@ import {
 } from "~/state/entities";
 import { threadTranscriptMayLag } from "~/threadSync";
 import { OneVoiceGhost } from "./OneVoiceGhost";
+import { openVoiceSettings } from "./startVoiceChat";
 import { VoiceStageView, type VoiceLook } from "./OneVoiceStageView";
 import {
   createCaptionProgress,
@@ -439,13 +440,21 @@ function ActiveVoiceStage({
       // Nothing was ever recording, so there is nothing to cancel. Settling first tells a slow status
       // check not to open the microphone, yet leaves it free to open voice setup.
       settleMicrophone();
-      if (latest.current.bridge?.available !== true) {
+      const stalled = latest.current.bridge;
+      if (stalled?.available !== true || stalled.needsSetup) {
         toastManager.add({
+          id: "voice-chat-ended-no-input",
           type: "info",
           title: gt("Voice chat ended"),
-          description: gt(
-            "Voice input is no longer available. Check Voice settings, then start again.",
-          ),
+          description: gt("Voice input is no longer available."),
+          ...(stalled
+            ? {
+                actionProps: {
+                  children: gt("Open Voice settings"),
+                  onClick: () => openVoiceSettings(stalled, "voice-chat-ended-no-input"),
+                },
+              }
+            : {}),
         });
       }
       dispatchVoiceSession({ type: "stop" });

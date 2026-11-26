@@ -250,4 +250,30 @@ describe("the Explain control", () => {
       state.conversation = null;
     }
   });
+
+  it("sends the places the answer can open, with translated labels and in-app addresses", async () => {
+    state.availability = { ok: true };
+    state.start.mockReset().mockResolvedValue(undefined);
+    await using _screen = await open("usage-hub");
+    await userEvent.click(page.getByRole("button", { name: "Ask One about this" }));
+    const input = state.start.mock.lastCall![0] as StartConversationInput & {
+      actions?: ReadonlyArray<{ label: string; href: string }>;
+    };
+    expect(input.actions).toContainEqual({
+      label: "Add a hub",
+      href: "/settings/providers?action=add-hub",
+    });
+    expect(input.actions!.every((action) => action.href.startsWith("/"))).toBe(true);
+  });
+
+  it("says Continue with One when asking will reopen the topic's earlier thread", async () => {
+    state.availability = { ok: true, reopens: true } as ConversationAvailability;
+    try {
+      await using _screen = await open("usage-hub");
+      await expect.element(page.getByRole("button", { name: "Continue with One" })).toBeEnabled();
+      expect(page.getByRole("button", { name: "Ask One about this" }).query()).toBeNull();
+    } finally {
+      state.availability = { ok: true };
+    }
+  });
 });

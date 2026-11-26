@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import type { ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
@@ -29,6 +30,7 @@ export function SettingsEmptyState({
   readonly preview?: ReactNode;
   readonly className?: string;
 }) {
+  const exampleLabel = useGT()("Example");
   return (
     <div data-settings-empty-card="" className="m-raised @container/empty">
       <div
@@ -57,7 +59,13 @@ export function SettingsEmptyState({
             data-settings-empty-preview=""
             className="hidden @min-[34rem]/empty:block"
           >
-            {preview}
+            <p
+              data-slot="empty-example-caption"
+              className="mb-2 text-2xs font-medium tracking-wider text-(--settings-description) uppercase"
+            >
+              {exampleLabel}
+            </p>
+            <div className="opacity-60">{preview}</div>
           </div>
         ) : null}
       </div>

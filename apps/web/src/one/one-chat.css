@@ -1,13 +1,14 @@
 /* Chat mode: a reading place, not a coding workspace. Answers are set like a
-   page (a serif face, a 66 character measure, a 30px line), the work behind an
+   page (a serif face, a 66 character measure, a 32px line), the work behind an
    answer sits behind one quiet line, and figures read as figures. Colors come
    from the theme tokens, so custom themes follow. one.css owns the mode switch
    and the lane width. */
 
 html[data-one-mode="chat"] {
   --one-chat-face: var(--one-serif);
-  --one-chat-size: 1.125rem;
-  --one-chat-leading: 1.6667;
+  /* 20px on a laptop with a 32px line, easing down to 17px on a phone. */
+  --one-chat-size: clamp(1.0625rem, 0.95rem + 0.5vw, 1.25rem);
+  --one-chat-leading: 1.6;
   --one-chat-measure: 66ch;
   --one-chat-outline-row: 2rem;
   /* The fade above a dock that has the scroll-to-end pill, and the clear band under the pill. */
@@ -836,7 +837,7 @@ html[data-one-mode="chat"]
   width: 0.75rem;
   height: 0.75rem;
   margin-inline-start: auto;
-  color: var(--gold-400, var(--one-brand));
+  color: var(--ui-fill-shape, var(--one-brand));
 }
 
 .one-chat-outline-section:not([data-complete]) .one-chat-outline-tick::after {
@@ -844,7 +845,7 @@ html[data-one-mode="chat"]
   width: 0.3125rem;
   height: 0.3125rem;
   border-radius: 50%;
-  background: var(--gold-400, var(--one-brand));
+  background: var(--ui-fill-shape, var(--one-brand));
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -976,7 +977,10 @@ html[data-one-mode="chat"]
 /* A key term of a finished answer gets a gold line that draws in once, after its block has
    appeared. It is never on code, and an answer has three at most (chatBuild.ts). */
 html[data-one-mode="chat"] .chat-markdown strong[data-key-term] {
-  background: linear-gradient(var(--gold-400, var(--one-brand)), var(--gold-400, var(--one-brand)))
+  background: linear-gradient(
+      var(--ui-fill-shape, var(--one-brand)),
+      var(--ui-fill-shape, var(--one-brand))
+    )
     no-repeat 0 100% / 100% 1px;
   box-decoration-break: clone;
   padding-bottom: 1px;
@@ -1008,7 +1012,19 @@ html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock]::bef
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  background-image: var(--one-chat-glow, none);
+  opacity: var(--one-light-rest);
+  transition: opacity var(--mo-sheet, 320ms) var(--ease-enter, ease-out);
+}
+
+html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock] {
+  isolation: isolate;
   background-color: var(--background);
+}
+
+html[data-one-mode="chat"] [data-chat-column][data-one-working] [data-composer-dock]::before {
+  opacity: var(--one-light-work);
+  animation: one-chat-light-breathe 6s ease-in-out var(--mo-sheet, 320ms) infinite alternate;
 }
 
 html[data-one-mode="chat"] [data-chat-composer-overlay][data-composer-dock]::after {
@@ -1084,21 +1100,6 @@ html[data-one-mode="chat"] [data-composer-permissions] {
   animation: one-chat-stage-in var(--mo-surface, 240ms) var(--ease-enter, ease-out) 250ms both;
 }
 
-.one-chat-stage-question {
-  display: -webkit-box;
-  margin: 0 0 1.25rem;
-  overflow: hidden;
-  color: color-mix(in srgb, var(--foreground) 60%, transparent);
-  font-family: var(--one-serif);
-  font-size: 1.75rem;
-  line-height: 1.25;
-  letter-spacing: -0.012em;
-  text-wrap: balance;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
 .one-chat-stage-live {
   display: flex;
   align-items: center;
@@ -1160,12 +1161,6 @@ html[data-one-mode="chat"] [data-composer-permissions] {
   /* Without motion the picture is simply replaced in one frame. */
   .one-chat-stage-ghost {
     display: none;
-  }
-}
-
-@media (max-width: 40rem) {
-  .one-chat-stage-question {
-    font-size: 1.375rem;
   }
 }
 
@@ -1326,7 +1321,7 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
 }
 
 .one-chat-followup:is(:hover, :focus-visible) {
-  border-top-color: color-mix(in srgb, var(--gold-400, var(--one-brand)) 60%, transparent);
+  border-top-color: color-mix(in srgb, var(--ui-fill-shape, var(--one-brand)) 60%, transparent);
   background: var(--one-row-hover, color-mix(in srgb, var(--foreground) 5%, transparent));
 }
 
@@ -1495,8 +1490,12 @@ html[data-one-mode="chat"]
    wider one scrolls. Its nodes appear, then each edge is drawn on, 80ms after the one before. */
 html[data-one-mode="chat"] .chat-markdown-mermaid {
   /* A deeper gold on the light page, so a 1.5px line keeps 3:1 against it. */
-  --chat-diagram-stroke: light-dark(#86661a, var(--gold-400, #ddb55a));
-  --chat-diagram-fill: color-mix(in oklch, var(--background) 90%, var(--gold-400, #ddb55a) 10%);
+  --chat-diagram-stroke: var(--ui-fill-shape, var(--one-brand));
+  --chat-diagram-fill: color-mix(
+    in oklch,
+    var(--background) 90%,
+    var(--ui-fill-shape, var(--one-brand)) 10%
+  );
 
   & .pele {
     --pele-font: var(--one-serif);
@@ -1757,8 +1756,8 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 }
 
 .one-chat-quiz-option[data-state="correct"] {
-  background: color-mix(in srgb, var(--gold-400, var(--one-brand)) 9%, transparent);
-  box-shadow: inset 0 0 0 1.5px var(--gold-400, var(--one-brand));
+  background: color-mix(in srgb, var(--ui-fill-shape, var(--one-brand)) 9%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--ui-fill-shape, var(--one-brand));
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1778,10 +1777,10 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
     background: linear-gradient(
       90deg,
       transparent,
-      color-mix(in oklch, var(--gold-400, var(--one-brand)) 60%, transparent) 60%,
-      var(--one-ring-hi, var(--gold-400, var(--one-brand)))
+      color-mix(in oklch, var(--ui-fill-shape, var(--one-brand)) 60%, transparent) 60%,
+      var(--one-ring-hi, var(--ui-fill-shape, var(--one-brand)))
     );
-    box-shadow: 0 0 10px var(--gold-400, var(--one-brand));
+    box-shadow: 0 0 10px var(--ui-fill-shape, var(--one-brand));
     offset-path: inset(0 round var(--m-radius-floating, 12px));
     offset-anchor: 100% 50%;
     offset-rotate: auto;
@@ -1820,8 +1819,8 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 @keyframes one-chat-quiz-wrong {
   from,
   8% {
-    background: color-mix(in srgb, var(--gold-400, var(--one-brand)) 9%, transparent);
-    box-shadow: inset 0 0 0 1.5px var(--gold-400, var(--one-brand));
+    background: color-mix(in srgb, var(--ui-fill-shape, var(--one-brand)) 9%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--ui-fill-shape, var(--one-brand));
     opacity: 1;
   }
 
@@ -1879,7 +1878,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   width: 1.125rem;
   height: 1.125rem;
   margin-inline-start: auto;
-  color: var(--gold-400, var(--one-brand));
+  color: var(--ui-fill-shape, var(--one-brand));
 }
 
 /* The explanation turns down from its top edge: transform and opacity only. */
@@ -1936,7 +1935,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 }
 
 .one-chat-quiz-ring {
-  stroke: light-dark(#86661a, var(--gold-400, var(--one-brand)));
+  stroke: var(--ui-fill-shape, var(--one-brand));
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: 52px 52px;
@@ -2017,4 +2016,203 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   margin-inline: 0.25rem;
   border-radius: 50%;
   background: var(--st-attention);
+}
+
+/* ------------------------------------------------------- guided threads */
+
+/* Which provider answers: one quiet line, never louder than the answer's own meta. */
+.one-guided-line {
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 0.75rem 0.25rem 0;
+  color: color-mix(in srgb, var(--foreground) 42%, transparent);
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* Where the answer points. These leave the conversation, so they are links with an arrow, not the
+   filled pills that send a reply. */
+.one-guided-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  max-width: var(--one-chat-measure, 66ch);
+  margin: 0.875rem 0.25rem 0;
+}
+
+.one-guided-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.75rem;
+  margin: 0;
+  border: 0;
+  border-radius: 0.375rem;
+  background: none;
+  padding: 0;
+  color: color-mix(in srgb, var(--foreground) 66%, transparent);
+  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color var(--mo-hover, 140ms) var(--ease-enter, ease-out);
+}
+
+.one-guided-link > svg {
+  transition: translate var(--mo-hover, 140ms) var(--ease-enter, ease-out);
+}
+
+.one-guided-link:hover {
+  color: var(--foreground);
+}
+
+.one-guided-link:hover > svg {
+  translate: 2px 0;
+}
+
+.one-guided-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--one-brand) 70%, transparent);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .one-guided-link {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-guided-link,
+  .one-guided-link > svg {
+    transition: none;
+  }
+  .one-guided-link:hover > svg {
+    translate: 0 0;
+  }
+}
+
+/* A reply sends a message: a filled, quiet pill. */
+.one-chat-reply {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  padding: 0 0.9375rem;
+  color: var(--foreground);
+  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition:
+    background-color var(--mo-hover, 140ms) var(--ease-enter, ease-out),
+    scale var(--mo-press, 100ms) var(--ease-enter, ease-out);
+}
+
+.one-chat-reply:hover {
+  background: color-mix(in srgb, var(--one-brand) 18%, transparent);
+}
+
+.one-chat-reply:active {
+  scale: 0.97;
+}
+
+.one-chat-reply:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--one-brand) 70%, transparent);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .one-chat-reply {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .one-chat-reply {
+    transition: none;
+  }
+  .one-chat-reply:active {
+    scale: 1;
+  }
+}
+
+/* Replies to a question the answer asked: pills in a row, taking only the height of a pill. */
+.one-chat-followups.one-chat-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 2rem;
+  margin-top: 0.75rem;
+}
+
+/* ------------------------------------------------------------ the room's light */
+
+/* Code keeps the warm light that falls from the top edge. Chat has its own: it rises from where
+   the person writes, so the page feels lit by the conversation. It is one gradient, painted once,
+   on two static layers: behind the conversation, and inside the dock under the composer (which is
+   opaque, so it would hide it), both centred a little below the window's bottom edge so they meet
+   without a seam. The gradient is drawn at its strongest; only the layers' opacity changes. At
+   rest it is faint (30%). While a turn works it rises to 65% and breathes up to 100% and back
+   over 6 seconds, and it settles when the answer is in. Opacity is all that ever animates, so
+   the page is never repainted for it. */
+html[data-one-mode="chat"] [data-slot="sidebar-inset"] {
+  background-image: var(--surface-grain);
+  background-repeat: repeat;
+  background-size: var(--surface-grain-size);
+}
+
+html[data-one-mode="chat"] [data-chat-column] {
+  --one-light-rest: 0.3;
+  --one-light-work: 0.65;
+  --one-chat-glow: radial-gradient(
+    ellipse 52% 34rem at 50% calc(100% + 3rem),
+    color-mix(in srgb, var(--one-brand) 26%, transparent),
+    color-mix(in srgb, var(--one-brand) 9%, transparent) 52%,
+    transparent 74%
+  );
+  position: relative;
+  isolation: isolate;
+}
+
+/* The conversation lets the light show through; the header and the composer keep their own. */
+html[data-one-mode="chat"] [data-chat-column] [data-workspace-area="conversation"] {
+  background-color: transparent;
+}
+
+html[data-one-mode="chat"] [data-chat-column]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--one-chat-glow);
+  opacity: var(--one-light-rest);
+  transition: opacity var(--mo-sheet, 320ms) var(--ease-enter, ease-out);
+}
+
+html[data-one-mode="chat"] [data-chat-column][data-one-working]::before {
+  opacity: var(--one-light-work);
+  animation: one-chat-light-breathe 6s ease-in-out var(--mo-sheet, 320ms) infinite alternate;
+}
+
+@keyframes one-chat-light-breathe {
+  from {
+    opacity: var(--one-light-work);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-one-mode="chat"] [data-chat-column]::before,
+  html[data-one-mode="chat"] [data-composer-dock]::before {
+    transition: none;
+  }
+
+  html[data-one-mode="chat"] [data-chat-column][data-one-working]::before,
+  html[data-one-mode="chat"] [data-chat-column][data-one-working] [data-composer-dock]::before {
+    animation: none;
+    opacity: var(--one-light-work);
+  }
 }

@@ -17,7 +17,15 @@ export type GuidedModelChoice =
   /** The draft's model can answer; send as it is. */
   | { readonly kind: "keep" }
   /** The draft's provider is out of usage; send with this model, which can answer now. */
-  | { readonly kind: "switch"; readonly selection: ModelSelection }
+  | {
+      readonly kind: "switch";
+      readonly selection: ModelSelection;
+      /** The provider that was passed over, and when its usage returns, if it said. */
+      readonly passedOver: {
+        readonly instanceId: ModelSelection["instanceId"];
+        readonly resetsAt: string | null;
+      };
+    }
   /** Every ready provider is out of usage. `resetsAt` is the earliest reset, when one is known. */
   | { readonly kind: "none"; readonly resetsAt: string | null };
 
@@ -67,10 +75,18 @@ export function chooseGuidedModel(input: {
   readonly now: number;
 }): GuidedModelChoice {
   const provider = input.providers.find((entry) => entry.instanceId === input.current.instanceId);
-  if (provider === undefined || !exhaustedUsageWindow(provider, input.now, input.current.model)) {
-    return { kind: "keep" };
-  }
+  const window =
+    provider === undefined
+      ? undefined
+      : exhaustedUsageWindow(provider, input.now, input.current.model);
+  if (provider === undefined || window === undefined) return { kind: "keep" };
   const selection = firstProviderWithUsageLeft(input.providers, input.now, provider.instanceId);
-  if (selection !== null) return { kind: "switch", selection };
+  if (selection !== null) {
+    return {
+      kind: "switch",
+      selection,
+      passedOver: { instanceId: provider.instanceId, resetsAt: window.resetsAt ?? null },
+    };
+  }
   return { kind: "none", resetsAt: earliestUsageReset(input.providers, input.now) };
 }

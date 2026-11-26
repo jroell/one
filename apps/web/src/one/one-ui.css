@@ -140,13 +140,14 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --ui-surface-overlay: var(--app-theme-surface-overlay, var(--popover));
 }
 
-/* One gold ramp for both themes (--gold-300 to --gold-700). Buttons fill with gold-500 (light)
-   or gold-400 (dark); a solid shape that carries no text (a checked box, an on switch) takes
-   gold-600 on light so it clears 3:1 against the page. Text on gold is always #1a1407. */
+/* One gold for both themes: --gold-fill is the fill of every primary action, toggle and gold shape
+   (Approve, Send, New task, Get the desktop app, a switch that is on, the stop square); --gold-press
+   is its pressed state; --gold-text is gold as text. The ramp (--gold-300 to --gold-700) draws the
+   ring. Text on gold is always #1a1407. */
 html:not([data-theme-id]):not(.dark),
 html[data-theme-id=""]:not(.dark) {
   --ui-fill: var(--gold-fill);
-  --ui-fill-shape: var(--gold-600);
+  --ui-fill-shape: var(--gold-fill);
   --ui-on-fill: #1a1407;
   --ui-switch-off: #e6e0d5;
 }
@@ -336,9 +337,10 @@ html[data-theme-id=""].dark {
   --gold-700: #6e5118;
 
   /* The brand gold, one ramp: the fill of every primary action (Approve, Send), the text that is
-     gold, and the pressed fill. Light keeps a deeper fill, since #d4af5a is 1.9:1 on a #faf7f1 page. */
-  --gold-fill: #c2973a;
-  --gold-press: #a87d2a;
+     gold, and the pressed fill. Light takes a deeper fill, #ad8429: it is 3.2:1 against the #faf7f1
+     page (a toggle or a button shape needs 3:1) and carries the #1a1407 label at 5.3:1. */
+  --gold-fill: #ad8429;
+  --gold-press: #94701f;
   --gold-text: #8a6a26;
 
   /* Radius scale: 8 controls, 12 menus and chips, 16 cards, 22 sheets and the palette, 24 for the
@@ -666,13 +668,12 @@ html[data-theme-id=""].dark [data-app-sidebar] {
     0 1px 2px rgb(0 0 0 / 28%);
 }
 
-/* The default theme's primary is one metal in both themes, lit from the top: gold-400 to gold-500
-   on dark (the same ramp the ring is drawn from), gold-500 to gold-550 on light (gold-600 would
-   take the #1a1407 label below 4.5:1). No glow at rest; hover adds a soft lift. */
+/* The default theme's primary is one metal in both themes, lit from the top: --gold-fill into a
+   blend toward --gold-press. No glow at rest; hover adds a soft lift. */
 :is(html:not([data-theme-id]), html[data-theme-id=""]) {
   --btn-a: var(--gold-fill);
   --btn-b: var(--gold-press);
-  --btn-edge: var(--gold-600);
+  --btn-edge: color-mix(in oklch, var(--gold-press) 85%, black);
   --btn-rim: rgb(255 255 255 / 34%);
   --btn-lift: 0 2px 8px rgb(110 81 24 / 22%);
 }
@@ -869,7 +870,7 @@ html[data-theme-id=""].dark [data-app-sidebar] {
    face in --mo-release: a press holds it off the left edge with no transition, and the way back
    to rest is the sweep. */
 @media (prefers-reduced-motion: no-preference) {
-  :is([data-button][data-variant="default"], [data-composer-send]:not([data-stage]))::before {
+  :is([data-button][data-variant="default"], [data-composer-send])::before {
     background-image:
       radial-gradient(
         72px circle at var(--one-mx, 50%) var(--one-my, 0),
@@ -887,10 +888,7 @@ html[data-theme-id=""].dark [data-app-sidebar] {
     transition: background-position var(--mo-release) var(--ease-enter);
   }
 
-  :is(
-      [data-button][data-variant="default"],
-      [data-composer-send]:not([data-stage])
-    ):active::before {
+  :is([data-button][data-variant="default"], [data-composer-send]):active::before {
     background-position:
       0 0,
       100% 0;
@@ -899,9 +897,7 @@ html[data-theme-id=""].dark [data-app-sidebar] {
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  :is([data-button][data-variant="default"], [data-composer-send]:not([data-stage])):hover:not(
-      :disabled
-    )::before {
+  :is([data-button][data-variant="default"], [data-composer-send]):hover:not(:disabled)::before {
     background-image:
       radial-gradient(
         72px circle at var(--one-mx, 50%) var(--one-my, 0),
@@ -2355,6 +2351,9 @@ html[data-theme-id=""] {
   --m-tier-tint: var(--m-solid, var(--m-raised));
   --m-tier-a: 100%;
   --m-bf: none;
+  /* The timeline lane clips sideways at the card's width, so a wide soft shadow would show as a
+     taupe band with square ends under the card in light. A raised card's short shadow stays inside. */
+  --m-drop: var(--m-shadow-raised);
 }
 
 /* ---- raised: a fill, a rim, a short shadow, no blur */
@@ -2917,7 +2916,7 @@ html[data-page-set-back] #root {
 }
 
 /* ---- the send button: one gold disc with a dark arrow, the same in both themes and at every size */
-[data-composer-send]:not([data-stage]) {
+[data-composer-send] {
   border: 1px solid var(--btn-edge, var(--ui-fill));
   color: var(--ui-on-fill);
   background-color: var(--btn-a, var(--ui-fill));
@@ -2935,18 +2934,22 @@ html[data-page-set-back] #root {
     var(--ease-hover), var(--ease-hover), var(--ease-release), var(--ease-hover);
 }
 
-[data-composer-send]:not([data-stage]):disabled {
-  opacity: 0.3;
+/* Empty: not an action yet, so a neutral disc. Gold at 30% over a dark card reads as brown mud. */
+[data-composer-send]:disabled {
+  border-color: var(--ui-edge);
+  color: var(--ui-muted-text);
+  background-color: color-mix(in srgb, var(--foreground) 9%, transparent);
+  background-image: none;
   box-shadow: none;
 }
 
 @media (hover: hover) {
-  [data-composer-send]:not([data-stage]):hover:not(:disabled) {
+  [data-composer-send]:hover:not(:disabled) {
     background-color: color-mix(in oklch, var(--btn-a, var(--ui-fill)) 90%, white);
   }
 }
 
-[data-composer-send]:not([data-stage]):active:not(:disabled) {
+[data-composer-send]:active:not(:disabled) {
   scale: 0.97;
   background-image: none;
   background-color: color-mix(in oklch, var(--btn-a, var(--ui-fill)) 94%, black);
@@ -2959,11 +2962,11 @@ html[data-page-set-back] #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-composer-send]:not([data-stage]) {
+  [data-composer-send] {
     transition-duration: var(--mo-hover);
   }
 
-  [data-composer-send]:not([data-stage]):active:not(:disabled) {
+  [data-composer-send]:active:not(:disabled) {
     scale: 1;
   }
 }
@@ -2989,58 +2992,10 @@ html[data-page-set-back] #root {
   }
 }
 
-/* ---- the working light's glow: a soft copy of the comet outside the 1-2px rim, which the rim's
-   mask would clip. The outer span blurs (8px soft) and fades; the inner one is the ring band;
-   the turning square inside is the comet again, in step with the rim's own. Opacity, blur and a
-   transform only; absent under reduced motion. */
-.one-reflection-glow {
-  display: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-one-working] [data-one-reflect] > .one-reflection-glow {
-    display: block;
-    position: absolute;
-    inset: -6px;
-    border-radius: inherit;
-    pointer-events: none;
-    opacity: var(--one-glow-alpha);
-    filter: blur(var(--one-glow-blur));
-  }
-
-  [data-one-working] [data-one-reflect] > .one-reflection-glow > span {
-    position: absolute;
-    inset: 0;
-    padding: 10px;
-    border-radius: inherit;
-    overflow: hidden;
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) content-box exclude,
-      linear-gradient(#000 0 0);
-  }
-
-  [data-one-working] [data-one-reflect] > .one-reflection-glow > span::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 220%;
-    aspect-ratio: 1;
-    translate: -50% -50%;
-    background: var(--one-comet);
-    animation: one-orbit 3.6s linear infinite;
-    will-change: rotate;
-  }
-}
-
 :root {
   /* One travelling light: a head about 40px long and a tail about 160px along the composer's long
-     edge (7 and 27 degrees at its radius), so it never lights a whole side. The bloom is a thin
-     soft copy, not a pool. */
+     edge (7 and 27 degrees at its radius), so it never lights a whole side. It has no bloom: a
+     soft copy under the rim read as a smudge on the bottom edge in a still. */
   --one-comet: conic-gradient(
     transparent 0deg,
     transparent 326deg,
@@ -3048,12 +3003,6 @@ html[data-page-set-back] #root {
     var(--one-ring-hi) 357deg,
     transparent 360deg
   );
-  --one-glow-alpha: 0.1;
-  --one-glow-blur: 5px;
-}
-
-:root.dark {
-  --one-glow-alpha: 0.22;
 }
 
 /* ---- the warm light behind the main column, so the glass has something to show */

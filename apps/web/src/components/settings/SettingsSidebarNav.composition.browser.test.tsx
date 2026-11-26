@@ -322,7 +322,8 @@ it("scrolls the open section into view after the first paint, not while the shee
       scroll.mock.contexts.some((element) => screen.container.contains(element as Node));
     // Scrolling forces a layout; done in the mounting commit it would lengthen the sheet's opening.
     expect(scrolledHere()).toBe(false);
-    await vi.waitFor(() => expect(scrolledHere()).toBe(true));
+    // The scroll waits for an animation frame, which a loaded machine can delay past the default 1 s.
+    await vi.waitFor(() => expect(scrolledHere()).toBe(true), { timeout: 10_000 });
   } finally {
     scroll.mockRestore();
   }

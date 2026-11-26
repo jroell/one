@@ -1120,7 +1120,6 @@ function EnvironmentProviderSettingsBody({
           // The ghost button's padding would inset its label, so pull the text to the card edge.
           <div className="-me-2 flex min-w-0 items-center gap-2">
             <ExplainControl topic="providers" />
-            <ExplainControl topic="provider-status" variant="icon" />
             <ProviderUpdatesAction />
             <Tooltip>
               <TooltipTrigger

@@ -4,6 +4,7 @@ import { AudioPreview } from "../files/AudioPreview";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 import {
   clearApprovalDecision,
+  isApprovalDecisionHeld,
   noteApprovalDecision,
   peekApprovalDecision,
 } from "~/one/approvalDecision";
@@ -3205,6 +3206,56 @@ it("keeps an approval's pressed state while a second timeline mounts or changes 
     clearApprovalDecision(mainRequest);
     clearApprovalDecision(sideRequest);
   }
+});
+
+it("holds an approval's answer for its card while shown and lets go when the timeline goes away", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const source = fixture.visibleTurnItems[4]!;
+  if (source.item.type !== "dynamic_tool") throw new Error("Expected fixture tool");
+  const requestId = RuntimeRequestId.make("held-approval");
+  const pending: PendingApproval = {
+    requestId,
+    requestKind: "command",
+    createdAt: fixture.time(6),
+    detail: "run held",
+    responseCapability: "live",
+  };
+  const entries = deriveTimelineEntriesFromVisibleTurnItems({
+    visibleTurnItems: [
+      source,
+      {
+        ...source,
+        position: source.position + 1,
+        sourceItemId: TurnItemId.make("held-item"),
+        item: {
+          ...source.item,
+          id: TurnItemId.make("held-item"),
+          type: "approval_request" as const,
+          status: "waiting" as const,
+          requestId,
+          requestKind: "command",
+          prompt: pending.detail,
+        },
+      },
+    ],
+    optimisticMessages: [],
+  });
+  const screen = await renderElement(
+    <MessagesTimeline
+      {...baseProps()}
+      timelineEntries={entries}
+      pendingApprovals={[pending]}
+      canOperateThread
+      onRespondToApproval={async () => {}}
+      isWorking
+      runningRunId={fixture.runId}
+    />,
+  );
+  await expect.element(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+  expect(isApprovalDecisionHeld(requestId)).toBe(true);
+  await screen.unmount();
+  expect(isApprovalDecisionHeld(requestId)).toBe(false);
 });
 
 it("keeps concurrent approvals actionable outside collapsed work and restores settled rows", async () => {

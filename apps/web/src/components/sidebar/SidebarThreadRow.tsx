@@ -328,6 +328,8 @@ function SidebarThreadWhere(props: {
   providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
   trailing?: ReactNode;
   faviconClassName?: string;
+  /** The card row shows the provider beside its title, so its meta line leaves it out. */
+  withoutProvider?: boolean;
 }) {
   return (
     <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-secondary-label text-xs">
@@ -355,11 +357,13 @@ function SidebarThreadWhere(props: {
       ) : null}
       <span className="min-w-0 flex-1" />
       {props.trailing}
-      <SidebarProviderStack
-        thread={props.thread}
-        providerEntryByInstanceId={props.providerEntryByInstanceId}
-        labelled
-      />
+      {props.withoutProvider === true ? null : (
+        <SidebarProviderStack
+          thread={props.thread}
+          providerEntryByInstanceId={props.providerEntryByInstanceId}
+          labelled
+        />
+      )}
     </div>
   );
 }
@@ -1438,25 +1442,24 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       </span>
     </div>
   );
-  // The card row: the title and the time on one line, then one quiet line saying where the
-  // thread lives. The device appears only when the sidebar spans more than one or this thread
-  // is not on this one (the caller passes null otherwise).
+  // The card row is one line: the project (when the list spans more than one), the title, the
+  // provider and the time. A second quiet line appears only for what has no room on the first: the
+  // device when it tells rows apart, a pull request, an issue, a diff or a running terminal.
   const cardMetaEmpty =
-    !props.projectDisplayName &&
     props.environmentLabel === null &&
     prBadge === null &&
     issueBadge === null &&
     diff === null &&
-    runningTerminalIds.length === 0 &&
-    resolveThreadProviderStack(thread).length === 0;
+    runningTerminalIds.length === 0;
   const cardMetaLine = cardMetaEmpty ? null : (
     <SidebarThreadWhere
       thread={thread}
-      project={props.project}
-      projectDisplayName={props.projectDisplayName}
+      project={null}
+      projectDisplayName={null}
       environmentLabel={props.environmentLabel}
       environmentMachine={props.environmentMachine}
       providerEntryByInstanceId={props.providerEntryByInstanceId}
+      withoutProvider
       trailing={
         <>
           {terminalStatusIcon}
@@ -1474,6 +1477,20 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           ) : null}
         </>
       }
+    />
+  );
+  // The project is named by its badge here and by the row's accessible name and tooltip.
+  const cardProjectBadge =
+    props.project !== null && props.projectDisplayName ? (
+      <span data-sidebar-row-project="" aria-hidden className="inline-flex shrink-0 items-center">
+        <ProjectFavicon project={props.project} className="size-4 shrink-0" />
+      </span>
+    ) : null;
+  const cardProvider = (
+    <SidebarProviderStack
+      thread={thread}
+      providerEntryByInstanceId={props.providerEntryByInstanceId}
+      labelled
     />
   );
   // The focused row's description: the harness, and the device when the row names one.
@@ -1754,12 +1771,14 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               {/* Left of the status slot, the pin would slide when hover swaps the
                 label for the wider row controls. */}
               {pinIndicator}
+              {cardProjectBadge}
               {title}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
                   <T>Regenerating title</T>
                 </span>
               ) : null}
+              {cardProvider}
               {sortable?.isDragging ? (
                 dragDestination
               ) : (

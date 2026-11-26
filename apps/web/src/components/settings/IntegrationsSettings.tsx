@@ -1,5 +1,6 @@
 import { managedCapabilityDenial } from "@t3tools/client-runtime/contract-labels";
 import { ExplainControl } from "./explain/ExplainControl";
+import { GetDesktopAppButton } from "./GetDesktopAppButton";
 import { DeviceHostUpdates } from "../device/DeviceHostUpdates";
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
@@ -1717,7 +1718,10 @@ export function BrowserSettingsPanel() {
           <BrowserSearchEngineSetting />
         </SettingsSection>
         <SettingsSection id="browser-recordings" title={gt("Desktop app")}>
-          <SettingsUnavailableGroup message={desktopOnlyMessage}>
+          <SettingsUnavailableGroup
+            message={desktopOnlyMessage}
+            action={<GetDesktopAppButton size="sm" />}
+          >
             <BrowserProfilesSetting disabled />
             <BrowserLinkTargetSetting disabled />
             <BrowserAutoShowFloatingPreviewSetting disabled />
@@ -1738,7 +1742,10 @@ export function BrowserSettingsPanel() {
         <AgentBrowserAccessSetting />
       </SettingsSection>
       <SettingsSection id="browser" title={gt("Browsing")}>
-        <SettingsUnavailableGroup message={desktopOnlyMessage}>
+        <SettingsUnavailableGroup
+          message={desktopOnlyMessage}
+          action={<GetDesktopAppButton size="sm" />}
+        >
           <BrowserProfilesSetting disabled={desktopOnly} />
           <BrowserLinkTargetSetting disabled={desktopOnly} />
           <BrowserAutoShowFloatingPreviewSetting disabled={desktopOnly} />

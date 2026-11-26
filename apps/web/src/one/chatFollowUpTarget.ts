@@ -1,6 +1,7 @@
 import { createContext } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import type { GuidedThreadInfo } from "./guidedThread";
 import type { MessagesTimelineRow } from "~/components/chat/MessagesTimeline.logic";
 
 /** Where the follow-up actions sit, and whether they may show yet. */
@@ -10,9 +11,19 @@ export interface ChatFollowUpTarget {
   readonly ready: boolean;
   /** The composer a pick writes to; the timeline's own, never an ancestor's. */
   readonly composerRef: ComposerHandleRef | null;
+  /** The final answer's text, which decides what follows it. */
+  readonly answer: string;
+  /** What a guided thread says about itself, shown with the answer's ending; null for any other. */
+  readonly guided: GuidedThreadInfo | null;
 }
 
-export const NO_FOLLOW_UP: ChatFollowUpTarget = { rowId: null, ready: false, composerRef: null };
+export const NO_FOLLOW_UP: ChatFollowUpTarget = {
+  rowId: null,
+  ready: false,
+  composerRef: null,
+  answer: "",
+  guided: null,
+};
 
 export const ChatFollowUpContext = createContext<ChatFollowUpTarget>(NO_FOLLOW_UP);
 
@@ -28,17 +39,22 @@ export function resolveChatFollowUpTarget(
     readonly turnRunning: boolean;
     readonly awaitingPerson: boolean;
     readonly composerRef: ComposerHandleRef | null;
+    readonly guided: GuidedThreadInfo | null;
   },
 ): ChatFollowUpTarget {
   if (state.composerRef === null) return NO_FOLLOW_UP;
+  const guided = state.guided;
+  const none: ChatFollowUpTarget = { ...NO_FOLLOW_UP, guided };
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const row = rows[index]!;
     if (row.kind !== "message" && row.kind !== "assistant-meta") continue;
     if (row.message.role === "system") continue;
-    if (row.message.role !== "assistant") return NO_FOLLOW_UP;
+    if (row.message.role !== "assistant") return none;
     return {
       rowId: row.id,
       composerRef: state.composerRef,
+      answer: row.message.text,
+      guided,
       ready:
         !state.turnRunning &&
         !state.awaitingPerson &&
@@ -46,5 +62,5 @@ export function resolveChatFollowUpTarget(
         row.message.text.trim().length > 0,
     };
   }
-  return NO_FOLLOW_UP;
+  return none;
 }

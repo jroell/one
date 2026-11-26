@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent, type Locator } from "vite-plus/test/browser";
 
 import { act, render } from "../../../test/render";
+import { DESKTOP_DOWNLOAD_URL } from "../../branding";
 import { compileResolvedKeybindingsConfig } from "@t3tools/shared/keybindings";
 import * as atomCommands from "../../state/use-atom-command";
 
@@ -283,10 +284,8 @@ it("filters actions and allows additional shortcuts for assigned commands", asyn
   const command = screen.getByRole("combobox", { name: "Command", exact: true });
   await expect.element(command).toHaveTextContent("Sidebar: toggle");
   await command.click();
-  await search.fill("Opposite Queue");
-  await expect
-    .element(page.getByRole("option", { name: /Composer: opposite queue or steer action/ }))
-    .toBeVisible();
+  await search.fill("composer.sendAlternate");
+  await expect.element(page.getByRole("option", { name: /^Composer: / })).toBeVisible();
   await vi.waitFor(() => expect(page.getByRole("option").elements()).toHaveLength(1));
   await search.fill("no-such-action");
   await expect.element(page.getByText("No results found.")).toBeVisible();
@@ -346,4 +345,8 @@ it("says in words, not behind an icon, that a browser may claim some shortcuts",
       ),
     )
     .toBeVisible();
+  // The sentence comes with the control that fixes it.
+  await expect
+    .element(page.getByRole("link", { name: "Get the desktop app" }))
+    .toHaveAttribute("href", DESKTOP_DOWNLOAD_URL);
 });

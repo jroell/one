@@ -665,6 +665,25 @@ it("names Approve with a gold check and Decline without one while the card leave
   );
 });
 
+it("folds the card and its change together: the height starts folding as the change starts fading, and the card ends within 400ms", async () => {
+  await using screen = await render(leavingCard("accept", vi.fn()), { router: false });
+  const seconds = (value: string) => Number.parseFloat(value.split(",")[0]!);
+  const timing = (element: Element, kind: "animation" | "transition") => {
+    const style = getComputedStyle(element);
+    const delay = seconds(style[`${kind}Delay`]) * 1000;
+    return { start: delay, end: delay + seconds(style[`${kind}Duration`]) * 1000 };
+  };
+  const query = (selector: string) => screen.container.querySelector(selector)!;
+  const fade = timing(query("[data-approval-body-inner]"), "animation");
+  const fold = timing(query("[data-approval-body]"), "transition");
+  const card = timing(query("[data-approval-host]"), "animation");
+  // No frame shows an empty card at full height: the fold starts with the fade, not after it.
+  expect(fold.start).toBeLessThanOrEqual(fade.start);
+  // The card starts leaving while its content still folds, so they read as one motion.
+  expect(card.start).toBeLessThan(fold.end);
+  expect(card.end).toBeLessThanOrEqual(400);
+});
+
 it("shows Approving… when the answer came from a key chord, not the button", async () => {
   noteApprovalDecision(requestId, "accept");
   try {

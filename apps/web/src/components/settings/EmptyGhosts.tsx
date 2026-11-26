@@ -1,6 +1,5 @@
-import { ArchiveIcon, ArchiveX, Clock3Icon, Trash2Icon } from "lucide-react";
+import { ArchiveIcon, Clock3Icon } from "lucide-react";
 import { useLocale } from "gt-react";
-import type { ReactNode } from "react";
 
 /**
  * Faint previews for the empty states, each drawn from what its own page holds, so three pages
@@ -73,17 +72,12 @@ export function ScheduleGhost({
   );
 }
 
-/** Archive: rows as the archive lists them, with the two actions each row carries. */
+/** Archive: rows as the archive lists them, without the actions, so nothing looks clickable. */
 export function ArchiveGhost({
   rows,
 }: {
   readonly rows: ReadonlyArray<{ readonly title: string; readonly meta: string }>;
 }) {
-  const action = (icon: ReactNode) => (
-    <span className="grid size-7 place-items-center rounded-md border border-(--settings-hairline) text-(--settings-description) [&_svg]:size-3.5">
-      {icon}
-    </span>
-  );
   return (
     <ul data-settings-empty-ghost="" className="flex flex-col gap-2">
       {rows.map((row, index) => (
@@ -98,10 +92,6 @@ export function ArchiveGhost({
               <span className="truncate text-sm text-foreground">{row.title}</span>
               <span className="truncate text-xs text-(--settings-description)">{row.meta}</span>
             </span>
-          </span>
-          <span className="flex shrink-0 gap-1.5">
-            {action(<ArchiveX />)}
-            {action(<Trash2Icon />)}
           </span>
         </li>
       ))}

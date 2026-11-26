@@ -1,3 +1,4 @@
+import { ExplainControl } from "./explain/ExplainControl";
 import { Spinner } from "~/components/ui/spinner";
 import { providerStatusChip, SettingsStatusChip } from "./settingsStatus";
 
@@ -1058,15 +1059,16 @@ export function ProviderInstanceCard({
     isAuthenticated && authEmail ? (
       <>
         {chipStatus ? <SettingsStatusChip status={chipStatus} /> : null}
+        <span>{gt("Signed in")}</span>
+        {authLabel ? <span>· {providerPlanLabel(authLabel)}</span> : null}
         <span className="min-w-0 max-w-full">
           <T>
-            Authenticated as{" "}
+            · Account{" "}
             <Var>
               <ProviderAuthEmail email={authEmail} />
             </Var>
           </T>
         </span>
-        {authLabel ? <span>· {authLabel}</span> : null}
         {inlineStatusDetail ? (
           <span className="min-w-0 [overflow-wrap:anywhere]">· {inlineStatusDetail}</span>
         ) : null}
@@ -1468,8 +1470,9 @@ export function ProviderInstanceCard({
           <FoldedSettingsSection
             key={instanceId}
             id={`provider-instance-${instanceId}-runtime`}
-            title={gt("Runtime")}
+            title={gt("Advanced")}
             headerPlacement="outside"
+            control={<ExplainControl topic="provider-runtime" variant="icon" />}
           >
             {runtime ?? runtimeFields}
           </FoldedSettingsSection>

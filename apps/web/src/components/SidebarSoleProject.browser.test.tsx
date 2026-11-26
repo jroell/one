@@ -59,5 +59,8 @@ it("when every sidebar row is in one project, the project is named once above th
   expect(projectName.length).toBeGreaterThan(0);
   for (const row of document.querySelectorAll('[data-testid="sidebar-row-card"]')) {
     expect(row.textContent).not.toContain(projectName);
+    // The header names the project, so a row has no badge for it and is one line.
+    expect(row.querySelector("[data-sidebar-row-project]")).toBeNull();
+    expect(row.getBoundingClientRect().height).toBeLessThan(40);
   }
 });

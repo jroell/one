@@ -248,7 +248,7 @@ export function PullRequestsColumn({
         data-one-scroll=""
         className="topbar-scroll-fade scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto"
       >
-        <WorkspacePageContainer width="expanded" className="min-h-full gap-5 pt-0">
+        <WorkspacePageContainer width="wide" className="min-h-full gap-5 pt-0">
           <ListPageBand title={<T>Pull requests</T>} subtitle={subtitle} />
           <div className="flex flex-col gap-3">
             <div ref={inFlowSearchRef} className="flex flex-wrap items-center gap-2">

@@ -1418,15 +1418,11 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 /* Stop fires on every run, so it is a neutral raised button with a gold square. Red is for the
    confirmation of something destructive. */
 [data-composer-stop] {
-  color: var(--gold-600);
+  color: var(--ui-fill-shape);
   background-color: color-mix(in srgb, var(--foreground) 6%, var(--m-raised));
   box-shadow:
     inset 0 0 0 1px var(--m-rim-raised-mid),
     var(--m-lit);
-}
-
-.dark [data-composer-stop] {
-  color: var(--gold-400);
 }
 
 @media (hover: hover) {
@@ -1612,18 +1608,18 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 /* ===================================================== the card's answer and its exit */
 
 /*
- * The answer plays in four steps, each starting when the one before ends, so height and content
- * never disagree: the pressed button's label gives way to a check (120ms), the change fades while
- * it still holds its height (90ms), the height folds to the one-line receipt (220ms), and after a
- * beat the receipt settles so the resolved row stands in. The timeline drops the card when all of
- * these have ended, so nothing here is timed in script.
+ * One motion, three overlapping parts. The pressed button's label gives way to a check (120ms). The
+ * change fades (120ms) while its height folds (240ms), both from 60ms. As the change finishes
+ * fading, the whole card folds and fades away (200ms from 180ms), so the card and its content
+ * leave together and no frame shows an empty card at full height or a receipt hanging on alone.
+ * The timeline drops the card when these have ended, so nothing here is timed in script.
  */
 [data-approval-host] {
   --one-morph: 120ms;
-  --one-fade: 90ms;
-  --one-fold: 220ms;
-  --one-hold: 120ms;
-  --one-settle: 140ms;
+  --one-lead: 60ms;
+  --one-fade: 120ms;
+  --one-fold: 240ms;
+  --one-settle: 200ms;
   display: grid;
   grid-template-rows: 1fr;
 }
@@ -1640,16 +1636,16 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
   [data-approval-host][data-leaving] {
     overflow: hidden;
     animation: one-approval-settle var(--one-settle) var(--ease-exit)
-      calc(var(--one-morph) + var(--one-fade) + var(--one-fold) + var(--one-hold)) both;
+      calc(var(--one-lead) + var(--one-fade)) both;
   }
 
   [data-approval-card][data-leaving] [data-approval-body-inner] {
-    animation: one-approval-fade-out var(--one-fade) var(--ease-exit) var(--one-morph) both;
+    animation: one-approval-fade-out var(--one-fade) var(--ease-exit) var(--one-lead) both;
   }
 
   [data-approval-card][data-leaving] [data-approval-body] {
     transition-duration: var(--one-fold);
-    transition-delay: calc(var(--one-morph) + var(--one-fade));
+    transition-delay: var(--one-lead);
     transition-timing-function: var(--ease-enter);
   }
 
@@ -1682,7 +1678,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
   }
 
   [data-approval-card][data-leaving] [data-approval-outcome] {
-    animation: one-approval-fade-in var(--one-fade) var(--ease-enter) var(--one-morph) both;
+    animation: one-approval-fade-in var(--one-fade) var(--ease-enter) var(--one-lead) both;
   }
 }
 
@@ -1726,7 +1722,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 }
 
 [data-approval-card][data-outcome="approved"] [data-approval-outcome] svg {
-  color: light-dark(var(--gold-600), var(--gold-400));
+  color: var(--ui-fill-shape);
 }
 
 [data-approval-card][data-outcome="declined"] [data-approval-outcome] svg {

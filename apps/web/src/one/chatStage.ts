@@ -2,10 +2,9 @@ import { createContext, useEffect, useState } from "react";
 
 import type { MessagesTimelineRow } from "~/components/chat/MessagesTimeline.logic";
 
-/** Where the waiting stage sits: under the question it restates, until an answer starts. */
+/** Where the waiting stage sits: under the person's message, until an answer starts. */
 export interface ChatStageTarget {
   readonly userRowId: string;
-  readonly question: string;
   /** When the turn began, for the elapsed time beside the arc. */
   readonly since: string | null;
 }
@@ -64,7 +63,7 @@ export function findChatStageTarget(
     // An answer with no words yet has nothing to show: the stage stays until its first words.
     if (row.message.role === "assistant" && row.message.text.trim().length === 0) continue;
     if (row.message.role !== "user") return null;
-    return { userRowId: row.id, question: row.message.text.trim(), since };
+    return { userRowId: row.id, since };
   }
   return null;
 }
@@ -111,7 +110,7 @@ export function useChatStage(
 }
 
 function sameTarget(a: ChatStageTarget, b: ChatStageTarget): boolean {
-  return a.userRowId === b.userRowId && a.question === b.question && a.since === b.since;
+  return a.userRowId === b.userRowId && a.since === b.since;
 }
 
 /**

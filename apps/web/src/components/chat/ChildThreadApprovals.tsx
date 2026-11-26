@@ -13,7 +13,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { T, useGT, useMessages, Var } from "gt-react";
 import { useEffect, useRef, useState } from "react";
-import { pruneApprovalDecisions } from "~/one/approvalDecision";
+import { isApprovalDecisionHeld, pruneApprovalDecisions } from "~/one/approvalDecision";
 import { useEnvironmentScope } from "../../state/session";
 import { childThreadApprovalsAtom, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -94,13 +94,17 @@ export function ChildThreadApprovals({ threadRef }: { threadRef: ScopedThreadRef
   const approvals = useAtomValue(childThreadApprovalsAtom(threadRef));
   // An answer recorded for a request that left this thread's list is dropped, so the store does not
   // grow for the life of the window. A thread switch only changes the list: nothing is dropped then.
+  // A request whose card a timeline shows keeps its answer until that card is gone.
   const listed = useRef<{ thread: string; requestIds: ReadonlySet<RuntimeRequestId> } | null>(null);
   const threadKey = threadRef === null ? "" : scopedThreadKey(threadRef);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops the recorded answers of child approvals that left the list
   useEffect(() => {
     const requestIds = new Set(approvals.map((entry) => entry.approval.requestId));
     if (listed.current?.thread === threadKey) {
-      pruneApprovalDecisions(listed.current.requestIds, (id) => requestIds.has(id));
+      pruneApprovalDecisions(
+        listed.current.requestIds,
+        (id) => requestIds.has(id) || isApprovalDecisionHeld(id),
+      );
     }
     listed.current = { thread: threadKey, requestIds };
   }, [approvals, threadKey]);

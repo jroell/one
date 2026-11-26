@@ -225,6 +225,7 @@ import { ChatStatusScope } from "~/one/ChatStatusScope";
 import { OneVoiceStage } from "~/one/OneVoiceStage";
 import { useThreadPanelInlineOpen, useThreadPanelView } from "~/one/chatThreadPanel";
 import { ChatUsageLimitFailure } from "~/one/ChatUsageLimitFailure";
+import { useGuidedThread } from "~/one/guidedThread";
 import { deriveUsageLimitRecovery } from "~/one/chatUsageRecovery";
 import { waitForComposerSend } from "~/one/composerSendBridge";
 import { useWorkspaceMode } from "~/one/workspaceMode";
@@ -3442,6 +3443,7 @@ function ChatView(props: ChatViewProps) {
       .join(" · ") || null;
   // The end of the timeline holds the thread's present and next turns: what it is doing now,
   // its lifecycle status, guest messages awaiting you, then your queued messages.
+  const guidedThread = useGuidedThread(workspaceMode === "chat" ? activeThreadKey : null);
   const usageLimitResetMs = Date.parse(serverRuntime?.usageLimitResetAt ?? "");
   const usageLimitNow = useNowAfter(Number.isFinite(usageLimitResetMs) ? usageLimitResetMs : null);
   const usageLimitRun =
@@ -3674,7 +3676,12 @@ function ChatView(props: ChatViewProps) {
         )}
         data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
         data-chat-column
-        data-one-working={isWorking ? "" : undefined}
+        // A turn waiting on the person is not working: the composer's light stops (ember means "needs you").
+        data-one-working={
+          isWorking && pendingApprovals.length === 0 && pendingUserInputs.length === 0
+            ? ""
+            : undefined
+        }
         style={
           {
             "--chat-header-height": embedded ? "0px" : "var(--workspace-topbar-height)",
@@ -3863,6 +3870,7 @@ function ChatView(props: ChatViewProps) {
                         {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
                         isPreparingWorktree={isPreparingWorktree}
                         footer={timelineFooter}
+                        guided={guidedThread}
                         listRef={legendListRef}
                         runs={serverProjection?.runs ?? []}
                         latestRun={activeActivityRun}

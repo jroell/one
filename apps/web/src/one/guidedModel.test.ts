@@ -96,7 +96,12 @@ it("switches to the first ready provider with usage left when the draft's provid
       providers: [codexOut, signedOut, alsoOut, disabled, claudeReady],
       now,
     }),
-  ).toEqual({ kind: "switch", selection: { instanceId: CLAUDE, model: "claude-opus-5-5" } });
+  ).toEqual({
+    kind: "switch",
+    selection: { instanceId: CLAUDE, model: "claude-opus-5-5" },
+    // The provider passed over, and when its usage returns, for the line under the thread.
+    passedOver: { instanceId: CODEX, resetsAt: "2026-11-30T16:46:00.000Z" },
+  });
 });
 
 it("reports the earliest reset when every ready provider is out of usage", () => {

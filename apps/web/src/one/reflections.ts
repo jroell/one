@@ -12,8 +12,7 @@ export const REMEASURE_MS = 250;
 
 const REFLECT_SELECTOR = "[data-one-reflect]";
 /** A gold button's pool of light follows the pointer while it is hovered. */
-const BUTTON_SELECTOR =
-  '[data-button][data-variant="default"], [data-composer-send]:not([data-stage])';
+const BUTTON_SELECTOR = '[data-button][data-variant="default"], [data-composer-send]';
 /** While the agent works the edge light travels around the surface on its own and ignores the pointer. */
 const WORKING_SELECTOR = "[data-one-working]";
 

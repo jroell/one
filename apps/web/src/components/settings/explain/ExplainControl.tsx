@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@t3tools/contracts";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useGT, useMessages } from "gt-react";
@@ -14,6 +15,7 @@ import {
   type StartConversationInput,
 } from "./conversation";
 import { buildHiddenContext } from "./explainConversation";
+import { ExplainProviderFix } from "./ExplainProviderFix";
 import { useConversationEnvironmentId, useSetupSnapshot } from "./explainFacts";
 import { explainDocsUrl, explainTopic } from "./explainTopics";
 import { EMPTY_SETUP, type ExplainTopicId, type SetupSnapshot } from "./explainTypes";
@@ -43,9 +45,12 @@ function ExplainPopover({
   variant,
   className,
   returnLabel,
+  environmentId,
 }: {
   readonly topicId: ExplainTopicId;
   readonly setup: SetupSnapshot;
+  /** The machine the conversation would run on, for the fix offered when no provider is ready. */
+  readonly environmentId?: EnvironmentId | undefined;
   readonly variant: "link" | "icon";
   /** The page to return to when it is not a Settings page, such as "Usage". */
   readonly returnLabel?: string | undefined;
@@ -73,12 +78,22 @@ function ExplainPopover({
   const topic = explainTopic(topicId);
   const docsUrl = explainDocsUrl(topic);
   const label = gt("What is this?");
+  // An answered topic reopens its thread, and the button says so.
+  const reopens = availability.ok && "reopens" in availability && availability.reopens === true;
 
   const ask = () => {
-    const input: StartConversationInput = {
+    const input: StartConversationInput & {
+      readonly actions?: ReadonlyArray<{ readonly label: string; readonly href: string }>;
+    } = {
       visibleText: m(topic.question),
       hiddenContext: buildHiddenContext(topicId, setup),
       topicKey: topicId,
+      // Chips under the answer that open the places it names.
+      ...(topic.actions === undefined || topic.actions.length === 0
+        ? {}
+        : {
+            actions: topic.actions.map((action) => ({ label: m(action.label), href: action.href })),
+          }),
       ...(router === undefined
         ? {}
         : {
@@ -172,7 +187,11 @@ function ExplainPopover({
                 aria-describedby={availability.ok ? undefined : reasonId}
                 onClick={ask}
               >
-                {asking ? gt("Opening a conversation…") : gt("Ask One about this")}
+                {asking
+                  ? gt("Opening a conversation…")
+                  : reopens
+                    ? gt("Continue with One")
+                    : gt("Ask One about this")}
               </Button>
               {docsUrl === null ? null : (
                 <a
@@ -189,6 +208,12 @@ function ExplainPopover({
               <p id={reasonId} className="text-xs text-pretty text-(--settings-description)">
                 {availability.reason}
               </p>
+            )}
+            {availability.ok || environmentId === undefined ? null : (
+              <ExplainProviderFix
+                environmentId={environmentId}
+                onOpenProviders={() => onOpenChange(false)}
+              />
             )}
             {failure === null ? null : (
               <p role="alert" className="text-xs text-pretty text-destructive-foreground">

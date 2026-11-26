@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import "~/index.css";
 import { render } from "../../../test/render";
+import { PROJECT_ICON_COLORS } from "../../projectIconColors";
+import { GetDesktopAppButton } from "../settings/GetDesktopAppButton";
 import { Button } from "./button";
 import { Switch } from "./switch";
 
@@ -538,7 +540,7 @@ describe("primary controls", () => {
   );
 
   it.each(["light", "dark"] as const)(
-    "the send button is a gold disc with the dark arrow, and 30% opacity when disabled, in %s",
+    "the send button is a gold disc with the dark arrow, and a neutral disc (never muddy gold) when empty, in %s",
     (scheme) =>
       inScheme(scheme, () => {
         const enabled = document.createElement("button");
@@ -553,8 +555,12 @@ describe("primary controls", () => {
           expect(r - b, "gold, not grey").toBeGreaterThan(60);
           expect(contrast(style.color, style.backgroundColor)).toBeGreaterThanOrEqual(4.5);
           expect(style.backgroundImage).toContain("linear-gradient");
-          expect(getComputedStyle(disabled).opacity).toBe("0.3");
           expect(g).toBeGreaterThan(b);
+          const empty = getComputedStyle(disabled);
+          expect(empty.opacity, "an empty send keeps full opacity").toBe("1");
+          const [er, , eb] = channels(empty.backgroundColor);
+          expect(Math.abs(er - eb), "neutral, not a dimmed gold").toBeLessThan(30);
+          expect(empty.backgroundImage).toBe("none");
         } finally {
           enabled.remove();
           disabled.remove();
@@ -563,24 +569,35 @@ describe("primary controls", () => {
   );
 
   it.each(["light", "dark"] as const)(
-    "Approve and Send are one gold: the same fill, and Send is 30% when empty, in %s",
+    "Approve, Send, a switch that is on, the stop square and Get the desktop app are one gold in %s",
     (scheme) =>
       inScheme(scheme, async () => {
-        await using screen = await render(<Button>Approve</Button>, { router: false });
+        await using screen = await render(
+          <>
+            <Button>Approve</Button>
+            <GetDesktopAppButton />
+            <Switch aria-label="On" defaultChecked />
+          </>,
+          { router: false },
+        );
         const approve = getComputedStyle(screen.container.querySelector("[data-slot=button]")!);
+        const desktop = getComputedStyle(screen.container.querySelector("a[data-slot=button]")!);
+        const track = getComputedStyle(screen.container.querySelector("[data-slot=switch]")!);
         const send = document.createElement("button");
         send.setAttribute("data-composer-send", "");
-        const empty = document.createElement("button");
-        empty.setAttribute("data-composer-send", "");
-        empty.disabled = true;
-        document.body.append(send, empty);
+        const stop = document.createElement("button");
+        stop.setAttribute("data-composer-stop", "");
+        document.body.append(send, stop);
         try {
-          expect(getComputedStyle(send).backgroundColor).toBe(approve.backgroundColor);
-          expect(approve.backgroundColor).toBe(resolved("var(--gold-fill)"));
-          expect(getComputedStyle(empty).opacity).toBe("0.3");
+          const gold = resolved("var(--gold-fill)");
+          expect(approve.backgroundColor, "Approve").toBe(gold);
+          expect(getComputedStyle(send).backgroundColor, "Send").toBe(gold);
+          expect(desktop.backgroundColor, "Get the desktop app").toBe(gold);
+          expect(track.backgroundColor, "a switch that is on").toBe(gold);
+          expect(getComputedStyle(stop).color, "the stop square").toBe(gold);
         } finally {
           send.remove();
-          empty.remove();
+          stop.remove();
         }
       }),
   );
@@ -623,4 +640,96 @@ describe("primary controls", () => {
         expect(getComputedStyle(thumb).backgroundColor).toBe("rgb(245, 239, 228)");
       }),
   );
+});
+
+/** Every style rule in the loaded stylesheets, with the at-rules (media, layer, supports) opened. */
+function* styleRules(rules: CSSRuleList): Generator<CSSStyleRule> {
+  for (const rule of rules) {
+    if (rule instanceof CSSStyleRule) {
+      yield rule;
+      yield* styleRules(rule.cssRules);
+    } else if ("cssRules" in rule) {
+      yield* styleRules((rule as CSSGroupingRule).cssRules);
+    }
+  }
+}
+
+const COLOR_PROPERTIES = [
+  "color",
+  "background-color",
+  "background-image",
+  "border-color",
+  "border-top-color",
+  "border-bottom-color",
+  "outline-color",
+  "fill",
+  "stroke",
+  "box-shadow",
+  "text-decoration-color",
+  "caret-color",
+] as const;
+
+describe("one gold and one ember across every screen", () => {
+  // Rules that paint with a warm color that is not a token, each with the reason it may.
+  const PERMITTED_WARM = [
+    {
+      selector: /one-voice|stage-art|ultrathink|one-opening|one-mark|one-orb|one-glyph/,
+      why: "the ring and the voice stage draw their own metal",
+    },
+    {
+      selector: /syntax|hljs|shiki|token|pierre|trees-status/,
+      why: "code and file-tree syntax colors",
+    },
+  ] as const;
+
+  // A project's icon color is a choice the person makes from a palette that includes orange,
+  // amber and yellow, so those utilities are meant to exist.
+  const projectIconClasses = PROJECT_ICON_COLORS.flatMap((color) =>
+    `${color.className} ${color.swatchClassName}`.split(" "),
+  ).map((name) => name.replace(":", "\\:"));
+
+  it("no rule paints with a raw warm Tailwind color (amber, orange, yellow) or a literal warm hex: gold is --gold-fill, --gold-text and --gold-press, and attention is --st-attention", () => {
+    const hueOf = (hex: string): { h: number; s: number; l: number } => {
+      const [r = 0, g = 0, b = 0] = channels(hex).map((value) => value / 255);
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const l = (max + min) / 2;
+      const d = max - min;
+      const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      return { h: hue([r * 255, g * 255, b * 255]), s, l };
+    };
+    const offenders = new Set<string>();
+    for (const sheet of document.styleSheets) {
+      let rules: CSSRuleList;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
+      for (const rule of styleRules(rules)) {
+        if (PERMITTED_WARM.some((permitted) => permitted.selector.test(rule.selectorText)))
+          continue;
+        if (projectIconClasses.some((name) => rule.selectorText.startsWith(`.${name}`))) continue;
+        for (const property of COLOR_PROPERTIES) {
+          const value = rule.style.getPropertyValue(property);
+          if (!value) continue;
+          if (/var\(--gold-[3-7]\d*\)/.test(value) || /var\(--gold-[3-7]\d*,/.test(value)) {
+            offenders.add(
+              `${rule.selectorText} { ${property}: ${value.slice(0, 60)} } uses the ring ramp, not --gold-fill, --gold-text or --gold-press`,
+            );
+          }
+          if (/var\(--color-(?:amber|orange|yellow)-/.test(value)) {
+            offenders.add(`${rule.selectorText} { ${property}: ${value.slice(0, 60)} }`);
+          }
+          for (const literal of value.match(/#[0-9a-fA-F]{6}\b/g) ?? []) {
+            const { h, s, l } = hueOf(literal);
+            if (h >= 15 && h <= 55 && s > 0.35 && l > 0.2 && l < 0.85) {
+              offenders.add(`${rule.selectorText} { ${property}: ${literal} }`);
+            }
+          }
+        }
+      }
+    }
+    expect([...offenders].sort()).toEqual([]);
+  });
 });

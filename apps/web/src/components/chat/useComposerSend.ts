@@ -993,7 +993,7 @@ export function useComposerSend(input: ComposerSendInput) {
     const threadIdForSend = activeThread.id;
     // Carried by this one send's own report, so no later message from this composer has them.
     const appContextForSend = voice?.agentContext;
-    if (appContextForSend !== undefined && !acceptsAppNotes(environmentId)) {
+    if (appContextForSend?.trim() && !acceptsAppNotes(environmentId)) {
       // A load-balanced draft can move to a machine too old to read the notes: refuse, never drop them.
       voice?.rejected(
         m(msg("This machine is too old to carry that question. Update it, then ask again.")),

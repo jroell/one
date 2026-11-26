@@ -287,12 +287,29 @@
   color: var(--vs-bone-soft);
 }
 
+/* A change runs in sequence: the old word goes out over the exit time (the enter time times
+   --mo-exit), and only then does the new one come in, so the two are never on screen together. */
+.one-voice-stage {
+  --vs-out: calc(var(--mo-quick, 180ms) * var(--mo-exit, 0.7));
+}
+
 .one-voice-status {
-  animation: one-voice-word-in var(--mo-quick, 180ms) var(--vs-ease) 60ms both;
+  animation: one-voice-word-in var(--mo-quick, 180ms) var(--vs-ease) both;
+}
+
+.one-voice-status-wrap[data-swapping] .one-voice-status {
+  animation-delay: var(--vs-out);
 }
 
 .one-voice-status-out {
-  animation: one-voice-word-out var(--mo-quick, 180ms) var(--ease-exit, linear) both;
+  animation: one-voice-word-out var(--vs-out) var(--ease-exit, linear) both;
+}
+
+.one-voice-caption-wrap .one-voice-caption-out {
+  position: absolute;
+  inset: 0 0 auto;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 @keyframes one-voice-word-in {
@@ -321,11 +338,17 @@
 }
 
 /* A fixed box, so the ring never moves when the words arrive or leave. */
-.one-voice-caption {
+.one-voice-caption-wrap {
+  position: relative;
   width: 100%;
   max-width: 36rem;
-  height: min(24vh, 11rem);
   margin-top: 0.5rem;
+}
+
+.one-voice-caption,
+.one-voice-caption-out {
+  width: 100%;
+  height: min(24vh, 11rem);
   /* A long reply scrolls; its first and last lines fade out instead of being cut in half. */
   padding-bottom: 1.75rem;
   overflow-y: auto;
@@ -347,7 +370,8 @@
   white-space: pre-line;
 }
 
-.one-voice-caption[data-kind="heard"] {
+.one-voice-caption[data-kind="heard"],
+.one-voice-caption-out[data-kind="heard"] {
   color: var(--vs-bone-soft);
   font-style: italic;
 }
@@ -512,7 +536,7 @@
 
   /* A new transcript label arrives the same way, so a change of state is seen, not swapped. */
   .one-voice-caption-line {
-    animation: one-voice-content-in var(--mo-quick, 180ms) var(--vs-ease) both;
+    animation: one-voice-content-in var(--mo-quick, 180ms) var(--vs-ease) var(--vs-out) both;
   }
 }
 

@@ -165,7 +165,12 @@ function turnFixture({
   };
   const answer = {
     ...assistant,
-    item: { ...assistant.item, text: "The file is short.", streaming: false, status: "completed" },
+    item: {
+      ...assistant.item,
+      text: "The file is short. It holds one function.",
+      streaming: false,
+      status: "completed",
+    },
   } as typeof assistant;
   const reasoning = {
     ...work,
@@ -261,6 +266,7 @@ it("Chat mode names a finished turn that only reasoned Thought for its time, and
 
 it("Chat mode sets opened reasoning small and quiet, never the size of the answer", async () => {
   using _mode = inMode("chat");
+  await using _viewport = await wideViewport(1440);
   const turn = turnFixture({ approval: false, finished: true, work: "reasoning" });
   await using screen = await renderTimeline({
     ...baseProps(),
@@ -280,7 +286,11 @@ it("Chat mode sets opened reasoning small and quiet, never the size of the answe
     '[data-message-role="assistant"] .chat-markdown',
   )!;
   expect(Number.parseFloat(getComputedStyle(reasoning).fontSize)).toBe(14);
-  expect(Number.parseFloat(getComputedStyle(answer).fontSize)).toBe(18);
+  // A 20px face on a 32px line on a laptop; a phone gets 17px so the line still holds a reading measure.
+  expect(Number.parseFloat(getComputedStyle(answer).fontSize)).toBe(20);
+  expect(Number.parseFloat(getComputedStyle(answer).lineHeight)).toBe(32);
+  await page.viewport(390, 900);
+  expect(Number.parseFloat(getComputedStyle(answer).fontSize)).toBeCloseTo(17.1, 0);
   expect(getComputedStyle(reasoning).color).not.toBe(getComputedStyle(answer).color);
 });
 
@@ -562,10 +572,11 @@ it("Chat mode's dock is opaque to the window's edge, and gains a fade and a clea
   {
     await using atEnd = await render(dockedScene(props, { dockHeight: 140, scrollAway: false }));
     const dock = dockOf(atEnd);
-    // The dock's own layer is solid, so no line of the answer shows beside or under the composer.
-    const solid = getComputedStyle(dock, "::before");
-    expect(solid.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    expect(solid.position).toBe("absolute");
+    // The dock itself is solid, so no line of the answer shows beside or under the composer. The
+    // room's light is drawn on a layer inside it, never by thinning it.
+    expect(getComputedStyle(dock).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(getComputedStyle(dock).isolation).toBe("isolate");
+    expect(getComputedStyle(dock, "::before").position).toBe("absolute");
     expect(getComputedStyle(dock, "::after").opacity).toBe("0");
   }
   {
@@ -962,7 +973,7 @@ function stageProps() {
   };
 }
 
-it("Chat mode shows the waiting stage under the question after 250ms, with the question in 28px serif, a 32px arc and no placeholder bars", async () => {
+it("Chat mode shows the waiting stage under the question after 250ms, with a 32px arc, the question not repeated and no placeholder bars", async () => {
   using _mode = inMode("chat");
   using _motion = motion(false);
   await using _viewport = await wideViewport(1440);
@@ -970,11 +981,9 @@ it("Chat mode shows the waiting stage under the question after 250ms, with the q
   await vi.waitFor(() =>
     expect(screen.container.querySelector("[data-chat-stage]")).not.toBeNull(),
   );
-  const question = screen.container.querySelector<HTMLElement>(".one-chat-stage-question")!;
-  expect(question.textContent).toBe(QUESTION);
-  const style = getComputedStyle(question);
-  expect(style.fontSize).toBe("28px");
-  expect(style.fontFamily).toContain("Iowan Old Style");
+  // The person's own message is already on screen above it: the stage does not say it again.
+  expect(screen.container.querySelector("[data-chat-stage]")!.textContent).not.toContain(QUESTION);
+  expect(screen.container.querySelector(".one-chat-stage-question")).toBeNull();
   const arc = screen.container.querySelector<HTMLElement>(".one-chat-stage [data-working-arc]")!;
   expect(arc.getBoundingClientRect().width).toBe(32);
   // No grey placeholder bars, and nothing is drawn until 250ms: a quick answer shows no stage.
@@ -1041,10 +1050,11 @@ it("Chat mode hands the stage to the answer by a cross-fade with nothing moving:
   );
   const stage = () => screen.container.querySelector<HTMLElement>("[data-chat-stage]");
   const ghost = () => screen.container.querySelector<HTMLElement>(".one-chat-stage-ghost");
-  // The stage has begun to show (its 250ms delay has passed); only a shown stage leaves a ghost.
-  await vi.waitFor(() => expect(getComputedStyle(stage()!).opacity).not.toBe("0"));
+  // Only a shown stage leaves a ghost, and it counts as shown when React has handled the
+  // entrance's `animationstart`, which comes a frame after the animation's opacity first moves.
+  await vi.waitFor(() => expect(stage()?.hasAttribute("data-shown")).toBe(true));
   const stageTop = stage()!.getBoundingClientRect().top;
-  expect(stage()!.getBoundingClientRect().height).toBeGreaterThan(70);
+  expect(stage()!.getBoundingClientRect().height).toBeGreaterThan(28);
 
   using _timers = fakeTimers();
   await screen.rerender(<MessagesTimeline {...props} timelineEntries={answered} />);
@@ -1392,7 +1402,10 @@ it("Chat mode gives the follow-ups no room while the answer streams, and a row e
   using _motion = motion(true);
   await using _viewport = await wideViewport(1440);
   const props = baseProps();
-  const entries = [message("ask-f", "user", "Why?"), message("answer-f", "assistant", "Because.")];
+  const entries = [
+    message("ask-f", "user", "Why?"),
+    message("answer-f", "assistant", "Because it is small. It needs nothing more."),
+  ];
   const followups = (screen: { container: HTMLElement }) =>
     screen.container.querySelector<HTMLElement>(".one-chat-followups");
   const sceneIn = async (extra: Partial<TimelineProps>) => {
@@ -1413,6 +1426,56 @@ it("Chat mode gives the follow-ups no room while the answer streams, and a row e
     await using idle = await sceneIn({});
     await vi.waitFor(() => expect(followups(idle)?.hasAttribute("data-ready")).toBe(true));
     expect(followups(idle)!.getBoundingClientRect().height).toBeGreaterThan(60);
+  }
+});
+
+it("Chat mode follows a one-line answer with nothing, an answer that asks with replies in place of the three follow-ups, and any other answer with the three", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const sceneFor = async (answer: string) => {
+    const container = document.createElement("div");
+    container.style.cssText =
+      "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+    return render(
+      followUpScene(composerStandIn(""), {
+        ...baseProps(),
+        timelineEntries: [
+          message("ask-e", "user", "Why?"),
+          message("answer-e", "assistant", answer),
+        ],
+      }),
+      { container },
+    );
+  };
+  {
+    await using none = await sceneFor("The command printed one JSON line.");
+    await vi.waitFor(() =>
+      expect(none.container.querySelector('[data-message-id="answer-e"]')).not.toBeNull(),
+    );
+    expect(none.container.querySelector(".one-chat-followups")).toBeNull();
+  }
+  {
+    await using asked = await sceneFor(
+      "You have one account signed in here. That is enough for Usage.\n\nDo you have a second account?",
+    );
+    await vi.waitFor(() =>
+      expect(asked.container.querySelector(".one-chat-replies")?.hasAttribute("data-ready")).toBe(
+        true,
+      ),
+    );
+    const replies = [...asked.container.querySelectorAll(".one-chat-replies button")].map(
+      (button) => button.textContent,
+    );
+    expect(replies).toEqual(["Yes", "No", "Not sure"]);
+    expect(asked.container.querySelector('[aria-label="Follow up"]')).toBeNull();
+  }
+  {
+    await using plain = await sceneFor("A hub pools accounts. One address serves all of them.");
+    await vi.waitFor(() =>
+      expect(plain.container.querySelector('[aria-label="Follow up"]')).not.toBeNull(),
+    );
+    expect(plain.container.querySelector(".one-chat-replies")).toBeNull();
   }
 });
 

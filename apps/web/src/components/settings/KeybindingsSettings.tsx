@@ -101,6 +101,7 @@ import {
   whenNodeRemoveLabel,
 } from "./KeybindingsSettings.logic";
 import { SettingsGroup } from "./SettingsGroup";
+import { GetDesktopAppButton } from "./GetDesktopAppButton";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { keybindingSearchAnchorId, useSearchableSetting } from "./settingsSearch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -1524,7 +1525,10 @@ function BrowserKeybindingNotice() {
   return (
     <p className="flex basis-full items-center gap-1.5 text-xs text-(--settings-description)">
       <TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-      {gt("The browser may claim some shortcuts first. The desktop app receives them all.")}
+      <span className="min-w-0">
+        {gt("The browser may claim some shortcuts first. The desktop app receives them all.")}
+      </span>
+      <GetDesktopAppButton variant="outline" size="xs" />
     </p>
   );
 }

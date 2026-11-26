@@ -5,7 +5,11 @@ import * as Cause from "effect/Cause";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
-import { peekApprovalDecision } from "~/one/approvalDecision";
+import {
+  clearApprovalDecision,
+  holdApprovalDecision,
+  peekApprovalDecision,
+} from "~/one/approvalDecision";
 import { render } from "../../../test/render";
 
 const state = vi.hoisted(() => ({ respond: vi.fn(), approvalsAtom: null as unknown }));
@@ -68,4 +72,30 @@ it("drops the recorded answer of a child approval once it leaves the pending lis
   // The request is answered: the environment no longer lists it.
   registry.set(state.approvalsAtom as Atom.Writable<ReadonlyArray<ChildThreadApproval>>, []);
   await vi.waitFor(() => expect(peekApprovalDecision(requestId)).toBeUndefined());
+});
+
+it("leaves the answer of a child approval to the timeline that still shows its card", async () => {
+  const thread = setup();
+  state.respond.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+  const registry = AtomRegistry.make();
+  const requestId = RuntimeRequestId.make("approval");
+  // The child thread is open in a timeline, which shows this request's card.
+  const release = holdApprovalDecision(requestId);
+  try {
+    await using screen = await render(
+      <RegistryContext.Provider value={registry}>
+        <ChildThreadApprovals threadRef={thread} />
+      </RegistryContext.Provider>,
+    );
+    await screen.getByRole("button", { name: "Approve", exact: true }).click();
+    await vi.waitFor(() => expect(peekApprovalDecision(requestId)).toBe("accept"));
+    registry.set(state.approvalsAtom as Atom.Writable<ReadonlyArray<ChildThreadApproval>>, []);
+    await expect
+      .element(screen.getByRole("button", { name: "Approve", exact: true }))
+      .not.toBeInTheDocument();
+    expect(peekApprovalDecision(requestId)).toBe("accept");
+  } finally {
+    release();
+    clearApprovalDecision(requestId);
+  }
 });

@@ -7,6 +7,12 @@ import { dispatchVoiceSession, getVoiceSession } from "./voiceSession";
 import { rememberVoiceLauncher } from "./voiceStageMotion";
 import { getWorkspaceMode, setWorkspaceMode } from "./workspaceMode";
 
+/** The notice's button: goes to the setting, and the notice, its job done, goes away. */
+export function openVoiceSettings(voice: VoiceBridge, noticeId: string): void {
+  toastManager.close(noticeId);
+  voice.openSetup();
+}
+
 /**
  * Opens voice chat on the composer's thread. A spoken question is sent on its
  * own, so an unfinished draft has to be sent or cleared first.
@@ -28,11 +34,15 @@ export function startVoiceChat(voice: VoiceBridge, origin: Element | null = null
     toastManager.add({
       id: "voice-chat-needs-transcription",
       type: "info",
-      title: m(msg("Voice chat needs a transcription source")),
-      description: m(msg("Choose one under Transcribe with, then start voice chat again.")),
+      title: m(msg("Voice input is off")),
+      description: m(
+        msg("Voice chat needs a place to turn your speech into text, and none is chosen yet."),
+      ),
+      actionProps: {
+        children: m(msg("Open Voice settings")),
+        onClick: () => openVoiceSettings(voice, "voice-chat-needs-transcription"),
+      },
     });
-    // Starting without a source opens Voice settings at the transcription row; there is nothing to listen to yet.
-    void voice.start();
     return;
   }
   if (voice.phase === "error") voice.cancel();
@@ -53,10 +63,22 @@ export function toggleVoiceChat(): void {
   }
   const voice = getVoiceBridge();
   if (!voice?.available) {
+    // Without a conversation there is nothing to open; with one, the setting is the way out.
     toastManager.add({
+      id: "voice-chat-not-available",
       type: "info",
       title: m(msg("Voice chat is not available here")),
-      description: m(msg("Open a thread you can write in and set up voice input in Settings.")),
+      description: voice
+        ? m(msg("Voice input is not set up for this conversation."))
+        : m(msg("Voice chat works inside a conversation you can write in.")),
+      ...(voice
+        ? {
+            actionProps: {
+              children: m(msg("Open Voice settings")),
+              onClick: () => openVoiceSettings(voice, "voice-chat-not-available"),
+            },
+          }
+        : {}),
     });
     return;
   }

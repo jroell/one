@@ -228,6 +228,7 @@ import {
   createSidebarCollisionDetection,
   createSidebarSortingStrategy,
   restrictBelowSidebarLabel,
+  sidebarDragFloor,
 } from "./Sidebar.drag";
 import { SidebarPointerSensor } from "./Sidebar.pointer";
 import { createSidebarListMotion } from "./Sidebar.motion";
@@ -1936,8 +1937,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (list && header) {
       const listRect = list.getBoundingClientRect();
       const scale = list.offsetWidth > 0 ? listRect.width / list.offsetWidth : 1;
+      const afterHeader = header.nextElementSibling;
+      const firstPinned =
+        afterHeader !== null && afterHeader.getAttribute("data-testid") !== "sidebar-pinned-divider"
+          ? afterHeader.getBoundingClientRect().top
+          : null;
       dragLabelOffsetRef.current =
-        header.getBoundingClientRect().top - listRect.top + SIDEBAR_DRAG_LABEL_HEIGHT * scale;
+        sidebarDragFloor({
+          headerTop: header.getBoundingClientRect().top,
+          firstPinnedTop: firstPinned,
+          labelHeight: SIDEBAR_DRAG_LABEL_HEIGHT * scale,
+        }) - listRect.top;
     } else {
       dragLabelOffsetRef.current = 0;
     }

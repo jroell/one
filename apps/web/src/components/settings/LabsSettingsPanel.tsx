@@ -161,8 +161,8 @@ function GuestLinksRow() {
       managed={settings.guestSharingEnabled ? undefined : connectDenial}
       description={
         <T>
-          Let a guest watch a thread live in a browser and send messages you approve. Needs T3
-          Connect: sign in and link this machine in{" "}
+          Let a guest watch a thread live in a browser and send messages you approve. This machine
+          must be linked to T3 Connect, which you turn on in{" "}
           <Link to="/settings/access" className="underline underline-offset-2">
             Sharing & access
           </Link>
@@ -308,7 +308,7 @@ function PromptSuggestionsRow() {
       {...searchableSetting("prompt-suggestions-beta")}
       settingKeys={["promptSuggestionsEnabled"]}
       description={gt(
-        "After a Claude or Codex turn, show a predicted next message in the empty composer; Tab uses it. Each prediction is one extra request on your plan. Codex needs version 0.165 or newer, and Claude threads update after a restart.",
+        "After a Claude or Codex turn, show a predicted next message in the empty composer; Tab uses it. Each prediction is one extra request on your plan. Codex needs version 0.165 or newer. Claude threads pick it up the next time they start.",
       )}
       control={
         <ScopedSwitch

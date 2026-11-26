@@ -973,8 +973,11 @@ export function GeneralSettingsPanel() {
           description={
             <T>
               Fold working and monitoring threads into a Working section. They return to the top of
-              the inbox when they need you. With "Group threads by project" on in Labs, there is no
-              Working section.
+              the inbox when they need you. With "Group threads by project" on in{" "}
+              <Link to="/settings/labs" className="underline underline-offset-2">
+                Labs
+              </Link>
+              , there is no Working section.
             </T>
           }
           resetAction={
@@ -1347,16 +1350,16 @@ export function ChatSettingsPanel() {
           description={
             settings.sendShortcut === "mod-enter-multiline"
               ? gt(
-                  "Queue follow-ups while the agent runs or steer the current run. Press {modifier} + Enter for single-line prompts or {modifier} + Shift + Enter for multiline prompts to do the opposite for one message.",
+                  "While the agent is working, a follow-up can wait for the current step or interrupt and redirect it. Press {modifier} + Enter for single-line prompts or {modifier} + Shift + Enter for multiline prompts to do the opposite for one message.",
                   { modifier: modifierLabel },
                 )
               : settings.sendShortcut === "mod-enter"
                 ? gt(
-                    "Queue follow-ups while the agent runs or steer the current run. Press {modifier} + Shift + Enter to do the opposite for one message.",
+                    "While the agent is working, a follow-up can wait for the current step or interrupt and redirect it. Press {modifier} + Shift + Enter to do the opposite for one message.",
                     { modifier: modifierLabel },
                   )
                 : gt(
-                    "Queue follow-ups while the agent runs or steer the current run. Press {modifier} + Enter to do the opposite for one message.",
+                    "While the agent is working, a follow-up can wait for the current step or interrupt and redirect it. Press {modifier} + Enter to do the opposite for one message.",
                     { modifier: modifierLabel },
                   )
           }
@@ -1387,15 +1390,17 @@ export function ChatSettingsPanel() {
                 aria-label={gt("Follow-up behavior")}
               >
                 <SelectValue>
-                  {settings.followUpBehavior === "queue" ? gt("Queue") : gt("Steer")}
+                  {settings.followUpBehavior === "queue"
+                    ? gt("Wait for the current step")
+                    : gt("Interrupt and redirect")}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
                 <SelectItem value="queue">
-                  <T>Queue</T>
+                  <T>Wait for the current step</T>
                 </SelectItem>
                 <SelectItem value="steer">
-                  <T>Steer</T>
+                  <T>Interrupt and redirect</T>
                 </SelectItem>
               </SelectPopup>
             </Select>
@@ -1557,7 +1562,7 @@ const TOOL_CALL_VISIBILITY_LABELS: Record<ToolCallVisibility, string> = {
   showAll: msg("Show all"),
   hideSuccessful: msg("Hide successful"),
   hideAll: msg("Hide all"),
-  zen: msg("Zen", { $context: "tool call visibility" }),
+  zen: msg("Final answers only", { $context: "tool call visibility" }),
 };
 
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
@@ -1572,7 +1577,7 @@ function ToolCallVisibilityRow() {
     <SettingsRow
       {...setting("tool-call-visibility")}
       description={gt(
-        "Hide the commands, edits, and searches agents run. Hide successful calls and keep failures. Zen shows only final answers. Approvals, questions, and errors always show.",
+        "Hide the commands, edits, and searches agents run. Hide successful calls and keep failures. Final answers only hides all of them. Approvals, questions, and errors always show.",
       )}
       resetAction={
         settings.toolCallVisibility !== DEFAULT_UNIFIED_SETTINGS.toolCallVisibility ? (
@@ -2104,7 +2109,7 @@ export function ThreadsSettingsPanel() {
           serverScoped
           settingKeys={["ghqCloneLayout"]}
           {...setting("ghq-clone-layout")}
-          description={gt("Clones go to github.com/owner/repo under the folder above, like ghq.")}
+          description={gt("Clones go to github.com/owner/repo under the folder above.")}
           resetAction={
             settings.ghqCloneLayout !== DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout ? (
               <SettingResetButton

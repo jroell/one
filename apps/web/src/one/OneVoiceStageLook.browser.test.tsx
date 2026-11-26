@@ -29,6 +29,7 @@ function setup() {
       continuesDraft: () => false,
       available: true,
       needsSetup: false,
+      openSetup: () => undefined,
       draftEmpty: true,
       phase: state.phase,
       error: null,
@@ -499,4 +500,49 @@ it("the landing glint is still visible halfway through its time, not spent in it
   expect(opacityAt(0.3)).toBeGreaterThan(0.95);
   expect(opacityAt(0.5)).toBeGreaterThan(0.3);
   expect(opacityAt(1)).toBe(0);
+});
+
+it("a change of state runs in sequence: the old word and old transcript are gone before the new ones begin", async () => {
+  using _voice = setup();
+  await using _screen = await render(<Scene isWorking />, { router: false });
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+  await settle();
+
+  await act(waitingTurn);
+  const stage = stageElement();
+  const outgoing = stage.querySelector<HTMLElement>(".one-voice-status-out")!;
+  const incoming = stage.querySelector<HTMLElement>(".one-voice-status")!;
+  expect(outgoing.textContent).toBe("Listening");
+  expect(incoming.textContent).toBe("Thinking");
+  const out = outgoing.getAnimations()[0]!.effect!.getTiming();
+  const into = incoming.getAnimations()[0]!.effect!.getTiming();
+  // The word comes in only once the old one has left, on the contract's exit time (0.7 of 180 ms).
+  expect(Number(out.duration)).toBeCloseTo(180 * 0.7, 0);
+  expect(Number(into.delay)).toBeCloseTo(Number(out.duration), 3);
+  expect(Number(into.duration)).toBe(180);
+});
+
+it("the old transcript leaves before the new one comes in, and its copy is gone once it has left", async () => {
+  using _voice = setup();
+  await using _screen = await render(<Scene isWorking />, { router: false });
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+  await act(waitingTurn);
+  await settle();
+  const caption = () => stageElement().querySelector<HTMLElement>(".one-voice-caption")!;
+  expect(caption().textContent).toBe("why is the sky blue");
+
+  await act(() =>
+    dispatchVoiceSession({ type: "replied", reply: { id: "r1", text: "Light bends." } }),
+  );
+  const leaving = stageElement().querySelector<HTMLElement>(".one-voice-caption-out")!;
+  expect(leaving.textContent).toBe("why is the sky blue");
+  expect(leaving).toHaveAttribute("aria-hidden", "true");
+  const exit = leaving.getAnimations()[0]!.effect!.getTiming();
+  const entrance = caption().getAnimations()[0]!.effect!.getTiming();
+  expect(caption().textContent).toBe("Light bends.");
+  expect(Number(entrance.delay)).toBeCloseTo(Number(exit.duration), 3);
+
+  await settle();
+  // The finished animation reports its end, and the copy is removed.
+  await vi.waitFor(() => expect(stageElement().querySelector(".one-voice-caption-out")).toBeNull());
 });

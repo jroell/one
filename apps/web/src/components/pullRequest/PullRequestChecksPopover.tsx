@@ -170,31 +170,41 @@ export function PullRequestChecksPopover({
     checks === undefined || stale ? null : summarizePullRequestChecks(checks, resolve);
   return (
     <Popover>
-      <PopoverTrigger
-        nativeButton={variant === "count"}
-        aria-label={
-          variant === "count"
-            ? gt("Open checks: {summary}", { summary: summary ?? presentation.label })
-            : gt("Checks: {summary}", { summary: presentation.label })
-        }
-        render={
-          variant === "count" ? (
-            (render ?? <Button variant="ghost" size="sm" className={className} />)
-          ) : (
-            <span
-              role="button"
-              tabIndex={0}
-              className={cn("inline-flex shrink-0 cursor-pointer items-center", className)}
-            />
-          )
-        }
-        onClick={(event) => event.stopPropagation()}
-      >
-        <presentation.Icon aria-hidden className={cn("size-3.5", presentation.toneClassName)} />
-        {variant === "count" && countLabel !== null ? (
-          <span className="min-w-0 truncate tabular-nums">{countLabel}</span>
-        ) : null}
-      </PopoverTrigger>
+      {variant === "count" ? (
+        <PopoverTrigger
+          nativeButton
+          aria-label={gt("Open checks: {summary}", { summary: summary ?? presentation.label })}
+          render={render ?? <Button variant="ghost" size="sm" className={className} />}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <presentation.Icon aria-hidden className={cn("size-3.5", presentation.toneClassName)} />
+          {countLabel !== null ? (
+            <span className="min-w-0 truncate tabular-nums">{countLabel}</span>
+          ) : null}
+        </PopoverTrigger>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger
+                nativeButton={false}
+                aria-label={gt("Checks: {summary}", { summary: presentation.label })}
+                render={
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className={cn("inline-flex shrink-0 cursor-pointer items-center", className)}
+                  />
+                }
+                onClick={(event) => event.stopPropagation()}
+              />
+            }
+          >
+            <presentation.Icon aria-hidden className={cn("size-3.5", presentation.toneClassName)} />
+          </TooltipTrigger>
+          <TooltipPopup>{gt("Checks: {summary}", { summary: presentation.label })}</TooltipPopup>
+        </Tooltip>
+      )}
       <PopoverPopup align="start" width="md" side="bottom">
         <p className="mb-2 font-medium text-sm">{presentation.label}</p>
         {summary === null ? null : <p className="mb-2 text-muted-foreground text-xs">{summary}</p>}

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   IDLE_PARK_MS,
+  ringAxis,
+  ringLook,
   WAITING_MOVE_MS,
   RESTING_FRAME_MS,
   SLOW_FRAMES_BEFORE_STEP_DOWN,
@@ -563,6 +565,50 @@ describe("the ring at rest", () => {
     orb.wake();
     env.run(Math.ceil(WAITING_MOVE_MS / 16), 16);
     expect(Math.abs((spins().slice(heldAt).at(-1) ?? 0) - ORB_OPEN_ANGLE)).toBeLessThan(0.05);
+    orb.dispose();
+  });
+
+  it("leaves the waiting pose in one short turn: the ring never passes through edge-on and back, and finishes inside the sheet duration", () => {
+    using env = setup();
+    let state: OneOrbState = "waiting";
+    const orb = startResting(env, () => state);
+    const uniform = (name: string) =>
+      env.gl.uniform1f.mock.calls
+        .filter(([location]) => (location as { name?: string } | undefined)?.name === name)
+        .map(([, value]) => value as number);
+    env.run(60, 16);
+    const before = uniform("uSpin").length;
+    state = "idle";
+    orb.wake();
+    env.run(Math.ceil(WAITING_MOVE_MS / 16), 16);
+    const spins = uniform("uSpin").slice(before);
+    const tilts = uniform("uTilt").slice(before);
+    const heldSpin = ORB_OPEN_ANGLE + Math.PI / 2;
+    const looks = spins.map((spin, index) => ringLook(ringAxis(spin, tilts[index] ?? 0)));
+    const start = ringLook(ringAxis(heldSpin, 1.12));
+    const end = ringLook(ringAxis(ORB_OPEN_ANGLE, ORB_REST.tilt));
+    // It reaches the rest pose inside the sheet duration.
+    expect(Math.abs((spins.at(-1) ?? 0) - ORB_OPEN_ANGLE)).toBeLessThan(0.05);
+    expect(Math.abs((tilts.at(-1) ?? 0) - ORB_REST.tilt)).toBeLessThan(0.05);
+    // One short turn: how open the ring looks moves only from where it began to where it ends,
+    // never through edge-on and back (the thin bar), and never past the resting look.
+    const lowest = Math.min(start.open, end.open) - 0.03;
+    const highest = Math.max(start.open, end.open) + 0.03;
+    for (const look of looks) {
+      expect(look.open).toBeGreaterThan(lowest);
+      expect(look.open).toBeLessThan(highest);
+    }
+    expect(
+      looks.every(
+        (look, index) => index === 0 || look.open >= (looks[index - 1]?.open ?? 0) - 0.005,
+      ),
+    ).toBe(true);
+    // Its lean takes the short way round, turning one direction.
+    const wrap = (angle: number) =>
+      ((((angle + Math.PI / 2) % Math.PI) + Math.PI) % Math.PI) - Math.PI / 2;
+    const direction = Math.sign(wrap(end.lean - start.lean));
+    const steps = looks.slice(1).map((look, index) => wrap(look.lean - (looks[index]?.lean ?? 0)));
+    expect(steps.every((step) => step * direction >= -0.02)).toBe(true);
     orb.dispose();
   });
 

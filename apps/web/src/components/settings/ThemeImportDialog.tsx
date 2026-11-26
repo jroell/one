@@ -75,7 +75,7 @@ function highlightJson(value: string): string {
     const index = match.index ?? 0;
     highlighted += escapeJsonHtml(value.slice(cursor, index));
 
-    let tokenClass = "text-[var(--app-theme-secondary-foreground,var(--color-amber-600))]";
+    let tokenClass = "text-[var(--app-theme-secondary-foreground,var(--gold-text))]";
     if (token.startsWith('"')) {
       tokenClass = /^\s*:/.test(value.slice(index + token.length))
         ? "text-[var(--app-theme-accent,var(--color-blue-600))]"

@@ -131,6 +131,43 @@ export type OrbMotion = Readonly<{
   reveal: number;
 }>;
 
+/**
+ * Where the ring's axis points for a spin and a tilt, as the shader builds them (spin about the
+ * vertical, then tilt toward the viewer). The ring looks the same turned over, so only this
+ * direction matters to its silhouette.
+ */
+export function ringAxis(spin: number, tilt: number): readonly [number, number, number] {
+  return [-Math.sin(spin) * Math.sin(tilt), Math.cos(tilt), Math.cos(spin) * Math.sin(tilt)];
+}
+
+/**
+ * What the eye reads of an axis: how open the ring is (`open`, 0 edge-on to 1 face-on) and which
+ * way its long side leans on screen (`lean`, a line, so modulo a half turn).
+ */
+export function ringLook(axis: readonly [number, number, number]): {
+  readonly open: number;
+  readonly lean: number;
+} {
+  const lean = Math.atan2(axis[1], axis[0]);
+  return { open: Math.abs(axis[2]), lean: ((lean % Math.PI) + Math.PI) % Math.PI };
+}
+
+/** An axis with the look `open` and `lean`, on the viewer's side. */
+function axisFor(open: number, lean: number): readonly [number, number, number] {
+  const across = Math.sqrt(Math.max(0, 1 - open * open));
+  return [across * Math.cos(lean), across * Math.sin(lean), open];
+}
+
+/** Spin and tilt for an axis, with the spin carried to the turn nearest `near`. */
+function spinAndTiltFor(
+  axis: readonly [number, number, number],
+  near: number,
+): { readonly spin: number; readonly tilt: number } {
+  const tilt = Math.acos(Math.min(1, Math.max(-1, axis[1])));
+  const raw = Math.atan2(-axis[0], axis[2]);
+  return { spin: raw + 2 * Math.PI * Math.round((near - raw) / (2 * Math.PI)), tilt };
+}
+
 /** The nearest angle where the ring holds `offset` from open; the band looks the same every half turn. */
 function restAngle(spin: number, offset = 0): number {
   const origin = ORB_OPEN_ANGLE + offset;
@@ -527,9 +564,37 @@ export function startOneOrb(
       const snappy = now < snappyUntil;
       const ease = 1 - Math.exp(-delta * (snappy ? SNAPPY_RATE : 5.5));
       time += delta;
+      // Leaving the waiting pose is one turn of what the eye sees: the ring opens or closes toward
+      // its resting look while its lean turns the short way, so it never passes through edge-on
+      // and back, however its spin and tilt differ.
+      const leavingWaiting = snappy && state !== "waiting" && pose.spinSpeed === 0;
+      let axisMoved = false;
+      if (leavingWaiting) {
+        const holdSpin = restAngle(spin, pose.spinOffset);
+        const target = ringLook(ringAxis(holdSpin, pose.tilt));
+        const here = ringLook(ringAxis(spin, tilt));
+        const turn =
+          ((((target.lean - here.lean) % Math.PI) + 1.5 * Math.PI) % Math.PI) - Math.PI / 2;
+        const open = here.open + (target.open - here.open) * ease;
+        const lean = here.lean + turn * ease;
+        // Of the turned-over forms that look alike, the one nearest the resting pose.
+        const goal = ringAxis(holdSpin, pose.tilt);
+        const candidates = [axisFor(open, lean), axisFor(open, lean + Math.PI)].map(
+          (candidate) =>
+            [
+              candidate,
+              candidate[0] * goal[0] + candidate[1] * goal[1] + candidate[2] * goal[2],
+            ] as const,
+        );
+        const best = candidates[0]![1] >= candidates[1]![1] ? candidates[0]![0] : candidates[1]![0];
+        const next = spinAndTiltFor(best, holdSpin);
+        spin = next.spin;
+        tilt = next.tilt;
+        axisMoved = true;
+      }
       if (pose.spinSpeed > 0) {
         spin += delta * pose.spinSpeed;
-      } else {
+      } else if (!axisMoved) {
         // The nearest hold, so the move takes the short way round.
         spin +=
           (restAngle(spin, pose.spinOffset) - spin) *
@@ -542,7 +607,7 @@ export function startOneOrb(
       const auraTarget = reveal < 1 ? 1 : pose.aura;
       aura += (auraTarget - aura) * (1 - Math.exp(-delta * 1.2));
       sway += (pose.sway - sway) * ease;
-      tilt += (pose.tilt - tilt) * ease;
+      if (!axisMoved) tilt += (pose.tilt - tilt) * ease;
       pulse += (pose.pulse - pulse) * ease;
       sweep += (pose.sweep - sweep) * ease;
       const target = energyTarget(state, time, level);

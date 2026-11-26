@@ -13,6 +13,26 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
+/** Requests whose card a timeline is showing; the timeline ends their record, nobody else. */
+const held = new Map<RuntimeRequestId, number>();
+
+/** A timeline shows the card of `requestId`. Returns the call that ends the hold. */
+export function holdApprovalDecision(requestId: RuntimeRequestId): () => void {
+  held.set(requestId, (held.get(requestId) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const count = (held.get(requestId) ?? 1) - 1;
+    if (count <= 0) held.delete(requestId);
+    else held.set(requestId, count);
+  };
+}
+
+export function isApprovalDecisionHeld(requestId: RuntimeRequestId): boolean {
+  return held.has(requestId);
+}
+
 export function noteApprovalDecision(
   requestId: RuntimeRequestId,
   decision: ProviderApprovalDecision,

@@ -59,6 +59,9 @@ describe("settings empty state", () => {
     // The preview is decoration: hidden from the accessibility tree, and the action is the only button.
     expect(preview.getAttribute("aria-hidden")).toBe("true");
     expect(wideScreen.container.querySelectorAll("button")).toHaveLength(1);
+    // It reads as an example, not as the person's own data: a caption and a lowered opacity.
+    expect(preview.querySelector("[data-slot=empty-example-caption]")!.textContent).toBe("Example");
+    expect(Number(getComputedStyle(preview.lastElementChild!).opacity)).toBeLessThan(0.8);
     await wideScreen.unmount();
 
     const narrow = document.createElement("div");

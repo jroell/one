@@ -45,7 +45,7 @@ export const STANDARD_TILE_MATERIAL = {
     raised: "#fffaf0",
     card: "#fffbf2",
     floating: "#fbf8f0",
-    brand: "#c2973a",
+    brand: "#ad8429",
   },
   dark: {
     base: "#0a0908",

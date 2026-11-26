@@ -247,6 +247,8 @@ export interface FakeThread {
   /** Makes this an older settled thread the shell leaves out; only its family read returns it. */
   readonly olderSettled?: true;
   readonly id: ThreadId;
+  /** A project added with `extraProjects`; the fake project when absent. */
+  readonly projectId?: ProjectId;
   readonly title: string;
   /** Defaults to GPT-5.4 on Codex. */
   readonly modelSelection?: ModelSelection;
@@ -375,7 +377,7 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
   const modelSelection = thread.modelSelection ?? MODEL;
   return {
     id: thread.id,
-    projectId: PROJECT_ID,
+    projectId: thread.projectId ?? PROJECT_ID,
     title: thread.title,
     providerInstanceId: modelSelection.instanceId,
     modelSelection,

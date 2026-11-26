@@ -27,6 +27,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "../ui/menu";
+import { ExplainControl } from "./explain/ExplainControl";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { useSettingsPathname } from "./useSettingsPathname";
 import { resolveSettingsScope, type SettingsScopeSearch } from "./settingsScope";
@@ -90,6 +91,15 @@ export function SettingsScopeSentence() {
   const environment = <EnvironmentScopeMenu {...props} />;
   const checkout = <CheckoutScopeMenu {...props} />;
   const onEnvironment = scope.search.machine || scope.scope.kind === "checkout";
+  // One project on one machine leaves nothing to choose between, so the bar has nothing to say.
+  if (
+    !FILTER_PATHS.has(pathname) &&
+    scope.groups.length <= 1 &&
+    environments.length <= 1 &&
+    scope.scope.kind === "all"
+  ) {
+    return null;
+  }
   // These pages list things rather than hold settings, so their bar reads as a filter.
   if (FILTER_PATHS.has(pathname)) {
     return (
@@ -186,6 +196,7 @@ export function SettingsScopeSentence() {
           </span>
         </T>
       )}
+      <ExplainControl topic="settings-scope" variant="icon" />
     </p>
   );
 }

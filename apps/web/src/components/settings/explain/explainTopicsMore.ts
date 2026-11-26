@@ -205,6 +205,68 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     docs: { page: "browser-import.md" },
     facts: () => [],
   },
+  "settings-scope": {
+    id: "settings-scope",
+    title: msg("Who these settings apply to"),
+    whatItIs: msg(
+      "Settings here apply to every project on every computer you use. You can pick a project or a computer above to give it settings of its own.",
+    ),
+    verdict: msg("Leave it on All projects unless one project needs to behave differently."),
+    terms: [
+      {
+        term: msg("Environment"),
+        meaning: msg("A computer that runs your agents and holds your projects."),
+      },
+      {
+        term: msg("Inherit"),
+        meaning: msg("A project that does not set a value uses the one from the next level up."),
+      },
+    ],
+    useWhen: [msg("One project needs a different model, workspace or provider than the rest.")],
+    skipWhen: [msg("You want the same behavior everywhere.")],
+    question: msg("What does choosing a project or computer here change?"),
+    notes: `The sentence under a Settings page title, "Applying settings for <project> on <environment>", says which level the settings on the page edit. The same rows edit environment defaults or a project's overrides depending on the project chosen (docs/user/project-settings.md, Defaults and inheritance). Settings resolve in one order: a project override, then the environment setting, then t3.json in the repository, then the built-in default; a setting left on Inherit lets the next tier decide. When a project has several checkouts on one environment, a third choice, the checkout, narrows to one. An environment is a machine running the server that holds projects and runs agents. The bar is only shown when there is more than one project or more than one machine, or when a project is selected. Pages about this device (General, Appearance, Chat, Diffs, Snapshots, Environments, Sharing and access, About) have no bar because they are not per project.`,
+    docs: { page: "project-settings.md", anchor: "defaults-and-inheritance" },
+    facts: () => [],
+  },
+  "project-file": {
+    id: "project-file",
+    title: msg("t3.json"),
+    whatItIs: msg(
+      "t3.json is a small file a project can keep in its own folder. It holds settings and commands for that project, and travels with the project's code.",
+    ),
+    verdict: msg("Most people never edit it. A project only needs one if it has custom setup."),
+    terms: [
+      {
+        term: msg("Order of settings"),
+        meaning: msg(
+          "A project's own override wins, then the environment setting, then t3.json, then the built-in default. Leave a setting on Inherit to let the next one decide.",
+        ),
+      },
+    ],
+    useWhen: [msg("A project needs its own commands, workspace choice or worktree setup.")],
+    skipWhen: [msg("The defaults on this page already suit the project.")],
+    question: msg("What is t3.json, and do I need one in my project?"),
+    notes: `t3.json is a file in a project's folder (or a checkout's) that declares settings and commands for that project. Per docs/user/project-settings.md, settings a repository declares in t3.json, such as the workspace for new threads, resolve in one order: a project override, then the environment setting, then t3.json, then the built-in default; leaving a setting on Inherit lets the next tier decide. A project's t3.json actions can be imported under Settings, Projects (Import from t3.json). Other things it can hold, from the docs: "worktreeSubmodules" (how new worktrees initialize git submodules, read from the branch being checked out), "worktreeSparsePatternsPath" (a repository-relative file of git sparse-checkout patterns), "worktreeLayout" with create and remove commands, and a list that keeps a repository inside the project folder out of the project (multi-repo-projects.md). In a project with several repositories only the project folder's t3.json is read. A t3.json that fails to parse is reported on Settings, Projects, and every action and icon it declares is ignored. Do not describe fields that these docs do not name.`,
+    docs: { page: "project-settings.md", anchor: "defaults-and-inheritance" },
+    facts: () => [],
+  },
+  "provider-runtime": {
+    id: "provider-runtime",
+    title: msg("Advanced runtime settings"),
+    whatItIs: msg(
+      "These are where One finds the provider's program and its settings folder on this computer. One chooses them for you.",
+    ),
+    verdict: msg("Leave them alone unless you installed the provider yourself in a custom place."),
+    useWhen: [
+      msg("You installed the provider's program somewhere unusual and One cannot find it."),
+    ],
+    skipWhen: [msg("Everything already works: nothing here needs a change.")],
+    question: msg("What are these runtime settings, and do I ever need to change them?"),
+    notes: `On a managed Codex provider's page, the Runtime section is folded under Advanced. It lists the Binary path (selected by One), the CODEX_HOME path (shared Codex config, sessions and state), the Shadow home path (it keeps auth.json separate while sharing state from CODEX_HOME) and Launch arguments (passed to codex app-server). These are the places on the machine that runs the environment where the provider's program and settings live; One fills them in, and a person changes them only for a custom install. The provider's own account sign-in is shown above, not here. Do not suggest changing a path unless the person says One cannot find their installation.`,
+    docs: { page: "providers-codex.md" },
+    facts: () => [],
+  },
   "usage-sign-in": {
     id: "usage-sign-in",
     title: msg("Sign in to see limits"),

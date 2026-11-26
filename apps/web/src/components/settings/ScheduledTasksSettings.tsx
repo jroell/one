@@ -734,7 +734,7 @@ function NoScheduledTasks({
               days: [0, 1, 2, 3, 4],
             },
             {
-              title: gt("Weekly dependency check"),
+              title: gt("Dependency check"),
               cadence: gt("Every Monday at 9:00 AM"),
               next: gt("9:00 AM"),
               days: [0],

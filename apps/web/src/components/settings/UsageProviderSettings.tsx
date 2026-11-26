@@ -3,7 +3,8 @@ import { T, useGT, Var } from "gt-react";
 import { PlusIcon } from "lucide-react";
 import { SettingsEmptyState } from "./SettingsEmptyState";
 
-import { useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
 import {
@@ -39,6 +40,35 @@ export function UsageProviderSettings({
   const searchableSetting = useSearchableSetting();
   const updateSettings = useUpdateEnvironmentSettings(environmentId);
   const [adding, setAdding] = useState<"cliproxy" | "http" | null>(null);
+  // An address that names `?action=add-hub` or `add-http-source` opens that dialog once, then the
+  // address is cleaned so a reload or the way back does not open it again.
+  const navigate = useNavigate();
+  const addIntent = useSearch({
+    strict: false,
+    select: (search: { readonly action?: string }) =>
+      search.action === "add-hub"
+        ? ("cliproxy" as const)
+        : search.action === "add-http-source"
+          ? ("http" as const)
+          : null,
+  });
+  const [seenIntent, setSeenIntent] = useState<"cliproxy" | "http" | null>(null);
+  if (addIntent !== seenIntent) {
+    setSeenIntent(addIntent);
+    if (addIntent !== null && !readOnly) setAdding(addIntent);
+  }
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- removes the one-time intent from the address once it has opened the dialog
+  useEffect(() => {
+    if (addIntent === null) return;
+    void navigate({
+      search: ((previous: { readonly action?: string }) => {
+        const { action: _intent, ...rest } = previous;
+        return rest;
+      }) as never,
+      replace: true,
+      resetScroll: false,
+    });
+  }, [addIntent, navigate]);
   const entries = Object.entries(sources);
 
   return (

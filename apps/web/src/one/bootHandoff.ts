@@ -33,7 +33,15 @@ export function captureBootGhost(): BootGhost | null {
   const ring = card?.querySelector<HTMLElement>("#boot-shell-ring");
   if (!card || !ring || html.dataset.oneOpening !== undefined) return null;
   if (card.closest("#boot-shell")?.querySelector("#boot-error")) return null;
-  const from = ring.getBoundingClientRect();
+  // The ring turns about its vertical axis, so its drawn width shrinks and grows. The box it sits
+  // in does not, and the flight scales from that box.
+  const drawn = ring.getBoundingClientRect();
+  const from = new DOMRect(
+    drawn.left + drawn.width / 2 - ring.offsetWidth / 2,
+    drawn.top + drawn.height / 2 - ring.offsetHeight / 2,
+    ring.offsetWidth,
+    ring.offsetHeight,
+  );
   if (from.width === 0) return null;
   const ringStyle = getComputedStyle(ring);
   const ringShown = {

@@ -14,7 +14,10 @@ import { getRouter } from "~/router";
 import {
   ENVIRONMENT_ID,
   dispatchedCommands,
+  emitThreadEvent,
   installFakeEnvironment,
+  isThreadSubscribed,
+  runningRun,
   threadWithApproval,
   type FakeDriver,
 } from "../../test/fakeEnvironment";
@@ -155,7 +158,7 @@ it("ignores both chords while the boot handoff holds the app out of sight", asyn
   await vi.waitFor(() => expect(answers()).toEqual(["decline"]));
 });
 
-it("leaves the waiting command unanswered while the command palette covers the card", async () => {
+it("sends no answer from the chords while the command palette is open (the palette's own key guard stops them)", async () => {
   await using view = await openThreadWithApproval("chord-palette", 1);
   await vi.waitFor(() => expect(onScreen(view.card())).toBe(true));
   await act(() => openCommandPalette());
@@ -168,7 +171,7 @@ it("leaves the waiting command unanswered while the command palette covers the c
   await vi.waitFor(() => expect(answers()).toEqual(["decline"]));
 });
 
-it("leaves the waiting command unanswered while the Settings sheet covers the card", async () => {
+it("sends no answer from the chords while the Settings sheet is open", async () => {
   await using view = await openThreadWithApproval("chord-settings", 1);
   await vi.waitFor(() => expect(onScreen(view.card())).toBe(true));
   await view.router.navigate({ to: "/settings" });
@@ -181,7 +184,7 @@ it("leaves the waiting command unanswered while the Settings sheet covers the ca
   await vi.waitFor(() => expect(answers()).toEqual(["decline"]));
 });
 
-it("leaves the waiting command unanswered while another layer covers the card", async () => {
+it("sends no answer from the chords while a layer outside the app covers the card (the visibility check stops them)", async () => {
   await using view = await openThreadWithApproval("chord-cover", 1);
   await vi.waitFor(() => expect(onScreen(view.card())).toBe(true));
   const cover = document.createElement("div");
@@ -191,4 +194,30 @@ it("leaves the waiting command unanswered while another layer covers the card", 
   cover.remove();
   await userEvent.keyboard(DECLINE);
   await vi.waitFor(() => expect(answers()).toEqual(["decline"]));
+});
+
+it("stops the composer's light while a turn waits on an approval and runs it again once the turn resumes", async () => {
+  await using view = await openThreadWithApproval("light-approval", 1);
+  await vi.waitFor(() => expect(isThreadSubscribed(view.thread.id)).toBe(true));
+  const comet = () =>
+    getComputedStyle(document.querySelector("[data-one-reflect] > .one-reflection")!, "::before")
+      .animationName;
+  const live = runningRun(view.thread.id, "light-approval-live", 2, "light-approval-live-user");
+  await act(() => emitThreadEvent(view.thread.id, { type: "run.created", payload: live }));
+  // The agent is running, but its request waits on the person: not "working".
+  await vi.waitFor(() => expect(document.querySelector("[data-chat-column]")).not.toBeNull());
+  expect(document.querySelector("[data-one-working]")).toBeNull();
+  expect(comet()).toBe("none");
+  const request = view.thread.runtimeRequests![0]!;
+  await act(() =>
+    emitThreadEvent(view.thread.id, {
+      type: "runtime-request.updated",
+      payload: { ...request, status: "resolved", resolvedAt: request.createdAt },
+    }),
+  );
+  await vi.waitFor(() => expect(document.querySelector("[data-approval-card]")).toBeNull());
+  await vi.waitFor(() =>
+    expect(document.querySelector("[data-chat-column][data-one-working]")).not.toBeNull(),
+  );
+  expect(comet()).toBe("one-orbit");
 });

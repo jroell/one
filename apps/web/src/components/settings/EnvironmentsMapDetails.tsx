@@ -16,6 +16,7 @@ import { environmentCatalog } from "~/connection/catalog";
 import { cn } from "~/lib/utils";
 import type { EnvironmentPresentation } from "~/state/environments";
 import { peerLinkEnvironment } from "~/state/peerLinks";
+import { useUpdateEnvironmentSettings } from "~/hooks/useSettings";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { accessConfig } from "../auth/ConnectAgentSurface";
 import { Button } from "../ui/button";
@@ -543,6 +544,19 @@ function LinkAnother({
   );
 }
 
+function TurnOnLinking({ node }: { readonly node: FleetEnvironmentNode }) {
+  const gt = useGT();
+  const updateEnvironmentSettings = useUpdateEnvironmentSettings(node.environmentId);
+  return (
+    <Button
+      size="xs"
+      onClick={() => void updateEnvironmentSettings({ linkedEnvironmentsEnabled: true })}
+    >
+      {gt("Turn on linking")}
+    </Button>
+  );
+}
+
 function Reconnect({ environment }: { readonly environment: EnvironmentPresentation }) {
   const gt = useGT();
   const m = useMessages();
@@ -570,7 +584,7 @@ function linksNote(node: FleetEnvironmentNode, gt: GT): string | null {
   }
   switch (node.outgoing) {
     case "off":
-      return gt("To link from {label}, turn on Linked environments in its Labs settings.", {
+      return gt("Linking is off on {label}, so it cannot link to other machines.", {
         label: node.label,
       });
     case "unknown":
@@ -737,6 +751,7 @@ function NodeDetails({
       <div className={cn(SECTION, "space-y-3 border-t border-border/60")}>
         {environment && saved !== null ? <Reconnect environment={environment} /> : null}
         {note ? <p className="max-w-2xl text-muted-foreground">{note}</p> : null}
+        {node.outgoing === "off" ? <TurnOnLinking node={node} /> : null}
         <LinkList
           title={
             loaded

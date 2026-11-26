@@ -101,6 +101,7 @@ import { TraitsPicker } from "../chat/TraitsPicker";
 import { VoiceInputSetup } from "../chat/VoiceInputSetup";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Alert, AlertAction, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
@@ -1344,9 +1345,17 @@ export function VoiceSettingsPanel() {
   const settings = useClientSettings();
   const settingsScope = useOptionalSettingsScope();
   const destination = useVoiceTranscriptionDestination();
+  const [destinationOpen, setDestinationOpen] = useState(false);
   // With transcription off, the settings that shape it have nothing to act on.
   const transcriptionOff =
     !destination.device && !destination.cloudProvider && !destination.environmentId;
+  // The menu sits further down the page: bring it into view, then open it.
+  const openTranscribeMenu = () => {
+    document
+      .querySelector('[data-voice-destination="true"]')
+      ?.scrollIntoView({ block: "center", behavior: "instant" });
+    setDestinationOpen(true);
+  };
   const appleSpeechLocales = useAppleSpeechLocales();
   const appleSpeechLanguages =
     !appleSpeechLocales.includes(settings.speechLanguage) &&
@@ -1456,6 +1465,19 @@ export function VoiceSettingsPanel() {
       }}
     >
       <OneVoiceChatSettings />
+      {transcriptionOff ? (
+        <Alert variant="info" data-voice-off="">
+          <MicOffIcon aria-hidden />
+          <AlertTitle>
+            {gt("Voice input is off. Choose where your speech is turned into text.")}
+          </AlertTitle>
+          <AlertAction>
+            <Button size="sm" onClick={() => openTranscribeMenu()}>
+              {gt("Turn on voice input")}
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : null}
       <SettingsSection id="voice-input" title={gt("Input")}>
         <SettingsRow
           {...setting("voice-microphone")}
@@ -1541,6 +1563,8 @@ export function VoiceSettingsPanel() {
             <div className="flex w-full min-w-0 items-center gap-1.5 @min-[32rem]/settings-row:w-auto">
               <Select
                 value={destinationValue}
+                open={destinationOpen}
+                onOpenChange={setDestinationOpen}
                 onValueChange={(value) => {
                   if (!value) return;
                   const cloud = cloudChoices.find((choice) => choice.value === value);
@@ -1564,6 +1588,7 @@ export function VoiceSettingsPanel() {
               >
                 <SelectTrigger
                   size="sm"
+                  data-voice-destination="true"
                   aria-label={gt("Transcribe with")}
                   className="min-w-0 @min-[32rem]/settings-row:w-auto @min-[32rem]/settings-row:max-w-72"
                 >
@@ -1757,13 +1782,24 @@ export function VoiceSettingsPanel() {
           {...setting("speech-silence-filtering")}
           title={gt("Silence filtering")}
           description={
-            transcriptionOff
-              ? gt("Choose where to transcribe to change this.")
-              : destination.device
-                ? gt("Apple Speech handles silence itself.")
-                : destination.cloudProvider === "openai"
-                  ? gt("OpenAI handles silence itself.")
-                  : gt("Skip silence and background noise before transcribing.")
+            transcriptionOff ? (
+              <>
+                {gt("Available once voice input is on.")}{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => openTranscribeMenu()}
+                >
+                  {gt("Turn on voice input")}
+                </button>
+              </>
+            ) : destination.device ? (
+              gt("Apple Speech handles silence itself.")
+            ) : destination.cloudProvider === "openai" ? (
+              gt("OpenAI handles silence itself.")
+            ) : (
+              gt("Skip silence and background noise before transcribing.")
+            )
           }
           control={
             <Switch
@@ -1782,11 +1818,22 @@ export function VoiceSettingsPanel() {
           {...setting("remove-filler-words")}
           title={gt("Remove filler words")}
           description={
-            transcriptionOff
-              ? gt("Choose where to transcribe to change this.")
-              : destination.device
-                ? gt("Not available with Apple Speech.")
-                : gt("Drop “um” and “uh” from transcripts.")
+            transcriptionOff ? (
+              <>
+                {gt("Available once voice input is on.")}{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => openTranscribeMenu()}
+                >
+                  {gt("Turn on voice input")}
+                </button>
+              </>
+            ) : destination.device ? (
+              gt("Not available with Apple Speech.")
+            ) : (
+              gt("Drop “um” and “uh” from transcripts.")
+            )
           }
           control={
             <Switch

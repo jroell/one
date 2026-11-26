@@ -1,5 +1,6 @@
 import { msg } from "gt-react";
 
+import { EXPLAIN_ACTIONS } from "./explainActions";
 import { MORE_TOPICS } from "./explainTopicsMore";
 import type { ExplainTopic, ExplainTopicId, SetupSnapshot } from "./explainTypes";
 
@@ -449,7 +450,7 @@ const TOPICS: Readonly<Record<ExplainTopicId, ExplainTopic>> = {
 };
 
 export function explainTopic(id: ExplainTopicId): ExplainTopic {
-  return TOPICS[id];
+  return { ...TOPICS[id], actions: EXPLAIN_ACTIONS[id] };
 }
 
 export const EXPLAIN_TOPIC_IDS = Object.keys(TOPICS) as ReadonlyArray<ExplainTopicId>;

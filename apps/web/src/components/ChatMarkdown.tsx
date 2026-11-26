@@ -404,8 +404,8 @@ const GITHUB_ALERT_PRESENTATIONS: Record<
   warning: {
     label: msg("Warning"),
     Icon: TriangleAlertIcon,
-    borderClassName: "border-amber-500/70",
-    titleClassName: "text-amber-600 dark:text-amber-500",
+    borderClassName: "border-(--st-attention)/70",
+    titleClassName: "text-(--st-attention-fg)",
   },
   caution: {
     label: msg("Caution"),

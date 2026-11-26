@@ -19,6 +19,19 @@ const isShelfHeader = (item: SidebarListItem | undefined) =>
     item.marker === "snoozed-header" ||
     item.marker === "settled-header");
 
+/**
+ * The top edge the lifted row may not go above. With pinned rows it is the first of them, so the
+ * first slot can be reached; with none it is the label that opens over the empty Pins section.
+ */
+export function sidebarDragFloor(input: {
+  readonly headerTop: number;
+  readonly firstPinnedTop: number | null;
+  readonly labelHeight: number;
+}) {
+  return input.firstPinnedTop ?? input.headerTop + input.labelHeight;
+}
+
+/** Keeps the lifted row below the label that opens above the pinned rows. */
 export function restrictBelowSidebarLabel(
   { transform, containerNodeRect, draggingNodeRect }: Parameters<Modifier>[0],
   offset: number,

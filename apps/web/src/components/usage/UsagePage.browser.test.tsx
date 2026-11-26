@@ -332,6 +332,19 @@ describe("UsagePage reopening", () => {
     expect(document.querySelectorAll(".usage-summary-side .usage-provider")).toHaveLength(4);
   });
 
+  it("explains Cache savings beside its figure and lights no single Totals tile", async () => {
+    view.partial = false;
+    view.environments = [status("desk", { summary: summary("desk", [["codex", 40]]) })];
+    await using _screen = await open();
+    await expect.element(page.getByText("Cache savings")).toBeVisible();
+    await userEvent.hover(page.getByRole("button", { name: "What Cache savings means" }));
+    await expect
+      .element(page.getByText("What you would have paid without cached input."))
+      .toBeVisible();
+    expect(document.querySelectorAll(".usage-metric")).toHaveLength(5);
+    expect(document.querySelectorAll(".usage-metric[data-emphasis]")).toHaveLength(0);
+  });
+
   it("holds the sessions line at 4.5:1 or better on the light panel and the dark one", async () => {
     view.partial = false;
     view.environments = [status("desk", { summary: summary("desk", [["codex", 40]]) })];

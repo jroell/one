@@ -24,6 +24,7 @@ function freshReturns(): Disposable {
   const clear = () => {
     window.sessionStorage.removeItem("one:guided-return");
     window.sessionStorage.removeItem("one:guided-topics");
+    window.sessionStorage.removeItem("one:guided-thread");
   };
   clear();
   return {
@@ -44,7 +45,7 @@ const CLAUDE: ModelSelection = {
 };
 
 function bridge(result: GuidedSendResult, threadKey = "draft-1", modelSelection = ASTRA) {
-  const send = vi.fn(async (_input: { text: string; agentContext: string }) => result);
+  const send = vi.fn(async (_input: { text: string; agentContext?: string }) => result);
   const composer: ComposerSendBridge = {
     environmentId: ENVIRONMENT,
     threadKey,
@@ -74,6 +75,8 @@ function deps(overrides: Partial<GuidedConversationDeps> = {}) {
     openThread: vi.fn(),
     providersFor: () => [],
     now: () => NOW,
+    providerName: (_environmentId, instanceId) =>
+      instanceId === "claudeAgent" ? "Claude" : "Codex",
     setDraftModel: vi.fn(),
     ...overrides,
   };
@@ -434,4 +437,43 @@ it("starts a new thread for a topic whose earlier thread is gone or never answer
     expect(result.ok && result.reused).toBeUndefined();
     expect(next.sent.send).toHaveBeenCalledOnce();
   }
+});
+
+it("records which provider answers, and which was passed over and until when, for the line under the thread", async () => {
+  using _returns = freshReturns();
+  const onAstra = bridge({ ok: true, messageId: "m-astra" }, "draft-1", ASTRA);
+  const onClaude = bridge({ ok: true, messageId: "m-claude" }, "draft-1", CLAUDE);
+  const { value } = deps({
+    providersFor: () => [ASTRA_OUT, CLAUDE_FINE],
+    composerFor: async (_key, _timeout, accept) =>
+      accept === undefined
+        ? onAstra.composer
+        : accept(onClaude.composer)
+          ? onClaude.composer
+          : null,
+  });
+  await startGuidedConversation(
+    {
+      ...input,
+      actions: [
+        { label: "Open Usage", href: "/usage" },
+        { label: "Elsewhere", href: "https://example.com" },
+      ],
+    },
+    value,
+  );
+  const stored = JSON.parse(window.sessionStorage.getItem("one:guided-thread")!);
+  expect(stored["environment:local:thread-1"]).toEqual({
+    asked: "Claude",
+    skipped: { name: "Codex", resetsAt: "2026-11-30T16:46:00.000Z" },
+    actions: [{ label: "Open Usage", href: "/usage" }],
+  });
+});
+
+it("records only the provider that answers when the draft's own model could", async () => {
+  using _returns = freshReturns();
+  const { value } = deps({ providersFor: () => [accountProvider(ASTRA, "codex", 30)] });
+  await startGuidedConversation(input, value);
+  const stored = JSON.parse(window.sessionStorage.getItem("one:guided-thread")!);
+  expect(stored["environment:local:thread-1"]).toEqual({ asked: "Codex", actions: [] });
 });

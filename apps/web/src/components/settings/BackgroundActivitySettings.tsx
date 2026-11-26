@@ -34,7 +34,7 @@ import {
   resolveBackgroundActivityProfileOption,
 } from "./SettingsPanels.logic";
 import { IntervalSecondsField } from "./IntervalSecondsField";
-import { PolicyTooltip, SettingResetButton, SettingsRow } from "./settingsLayout";
+import { SettingResetButton, SettingsRow } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
 
 const BACKGROUND_ACTIVITY_PROFILE_LABELS: Record<BackgroundActivityProfile, string> = {
@@ -51,11 +51,13 @@ const BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS: Record<BackgroundActivityProfil
 };
 
 const BACKGROUND_ACTIVITY_PROFILE_DESCRIPTIONS: Record<BackgroundActivityProfile, string> = {
-  balanced: msg("Pauses probes for idle clients, locked hosts, or low power mode."),
-  performance: msg(
-    "Allows scoped background probes while any subscribed client remains connected.",
+  balanced: msg(
+    "Pauses background checks when you are away, the screen is locked or the battery is low.",
   ),
-  "battery-saver": msg("Also pauses background probes when the host or client is on battery."),
+  performance: msg("Keeps background checks running while any connected client remains."),
+  "battery-saver": msg(
+    "Also pauses background checks when the computer or this app runs on battery.",
+  ),
 };
 
 const BACKGROUND_ACTIVITY_BOOLEAN_OVERRIDES: ReadonlyArray<{
@@ -398,16 +400,7 @@ export function BackgroundActivitySettingsRow() {
       settingKeys={["backgroundActivity"]}
       id={searchableSetting("background-activity").id}
       explain="background-activity"
-      title={
-        <span className="inline-flex items-center gap-1.5">
-          {searchableSetting("background-activity").title}
-          <PolicyTooltip>
-            {gt(
-              "This shared policy gates background work such as Git refreshes and provider health probes after their individual intervals elapse.",
-            )}
-          </PolicyTooltip>
-        </span>
-      }
+      title={searchableSetting("background-activity").title}
       description={backgroundActivityDescription}
       resetAction={
         canResetBackgroundActivity ? (

@@ -9,7 +9,7 @@ import {
   type SnapShotShortcut,
 } from "@t3tools/contracts";
 import { PlayIcon, ScanIcon } from "lucide-react";
-import { DESKTOP_DOWNLOAD_URL } from "../../branding";
+import { GetDesktopAppButton } from "./GetDesktopAppButton";
 import { SettingsEmptyState } from "./SettingsEmptyState";
 import { ExplainControl } from "./explain/ExplainControl";
 import { SnapshotGhost } from "./SnapshotGhost";
@@ -379,13 +379,7 @@ export function SnapShotSettings() {
             )}
             learnMore={<ExplainControl topic="snapshots" />}
             preview={<SnapshotGhost label={gt("Attached to the thread")} />}
-            action={
-              <Button
-                render={<a href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noreferrer noopener" />}
-              >
-                <T>Get the desktop app</T>
-              </Button>
-            }
+            action={<GetDesktopAppButton />}
           />
         </SettingsSection>
       </SettingsPageContainer>

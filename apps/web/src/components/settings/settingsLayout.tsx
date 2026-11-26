@@ -311,9 +311,12 @@ export function SettingsSection({
 export function SettingsUnavailableGroup({
   children,
   message,
+  action,
 }: {
   children: ReactNode;
   message?: ReactNode;
+  /** The control that fixes what the message says, such as a download button. */
+  action?: ReactNode;
 }) {
   if (message === undefined) return children;
 
@@ -321,7 +324,8 @@ export function SettingsUnavailableGroup({
     <div data-settings-unavailable="" className="border-border/60 bg-muted/20 py-1.5">
       <div className="flex items-start gap-2 px-3 py-2 text-xs leading-relaxed text-(--settings-description) sm:px-4">
         <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
-        <p>{message}</p>
+        <p className="min-w-0 flex-1">{message}</p>
+        {action}
       </div>
       <div className="border-t border-(--settings-hairline) *:not-first:border-t *:not-first:border-(--settings-hairline) [&_h3]:opacity-64 [&_p]:opacity-64">
         {children}

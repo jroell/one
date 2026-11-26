@@ -476,7 +476,11 @@ describe("environment theme", () => {
               path.join(previous, "shared", "themes", "nightfall.json"),
               encodeThemeFile(NIGHTFALL_THEME),
             );
-            assert.deepEqual(yield* Queue.take(snapshots), []);
+            // Linux watches the directory itself and sees the file land in the moved tree. macOS
+            // watches paths, so nothing is heard until the tree is back and a probe sees it changed.
+            if ((yield* HostProcess.Platform) !== "darwin") {
+              assert.deepEqual(yield* Queue.take(snapshots), []);
+            }
             yield* fs.rename(previous, active);
             yield* Deferred.succeed(resumeProbes, undefined);
             assert.deepEqual(yield* Queue.take(snapshots), ["Nightfall", "Shared Light"]);

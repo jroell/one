@@ -983,11 +983,7 @@ function UsageOverview({
         </h2>
         {/* The same five tiles on every tab; the tab's own metric stands forward. */}
         <dl className="usage-panel usage-metrics">
-          <Metric
-            emphasis={metric === "tokens"}
-            label={gt("Processed tokens")}
-            value={formatTokens(merged.totalTokens)}
-          />
+          <Metric label={gt("Processed tokens")} value={formatTokens(merged.totalTokens)} />
           <Metric label={gt("Cached input")} value={formatTokens(merged.cachedInputTokens)} />
           <Metric label={gt("Uncached input")} value={formatTokens(merged.uncachedInputTokens)} />
           <Metric
@@ -995,8 +991,8 @@ function UsageOverview({
             value={formatTokens(merged.outputTokens)}
           />
           <Metric
-            emphasis={metric === "cost"}
             label={gt("Cache savings")}
+            hint={gt("What you would have paid without cached input.")}
             value={formatUsd(merged.costQuality.cacheSavingsUsd, locale)}
           />
         </dl>
@@ -1282,16 +1278,33 @@ function ProviderMark({
 function Metric({
   label,
   value,
-  emphasis = false,
+  hint,
 }: {
   readonly label: string;
   readonly value: string;
-  /** The tile for the tab's own metric: same tiles on every tab, one stands forward. */
-  readonly emphasis?: boolean;
+  /** What the figure means, for one that a first-time reader would not know. */
+  readonly hint?: string;
 }) {
+  const gt = useGT();
   return (
-    <div className="usage-metric" data-emphasis={emphasis ? "" : undefined}>
-      <dt>{label}</dt>
+    <div className="usage-metric">
+      <dt className="inline-flex items-center gap-1">
+        {label}
+        {hint ? (
+          <Popover>
+            <PopoverTrigger
+              openOnHover
+              render={<InlineButton tone="muted" />}
+              aria-label={gt("What {metric} means", { metric: label })}
+            >
+              <InfoIcon className="size-3" aria-hidden />
+            </PopoverTrigger>
+            <PopoverPopup side="top" tooltipStyle>
+              {hint}
+            </PopoverPopup>
+          </Popover>
+        ) : null}
+      </dt>
       <dd>{value}</dd>
     </div>
   );

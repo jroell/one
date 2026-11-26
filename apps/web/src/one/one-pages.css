@@ -14,14 +14,14 @@
   --one-row-press: color-mix(in srgb, var(--foreground) 9%, transparent);
   --one-row-selected: color-mix(in oklch, var(--one-brand) 11%, transparent);
   --one-row-selected-edge: color-mix(in oklch, var(--one-brand) 30%, transparent);
-  --one-panel-fill: color-mix(in oklch, var(--foreground) 1.8%, var(--background));
+  /* A list is a card: the same fill as every other card, warm in both themes. */
+  --one-panel-fill: var(--m-raised);
 
   @variant dark {
     --one-hairline: color-mix(in srgb, var(--foreground) 9%, transparent);
     --one-row-hover: color-mix(in srgb, var(--foreground) 6%, transparent);
     --one-row-press: color-mix(in srgb, var(--foreground) 10%, transparent);
     --one-row-selected: color-mix(in oklch, var(--one-brand) 14%, transparent);
-    --one-panel-fill: color-mix(in oklch, var(--foreground) 3.2%, var(--background));
   }
 }
 
@@ -33,11 +33,11 @@
   border-radius: var(--one-panel-radius);
   padding: 0.25rem;
   background-color: var(--one-panel-fill);
-  background-image: var(--one-glass-sheen);
+  background-image: none;
   box-shadow:
     0 0 0 1px var(--one-hairline),
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    var(--one-glass-shadow);
+    var(--m-lit),
+    var(--m-shadow-raised);
 }
 
 [data-one-panel-head] {
@@ -650,11 +650,11 @@ html.dark [data-one-code-welcome]::before {
   border-radius: var(--one-panel-radius);
   padding: 0.25rem 1.25rem;
   background-color: var(--one-panel-fill);
-  background-image: var(--one-glass-sheen);
+  background-image: none;
   box-shadow:
     0 0 0 1px var(--one-hairline),
-    inset 0 1px 0 0 var(--one-glass-rim-top),
-    var(--one-glass-shadow);
+    var(--m-lit),
+    var(--m-shadow-raised);
 }
 
 [data-one-welcome-section] {
@@ -922,7 +922,7 @@ html[data-one-handoff="arrive"] .one-chat-welcome > :nth-child(n + 4) {
 .one-working-arc {
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--st-working, var(--gold-400));
+  color: var(--st-working);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -947,7 +947,7 @@ html[data-one-handoff="arrive"] .one-chat-welcome > :nth-child(n + 4) {
   height: 0.375rem;
   flex-shrink: 0;
   border-radius: 9999px;
-  background: var(--st-attention, #e8793a);
+  background: var(--st-attention);
 }
 
 [data-sidebar-status-word="failed"] {
@@ -977,12 +977,12 @@ html[data-one-handoff="arrive"] .one-chat-welcome > :nth-child(n + 4) {
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.25rem;
-  color: var(--st-attention-fg, #e8793a);
+  color: var(--st-attention-fg);
   text-align: start;
 }
 
 [data-sidebar-needs-you] button:hover {
-  background: color-mix(in oklab, var(--st-attention, #e8793a) 10%, transparent);
+  background: color-mix(in oklab, var(--st-attention) 10%, transparent);
 }
 
 /* ----------------------------------------------------------------- the wordmark */

@@ -725,7 +725,7 @@ function PoolWindowCard({
   const resetsAtIn = loneWindow ? formatResetsIn(loneWindow, now, m, "in") : null;
   const credits = lone?.account.limits.resetCredits?.availableCount ?? 0;
   const creditsLabel = gt(
-    "{count, plural, one {{count} reset credit banked} other {{count} reset credits banked}}",
+    "{count, plural, one {{count} reset credit banked. Use it to refill this limit now, before its window ends.} other {{count} reset credits banked. Use one to refill this limit now, before its window ends.}}",
     { count: credits },
   );
   const creditsShort = gt("{count, plural, one {{count} credit} other {{count} credits}}", {

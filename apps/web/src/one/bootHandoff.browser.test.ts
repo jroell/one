@@ -230,6 +230,18 @@ describe("src/one/bootHandoff.ts", () => {
     expect(orb.style.opacity).toBe("0");
   });
 
+  it("measures the boot ring by its box, not by the width it shows while turned, so the flight never scales from a sliver", async () => {
+    await page.viewport(1200, 800);
+    using _clean = cleanUpOnDispose();
+    mountBootScreen("rotate:y 80deg");
+    const ghost = captureBootGhost()!;
+    expect(document.getElementById("boot-shell-ring")!.getBoundingClientRect().width).toBeLessThan(
+      60,
+    );
+    expect(ghost.from.width).toBe(176);
+    expect(ghost.from.height).toBe(176);
+  });
+
   it("hands off the ring as faded as the boot screen had it, so a fast boot flashes nothing", () => {
     using _clean = cleanUpOnDispose();
     mountBootScreen("opacity:0.25");

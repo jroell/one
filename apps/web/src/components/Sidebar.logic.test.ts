@@ -498,6 +498,18 @@ describe("resolveThreadStatusPill", () => {
     },
   };
 
+  it("every state that needs the person (an approval, a question) takes the one attention color, ember, and no raw amber or indigo", () => {
+    for (const waiting of [
+      { ...baseThread, hasPendingApprovals: true },
+      { ...baseThread, hasPendingUserInput: true },
+    ]) {
+      expect(resolveThreadStatusPill({ thread: waiting })).toMatchObject({
+        colorClass: "text-(--st-attention-fg)",
+        dotClass: "bg-(--st-attention)",
+      });
+    }
+  });
+
   it("shows an active thread wait without a pulse and resumes Working when it ends", () => {
     const blocked = { ...baseThread, blockedOnThreadWait: true };
     expect(resolveSidebarThreadStatus(blocked)).toBe("waiting");
