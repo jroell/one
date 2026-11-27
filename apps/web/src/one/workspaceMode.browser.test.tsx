@@ -134,6 +134,28 @@ it("a cross-fading switch changes the store and the page together, hides the con
   expect(seen.every(([mode, attribute]) => mode === attribute)).toBe(true);
 });
 
+it("a cross-fading switch takes no clicks on the conversation while it is hidden, and takes them again when it ends", async () => {
+  using _mode = startInCodeMode();
+  using _motion = motionAllowed();
+  using page = mountPage();
+  const body = page.layers[1]!.querySelector<HTMLElement>('[data-test="body"]')!;
+  const clickable = () => {
+    const box = body.getBoundingClientRect();
+    return body.contains(
+      document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2),
+    );
+  };
+  expect(body.getBoundingClientRect().height).toBeGreaterThan(0);
+  expect(clickable()).toBe(true);
+
+  setWorkspaceMode("chat", { transition: true });
+  expect(getComputedStyle(body).opacity).toBe("0");
+  expect(clickable()).toBe(false);
+
+  await vi.waitFor(() => expect(root().oneModeTransition).toBeUndefined());
+  expect(clickable()).toBe(true);
+});
+
 it("a mode switch never has two composers or two toggles on screen, never uses a view transition, and animates only opacity", async () => {
   using _mode = startInCodeMode();
   using _motion = motionAllowed();
