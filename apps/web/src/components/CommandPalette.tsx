@@ -2753,7 +2753,7 @@ function OpenCommandPaletteDialog(props: {
               });
             },
           },
-          ...(newThreadAction ? [{ ...newThreadAction, title: gt("Start a new thread") }] : []),
+          ...(newThreadAction ? [newThreadAction] : []),
         ],
       },
     ];

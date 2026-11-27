@@ -121,7 +121,7 @@ describe("CommandPalette open intents", () => {
     await using screen = await render(<CommandPalette>{null}</CommandPalette>);
 
     openCommandPalette({ query: "zzz999nomatchzzz" });
-    await page.getByRole("option", { name: "Start a new thread" }).click();
+    await page.getByRole("option", { name: "New thread in Acme no matches" }).click();
 
     await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
     await vi.waitFor(() =>
