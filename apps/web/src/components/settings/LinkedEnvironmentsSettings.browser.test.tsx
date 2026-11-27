@@ -124,6 +124,36 @@ describe("LinkedEnvironmentsSettings", () => {
     await expect.element(screen.getByRole("heading", { name: "boat-task" })).toBeVisible();
   });
 
+  it("keeps the Link action in the header while the linked environments list is loading", async () => {
+    setup(true);
+    const loadingHostId = EnvironmentId.make("mac-loading-link");
+    let answer = () => {};
+    server.answer = new Promise((resolve) => {
+      answer = resolve;
+    });
+    const registry = AtomRegistry.make();
+    using _registry = { [Symbol.dispose]: () => registry.dispose() };
+    await using screen = await render(
+      <RegistryContext.Provider value={registry}>
+        <LinkedEnvironmentsSettings
+          environmentId={loadingHostId}
+          environmentLabel={null}
+          isSearchTarget={false}
+        />
+      </RegistryContext.Provider>,
+    );
+    await expect.element(screen.getByRole("status")).toBeVisible();
+
+    await expect.element(screen.getByRole("button", { name: "Link", exact: true })).toBeVisible();
+    answer();
+    await expect
+      .element(screen.getByRole("button", { name: "Link another computer" }))
+      .toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "Link", exact: true }))
+      .not.toBeInTheDocument();
+  });
+
   it("leaves a list that is still loading to answer", async () => {
     setup();
     // useLiveRefresh remembers each view's last read across mounts, so this view gets its own host.

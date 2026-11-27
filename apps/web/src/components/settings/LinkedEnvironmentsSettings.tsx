@@ -103,7 +103,9 @@ export function LinkedEnvironmentsSettings({
   // A batch needs at least two other machines this app has saved.
   const otherMachines = useEnvironments().environments.length - 1;
   const showBatchAction = canLink && otherMachines > 1;
-  const showHeaderLinkAction = canLink && Boolean(links.error || links.data?.links.length);
+  // The empty row carries its own Link action; everywhere else, including while loading, the header does.
+  const showsEmptyRow = !links.error && links.data?.links.length === 0;
+  const showHeaderLinkAction = canLink && !showsEmptyRow;
   return (
     <SettingsSection
       {...(isSearchTarget ? { id: search.id } : {})}
