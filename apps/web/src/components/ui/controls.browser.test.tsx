@@ -378,13 +378,14 @@ describe("surface levels", () => {
       }),
   );
 
-  it("on dark each level is lighter than the one below it, so panels read without blur", () =>
+  it("on dark the page is the darkest surface and the raised and overlay surfaces are the one solid card, lighter than it", () =>
     inScheme("dark", () => {
       const [base, raised, overlay] = ["base", "raised", "overlay"].map((level) =>
         luminance(channels(resolved(`var(--ui-surface-${level})`))),
       );
       expect(raised!).toBeGreaterThan(base! + 0.003);
-      expect(overlay!).toBeGreaterThan(raised! + 0.003);
+      expect(overlay!, "one solid material for raised and overlay").toBe(raised!);
+      expect(resolved("var(--ui-surface-raised)")).toBe(resolved("var(--m-solid)"));
     }));
 });
 
@@ -405,9 +406,20 @@ describe("the primary button metal", () => {
         for (const stop of stops) {
           expect(contrast(style.color, stop), `label on ${stop}`).toBeGreaterThanOrEqual(4.5);
         }
-        expect(stops[0]).toBe(resolved(scheme === "dark" ? "var(--gold-400)" : "var(--gold-500)"));
+        // The top of the gradient is the gold fill token, and its bottom stays on the same ramp.
+        expect(stops[0]).toBe(resolved("var(--gold-fill)"));
+        const [fill, press] = ["var(--gold-fill)", "var(--gold-press)"].map((gold) =>
+          luminance(channels(resolved(gold))),
+        );
+        expect(
+          bottom!,
+          "the bottom stop stays between the press and fill golds",
+        ).toBeGreaterThanOrEqual(press! - 0.001);
+        expect(bottom!).toBeLessThanOrEqual(fill! + 0.001);
         // Rest shadows are black contact lines and inset highlights, never a gold glow.
-        expect(style.boxShadow).not.toMatch(/221, 181, 90|110, 81, 24/);
+        for (const gold of ["var(--gold-fill)", "var(--gold-press)", "var(--gold-text)"]) {
+          expect(style.boxShadow).not.toContain(resolved(gold));
+        }
       }),
   );
 });
@@ -476,15 +488,18 @@ describe("the material ramp", () => {
     });
   });
 
-  it("the dark ramp rises from base through raised and card, and every step leans warm: red above green above blue by at least 2 levels", () =>
+  it("the dark materials are the page, one solid card and floating glass between them, and every card and glass step leans warm: red above green above blue by at least 2 levels", () =>
     inScheme("dark", () => {
-      const steps = ["base", "raised", "card", "floating"].map((step) =>
+      const [base, raised, card, floating] = ["base", "raised", "card", "floating"].map((step) =>
         channels(resolved(`var(--m-${step})`)),
       );
-      const lum = steps.map((rgb) => luminance(rgb));
-      expect(lum[1]!).toBeGreaterThan(lum[0]!);
-      expect(lum[2]!).toBeGreaterThan(lum[1]!);
-      for (const [r, g, b] of steps.slice(1)) {
+      expect(resolved("var(--m-raised)")).toBe(resolved("var(--m-solid)"));
+      expect(resolved("var(--m-card)")).toBe(resolved("var(--m-solid)"));
+      const [lumBase, lumSolid, lumGlass] = [base, raised, floating].map((rgb) => luminance(rgb!));
+      expect(lumSolid!).toBeGreaterThan(lumBase!);
+      expect(lumGlass!, "glass reads above the page").toBeGreaterThan(lumBase!);
+      expect(lumGlass!, "and below the card it floats over").toBeLessThan(lumSolid!);
+      for (const [r, g, b] of [raised, card, floating]) {
         expect(r! - g!).toBeGreaterThanOrEqual(2);
         expect(g! - b!).toBeGreaterThanOrEqual(2);
       }
