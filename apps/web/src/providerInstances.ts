@@ -1,6 +1,5 @@
 import { pipe } from "effect/Function";
 import {
-  DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
   resolveProjectProviderInstanceEnabled,
   type ModelSelection,
@@ -17,6 +16,7 @@ import {
   resolveProviderInstanceDisplayName,
   shouldShowInstanceBadge,
 } from "@t3tools/client-runtime/state/provider-instance-display";
+import { defaultProviderModel } from "@t3tools/shared/model";
 
 export { normalizeProviderAccentColor, shouldShowInstanceBadge };
 
@@ -220,25 +220,12 @@ function sortProviderInstanceEntries(
   return sorted;
 }
 
-function getProviderInstanceEntry(
-  providers: ReadonlyArray<ServerProvider>,
-  instanceId: ProviderInstanceId,
-): ProviderInstanceEntry | undefined {
-  return deriveProviderInstanceEntries(providers).find((entry) => entry.instanceId === instanceId);
-}
-
 export function getDefaultProviderInstanceModel(
   providers: ReadonlyArray<ServerProvider>,
   instanceId: ProviderInstanceId,
 ): string | undefined {
-  const entry = getProviderInstanceEntry(providers, instanceId);
-  if (!entry) return undefined;
-  return (
-    entry.models.find((model) => model.isDefault && !model.isCustom)?.slug ??
-    entry.models.find((model) => !model.isCustom)?.slug ??
-    entry.models[0]?.slug ??
-    DEFAULT_MODEL_BY_PROVIDER[entry.driverKind]
-  );
+  const provider = providers.find((entry) => entry.instanceId === instanceId);
+  return provider && defaultProviderModel(provider);
 }
 
 const isSelectableProviderInstanceEntry = (entry: ProviderInstanceEntry): boolean =>

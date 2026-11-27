@@ -1,11 +1,14 @@
 import { RegistryContext } from "@effect/atom-react";
 import {
+  DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
+  type ModelSelection,
   ProviderDriverKind,
   ProviderInstanceId,
   type ServerProvider,
 } from "@t3tools/contracts";
 import { resolveNewThreadModelSelection } from "@t3tools/shared/usageLimits";
+import { Atom } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -17,20 +20,20 @@ import { appAtomRegistry } from "../../rpc/atomRegistry";
 // Only the transport is replaced: the settings value, the write and the permission. The control,
 // the page code that places it and the model resolution the setting feeds are the real ones.
 const setup = vi.hoisted(() => ({
-  settings: null as unknown,
   canWrite: true,
   update: vi.fn(),
 }));
+const settingsFor = Atom.family((_environmentId: EnvironmentId) =>
+  Atom.make(DEFAULT_SERVER_SETTINGS).pipe(Atom.keepAlive),
+);
 
 vi.mock(import("../../state/server"), async (original) => {
-  const { Atom } = await import("effect/reactivity");
   const actual = await original();
-  setup.settings = Atom.make({ fallbackModelSelection: null }).pipe(Atom.keepAlive);
   return {
     ...actual,
     serverEnvironment: {
       ...actual.serverEnvironment,
-      settingsValueAtom: (() => setup.settings) as never,
+      settingsValueAtom: (environmentId: EnvironmentId) => settingsFor(environmentId),
       updateSettings: "updateSettings" as never,
     },
   };
@@ -101,25 +104,50 @@ const outCodex = () =>
     },
   });
 
-async function open(providers: readonly ServerProvider[], fallback: unknown = null) {
+function openEnvironments(
+  presentations: Parameters<typeof UsageLimitsPooled>[0]["presentations"],
+  fallback: ModelSelection | null = null,
+) {
   setup.update.mockReset();
   setup.canWrite = true;
-  appAtomRegistry.set(setup.settings as never, { fallbackModelSelection: fallback });
+  for (const [id, presentation] of presentations) {
+    appAtomRegistry.set(settingsFor(id), {
+      ...DEFAULT_SERVER_SETTINGS,
+      fallbackModelSelection: fallback,
+      providerInstances: Object.fromEntries(
+        (presentation.serverConfig?.providers ?? []).map(({ instanceId, driver }) => [
+          instanceId,
+          { driver, enabled: true, config: {} },
+        ]),
+      ),
+    });
+  }
   setup.update.mockImplementation(
-    async (request: { input: { patch: { fallbackModelSelection: unknown } } }) => {
-      appAtomRegistry.set(setup.settings as never, {
-        fallbackModelSelection: request.input.patch.fallbackModelSelection,
-      });
+    async ({
+      environmentId,
+      input,
+    }: {
+      environmentId: EnvironmentId;
+      input: { patch: { fallbackModelSelection: ModelSelection | null } };
+    }) => {
+      const atom = settingsFor(environmentId);
+      appAtomRegistry.set(atom, { ...appAtomRegistry.get(atom), ...input.patch });
       return { _tag: "Success" };
     },
   );
-  const presentations = new Map([
-    [environmentId, { entry: { target: { label: "Desk" } }, serverConfig: { providers } }],
-  ]);
   return render(
     <RegistryContext.Provider value={appAtomRegistry}>
       <UsageLimitsPooled presentations={presentations} now={now} />
     </RegistryContext.Provider>,
+  );
+}
+
+function open(providers: readonly ServerProvider[], fallback?: ModelSelection | null) {
+  return openEnvironments(
+    new Map([
+      [environmentId, { entry: { target: { label: "Desk" } }, serverConfig: { providers } }],
+    ]),
+    fallback,
   );
 }
 
@@ -130,12 +158,6 @@ describe("the fallback beside a provider that is out of usage", () => {
 
     await userEvent.click(page.getByRole("button", { name: "Use Claude until Codex resets" }));
     const selection = { instanceId: "claude", model: "claudeAgent-model" };
-    await vi.waitFor(() =>
-      expect(setup.update).toHaveBeenCalledWith({
-        environmentId,
-        input: { patch: { fallbackModelSelection: selection } },
-      }),
-    );
     await expect
       .element(page.getByText(/New threads use Claude until Codex resets on /))
       .toBeVisible();
@@ -143,9 +165,7 @@ describe("the fallback beside a provider that is out of usage", () => {
     expect(
       resolveNewThreadModelSelection({
         defaultSelection: { instanceId: ProviderInstanceId.make("codex"), model: "codex-model" },
-        fallbackSelection: (
-          appAtomRegistry.get(setup.settings as never) as { fallbackModelSelection: never }
-        ).fallbackModelSelection,
+        fallbackSelection: appAtomRegistry.get(settingsFor(environmentId)).fallbackModelSelection,
         providers: [outCodex(), claude],
         now,
       }).selection,
@@ -153,27 +173,88 @@ describe("the fallback beside a provider that is out of usage", () => {
 
     await userEvent.click(page.getByRole("button", { name: "Undo" }));
     await vi.waitFor(() =>
-      expect(setup.update).toHaveBeenLastCalledWith({
-        environmentId,
-        input: { patch: { fallbackModelSelection: null } },
-      }),
+      expect(appAtomRegistry.get(settingsFor(environmentId)).fallbackModelSelection).toBeNull(),
     );
-    expect(
-      (appAtomRegistry.get(setup.settings as never) as { fallbackModelSelection: unknown })
-        .fallbackModelSelection,
-    ).toBeNull();
   });
 
   it("says a fallback is already set instead of offering one", async () => {
     const claude = provider("claude", "claudeAgent", "Claude");
     await using _screen = await open([outCodex(), claude], {
-      instanceId: "claude",
+      instanceId: claude.instanceId,
       model: "claudeAgent-model",
     });
     await expect
       .element(page.getByText("New threads use Claude while Codex is out of usage."))
       .toBeVisible();
     expect(document.body.textContent).not.toContain("until Codex resets");
+  });
+
+  it("replaces an unusable fallback and restores the previous setting on Undo", async () => {
+    const codex = outCodex();
+    const claude = provider("claude", "claudeAgent", "Claude");
+    const previous = { instanceId: codex.instanceId, model: "codex-model" };
+    await using screen = await open([codex, claude], previous);
+
+    const replace = screen.getByRole("button", { name: "Use Claude until Codex resets" });
+    expect(replace.elements()).toHaveLength(1);
+    await userEvent.click(replace);
+    await expect
+      .element(screen.getByText(/New threads use Claude until Codex resets/))
+      .toBeVisible();
+    expect(appAtomRegistry.get(settingsFor(environmentId)).fallbackModelSelection).toEqual({
+      instanceId: claude.instanceId,
+      model: "claudeAgent-model",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await vi.waitFor(() =>
+      expect(appAtomRegistry.get(settingsFor(environmentId)).fallbackModelSelection).toEqual(
+        previous,
+      ),
+    );
+  });
+
+  it("scopes pooled fallback actions to each machine and each exhausted provider", async () => {
+    const travelId = EnvironmentId.make("travel");
+    const codex = outCodex();
+    const claude = provider("claude", "claudeAgent", "Claude");
+    const claudeOut = { ...claude, usageLimits: codex.usageLimits };
+    const grok = provider("grok", "grok", "Grok");
+    const deskProviders = [codex, claudeOut, grok];
+    await using screen = await openEnvironments(
+      new Map([
+        [
+          environmentId,
+          { entry: { target: { label: "Desk" } }, serverConfig: { providers: deskProviders } },
+        ],
+        [
+          travelId,
+          { entry: { target: { label: "Travel" } }, serverConfig: { providers: [codex, claude] } },
+        ],
+      ]),
+    );
+
+    const desk = screen.getByRole("group", { name: "Desk" });
+    const travel = screen.getByRole("group", { name: "Travel" });
+    expect(
+      desk.getByRole("button", { name: "Use Grok until Codex resets" }).elements(),
+    ).toHaveLength(1);
+    await userEvent.click(travel.getByRole("button", { name: "Use Claude until Codex resets" }));
+    await vi.waitFor(() =>
+      expect(appAtomRegistry.get(settingsFor(travelId)).fallbackModelSelection?.instanceId).toBe(
+        claude.instanceId,
+      ),
+    );
+    expect(appAtomRegistry.get(settingsFor(environmentId)).fallbackModelSelection).toBeNull();
+
+    await userEvent.click(desk.getByRole("button", { name: "Use Grok until Claude resets" }));
+    await vi.waitFor(() =>
+      expect(
+        appAtomRegistry.get(settingsFor(environmentId)).fallbackModelSelection?.instanceId,
+      ).toBe(grok.instanceId),
+    );
+    expect(appAtomRegistry.get(settingsFor(travelId)).fallbackModelSelection?.instanceId).toBe(
+      claude.instanceId,
+    );
   });
 
   it("offers no button, and says so, when no other provider is signed in", async () => {
@@ -191,9 +272,9 @@ describe("the fallback beside a provider that is out of usage", () => {
       usageLimits: outCodex().usageLimits as never,
     });
     await using _screen = await open([outCodex(), claudeOut]);
-    await expect
-      .element(page.getByText("No other signed-in provider has usage left."))
-      .toBeVisible();
+    expect(page.getByText("No other signed-in provider has usage left.").elements()).toHaveLength(
+      2,
+    );
     expect(document.querySelectorAll(".usage-fallback button")).toHaveLength(0);
   });
 
