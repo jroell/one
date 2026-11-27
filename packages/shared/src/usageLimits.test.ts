@@ -220,6 +220,13 @@ describe("new thread model fallback", () => {
       ).toEqual({ kind: "none", reason: "none-signed-in" });
     });
 
+    it("says another provider is not ready, not that none is signed in, when the only other one has a warning", () => {
+      expect(offer({ providers: [limited, { ...ready, status: "warning" }] })).toEqual({
+        kind: "none",
+        reason: "none-ready",
+      });
+    });
+
     it("offers nothing when every other signed-in provider is out of usage too", () => {
       const alsoOut = { ...ready, usageLimits: limited.usageLimits };
       expect(offer({ providers: [limited, alsoOut] })).toEqual({

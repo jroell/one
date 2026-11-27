@@ -137,7 +137,9 @@ export function UsageFallbackControl({
       <p className="usage-fallback-text">
         {offer.reason === "none-signed-in"
           ? gt("No other provider is signed in on this machine.")
-          : gt("No other signed-in provider has usage left.")}
+          : offer.reason === "none-ready"
+            ? gt("No other signed-in provider is ready.")
+            : gt("No other signed-in provider has usage left.")}
       </p>
     );
   } else {

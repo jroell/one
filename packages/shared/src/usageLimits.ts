@@ -72,7 +72,7 @@ export type FallbackOffer =
       readonly provider: ServerProvider;
       readonly selection: ModelSelection;
     }
-  | { readonly kind: "none"; readonly reason: "none-signed-in" | "none-with-usage" };
+  | { readonly kind: "none"; readonly reason: "none-signed-in" | "none-ready" | "none-with-usage" };
 
 function canUseFallbackProvider(
   provider: ServerProvider | undefined,
@@ -114,7 +114,9 @@ export function fallbackOfferFor(input: {
     }
   }
   const ready = alternatives.filter((candidate) => candidate.status === "ready");
-  if (ready.length === 0) return { kind: "none", reason: "none-signed-in" };
+  if (ready.length === 0) {
+    return { kind: "none", reason: alternatives.length === 0 ? "none-signed-in" : "none-ready" };
+  }
   for (const candidate of ready) {
     const defaultModel = defaultProviderModel(candidate);
     const model =
