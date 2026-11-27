@@ -9,6 +9,7 @@ import {
   MESSAGE_AGENT_CONTEXT_MAX_CHARS,
   type EnvironmentId,
   type ModelSelection,
+  type ScopedThreadRef,
   type ServerProvider,
   type TimestampFormat,
 } from "@t3tools/contracts";
@@ -92,7 +93,9 @@ export type GuidedConversationFailure =
   | "empty-message"
   | "no-composer"
   | "wrong-thread"
-  | "send-failed";
+  | "send-failed"
+  /** The side sheet was closed or replaced while the conversation was starting; not an error. */
+  | "cancelled";
 
 export type GuidedConversationResult =
   | {
@@ -113,10 +116,17 @@ export type GuidedConversationResult =
 export interface GuidedConversationDeps {
   readonly scratchEnvironmentId: () => EnvironmentId | null;
   readonly supportsAgentContext: (environmentId: EnvironmentId) => boolean;
-  /** Opens a project-less draft thread and shows it. Null when there is none to open. */
+  /**
+   * Opens a project-less draft thread and shows it. Null when there is none to open; a `failure`
+   * when there was one but it could not be shown (the thread is already taken away).
+   */
   readonly openScratchDraft: (
     environmentId: EnvironmentId,
-  ) => Promise<{ readonly draftKey: string; readonly threadKey: string } | null>;
+  ) => Promise<
+    | { readonly draftKey: string; readonly threadKey: string }
+    | { readonly failure: GuidedConversationFailure }
+    | null
+  >;
   readonly discardDraft: (draftKey: string) => void;
   /** Whether the thread still exists and its latest run finished with an answer. */
   readonly threadHasAnswer: (threadKey: string) => boolean;
@@ -138,6 +148,10 @@ export interface GuidedConversationDeps {
   ) => string;
   /** Gives a draft the model it will send with. */
   readonly setDraftModel: (draftKey: string, selection: ModelSelection) => void;
+  /** Shows the conversation in Chat mode. Absent: switches the workspace to Chat. */
+  readonly enterChatMode?: () => void;
+  /** True once the person closed what the conversation opens in, or another one replaced it. */
+  readonly cancelled?: () => boolean;
 }
 
 const COMPOSER_WAIT_MS = 5_000;
@@ -156,7 +170,7 @@ const REASONS = {
     "That thread is not the one in the main view. Open it there, then ask again.",
   ),
   "send-failed": msg("The question did not go through. Try again."),
-} satisfies Record<Exclude<GuidedConversationFailure, "usage-limit">, string>;
+} satisfies Record<Exclude<GuidedConversationFailure, "usage-limit" | "cancelled">, string>;
 
 /** The words for a failure, already translated, for a toast or an error the caller shows. */
 export function guidedConversationReason(
@@ -166,6 +180,7 @@ export function guidedConversationReason(
     readonly timestampFormat?: TimestampFormat | undefined;
   },
 ): string {
+  if (reason === "cancelled") return "";
   if (reason !== "usage-limit") return m(REASONS[reason]);
   if (!usage?.resetsAt) return m(msg("Every connected AI account has reached its limit."));
   const time = formatUpcomingTimestamp(usage.resetsAt, usage.timestampFormat ?? "locale");
@@ -186,6 +201,7 @@ export async function startGuidedConversation(
   if ((input.hiddenContext?.length ?? 0) > MESSAGE_AGENT_CONTEXT_MAX_CHARS) {
     return { ok: false, reason: "context-too-long" };
   }
+  const enterChatMode = deps.enterChatMode ?? (() => setWorkspaceMode("chat"));
   const sendThrough = async (bridge: ComposerSendBridge) => {
     const sent = await bridge.send({
       text: input.visibleText,
@@ -203,7 +219,7 @@ export async function startGuidedConversation(
     if (input.hiddenContext !== undefined && !deps.supportsAgentContext(bridge.environmentId)) {
       return { ok: false, reason: "server-too-old" };
     }
-    setWorkspaceMode("chat");
+    enterChatMode();
     const sent = await sendThrough(bridge);
     if (sent.ok) {
       if (input.returnTo) rememberGuidedReturn(bridge.threadKey, input.returnTo);
@@ -221,24 +237,31 @@ export async function startGuidedConversation(
   if (earlier !== null && deps.threadHasAnswer(earlier)) {
     if (input.returnTo) rememberGuidedReturn(earlier, input.returnTo);
     if (input.actions) refreshGuidedActions(earlier, input.actions);
-    setWorkspaceMode("chat");
+    enterChatMode();
     deps.openThread(earlier);
     return { ok: true, threadKey: earlier, reused: true };
   }
   const environmentId = deps.scratchEnvironmentId();
   if (environmentId === null) return { ok: false, reason: "no-scratch-environment" };
   if (!deps.supportsAgentContext(environmentId)) return { ok: false, reason: "server-too-old" };
-  setWorkspaceMode("chat");
+  enterChatMode();
   const draft = await deps.openScratchDraft(environmentId);
   if (draft === null) return { ok: false, reason: "no-scratch-environment" };
+  if ("failure" in draft) return { ok: false, reason: draft.failure };
   const giveUp = (failure: GuidedConversationResult) => {
-    // The draft is local and empty: take it away and go back where the person was.
+    // The draft is empty: take it away and go back where the person was.
     deps.discardDraft(draft.draftKey);
     if (input.returnTo) deps.navigateTo(input.returnTo.href);
     return failure;
   };
+  // A close or a newer question while this one was starting is the person's choice, not a failure.
+  const stopped = (reason: GuidedConversationFailure): GuidedConversationResult => ({
+    ok: false,
+    reason: deps.cancelled?.() ? "cancelled" : reason,
+  });
+  if (deps.cancelled?.()) return giveUp(stopped("send-failed"));
   let bridge = await deps.composerFor(draft.draftKey, COMPOSER_WAIT_MS);
-  if (bridge === null) return giveUp({ ok: false, reason: "send-failed" });
+  if (bridge === null || deps.cancelled?.()) return giveUp(stopped("send-failed"));
   // The draft takes the default model, which may be out of usage; ask one that can answer.
   const choice = chooseGuidedModel({
     current: bridge.modelSelection,
@@ -265,7 +288,7 @@ export async function startGuidedConversation(
         shown.modelSelection.instanceId === selection.instanceId &&
         shown.modelSelection.model === selection.model,
     );
-    if (bridge === null) return giveUp({ ok: false, reason: "send-failed" });
+    if (bridge === null || deps.cancelled?.()) return giveUp(stopped("send-failed"));
   }
   const sent = await sendThrough(bridge);
   if (!sent.ok) {
@@ -329,18 +352,28 @@ function isSheetPage(pathname: string): boolean {
 /**
  * The entry point's dependencies for the side sheet: the thread is created empty (so the sheet can
  * show it and its composer carry the first message), the sheet's own composer sends, and giving up
- * closes the sheet and removes the empty thread.
+ * closes the sheet and removes the empty thread. Everything is tied to the sheet opening
+ * `generation`, so a flow that outlives its sheet cannot touch the next one.
  */
-function sheetDeps(input: {
+export function sheetDeps(input: {
   readonly deps: GuidedConversationDeps;
-  readonly scratch: ReturnType<typeof createScratchProjectActions>;
+  readonly scratch: Pick<ReturnType<typeof createScratchProjectActions>, "openScratchProject">;
   readonly registry: AtomRegistry.AtomRegistry;
   readonly providers: ReadonlyMap<EnvironmentId, ReadonlyArray<ServerProvider>>;
   readonly input: StartConversationInput;
+  readonly generation: number;
 }): GuidedConversationDeps {
-  const { deps, scratch, registry, providers } = input;
+  const { deps, scratch, registry, providers, generation } = input;
   const sheet = useAskOneSheetStore.getState();
+  const live = () => sheet.isLive(generation);
   const titleOf = () => input.input.title ?? input.input.visibleText.slice(0, 60);
+  const deleteThread = (ref: ScopedThreadRef) =>
+    void runAtomCommand(
+      registry,
+      threadEnvironment.delete,
+      { environmentId: ref.environmentId, input: { threadId: ref.threadId, onlyIfUnused: true } },
+      { label: threadEnvironment.delete.label, reportFailure: false },
+    );
   return {
     ...deps,
     openScratchDraft: async (environmentId) => {
@@ -372,35 +405,55 @@ function sheetDeps(input: {
       );
       if (created._tag === "Failure") return null;
       const threadRef = scopeThreadRef(environmentId, threadId);
-      if (!(await waitForThreadShell(threadRef))) return null;
-      sheet.attach(threadRef);
+      // The thread exists on the server from here: every way out below takes it away again.
+      if (!live()) {
+        deleteThread(threadRef);
+        return { failure: "cancelled" };
+      }
+      if (!(await waitForThreadShell(threadRef))) {
+        deleteThread(threadRef);
+        return { failure: live() ? "send-failed" : "cancelled" };
+      }
+      if (!live()) {
+        deleteThread(threadRef);
+        return { failure: "cancelled" };
+      }
+      sheet.attach(generation, threadRef);
       const threadKey = scopedThreadKey(threadRef);
       return { draftKey: threadKey, threadKey };
     },
     discardDraft: (threadKey) => {
-      sheet.close();
+      sheet.close(generation);
       const ref = parseScopedThreadKey(threadKey);
-      if (ref === null) return;
-      void runAtomCommand(
-        registry,
-        threadEnvironment.delete,
-        { environmentId: ref.environmentId, input: { threadId: ref.threadId, onlyIfUnused: true } },
-        { label: threadEnvironment.delete.label, reportFailure: false },
-      );
+      if (ref !== null) deleteThread(ref);
     },
     // The page under the sheet is already where the person was; going back is closing.
-    navigateTo: () => sheet.close(),
+    navigateTo: () => sheet.close(generation),
     openThread: (threadKey) => {
       const ref = parseScopedThreadKey(threadKey);
-      if (ref !== null) sheet.show({ title: titleOf(), thread: ref });
+      if (ref !== null && live()) sheet.show({ title: titleOf(), thread: ref });
     },
     composer: () => getComposerSend("sheet"),
-    composerFor: (threadKey, timeoutMs, accept) =>
-      waitForComposerSend(threadKey, timeoutMs, accept, "sheet"),
+    composerFor: (threadKey, timeoutMs, accept) => {
+      // A sheet that was closed has no composer to wait for.
+      let stopWatching = () => {};
+      const closed = new Promise<null>((resolve) => {
+        if (!live()) return resolve(null);
+        stopWatching = useAskOneSheetStore.subscribe(() => {
+          if (!live()) resolve(null);
+        });
+      });
+      return Promise.race([
+        waitForComposerSend(threadKey, timeoutMs, accept, "sheet"),
+        closed,
+      ]).finally(stopWatching);
+    },
     setDraftModel: (threadKey, selection) => {
       const ref = parseScopedThreadKey(threadKey);
       if (ref !== null) useComposerDraftStore.getState().setModelSelection(ref, selection);
     },
+    enterChatMode: sheet.enterChatMode,
+    cancelled: () => !live(),
   };
 }
 
@@ -411,7 +464,10 @@ function useGuidedConversationDeps(): {
   readonly scratchEnvironmentId: EnvironmentId | null;
   readonly timestampFormat: TimestampFormat;
   /** The same entry point's dependencies, for a conversation shown in the side sheet. */
-  readonly openSheetDeps: (input: StartConversationInput) => GuidedConversationDeps;
+  readonly openSheetDeps: (
+    input: StartConversationInput,
+    generation: number,
+  ) => GuidedConversationDeps;
   /** Whether the page on screen is one the sheet opens over (Settings, Usage). */
   readonly onSheetPage: () => boolean;
 } {
@@ -493,7 +549,8 @@ function useGuidedConversationDeps(): {
     providers,
     scratchEnvironmentId: scratch.scratchEnvironmentId(null),
     timestampFormat,
-    openSheetDeps: (input) => sheetDeps({ deps, scratch, registry, providers, input }),
+    openSheetDeps: (input, generation) =>
+      sheetDeps({ deps, scratch, registry, providers, input, generation }),
     onSheetPage: () => isSheetPage(router.state.location.pathname),
   };
 }
@@ -552,15 +609,20 @@ export function useStartConversation(): (input: StartConversationInput) => Promi
     // Over Settings or Usage the answer opens beside the page, with the question showing at once;
     // anywhere else it is its own thread.
     const inSheet = onSheetPage();
-    if (inSheet) {
-      useAskOneSheetStore.getState().begin({
-        title: input.title ?? input.visibleText.slice(0, 60),
-        question: input.visibleText,
-      });
-    }
-    const result = await startGuidedConversation(input, inSheet ? openSheetDeps(input) : deps);
+    const generation = inSheet
+      ? useAskOneSheetStore.getState().begin({
+          title: input.title ?? input.visibleText.slice(0, 60),
+          question: input.visibleText,
+        })
+      : 0;
+    const result = await startGuidedConversation(
+      input,
+      inSheet ? openSheetDeps(input, generation) : deps,
+    );
     if (!result.ok) {
-      if (inSheet) useAskOneSheetStore.getState().close();
+      // The person closed the sheet, or asked something else, while this started: nothing to report.
+      if (result.reason === "cancelled") return;
+      if (inSheet) useAskOneSheetStore.getState().close(generation);
       throw new Error(
         result.detail ??
           guidedConversationReason(result.reason, { resetsAt: result.resetsAt, timestampFormat }),
