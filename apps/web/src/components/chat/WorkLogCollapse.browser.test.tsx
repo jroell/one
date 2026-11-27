@@ -1,9 +1,10 @@
 import "~/index.css";
+import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { cdp } from "vite-plus/test/browser";
 
 import { render } from "../../../test/render";
-import { WorkLogCollapse, WorkLogDetails } from "./WorkLog";
+import { WorkLogCollapse, WorkLogDetails, WorkLogRow } from "./WorkLog";
 
 const open = (
   <WorkLogCollapse>
@@ -14,10 +15,23 @@ const open = (
 );
 const closed = <WorkLogCollapse>{null}</WorkLogCollapse>;
 
+const inList = (row: ReactNode) => (
+  <div style={{ position: "relative", height: 400 }}>
+    <div style={{ position: "absolute", top: 0, width: "100%" }}>
+      <WorkLogRow icon={null} label="Ran a command">
+        {row}
+      </WorkLogRow>
+    </div>
+    <div data-testid="below" style={{ position: "absolute", top: 200, width: "100%" }}>
+      next row
+    </div>
+  </div>
+);
+
 it("keeps a closing row's details on screen, marked closing, until its animation ends", async () => {
-  await using screen = await render(open, { router: false });
+  await using screen = await render(inList(open), { router: false });
   await expect.element(screen.getByText("tool output")).toBeVisible();
-  await screen.rerender(closed);
+  await screen.rerender(inList(closed));
   const reveal = () => screen.container.querySelector("[data-one-work-reveal]");
   expect(reveal()?.hasAttribute("data-closing")).toBe(true);
   expect(screen.container.textContent).toContain("tool output");
@@ -40,16 +54,32 @@ it("closes at once, with no animation, under reduced motion", async () => {
   }
 });
 
-it("opens by height with its content a beat behind, and closes over the exit duration", async () => {
-  await using screen = await render(open, { router: false });
-  const reveal = screen.container.querySelector("[data-one-work-reveal]") as HTMLElement;
-  expect(getComputedStyle(reveal).animationName).toBe("one-reveal");
-  const details = reveal.querySelector("[data-one-work-details]") as HTMLElement;
-  expect(getComputedStyle(details).animationDelay).not.toBe("0s");
-  const enter = parseFloat(getComputedStyle(reveal).animationDuration);
-  await screen.rerender(closed);
-  const closing = screen.container.querySelector("[data-one-work-reveal]") as HTMLElement;
-  expect(getComputedStyle(closing).animationDirection).toBe("reverse");
-  const exit = parseFloat(getComputedStyle(closing).animationDuration);
-  expect(exit).toBeLessThan(enter);
+it("closes over the shorter exit duration than the open", async () => {
+  await using screen = await render(inList(open), { router: false });
+  const reveal = () => screen.container.querySelector("[data-one-work-reveal]") as HTMLElement;
+  const duration = () => Number(reveal().getAnimations()[0]?.effect?.getTiming().duration);
+  await screen.rerender(inList(closed));
+  await vi.waitFor(() => expect(duration()).toBeGreaterThan(0));
+  const exit = duration();
+  await vi.waitFor(() => expect(screen.container.textContent).not.toContain("tool output"));
+  await screen.rerender(inList(open));
+  await vi.waitFor(() => expect(duration()).toBeGreaterThan(0));
+  expect(exit).toBeLessThan(duration());
+});
+
+it("keeps a row's details in view when it is opened again during its close, and leaves nothing held after", async () => {
+  await using screen = await render(inList(open), { router: false });
+  const reveal = () => screen.container.querySelector("[data-one-work-reveal]") as HTMLElement;
+  const below = screen.container.querySelector("[data-testid=below]") as HTMLElement;
+  await screen.rerender(inList(closed));
+  await vi.waitFor(() => expect(below.getAnimations().length).toBeGreaterThan(0));
+  await screen.rerender(inList(open));
+  expect(reveal().hasAttribute("data-one-armed")).toBe(false);
+  await vi.waitFor(() => {
+    expect(below.getAnimations()).toHaveLength(0);
+    expect(reveal().getAnimations()).toHaveLength(0);
+  });
+  expect(reveal().style.overflow).toBe("");
+  expect(getComputedStyle(below).transform).toBe("none");
+  await expect.element(screen.getByText("tool output")).toBeVisible();
 });
