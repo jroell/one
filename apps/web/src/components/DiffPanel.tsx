@@ -864,7 +864,9 @@ export default function DiffPanel({
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
   const summaryFileCount = lazySource?.files?.length ?? renderableFiles.length;
   const fileTreeOpen = fileTreeChoice ?? summaryFileCount >= LARGE_DIFF_FILE_COUNT;
-  const fileTreeEntries = diffFileTreeEntries(renderableFiles.filter(isFileShown));
+  const shownFiles = renderableFiles.filter(isFileShown);
+  const shownFileCount = summaryFileCount - (renderableFiles.length - shownFiles.length);
+  const fileTreeEntries = diffFileTreeEntries(shownFiles);
   const codeViewReveal = useCodeViewFileReveal();
   // Lazy files that sat above the saved position load again only when asked for.
   const codeViewScroll = useCodeViewScrollRestore(
@@ -1050,7 +1052,7 @@ export default function DiffPanel({
     summaryFileCount > 0 ? (
       <span className="shrink-0" data-one-diff-summary="">
         {gt("{count, plural, one {{count} file} other {{count} files}}", {
-          count: summaryFileCount,
+          count: shownFileCount,
         })}
       </span>
     ) : null;

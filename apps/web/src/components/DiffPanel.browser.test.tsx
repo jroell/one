@@ -314,6 +314,38 @@ it("explains a branch diff whose only changes are hidden test files", async () =
   await expect.element(screen.getByText(path, { exact: true })).toBeVisible();
 });
 
+it("the diff header counts only the files left shown after Hide test files", async () => {
+  using context = setup("origin/orphan");
+  using _hideTestFiles = {
+    [Symbol.dispose]() {
+      window.localStorage.removeItem("t3code.diffHideTestFiles");
+    },
+  };
+  const metadata = preview();
+  const source = {
+    ...metadata.sources[0]!,
+    files: [
+      { path: "math.ts", previousPath: null, additions: 1, deletions: 0 },
+      { path: "math.test.ts", previousPath: null, additions: 1, deletions: 0 },
+    ],
+  };
+  state.previews.set("main", Atom.make(AsyncResult.success({ ...metadata, sources: [source] })));
+  useDiffPanelStore.getState().selectBranchBaseRef(context.threadRef, "main");
+  await using screen = await render(
+    <RegistryContext.Provider value={context.registry}>
+      <div style={{ height: 600, display: "flex", flexDirection: "column" }}>
+        <DiffPanel composerDraftTarget={context.threadRef} workspaceMutationId={null} visible />
+      </div>
+    </RegistryContext.Provider>,
+  );
+  const summary = () => document.querySelector("[data-one-diff-summary]")?.textContent;
+  await expect.poll(summary).toBe("2 files");
+  await userEvent.click(screen.getByRole("button", { name: "View options" }));
+  await userEvent.click(page.getByRole("menuitemcheckbox", { name: "Hide test files" }));
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(summary).toBe("1 file");
+});
+
 it.each([false, true])(
   "expands an unloaded file on the first click with default collapse %s",
   async (collapsed) => {
