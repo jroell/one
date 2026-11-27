@@ -70,9 +70,14 @@ function commit(mode: WorkspaceMode) {
   if (mode !== currentMode) store(mode);
 }
 
+/** Layers that are invisible mid-switch and take no clicks until the switch ends. */
+const unclickable = new Set<HTMLElement>();
+
 function clearTransitionMarker(token: number) {
   if (document.documentElement.dataset.oneModeTransition === String(token)) {
     delete document.documentElement.dataset.oneModeTransition;
+    for (const layer of unclickable) layer.style.removeProperty("pointer-events");
+    unclickable.clear();
   }
 }
 
@@ -110,6 +115,11 @@ function fade(
   duration: number,
   easing: string,
 ): Promise<unknown> {
+  // A faded-out page is not clickable: an invisible Approve button must not take a click.
+  for (const layer of layers) {
+    layer.style.pointerEvents = "none";
+    unclickable.add(layer);
+  }
   const animations = layers.map((layer) =>
     layer.animate([{ opacity: from }, { opacity: to }], { duration, easing, fill: "both" }),
   );
