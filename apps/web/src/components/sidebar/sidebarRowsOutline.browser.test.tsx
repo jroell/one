@@ -53,6 +53,18 @@ function Counter({ total }: { readonly total: number }) {
   return <span data-testid="count">{Number.isFinite(count) ? count : "all"}</span>;
 }
 
+function Booting() {
+  const [total, setTotal] = useState(0);
+  return (
+    <>
+      <button type="button" onClick={() => startTransition(() => setTotal(300))}>
+        arrive
+      </button>
+      <Counter total={total} />
+    </>
+  );
+}
+
 function Growing() {
   const [total, setTotal] = useState(300);
   return (
@@ -91,5 +103,17 @@ describe("drawing a long list in slices", () => {
     await vi.waitFor(() =>
       expect(screen.container.querySelector("[data-testid=count]")?.textContent).toBe("all"),
     );
+  });
+
+  it("draws a list that arrives after an empty first render in slices, not all at once", async () => {
+    drawn.length = 0;
+    await using screen = await render(<Booting />, { router: false });
+    expect(screen.container.querySelector("[data-testid=count]")?.textContent).toBe("all");
+    drawn.length = 0;
+
+    await page.getByRole("button", { name: "arrive" }).click();
+    await vi.waitFor(() => expect(drawn.at(-1)).toBe(Number.POSITIVE_INFINITY));
+
+    expect(drawn[0], "the first render of 300 drew 40").toBe(40);
   });
 });
