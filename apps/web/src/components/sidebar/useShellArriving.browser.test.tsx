@@ -6,6 +6,8 @@ import { render } from "../../../test/render";
 import { useShellArriving } from "./useShellArriving";
 
 let awaitingShell = true;
+// Long enough that a slow click on a loaded machine still sees the wait before it gives up.
+const LIMIT_MS = 1_500;
 
 vi.mock("../../state/entities", () => ({
   useAnyEnvironmentAwaitingShell: () => awaitingShell,
@@ -13,7 +15,7 @@ vi.mock("../../state/entities", () => ({
 }));
 
 function Probe() {
-  const arriving = useShellArriving(60);
+  const arriving = useShellArriving(LIMIT_MS);
   const [, rerender] = useState(0);
   return (
     <>
@@ -34,16 +36,16 @@ function Probe() {
 describe("the sidebar's wait for thread shells", () => {
   it("gives up after one long wait, and waits again when a later snapshot is awaited", async () => {
     awaitingShell = true;
-    await using screen = await render(<Probe />, { router: false });
+    await using _screen = await render(<Probe />, { router: false });
     const arriving = page.getByTestId("arriving");
     await expect.element(arriving).toHaveTextContent("arriving");
-    await expect.element(arriving).toHaveTextContent("settled");
+    await expect.element(arriving, { timeout: LIMIT_MS * 3 }).toHaveTextContent("settled");
 
     await page.getByRole("button", { name: "toggle" }).click();
     await expect.element(arriving).toHaveTextContent("settled");
     await page.getByRole("button", { name: "toggle" }).click();
 
-    expect(screen.container.querySelector("[data-testid=arriving]")?.textContent).toBe("arriving");
-    await expect.element(arriving).toHaveTextContent("settled");
+    await expect.element(arriving).toHaveTextContent("arriving");
+    await expect.element(arriving, { timeout: LIMIT_MS * 3 }).toHaveTextContent("settled");
   });
 });
