@@ -21,7 +21,8 @@ const PROVIDER_UPDATE_PILL_STYLES = {
     "bg-sidebar-control-surface text-sidebar-foreground has-[button[data-provider-update-main]:hover]:bg-sidebar-row-hover",
   success:
     "bg-sidebar-control-surface text-sidebar-foreground has-[button[data-provider-update-main]:hover]:bg-sidebar-row-hover",
-  warning: "bg-warning/12 text-warning has-[button[data-provider-update-main]:hover]:bg-warning/18",
+  warning:
+    "bg-warning/12 text-warning has-[button[data-provider-update-main]:hover]:bg-warning/18",
   error:
     "bg-destructive/12 text-destructive has-[button[data-provider-update-main]:hover]:bg-destructive/18",
 } as const;
