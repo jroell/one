@@ -3,6 +3,7 @@ import { EnvironmentId, type PeerLinkSummary } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import { AsyncResult, AtomRegistry } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { peerLinkEnvironment } from "~/state/peerLinks";
@@ -28,13 +29,15 @@ const server = vi.hoisted(() => ({
   started: 0,
   interrupted: 0,
   answer: Promise.resolve(),
+  canLink: false,
 }));
 
-function setup() {
+function setup(canLink = false) {
   server.links = [];
   server.started = 0;
   server.interrupted = 0;
   server.answer = Promise.resolve();
+  server.canLink = canLink;
 }
 
 vi.mock(import("~/state/peerLinks"), async (original) => {
@@ -56,12 +59,13 @@ vi.mock(import("~/state/peerLinks"), async (original) => {
     ),
   ).pipe(AtomModule.swr({ staleTime: 10_000, revalidateOnMount: true }));
   const denied = AtomModule.make(false);
+  const canLink = AtomModule.make(() => server.canLink);
   return {
     ...actual,
     peerLinkEnvironment: {
       ...actual.peerLinkEnvironment,
       list: (() => list) as never,
-      link: { ...actual.peerLinkEnvironment.link, permissionAtom: () => denied },
+      link: { ...actual.peerLinkEnvironment.link, permissionAtom: () => canLink },
       unlink: { ...actual.peerLinkEnvironment.unlink, permissionAtom: () => denied },
     },
   };
@@ -74,6 +78,27 @@ function ComposerReader() {
 }
 
 describe("LinkedEnvironmentsSettings", () => {
+  it("opens the link dialog from the empty linked environments row", async () => {
+    setup(true);
+    const emptyHostId = EnvironmentId.make("mac-empty");
+    const registry = AtomRegistry.make();
+    using _registry = { [Symbol.dispose]: () => registry.dispose() };
+    await using screen = await render(
+      <RegistryContext.Provider value={registry}>
+        <LinkedEnvironmentsSettings
+          environmentId={emptyHostId}
+          environmentLabel={null}
+          isSearchTarget={false}
+        />
+      </RegistryContext.Provider>,
+    );
+
+    await screen.getByRole("button", { name: "Link another computer" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Link an environment" });
+    await expect.element(dialog.getByRole("textbox", { name: "Address" })).toHaveFocus();
+  });
+
   it("shows a link made elsewhere while the composer keeps the list loaded", async () => {
     setup();
     const registry = AtomRegistry.make();

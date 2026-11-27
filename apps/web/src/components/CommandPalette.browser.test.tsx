@@ -5,6 +5,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../test/render";
 import { openCommandPalette } from "../commandPaletteBus";
+import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { setShortcutsDialogOpen, useShortcutsDialogStore } from "./shortcuts/shortcutsDialogStore";
 import { dispatchCommandPalette, useCommandPaletteStore } from "../commandPaletteStore";
 import { LAST_USED_PROJECT_STORAGE_KEY } from "../hooks/useHandleNewThread";
@@ -21,6 +22,7 @@ const entities = vi.hoisted(() => ({
   activeThread: undefined as Thread | undefined,
   routeTarget: null as ThreadRouteTarget | null,
   delegatedUnderParent: new Set<string>() as ReadonlySet<string>,
+  useRealNewThread: false,
   handleNewThread: vi.fn(async () => undefined),
 }));
 vi.mock("../state/server", async (original) => {
@@ -49,11 +51,16 @@ vi.mock("../hooks/useHandleNewThread", async (original) => {
   const actual = await original<typeof import("../hooks/useHandleNewThread")>();
   return {
     ...actual,
-    useHandleNewThread: () => ({
-      ...actual.useHandleNewThread(),
-      activeThread: entities.activeThread,
-      handleNewThread: entities.handleNewThread,
-    }),
+    useHandleNewThread: () => {
+      const result = actual.useHandleNewThread();
+      return {
+        ...result,
+        activeThread: entities.activeThread,
+        handleNewThread: entities.useRealNewThread
+          ? result.handleNewThread
+          : entities.handleNewThread,
+      };
+    },
   };
 });
 vi.mock("../hooks/useThreadRouteTarget", () => ({
@@ -82,6 +89,7 @@ function setup(state: Partial<typeof entities> = {}) {
   entities.activeThread = state.activeThread;
   entities.routeTarget = state.routeTarget ?? null;
   entities.delegatedUnderParent = state.delegatedUnderParent ?? new Set();
+  entities.useRealNewThread = state.useRealNewThread ?? false;
   entities.handleNewThread.mockClear();
 }
 
@@ -100,6 +108,34 @@ function makeProject(title: string): Project {
 }
 
 describe("CommandPalette open intents", () => {
+  it("opens a new draft in the current project from an empty command palette search", async () => {
+    const project = makeProject("Acme no matches");
+    setup({
+      useRealNewThread: true,
+      projects: [project],
+      activeThread: makeThreadFixture({
+        projectId: project.id,
+        environmentId: project.environmentId,
+      }),
+    });
+    await using screen = await render(<CommandPalette>{null}</CommandPalette>);
+
+    openCommandPalette({ query: "zzz999nomatchzzz" });
+    await page.getByRole("option", { name: "Start a new thread" }).click();
+
+    await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(screen.router!.state.location.pathname).toMatch(/^\/draft\/[^/]+$/),
+    );
+    const draftId = DraftId.make(screen.router!.state.location.pathname.slice("/draft/".length));
+    const drafts = useComposerDraftStore.getState();
+    using _draft = { [Symbol.dispose]: () => drafts.clearDraftThread(draftId) };
+    expect(drafts.getDraftSession(draftId)).toMatchObject({
+      environmentId: project.environmentId,
+      projectId: project.id,
+    });
+  });
+
   it("drags a searched thread into the current composer without navigating", async () => {
     const environmentId = EnvironmentId.make("remote");
     const threadId = ThreadId.make("dragged-thread");

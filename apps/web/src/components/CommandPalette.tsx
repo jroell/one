@@ -2729,7 +2729,12 @@ function OpenCommandPaletteDialog(props: {
     newProjectFlow === null &&
     !isThreadSearchPending;
   if (isRootSearchWithoutMatches) {
-    // Keep the empty message as the heading and offer where shortcuts can be found.
+    const newThreadAction =
+      actionItems.find((item) => item.value === "action:new-thread") ??
+      actionItems.find((item) => item.value === "action:new-thread-without-project") ??
+      (projectThreadItems.length > 0
+        ? actionItems.find((item) => item.value === "action:new-thread-in")
+        : undefined);
     displayedGroups = [
       {
         value: "no-matches",
@@ -2748,6 +2753,7 @@ function OpenCommandPaletteDialog(props: {
               });
             },
           },
+          ...(newThreadAction ? [{ ...newThreadAction, title: gt("Start a new thread") }] : []),
         ],
       },
     ];
