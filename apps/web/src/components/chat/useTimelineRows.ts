@@ -36,6 +36,14 @@ export function useStableHandoffRuns(
   return value;
 }
 
+/** The previous value while `equal` says the next one holds the same things, so identity follows content. */
+export function useStableValue<T>(next: T, equal: (previous: T, next: T) => boolean): T {
+  const [kept, setKept] = useState(next);
+  if (kept === next || equal(kept, next)) return kept;
+  setKept(next);
+  return next;
+}
+
 /**
  * Rows derived from the previous projection of the same list, so a streamed
  * text update patches its message rows instead of deriving every row again.

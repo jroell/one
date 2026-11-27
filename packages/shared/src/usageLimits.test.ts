@@ -21,6 +21,7 @@ import {
   collectLimitPools,
   elapsedShare,
   exhaustedUsageWindow,
+  fallbackOfferFor,
   paceOf,
   paceRemainingPercent,
   usesChatGptSharing,
@@ -113,6 +114,57 @@ describe("new thread model fallback", () => {
       }).selection,
     ).toEqual(selection);
   });
+  describe("the fallback offered beside an exhausted provider", () => {
+    const ready = {
+      ...available,
+      models: [{ slug: "claude-fable-5-1", name: "Fable" }],
+    } as unknown as ServerProvider;
+    const offer = (overrides: Record<string, unknown> = {}) =>
+      fallbackOfferFor({
+        exhausted: limited,
+        providers: [limited, ready],
+        fallbackSelection: null,
+        now,
+        ...overrides,
+      });
+
+    it("offers the other ready provider, and new threads then use it while the first is out", () => {
+      const result = offer();
+      if (result.kind !== "offer") throw new Error(`expected an offer, got ${result.kind}`);
+      expect(result.selection).toEqual(fallback);
+      // Saved as the fallback setting, the real resolution picks it for a new thread.
+      expect(
+        resolveNewThreadModelSelection({
+          ...defaults,
+          fallbackSelection: result.selection,
+          providers: [limited, ready],
+        }).selection,
+      ).toEqual(fallback);
+    });
+
+    it("reports a fallback that is already set instead of offering one", () => {
+      expect(offer({ fallbackSelection: fallback })).toEqual({
+        kind: "already",
+        selection: fallback,
+      });
+    });
+
+    it("offers nothing when no other provider is signed in, and says so", () => {
+      expect(offer({ providers: [limited] })).toEqual({ kind: "none", reason: "none-signed-in" });
+      expect(
+        offer({ providers: [limited, { ...ready, auth: { status: "unauthenticated" } }] }),
+      ).toEqual({ kind: "none", reason: "none-signed-in" });
+    });
+
+    it("offers nothing when every other signed-in provider is out of usage too", () => {
+      const alsoOut = { ...ready, usageLimits: limited.usageLimits };
+      expect(offer({ providers: [limited, alsoOut] })).toEqual({
+        kind: "none",
+        reason: "none-with-usage",
+      });
+    });
+  });
+
   it.each([undefined, "invalid"])("treats an unknown reset as exhausted: %s", (resetsAt) => {
     expect(
       exhaustedUsageWindow(

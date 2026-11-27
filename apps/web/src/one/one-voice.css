@@ -15,6 +15,7 @@
   --vs-orb: min(52vw, 30vh, 17rem);
   --vs-ease: var(--ease-enter, cubic-bezier(0.2, 0.9, 0.1, 1));
   --vs-backdrop: radial-gradient(120% 90% at 50% 40%, #15110b 0%, #070605 60%, #030302 100%);
+  --vs-dark: #080605;
 }
 
 /* The whole window, header and sidebar too: a stage, not a panel over one column. */
@@ -22,7 +23,6 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: var(--vs-backdrop);
   color: var(--vs-bone);
   display: flex;
   flex-direction: column;
@@ -43,7 +43,38 @@
   -webkit-app-region: drag;
 }
 
-.one-voice-stage > :not(.one-voice-drag) {
+/* Opening: a disc grows out of the control, flat dark so that it can be scaled without a visible
+   edge. The stage's own soft backdrop is a separate rectangle that fades in over it once it has
+   covered the window. */
+.one-voice-iris {
+  position: absolute;
+  display: none;
+  border-radius: 50%;
+  background: var(--vs-dark);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* On a dark page a dark disc has no edge to read, so its growing edge carries a faint gold rim. */
+:root.dark .one-voice-iris,
+:root.dark .one-voice-ghost-backdrop {
+  box-shadow:
+    0 0 0 1px rgb(255 236 200 / 16%),
+    0 0 28px rgb(240 200 110 / 10%);
+}
+
+.one-voice-stage[data-iris="growing"] .one-voice-iris {
+  display: block;
+}
+
+.one-voice-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--vs-backdrop);
+  pointer-events: none;
+}
+
+.one-voice-stage > :not(.one-voice-drag, .one-voice-iris, .one-voice-backdrop) {
   position: relative;
 }
 
@@ -523,19 +554,21 @@
 /* ----------------------------------------------------- arrival and exit */
 
 @media (prefers-reduced-motion: no-preference) {
-  .one-voice-stage {
-    animation: one-voice-stage-in var(--mo-surface, 240ms) var(--vs-ease) both;
-  }
+  /* The stage itself does not fade: the dark area grows from the control that opened it (a
+     clip-path set in the stage), so no frame is a mid-grey blend of the light page and the dark. */
 
   /* The stage reaches full opacity first; its words and controls follow 60ms later. */
   .one-voice-stage-body > :not(.one-voice-orb-wrap),
   .one-voice-stage-actions,
   .one-voice-hints {
-    animation: one-voice-content-in var(--mo-surface, 240ms) var(--vs-ease) 60ms both;
+    animation: one-voice-content-in var(--mo-surface, 240ms) var(--vs-ease)
+      var(--vs-content-delay, 60ms) both;
   }
 
   /* A new transcript label arrives the same way, so a change of state is seen, not swapped. */
-  .one-voice-caption-line {
+  /* The label arrives with the transcript it names: the same delay and time as its entrance, which
+     the stage-body rule above would otherwise shorten. */
+  .one-voice-stage-body > .one-voice-eyebrow.one-voice-caption-line {
     animation: one-voice-content-in var(--mo-quick, 180ms) var(--vs-ease) var(--vs-out) both;
   }
 }
@@ -568,10 +601,20 @@
   position: fixed;
   inset: 0;
   z-index: 60;
+  overflow: hidden;
   pointer-events: none;
 }
 
+/* The same disc the stage grew from, shrinking back into the control. */
 .one-voice-ghost-backdrop {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--vs-dark);
+  will-change: transform;
+}
+
+/* The stage's rectangle backdrop, which fades out while the disc still covers the window. */
+.one-voice-ghost-rect {
   position: absolute;
   inset: 0;
   background: var(--vs-backdrop);
@@ -626,4 +669,10 @@ html .one-voice-ghost .one-mark > img[data-mark-theme="light"] {
   .one-voice-stage[data-look="interrupted"] .one-voice-ring {
     border-color: rgb(217 179 90 / 90%);
   }
+}
+
+/* The window's own controls (the sidebar toggle) are fixed at a level the page's stacking context
+   keeps above the stage; while the stage covers the window they have nothing to do and are hidden. */
+html[data-one-voice-open] [data-sidebar-control] {
+  visibility: hidden;
 }

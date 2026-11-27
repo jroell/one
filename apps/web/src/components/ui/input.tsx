@@ -2,6 +2,7 @@ import { Input as InputPrimitive } from "@base-ui/react/input";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
+import { flagInputGroup } from "./inputGroupFlags";
 
 type InputProps = Omit<InputPrimitive.Props & React.RefAttributes<HTMLInputElement>, "size"> & {
   size?: "sm" | "compact" | "default" | "lg" | number;
@@ -71,6 +72,7 @@ function Input({
       }
       data-size={size}
       data-slot="input-control"
+      ref={(node) => flagInputGroup(node, "control")}
       data-unstyled={unstyled ? "" : undefined}
     >
       {inputElement}

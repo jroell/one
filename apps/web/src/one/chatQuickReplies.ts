@@ -66,14 +66,20 @@ export function readAnswerEnding(text: string): ChatAnswerEnding {
   const paragraph = lastParagraph(text);
   const question = paragraph.replace(TRAILING_MARKUP, "").endsWith("?");
   if (question) {
+    const sentence = lastSentence(paragraph);
     const first =
-      lastSentence(paragraph)
+      sentence
         .split(/\s+/u)[0]
         ?.toLowerCase()
         .replace(/[^a-z]/gu, "") ?? "";
+    // A question that offers a choice ("a hub or an HTTP source?") is not answered by yes or no.
+    const choice = /\bor\b/iu.test(sentence);
     return {
       kind: "replies",
-      replies: YES_NO_OPENERS.has(first) ? [m(YES), m(NO), m(NOT_SURE)] : [m(NOT_SURE), m(SKIP)],
+      replies:
+        YES_NO_OPENERS.has(first) && !choice
+          ? [m(YES), m(NO), m(NOT_SURE)]
+          : [m(NOT_SURE), m(SKIP)],
     };
   }
   return sentenceCount(text) < 2 ? { kind: "none" } : { kind: "follow-ups" };

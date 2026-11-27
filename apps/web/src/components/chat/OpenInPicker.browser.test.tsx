@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, fakeTimers, render as renderUi } from "../../../test/render";
 import type { RemoteOpenState } from "../../remoteOpen";
-import { runRegisteredCommand } from "../../shortcuts/commandRegistry";
+import { isCommandAvailable, runRegisteredCommand } from "../../shortcuts/commandRegistry";
 
 const state = vi.hoisted(() => ({
   allowed: new Set<string>(),
@@ -341,5 +341,37 @@ describe("open in editor from the palette", () => {
     await act(async () => screen.rerender(<FavoriteEditorFallback />));
     expect(runRegisteredCommand("editor.openFavorite")).toBe(true);
     expect(state.run.mock.calls.map(([call]) => call.input.cwd)).toEqual([file, "/work/project"]);
+  });
+
+  it("answers whether the favorite button is on screen without measuring layout once it has been observed", async () => {
+    await using fixture = await setup();
+    const { screen } = fixture;
+    const picker = (hidden: boolean) => (
+      <div style={{ display: hidden ? "none" : "block" }}>
+        <OpenInPicker
+          environmentId={selected}
+          keybindings={DEFAULT_RESOLVED_KEYBINDINGS}
+          availableEditors={editors}
+          openInCwd="/work/project/notes.md"
+          fileManagerAction="open"
+          displayMode="toolbar"
+          compact
+        />
+      </div>
+    );
+    state.allowed.add(selected);
+    await act(async () => screen.rerender(picker(false)));
+
+    // Retries until the observer has reported the button's size; from then on no layout is read.
+    const measure = vi.spyOn(Element.prototype, "getClientRects");
+    await vi.waitFor(() => {
+      measure.mockClear();
+      expect(isCommandAvailable("editor.openFavorite")).toBe(true);
+      expect(measure).not.toHaveBeenCalled();
+    });
+    measure.mockRestore();
+
+    await act(async () => screen.rerender(picker(true)));
+    await vi.waitFor(() => expect(isCommandAvailable("editor.openFavorite")).toBe(false));
   });
 });

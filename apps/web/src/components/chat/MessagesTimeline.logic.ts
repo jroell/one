@@ -654,8 +654,8 @@ type MessagesTimelineRowContent =
       groupedWithPrevious?: boolean;
       /** Set when the message above is a steer too, so the label shows once. */
       continuesSteer?: boolean;
-      /** The answer above runs past one line, so more room opens before this message. */
-      afterLongAnswer?: true;
+      /** An answer sits above, so this question opens a new turn with the room that takes. */
+      afterAnswer?: true;
       /** The first row of an assistant turn, so it carries the turn's mark. */
       startsTurn?: true;
     }
@@ -2552,29 +2552,26 @@ export function deriveMessagesTimelineRows(
     const groupedWithPrevious = timelineRowIsOwnUserMessage(previous);
     const continuesSteer =
       groupedWithPrevious && messageIsSteer(row.message) && messageIsSteer(previous.message);
-    const afterLongAnswer = followsLongAnswer(result, index);
+    const afterAnswer = followsAnswer(result, index);
     if (!groupedWithNext && !groupedWithPrevious) {
-      return afterLongAnswer ? { ...row, afterLongAnswer: true as const } : row;
+      return afterAnswer ? { ...row, afterAnswer: true as const } : row;
     }
     return {
       ...row,
       groupedWithNext,
       groupedWithPrevious,
       continuesSteer,
-      ...(afterLongAnswer ? { afterLongAnswer: true as const } : {}),
+      ...(afterAnswer ? { afterAnswer: true as const } : {}),
     };
   });
 }
 
-/** An answer of more than a line leaves more room before the next question than a short one. */
-const LONG_ANSWER_CHARS = 160;
-
-function followsLongAnswer(rows: ReadonlyArray<MessagesTimelineRow>, index: number): boolean {
+/** A question that follows an answer starts a new turn, which gets the same room whatever the answer's length. */
+function followsAnswer(rows: ReadonlyArray<MessagesTimelineRow>, index: number): boolean {
   for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
     const row = rows[cursor]!;
     if (row.kind !== "message") continue;
-    if (row.message.role !== "assistant") return false;
-    return row.message.text.length > LONG_ANSWER_CHARS || row.message.text.includes("\n");
+    return row.message.role === "assistant";
   }
   return false;
 }
@@ -3093,7 +3090,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.groupedWithNext === bm.groupedWithNext &&
         a.groupedWithPrevious === bm.groupedWithPrevious &&
         a.continuesSteer === bm.continuesSteer &&
-        a.afterLongAnswer === bm.afterLongAnswer &&
+        a.afterAnswer === bm.afterAnswer &&
         a.startsTurn === bm.startsTurn
       );
     }

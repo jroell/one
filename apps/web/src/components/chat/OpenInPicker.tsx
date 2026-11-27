@@ -11,7 +11,7 @@ import { memo, use, useRef } from "react";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { shortcutLabelForCommand } from "../../keybindings";
 import type { FileManagerAction } from "./OpenInPicker.logic";
-import { OPEN_FAVORITE_EDITOR_ATTRIBUTE } from "./OpenInPickerShortcut";
+import { OPEN_FAVORITE_EDITOR_ATTRIBUTE, trackFavoriteEditorButton } from "./OpenInPickerShortcut";
 import { usePreferredEditor } from "../../editorPreferences";
 import { editorLabelForPlatform } from "../../editorLabels";
 import type { MessageResolver } from "../../i18n/messages";
@@ -271,6 +271,7 @@ export const OpenInPicker = memo(function OpenInPicker({
         !preferredEditor || !openInCwd || !canOpenEditor || isEditorUnavailable(preferredEditor)
       }
       {...(enableShortcut && !backgroundThread ? { [OPEN_FAVORITE_EDITOR_ATTRIBUTE]: "" } : {})}
+      ref={enableShortcut && !backgroundThread ? trackFavoriteEditorButton : undefined}
       onClick={() => {
         if (!preferredEditor) return;
         const label = editorLabelForPlatform(preferredEditor, navigator.platform);

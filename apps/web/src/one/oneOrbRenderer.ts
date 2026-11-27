@@ -448,6 +448,8 @@ export function startOneOrb(
     gl.viewport(0, 0, width, height);
     gl.uniform2f(resources.uniforms.res, width, height);
     gl.uniform1f(resources.uniforms.glow, glowForSize(canvas.clientWidth));
+    // The halo around the ring is sized from the ring's own width, so it scales with it.
+    canvas.parentElement?.style.setProperty("--ring-size", `${canvas.clientWidth}px`);
   };
   applyColors();
   resize();

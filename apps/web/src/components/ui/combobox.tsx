@@ -46,7 +46,15 @@ function ComboboxInput({
   const sizeValue = (size ?? "default") as "sm" | "default" | "lg" | number;
 
   return (
-    <div className="relative not-has-[>*.w-full]:w-fit w-full text-foreground has-disabled:opacity-64">
+    <div
+      className={cn(
+        "relative not-has-[>*.w-full]:w-fit w-full text-foreground has-disabled:opacity-64",
+        // The input reads this; a `:has()` of the input in front of a child selector restyled the page.
+        sizeValue === "sm"
+          ? "has-[>[data-slot=combobox-trigger],>[data-slot=combobox-clear]]:[--combobox-pe:calc(var(--spacing)*6.5)]"
+          : "has-[>[data-slot=combobox-trigger],>[data-slot=combobox-clear]]:[--combobox-pe:calc(var(--spacing)*7)]",
+      )}
+    >
       {startAddon && (
         <div
           aria-hidden="true"
@@ -61,8 +69,8 @@ function ComboboxInput({
           startAddon &&
             "data-[size=sm]:*:data-[slot=combobox-input]:ps-[calc(--spacing(7.5)-1px)] *:data-[slot=combobox-input]:ps-[calc(--spacing(8.5)-1px)] sm:data-[size=sm]:*:data-[slot=combobox-input]:ps-[calc(--spacing(7)-1px)] sm:*:data-[slot=combobox-input]:ps-[calc(--spacing(8)-1px)]",
           sizeValue === "sm"
-            ? "has-[+[data-slot=combobox-trigger],+[data-slot=combobox-clear]]:*:data-[slot=combobox-input]:pe-6.5"
-            : "has-[+[data-slot=combobox-trigger],+[data-slot=combobox-clear]]:*:data-[slot=combobox-input]:pe-7",
+            ? "*:data-[slot=combobox-input]:pe-[var(--combobox-pe,calc(var(--spacing)*2.5_-_1px))]"
+            : "*:data-[slot=combobox-input]:pe-[var(--combobox-pe,calc(var(--spacing)*3_-_1px))]",
           className,
         )}
         data-slot="combobox-input"

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "../../lib/utils";
+import { closeRowsBelow, openRowsBelow } from "./rowsBelowFollow";
 
 const GroupedRows = createContext(false);
 
@@ -165,6 +166,7 @@ export function WorkLogRow({
 const LIVE_EDGE_PX = 4;
 
 const ClosingContext = createContext(false);
+const ToggledContext = createContext(false);
 
 /**
  * Keeps what a row opened showing while it closes. The row passes its details only while it is
@@ -175,6 +177,14 @@ export function WorkLogCollapse({ children }: { children: ReactNode }) {
   const open = Children.toArray(children).length > 0;
   const [kept, setKept] = useState<ReactNode>(open ? children : null);
   if (open && kept !== children) setKept(children);
+  // A row that mounts open is simply open. Only a person opening or closing it later moves the
+  // rows below, so mounting many rows (a thread switch) measures nothing.
+  const [wasOpen, setWasOpen] = useState(open);
+  const [toggled, setToggled] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    setToggled(true);
+  }
   const closing = !open && kept !== null;
   const hostRef = useRef<HTMLDivElement>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops the kept details once their closing animations have ended
@@ -198,9 +208,11 @@ export function WorkLogCollapse({ children }: { children: ReactNode }) {
   if (kept === null) return null;
   return (
     <ClosingContext value={closing}>
-      <div ref={hostRef} className="contents">
-        {open ? children : kept}
-      </div>
+      <ToggledContext value={toggled}>
+        <div ref={hostRef} className="contents">
+          {open ? children : kept}
+        </div>
+      </ToggledContext>
     </ClosingContext>
   );
 }
@@ -216,7 +228,16 @@ export function WorkLogDetails({
   followLive?: boolean;
 }) {
   const closing = use(ClosingContext);
+  const toggled = use(ToggledContext);
+  const revealRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the reveal's clip and the rows' slide below it once the row's content is in the DOM
+  useLayoutEffect(() => {
+    const reveal = revealRef.current;
+    if (reveal === null || !toggled) return;
+    if (!closing) return openRowsBelow(reveal);
+    closeRowsBelow(reveal);
+  }, [closing, toggled]);
   const atLiveEdgeRef = useRef(true);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pins the scroller's scrollTop to the bottom after each commit while following live output
   useLayoutEffect(() => {
@@ -226,7 +247,7 @@ export function WorkLogDetails({
     }
   });
   return (
-    <div data-one-work-reveal="" data-closing={closing ? "" : undefined}>
+    <div ref={revealRef} data-one-work-reveal="" data-closing={closing ? "" : undefined}>
       <div>
         <div
           ref={scrollerRef}

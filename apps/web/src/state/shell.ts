@@ -1,6 +1,7 @@
 import {
   AVAILABLE_CONNECTION_STATE,
   connectionProjectionPhase,
+  type SupervisorConnectionState,
 } from "@t3tools/client-runtime/connection";
 import {
   createEnvironmentShellAtoms,
@@ -89,6 +90,39 @@ export const allEnvironmentShellsBootstrappedAtom = Atom.make((get) => {
   }
   return true;
 }).pipe(Atom.withLabel("web-all-environment-shells-bootstrapped"));
+
+/**
+ * True while a connection may still deliver its first shell snapshot. `available` counts: it is
+ * the state before the supervisor starts, so the list is not yet known to be empty.
+ */
+export function connectionMayDeliverShell(connection: SupervisorConnectionState): boolean {
+  switch (connection.phase) {
+    case "available":
+    case "connecting":
+    case "connected":
+      return true;
+    case "backoff":
+      return connection.attempt <= 2;
+    case "offline":
+    case "blocked":
+      return false;
+  }
+}
+
+/** True until every enabled environment has a snapshot or has stopped trying to connect. */
+export const anyEnvironmentAwaitingShellAtom = Atom.make((get) => {
+  const catalog = AsyncResult.value(get(environmentCatalog.catalogAtom));
+  if (Option.isNone(catalog)) return true;
+  for (const environmentId of enabledEnvironmentIds(catalog.value)) {
+    if (Option.isSome(get(environmentShell.stateValueAtom(environmentId)).snapshot)) continue;
+    const connection = AsyncResult.getOrElse(
+      get(environmentCatalog.stateAtom(environmentId)),
+      () => AVAILABLE_CONNECTION_STATE,
+    );
+    if (connectionMayDeliverShell(connection)) return true;
+  }
+  return false;
+}).pipe(Atom.withLabel("web-any-environment-awaiting-shell"));
 
 // Catalog can precede primary discovery; an empty or incomplete catalog cannot prove absence.
 function catalogIsComplete(

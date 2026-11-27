@@ -57,6 +57,9 @@ import {
   expireVoiceExit,
   holdVoiceExit,
   preloadExitMark,
+  irisCoverMs,
+  irisGeometry,
+  placeIris,
   getVoiceExit,
   smoothSwell,
   subscribeVoiceExit,
@@ -99,6 +102,9 @@ const VOICES_WAIT_MS = 1_500;
 
 let mountedStages = 0;
 const NO_RUNS: ReadonlyArray<never> = [];
+
+/** Set on <html> while the stage is on screen. */
+const VOICE_STAGE_ATTRIBUTE = "data-one-voice-open";
 
 /**
  * Voice chat: speak, the question is sent when you pause, and the reply is
@@ -228,6 +234,8 @@ function ActiveVoiceStage({
   const swellRef = useRef<HTMLDivElement | null>(null);
   const haloRef = useRef<HTMLDivElement | null>(null);
   const glowRef = useRef<HTMLDivElement | null>(null);
+  const irisRef = useRef<HTMLDivElement | null>(null);
+  const backdropRef = useRef<HTMLDivElement | null>(null);
   const captionRef = useRef<HTMLParagraphElement | null>(null);
   /** The smoothed sound level the ring and halo follow; it carries across states so nothing jumps. */
   const swellValueRef = useRef(0);
@@ -939,6 +947,16 @@ function ActiveVoiceStage({
     };
   }, [stageRendered]);
 
+  // The window's own controls hide while the stage covers it. The attribute is on <html> so the
+  // style needs no :has() rule, which re-checks the whole document on every change.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- marks the document for the length of the stage
+  useLayoutEffect(() => {
+    if (!stageRendered) return;
+    const root = document.documentElement;
+    root.setAttribute(VOICE_STAGE_ATTRIBUTE, "");
+    return () => root.removeAttribute(VOICE_STAGE_ATTRIBUTE);
+  }, [stageRendered]);
+
   // The ring arrives from the control that opened voice chat and, when voice chat ends, flies back:
   // one motion each way. A layout effect, so the first painted frame is already the start of it.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the arrival animation on the committed ring and records where to fly back to on exit
@@ -977,7 +995,59 @@ function ActiveVoiceStage({
     };
     keepPlan();
     let arrival: Animation | null = null;
+    let reveal: Animation | null = null;
+    let backdropFade: Animation | null = null;
     if (!reduced) {
+      const iris = irisRef.current;
+      const backdrop = backdropRef.current;
+      const duration = motionMs(stageElement, "--mo-sheet", 320);
+      const easing = motionToken(stageElement, "--ease-enter", EASE_ENTER_FALLBACK);
+      if (iris && backdrop) {
+        // The dark stage grows as a disc out of the control that opened it: a circle scaled by
+        // transform alone, so the page is never a grey blend and the compositor only moves a matrix.
+        const viewport = { width: window.innerWidth, height: window.innerHeight };
+        const disc = irisGeometry(origin ? boxOf(origin) : fallback, viewport, easing);
+        placeIris(iris, disc);
+        // The words and controls wait until the disc has reached them.
+        const farthest = [orbWrap, ...stageElement.querySelectorAll(".one-voice-stage-actions")]
+          .map((element) => {
+            const box = boxOf(element);
+            return Math.max(
+              Math.hypot(box.left - disc.cx, box.top - disc.cy),
+              Math.hypot(box.left + box.width - disc.cx, box.top + box.height - disc.cy),
+              Math.hypot(box.left - disc.cx, box.top + box.height - disc.cy),
+              Math.hypot(box.left + box.width - disc.cx, box.top - disc.cy),
+            );
+          })
+          .reduce((most, distance) => Math.max(most, distance), 0);
+        stageElement.style.setProperty(
+          "--vs-content-delay",
+          `${Math.round(Math.max(60, irisCoverMs(disc, farthest, duration, easing)))}ms`,
+        );
+        stageElement.dataset.iris = "growing";
+        reveal = iris.animate([{ transform: "scale(0)" }, { transform: "scale(1)" }], {
+          duration,
+          easing,
+        });
+        // The stage's own backdrop (the soft vignette) is not part of the disc: it fades in over the
+        // dark once the disc has covered the whole window, never over the page.
+        const far = Math.hypot(
+          Math.max(disc.cx, viewport.width - disc.cx),
+          Math.max(disc.cy, viewport.height - disc.cy),
+        );
+        backdropFade = backdrop.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: motionMs(stageElement, "--mo-quick", 180),
+          delay: irisCoverMs(disc, far, duration, easing),
+          easing,
+          fill: "backwards",
+        });
+        void Promise.all([reveal.finished, backdropFade.finished]).then(
+          () => {
+            if (stageElement.dataset.iris === "growing") delete stageElement.dataset.iris;
+          },
+          () => undefined,
+        );
+      }
       const flight = flightTransform(flightTo(resting, origin ? boxOf(origin) : fallback));
       arrival = orbWrap.animate(
         [
@@ -999,6 +1069,10 @@ function ActiveVoiceStage({
     window.addEventListener("resize", remeasure);
     return () => {
       arrival?.cancel();
+      reveal?.cancel();
+      backdropFade?.cancel();
+      delete stageElement.dataset.iris;
+      stageElement.style.removeProperty("--vs-content-delay");
       window.removeEventListener("resize", remeasure);
       // Left the screen with voice chat still on: there is nothing to fly back from.
       if (getVoiceSession().stage !== "off") clearVoiceExit();
@@ -1120,6 +1194,8 @@ function ActiveVoiceStage({
       showRetry={micFailed}
       orbAction={orbAction}
       glowRef={glowRef}
+      irisRef={irisRef}
+      backdropRef={backdropRef}
       glowLevelRef={swellValueRef}
       captionRef={captionRef}
       captionWords={stage === "speaking"}

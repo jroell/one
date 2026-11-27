@@ -12,6 +12,7 @@ import { editorLabelForPlatform } from "../../editorLabels";
 import { isOpenFavoriteEditorShortcut } from "../../keybindings";
 import { m } from "../../i18n/messages";
 import { announce } from "../../lib/announce";
+import { observeResize } from "../../lib/observeResize";
 import { openRemoteEditorUrl, useRemoteCapableEditors, useRemoteOpenState } from "../../remoteOpen";
 import { registerCommandHandlers } from "../../shortcuts/commandRegistry";
 import { isCommandPaletteOpen } from "../../commandPaletteBus";
@@ -22,11 +23,29 @@ import { useAtomCommand } from "../../state/use-atom-command";
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
 
+// Whether each marked button has a box, kept by a ResizeObserver. The palette asks while it
+// renders, and `getClientRects` there forced a style recalculation twice (about 50 ms each).
+const shown = new WeakMap<Element, boolean>();
+
+/** Ref callback for a marked button: starts recording whether it is on screen. */
+export function trackFavoriteEditorButton(button: HTMLButtonElement | null): (() => void) | void {
+  if (button === null) return;
+  return observeResize(button, (entries) => {
+    for (const entry of entries) {
+      shown.set(entry.target, entry.contentRect.width > 0 || entry.contentRect.height > 0);
+    }
+  });
+}
+
+// A button not observed yet is measured once, the old way.
+const isShown = (button: HTMLButtonElement) =>
+  shown.get(button) ?? button.getClientRects().length > 0;
+
 // The newest marked button that is on screen and enabled; one kept mounted out of sight is skipped.
 const favoriteEditorButton = () =>
   [...document.querySelectorAll<HTMLButtonElement>(`[${OPEN_FAVORITE_EDITOR_ATTRIBUTE}]`)]
     .reverse()
-    .find((button) => !button.disabled && button.getClientRects().length > 0);
+    .find((button) => !button.disabled && isShown(button));
 
 const canPressFavoriteEditorButton = () => favoriteEditorButton() !== undefined;
 

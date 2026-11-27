@@ -2,9 +2,8 @@ import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 /**
- * A page change as two layers: the page being left stays on screen as a still copy until the next
- * page has mounted under it, then the copy fades out. Rail, breadcrumb and body change in the one
- * commit, and nothing is restyled for the fade (a view transition restyled the document twice).
+ * A page change keeps the page being left on screen as a still copy until the next page has
+ * mounted. The copy goes in that same frame, so heading and breadcrumb always name one page.
  */
 let held: { readonly copy: HTMLElement; readonly timer: number } | null = null;
 
@@ -45,16 +44,16 @@ export function holdOutgoingSettingsPage(): void {
   held = { copy, timer: window.setTimeout(remove, 1500) };
 }
 
-/** Fades the held copy out; call once the new page has mounted. */
+/** Removes the held copy and fades the new page up; call once the new page has mounted. */
 export function releaseOutgoingSettingsPage(): void {
   if (held === null) return;
-  const { copy, timer } = held;
-  window.clearTimeout(timer);
-  held = null;
-  copy.setAttribute("data-settings-leaving", "");
-  const done = () => copy.remove();
-  copy.addEventListener("animationend", done, { once: true });
-  window.setTimeout(done, 400);
+  remove();
+  const page = document.querySelector<HTMLElement>("[data-settings-page-scroll]");
+  if (page === null) return;
+  page.setAttribute("data-settings-arriving", "");
+  page.addEventListener("animationend", () => page.removeAttribute("data-settings-arriving"), {
+    once: true,
+  });
 }
 
 /** Holds the outgoing page whenever the address changes while the Settings sheet is open. */

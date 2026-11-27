@@ -59,6 +59,10 @@ export type VoiceStageViewProps = {
   /** What the orb does right now, for the key hint: null when it does nothing. */
   readonly orbAction: "send" | "interrupt" | "unmute" | null;
   readonly glowRef: RefObject<HTMLDivElement | null>;
+  /** The disc the dark stage grows from when it opens. */
+  readonly irisRef: RefObject<HTMLDivElement | null>;
+  /** The stage's own backdrop: it fades in over the disc once the disc has covered the window. */
+  readonly backdropRef: RefObject<HTMLDivElement | null>;
   /** The smoothed sound level, 0 to 1, for the ring's own rim and halo glow. */
   readonly glowLevelRef: { readonly current: number };
   readonly captionRef: RefObject<HTMLParagraphElement | null>;
@@ -253,6 +257,8 @@ export function VoiceStageView({
   showRetry,
   orbAction,
   glowRef,
+  irisRef,
+  backdropRef,
   glowLevelRef,
   captionRef,
   stageRef,
@@ -294,6 +300,8 @@ export function VoiceStageView({
       data-hints="on"
       className="one-voice-stage"
     >
+      <div ref={irisRef} className="one-voice-iris" aria-hidden="true" />
+      <div ref={backdropRef} className="one-voice-backdrop" aria-hidden="true" />
       <div className="one-voice-drag" aria-hidden="true" />
       <div className="one-voice-stage-body">
         <div ref={orbWrapRef} className="one-voice-orb-wrap">
@@ -319,7 +327,7 @@ export function VoiceStageView({
         </div>
         <StatusWord status={status} />
         <span
-          key={captionKind}
+          key={`${captionKind}:${hasCaption}`}
           className="one-voice-eyebrow one-voice-caption-line"
           aria-hidden="true"
         >

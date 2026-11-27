@@ -174,6 +174,47 @@ export function writeDevelopmentLauncherScript(targetBinaryPath, electronBinaryP
   return true;
 }
 
+const LSREGISTER =
+  "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
+
+/** The names the development bundle had before it was renamed to "One (Dev)". */
+const LEGACY_DEV_DISPLAY_NAMES = ["T3 Code (Dev)", "T3 Code (Beta)"];
+
+/**
+ * Removes a development bundle left under an old name, and its LaunchServices registration, so the
+ * same bundle id and URL scheme are not offered by two apps. A bundle that is running is left
+ * alone. Only runs in `.electron-runtime`, which this script builds and can rebuild.
+ */
+export function retireLegacyLauncherBundles(
+  runtimeDir,
+  {
+    isRunning = (bundlePath) =>
+      NodeChildProcess.spawnSync("pgrep", ["-f", bundlePath]).status === 0,
+    unregister = (bundlePath) => runChecked(LSREGISTER, ["-u", bundlePath]),
+    remove = (bundlePath) => NodeFS.rmSync(bundlePath, { recursive: true, force: true }),
+    log = (message) => console.log(`[desktop-launcher] ${message}`),
+  } = {},
+) {
+  const retired = [];
+  for (const name of LEGACY_DEV_DISPLAY_NAMES) {
+    const bundlePath = NodePath.join(runtimeDir, `${name}.app`);
+    if (!NodeFS.existsSync(bundlePath)) continue;
+    if (isRunning(bundlePath)) {
+      log(`${name}.app is still running, so it was left in place.`);
+      continue;
+    }
+    try {
+      unregister(bundlePath);
+    } catch {
+      // An app LaunchServices no longer knows is already unregistered.
+    }
+    remove(bundlePath);
+    log(`Removed the old development bundle ${name}.app.`);
+    retired.push(bundlePath);
+  }
+  return retired;
+}
+
 function registerMacLauncherBundle(appBundlePath) {
   runChecked(
     "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
@@ -379,6 +420,7 @@ function buildMacLauncher(electronBinaryPath) {
       }
     }
     registerMacLauncherBundle(targetAppBundlePath);
+    if (isDevelopment) retireLegacyLauncherBundles(runtimeDir);
     return launcherBinaryPath;
   }
 
@@ -402,6 +444,7 @@ function buildMacLauncher(electronBinaryPath) {
   signMacLauncherBundle(targetAppBundlePath);
   NodeFS.writeFileSync(metadataPath, `${JSON.stringify(expectedMetadata, null, 2)}\n`);
   registerMacLauncherBundle(targetAppBundlePath);
+  if (isDevelopment) retireLegacyLauncherBundles(runtimeDir);
 
   return launcherBinaryPath;
 }

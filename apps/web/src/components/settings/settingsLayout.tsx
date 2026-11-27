@@ -47,6 +47,7 @@ import {
   type SettingInheritanceState,
   type SettingOverridingProject,
 } from "./SettingInheritance";
+import { trackSettingsControlKind } from "./settingsControlKind";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 const EMPTY_MANAGED_PATHS: readonly string[] = [];
@@ -631,6 +632,7 @@ export function SettingsRow({
         {renderedControl ? (
           <div
             data-settings-control=""
+            ref={trackSettingsControlKind}
             className="flex w-full min-w-0 shrink-0 items-center gap-2 @min-[32rem]/settings-row:w-auto @min-[32rem]/settings-row:justify-end"
           >
             {renderedControl}

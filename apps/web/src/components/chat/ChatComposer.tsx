@@ -4,6 +4,7 @@ import {
   retractComposerSend,
   type GuidedSendResult,
 } from "~/one/composerSendBridge";
+import { GuidedBridgeScopeContext } from "~/one/guidedBridgeScope";
 import { VoiceInputSetup } from "./VoiceInputSetup";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -158,6 +159,7 @@ import { useDictationSubmissionShortcut } from "../../speech/useDictationSubmiss
 import {
   commitVoiceThread,
   publishVoiceBridge,
+  resolveVoiceOffer,
   retractVoiceBridge,
   voiceLevel,
   whileCommitted,
@@ -2576,6 +2578,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     );
   });
   const publishesVoice = voiceChatHost && !hiddenThread;
+  // The Ask One side sheet's composer offers its own send, apart from the main one.
+  const publishesSheet = use(GuidedBridgeScopeContext) === "sheet" && !hiddenThread;
   // Voice chat sends a spoken question on its own, so it is offered only when the
   // composer is free: nothing waiting for an answer, and no queued message being edited.
   // A fan-out to several models has no single thread whose reply could be read.
@@ -2588,11 +2592,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // No transcription source is chosen (never chosen, or turned off): voice chat is still offered,
   // so that pressing it can say why it cannot listen and open the setting that fixes it.
   const transcriptionDestination = useVoiceTranscriptionDestination();
-  const voiceNeedsSetup =
-    transcriptionDestination.grantId === null &&
-    (transcriptionDestination.offerFirstRunSetup === true || transcriptionDestination.off === true);
-  const voiceAvailable =
-    composerFreeForVoice && (speechInput.available || transcriptionDestination.off === true);
+  const { available: voiceAvailable, needsSetup: voiceNeedsSetup } = resolveVoiceOffer({
+    composerFree: composerFreeForVoice,
+    speechAvailable: speechInput.available,
+    grantId: transcriptionDestination.grantId,
+    offerFirstRunSetup: transcriptionDestination.offerFirstRunSetup === true,
+    off: transcriptionDestination.off === true,
+  });
   const voiceDraftEmpty =
     prompt.trim().length === 0 &&
     composerImages.length + composerFiles.length === 0 &&
@@ -2679,6 +2685,33 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     return () => retractComposerSend(voiceBridgeOwner);
   }, [
     publishesVoice,
+    voiceBridgeOwner,
+    composerDraftTargetKey,
+    routeKind,
+    environmentId,
+    selectedInstanceId,
+    selectedModel,
+    sendForApp,
+  ]);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers the side sheet composer's send to the guided conversation, which lives outside the composer tree
+  useEffect(() => {
+    // Offered once the thread can take a message: its messages have loaded.
+    if (!publishesSheet || sendDisabledReason !== null) return;
+    publishComposerSend(
+      voiceBridgeOwner,
+      {
+        environmentId,
+        threadKey: composerDraftTargetKey,
+        isDraft: routeKind === "draft",
+        modelSelection: { instanceId: selectedInstanceId, model: selectedModel },
+        send: sendForApp,
+      },
+      "sheet",
+    );
+    return () => retractComposerSend(voiceBridgeOwner, "sheet");
+  }, [
+    publishesSheet,
+    sendDisabledReason,
     voiceBridgeOwner,
     composerDraftTargetKey,
     routeKind,

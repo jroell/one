@@ -29,29 +29,43 @@ export interface ComposerSendBridge {
   }) => Promise<GuidedSendResult>;
 }
 
-let owner: string | null = null;
-let bridge: ComposerSendBridge | null = null;
+/**
+ * Whose composer is offered. "main" is the one in the main view, which the voice entry point and
+ * the quiz buttons depend on; "sheet" is the composer of the Ask One side sheet, kept apart so a
+ * sheet over Settings never replaces it and a main thread never receives the sheet's messages.
+ */
+export type ComposerBridgeScope = "main" | "sheet";
+
+const slots: Record<
+  ComposerBridgeScope,
+  { owner: string | null; bridge: ComposerSendBridge | null }
+> = {
+  main: { owner: null, bridge: null },
+  sheet: { owner: null, bridge: null },
+};
 const listeners = new Set<() => void>();
 
 function emit() {
   for (const listener of listeners) listener();
 }
 
-export function publishComposerSend(ownerKey: string, next: ComposerSendBridge): void {
-  owner = ownerKey;
-  bridge = next;
+export function publishComposerSend(
+  ownerKey: string,
+  next: ComposerSendBridge,
+  scope: ComposerBridgeScope = "main",
+): void {
+  slots[scope] = { owner: ownerKey, bridge: next };
   emit();
 }
 
-export function retractComposerSend(ownerKey: string): void {
-  if (owner !== ownerKey) return;
-  owner = null;
-  bridge = null;
+export function retractComposerSend(ownerKey: string, scope: ComposerBridgeScope = "main"): void {
+  if (slots[scope].owner !== ownerKey) return;
+  slots[scope] = { owner: null, bridge: null };
   emit();
 }
 
-export function getComposerSend(): ComposerSendBridge | null {
-  return bridge;
+export function getComposerSend(scope: ComposerBridgeScope = "main"): ComposerSendBridge | null {
+  return slots[scope].bridge;
 }
 
 /**
@@ -62,6 +76,7 @@ export function waitForComposerSend(
   threadKey: string,
   timeoutMs: number,
   accept?: (bridge: ComposerSendBridge) => boolean,
+  scope: ComposerBridgeScope = "main",
 ): Promise<ComposerSendBridge | null> {
   return new Promise((resolve) => {
     const settle = (value: ComposerSendBridge | null) => {
@@ -70,6 +85,7 @@ export function waitForComposerSend(
       resolve(value);
     };
     const check = () => {
+      const bridge = slots[scope].bridge;
       if (bridge?.threadKey === threadKey && (accept?.(bridge) ?? true)) settle(bridge);
     };
     const timer = setTimeout(() => settle(null), timeoutMs);

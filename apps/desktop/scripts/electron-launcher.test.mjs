@@ -12,10 +12,34 @@ import {
   makeDevelopmentLauncherScript,
   resolveElectronBinaryPath,
   resolveMacLauncherPaths,
+  retireLegacyLauncherBundles,
   writeDevelopmentLauncherScript,
 } from "./electron-launcher.mjs";
 
 describe("electron development launcher", () => {
+  it("removes and unregisters a development bundle left under the old name, but not one that is running", () => {
+    const runtimeDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "launcher-runtime-"));
+    const oldDev = NodePath.join(runtimeDir, "T3 Code (Dev).app");
+    const oldBeta = NodePath.join(runtimeDir, "T3 Code (Beta).app");
+    const current = NodePath.join(runtimeDir, "One (Dev).app");
+    for (const bundle of [oldDev, oldBeta, current]) NodeFS.mkdirSync(bundle);
+    const unregistered = [];
+    try {
+      const retired = retireLegacyLauncherBundles(runtimeDir, {
+        isRunning: (bundle) => bundle === oldBeta,
+        unregister: (bundle) => unregistered.push(bundle),
+        log: () => {},
+      });
+      assert.deepEqual(retired, [oldDev]);
+      assert.deepEqual(unregistered, [oldDev]);
+      assert.isFalse(NodeFS.existsSync(oldDev));
+      assert.isTrue(NodeFS.existsSync(oldBeta), "a running bundle stays");
+      assert.isTrue(NodeFS.existsSync(current), "the current bundle is never touched");
+    } finally {
+      NodeFS.rmSync(runtimeDir, { recursive: true, force: true });
+    }
+  });
+
   it("uses captured values only as fallbacks for a live runner environment", () => {
     const environmentScript = makeDevelopmentEnvironmentScript({
       VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",

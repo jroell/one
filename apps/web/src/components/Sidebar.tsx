@@ -133,6 +133,10 @@ import {
 } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useStableArray } from "../hooks/useStableArray";
+import { rememberSidebarRows, showSidebarOutline } from "./sidebar/sidebarRowsMemory";
+import { useShellArriving } from "./sidebar/useShellArriving";
+import { SidebarRowsOutline } from "./sidebar/SidebarRowsOutline";
+import { useProgressiveCount } from "./sidebar/useProgressiveCount";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
@@ -227,6 +231,7 @@ import {
 import {
   createSidebarCollisionDetection,
   createSidebarSortingStrategy,
+  idleSidebarSortingStrategy,
   restrictBelowSidebarLabel,
   sidebarDragFloor,
 } from "./Sidebar.drag";
@@ -842,6 +847,10 @@ const SIDEBAR_DRAG_DISTANCE = 6;
 const SIDEBAR_AUTO_SCROLL: AutoScrollOptions = { threshold: { x: 0, y: 0.05 }, acceleration: 3 };
 
 const SIDEBAR_DRAG_LABEL_HEIGHT = 24;
+
+// A sidebar is about 25 rows tall: that many draw at once, and the rest follow in slices.
+const SIDEBAR_FIRST_ROWS = 40;
+const SIDEBAR_ROW_SLICE = 60;
 
 const threadSearchResultId = (index: number) => `sidebar-thread-search-result-${index}`;
 
@@ -2067,6 +2076,28 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     );
   };
   const sortableIds = useStableArray(sidebarListItems.map(sidebarListItemId));
+  // A long list draws its first rows at once and the rest in later frames; an empty list that has
+  // not arrived yet shows last visit's outline instead of "No threads yet".
+  const shellsBootstrapped = !useShellArriving();
+  const listedThreadRows = sidebarListItems.filter((item) => item.kind === "thread").length;
+  const mountedRowLimit = useProgressiveCount(
+    listedThreadRows,
+    SIDEBAR_FIRST_ROWS,
+    SIDEBAR_ROW_SLICE,
+  );
+  const rowShape = sidebarListItems
+    .filter((item) => item.kind === "thread")
+    .slice(0, 30)
+    .map((item) =>
+      item.section === "active" || item.section === "pinned" || item.section === "working"
+        ? "c"
+        : "s",
+    )
+    .join("");
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- keeps the shape of the first rows in storage so the next visit's outline matches them
+  useEffect(() => {
+    rememberSidebarRows([...rowShape].map((letter) => (letter === "c" ? "card" : "slim")));
+  }, [rowShape]);
   // Keep non-drag orders constant to preserve sorting strategy and row identity during streaming.
   const { settledOrder: draggedSettledOrder, activeOrder: draggedActiveOrder } =
     dragState === null
@@ -2078,17 +2109,21 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           activeThreads,
           workingShelfEnabled,
         });
-  const sidebarSortingStrategy = createSidebarSortingStrategy({
-    items: sidebarListItems,
-    enabled: !isContextDrag,
-    boundaryLabelHeight: SIDEBAR_DRAG_LABEL_HEIGHT,
-    settledOrder: draggedSettledOrder,
-    ...(draggedActiveOrder === undefined ? {} : { activeOrder: draggedActiveOrder }),
-    settledExpanded: settledShelfExpanded,
-    settledVisibleCount,
-    routeThreadKey: routeRowThreadKey,
-    snoozedThreadCount: snoozedThreads.length,
-  });
+  // Idle, every row stays put, so one function for every render keeps the list from rendering again.
+  const sidebarSortingStrategy =
+    dragState === null
+      ? idleSidebarSortingStrategy
+      : createSidebarSortingStrategy({
+          items: sidebarListItems,
+          enabled: !isContextDrag,
+          boundaryLabelHeight: SIDEBAR_DRAG_LABEL_HEIGHT,
+          settledOrder: draggedSettledOrder,
+          ...(draggedActiveOrder === undefined ? {} : { activeOrder: draggedActiveOrder }),
+          settledExpanded: settledShelfExpanded,
+          settledVisibleCount,
+          routeThreadKey: routeRowThreadKey,
+          snoozedThreadCount: snoozedThreads.length,
+        });
   const draggedThreadKey = dragState?.activeKey;
   const draggedFromSection = dragState?.activeSection;
   const dragActivationY = dragState?.activationY;
@@ -3430,7 +3465,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             )
           ) : null}
           {/* A scope can hide every active thread; say so even when its project still has settled ones. */}
+          {showSidebarOutline({
+            searching: isSearchingThreads,
+            shellsBootstrapped,
+            listedRows: sidebarListItems.length,
+          }) ? (
+            <SidebarRowsOutline />
+          ) : null}
           {!isSearchingThreads &&
+          shellsBootstrapped &&
           !hasProjectFolders &&
           visibleDraftSessionCount === 0 &&
           pinnedThreads.length +
@@ -3729,10 +3772,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             ]
                           : []),
                       ];
+                      let drawnRows = 0;
                       for (const item of sidebarListItems) {
                         if (item.kind === "thread") {
                           // Folders draw active rows in their own place below.
                           if (projectFolders !== null && item.section === "active") continue;
+                          // The rest of a long list arrives in later frames.
+                          if (drawnRows >= mountedRowLimit) continue;
+                          drawnRows += 1;
                           items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
                           continue;
                         }

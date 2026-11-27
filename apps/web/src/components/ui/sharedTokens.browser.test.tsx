@@ -594,7 +594,9 @@ describe("primary controls", () => {
           expect(getComputedStyle(send).backgroundColor, "Send").toBe(gold);
           expect(desktop.backgroundColor, "Get the desktop app").toBe(gold);
           expect(track.backgroundColor, "a switch that is on").toBe(gold);
-          expect(getComputedStyle(stop).color, "the stop square").toBe(gold);
+          expect(getComputedStyle(stop).color, "the stop square is gold ink, an icon").toBe(
+            resolved("var(--gold-text)", "color"),
+          );
         } finally {
           send.remove();
           stop.remove();
@@ -713,6 +715,14 @@ describe("one gold and one ember across every screen", () => {
         for (const property of COLOR_PROPERTIES) {
           const value = rule.style.getPropertyValue(property);
           if (!value) continue;
+          if (
+            (property === "color" || property === "text-decoration-color") &&
+            /var\(--(?:ui-fill-shape|gold-fill|gold-press)/.test(value)
+          ) {
+            offenders.add(
+              `${rule.selectorText} { ${property}: ${value.slice(0, 60)} } is ink: text, icons and lines take --gold-text`,
+            );
+          }
           if (/var\(--gold-[3-7]\d*\)/.test(value) || /var\(--gold-[3-7]\d*,/.test(value)) {
             offenders.add(
               `${rule.selectorText} { ${property}: ${value.slice(0, 60)} } uses the ring ramp, not --gold-fill, --gold-text or --gold-press`,
@@ -732,4 +742,117 @@ describe("one gold and one ember across every screen", () => {
     }
     expect([...offenders].sort()).toEqual([]);
   });
+});
+
+describe("gold keeps its contrast in both themes", () => {
+  const surfaces = [
+    "var(--background)",
+    "var(--sidebar)",
+    "var(--message-surface)",
+    "var(--m-card)",
+    "var(--m-raised)",
+  ] as const;
+
+  it.each(["light", "dark"] as const)(
+    "the label on a gold button clears 4.5:1 at the top and bottom of the gradient, hovered and pressed, in %s",
+    (scheme) =>
+      inScheme(scheme, async () => {
+        await using screen = await render(
+          <>
+            <Button>Rest</Button>
+            <Button data-pressed="">Pressed</Button>
+          </>,
+          { router: false },
+        );
+        const [rest, pressed] = [...screen.container.querySelectorAll("[data-slot=button]")];
+        const ink = getComputedStyle(rest!).color;
+        const points: Array<[string, string]> = [
+          ["fill", resolved("var(--btn-a)")],
+          ["gradient end", resolved("var(--btn-b)")],
+          ["pressed token", resolved("var(--btn-press)")],
+          ["pressed button", getComputedStyle(pressed!).backgroundColor],
+          ["hovered fill", resolved("color-mix(in oklch, var(--btn-a) 90%, white)")],
+          ["hovered gradient end", resolved("color-mix(in oklch, var(--btn-b) 90%, white)")],
+        ];
+        for (const [name, color] of points) {
+          expect(
+            contrast(ink, color),
+            `${scheme}: label on ${name} ${color}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }),
+  );
+
+  it.each(["light", "dark"] as const)(
+    "gold as text clears 4.5:1 and gold as a filled shape or a stroke clears 3:1 on the page, sidebar, bubble and cards in %s",
+    (scheme) =>
+      inScheme(scheme, () => {
+        const text = resolved("var(--gold-text)", "color");
+        const shape = resolved("var(--ui-fill-shape)");
+        for (const surface of surfaces) {
+          const background = resolved(surface);
+          expect(
+            contrast(text, background),
+            `${scheme}: gold text on ${surface}`,
+          ).toBeGreaterThanOrEqual(4.5);
+          expect(
+            contrast(shape, background),
+            `${scheme}: gold shape on ${surface}`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+        const working = resolved("var(--st-working-fg)", "color");
+        for (const surface of surfaces) {
+          expect(
+            contrast(working, resolved(surface)),
+            `${scheme}: working on ${surface}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }),
+  );
+
+  it.each(["light", "dark"] as const)(
+    "the Chat diagram stroke and the quiz ring clear 3:1 on the backgrounds they are drawn on, and the stop and approved icons clear 3:1, in %s",
+    (scheme) =>
+      inScheme(scheme, () => {
+        document.documentElement.dataset.oneMode = "chat";
+        const diagram = surface({}, "chat-markdown-mermaid");
+        const stroke = document.createElement("span");
+        stroke.style.color = "var(--chat-diagram-stroke)";
+        stroke.style.backgroundColor = "var(--chat-diagram-fill)";
+        diagram.append(stroke);
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.setAttribute("class", "one-chat-quiz-ring");
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.append(ring);
+        document.body.append(svg);
+        const stop = surface({ "data-composer-stop": "" });
+        try {
+          const diagramStroke = getComputedStyle(stroke).color;
+          expect(
+            contrast(diagramStroke, getComputedStyle(stroke).backgroundColor),
+            `${scheme}: diagram stroke on the node fill`,
+          ).toBeGreaterThanOrEqual(3);
+          expect(
+            contrast(diagramStroke, resolved("var(--background)")),
+            `${scheme}: diagram stroke on the page`,
+          ).toBeGreaterThanOrEqual(3);
+          const ringColor = getComputedStyle(ring).stroke;
+          for (const background of surfaces) {
+            expect(
+              contrast(ringColor, resolved(background)),
+              `${scheme}: quiz ring on ${background}`,
+            ).toBeGreaterThanOrEqual(3);
+          }
+          expect(
+            contrast(getComputedStyle(stop).color, getComputedStyle(stop).backgroundColor),
+            `${scheme}: stop square on its button`,
+          ).toBeGreaterThanOrEqual(3);
+        } finally {
+          delete document.documentElement.dataset.oneMode;
+          diagram.remove();
+          svg.remove();
+          stop.remove();
+        }
+      }),
+  );
 });

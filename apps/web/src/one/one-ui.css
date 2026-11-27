@@ -257,7 +257,7 @@ html[data-theme-id=""].dark {
   --one-ease-spring: var(--ease-spring);
 
   /* Status. Light values are 4.5:1 or better on the light page, cards and bubbles. */
-  --st-working: #7d5a12;
+  --st-working: var(--gold-text);
   --st-done: #6b6252;
   --st-attention: #a64a0f;
   --st-error: #9e3328;
@@ -337,11 +337,15 @@ html[data-theme-id=""].dark {
   --gold-700: #6e5118;
 
   /* The brand gold, one ramp: the fill of every primary action (Approve, Send), the text that is
-     gold, and the pressed fill. Light takes a deeper fill, #ad8429: it is 3.2:1 against the #faf7f1
-     page (a toggle or a button shape needs 3:1) and carries the #1a1407 label at 5.3:1. */
-  --gold-fill: #ad8429;
-  --gold-press: #94701f;
-  --gold-text: #8a6a26;
+     gold, and the pressed fill. Light takes a deeper fill, #a88027: 3.4:1 on the #faf7f1 page and
+     3.06:1 on a message bubble (a switch or a button shape needs 3:1), with the #1a1407 label at
+     5.0:1. The pressed fill and the lower end of the button gradient are #a07a22, the darkest gold
+     that still carries that label at 4.5:1. Gold as text (--gold-text) is 4.8:1 or better on the
+     page, bubble, sidebar and cards. A filled shape takes --ui-fill-shape; an icon, a stroke or a
+     line takes --gold-text. */
+  --gold-fill: #a88027;
+  --gold-press: #a07a22;
+  --gold-text: #7f5f1e;
 
   /* Radius scale: 8 controls, 12 menus and chips, 16 cards, 22 sheets and the palette, 24 for the
      composer and message bubbles (a full pill would turn a long message into a lozenge). */
@@ -673,6 +677,7 @@ html[data-theme-id=""].dark [data-app-sidebar] {
 :is(html:not([data-theme-id]), html[data-theme-id=""]) {
   --btn-a: var(--gold-fill);
   --btn-b: var(--gold-press);
+  --btn-press: var(--gold-press);
   --btn-edge: color-mix(in oklch, var(--gold-press) 85%, black);
   --btn-rim: rgb(255 255 255 / 34%);
   --btn-lift: 0 2px 8px rgb(110 81 24 / 22%);
@@ -681,6 +686,7 @@ html[data-theme-id=""].dark [data-app-sidebar] {
 :is(html:not([data-theme-id]).dark, html[data-theme-id=""].dark) {
   --btn-a: var(--gold-fill);
   --btn-b: color-mix(in oklch, var(--gold-fill) 60%, var(--gold-press));
+  --btn-press: var(--gold-press);
   --btn-edge: color-mix(in oklch, var(--gold-press) 78%, black);
   --btn-rim: color-mix(in oklch, var(--gold-300) 85%, transparent);
   --btn-lift: 0 4px 12px rgb(221 181 90 / 16%);
@@ -712,7 +718,7 @@ html[data-theme-id=""].dark [data-app-sidebar] {
 
 :is(html:not([data-theme-id]), html[data-theme-id=""])
   [data-button][data-variant="default"]:is(:active, [data-pressed]):not(:disabled) {
-  background-color: color-mix(in oklch, var(--btn-a) 94%, black);
+  background-color: var(--btn-press);
   background-image: none;
   color: var(--ui-on-fill);
   /* Pressed: the top highlight drops to a third, a 1px shadow gathers inside the bottom edge, and
@@ -1069,19 +1075,10 @@ html[data-theme-id=""].dark [data-app-sidebar] {
   translate: 0;
 }
 
-:is([data-slot="input-control"], [data-slot="textarea-control"]):not([data-unstyled]):has(
-    [aria-invalid="true"]
-  ):not(
-    :has(
-      + :is(
-        [data-slot="combobox-trigger"],
-        [data-slot="combobox-clear"],
-        [data-slot="autocomplete-trigger"],
-        [data-slot="autocomplete-clear"]
-      )
-    )
-  )
-  > :is(input, textarea) {
+/* Room for the mark. The field itself carries aria-invalid, so the rule names it directly: a
+   `:has()` on the control in front of this child selector restyled the page. */
+:is([data-slot="input-control"], [data-slot="textarea-control"]):not([data-unstyled])
+  > :is(input, textarea)[aria-invalid="true"] {
   padding-inline-end: 2rem;
 }
 
@@ -1998,6 +1995,13 @@ html:not([data-theme-id]):not(.dark)
 [data-slot="command-dialog-popup"] [data-slot="search-field"],
 [data-shortcuts-sheet] [data-slot="search-field"] {
   border-bottom: 1px solid var(--ui-edge);
+  /* It has focus from the first frame, so its colours have nothing to change to. */
+  transition: none;
+}
+
+[data-slot="command-dialog-popup"] [data-slot="search-field"] > svg,
+[data-shortcuts-sheet] [data-slot="search-field"] > svg {
+  transition: none;
 }
 
 /* The palette's field always has focus, so its hairline stays quiet instead of glowing. */
@@ -2506,13 +2510,13 @@ html[data-theme-id=""] {
     linear-gradient(#000 0 0);
 }
 
-/* The composer keeps its hairline rim when focused; the old outer gold glow is gone. */
-[data-slot="composer-shell"]:not([data-banner-attached]):focus-within [data-slot="composer-host"] {
-  box-shadow:
-    var(--m-shadow-raised),
-    var(--m-lit),
-    0 0 0 1px color-mix(in oklch, var(--one-brand) 38%, transparent);
+/* A banner row without an icon or actions column gives its content the padding those columns
+   would have held; the row sets the variables. */
+[data-slot="composer-banner-content"] {
+  padding-inline: var(--banner-content-ps, 0px) var(--banner-content-pe, 0px);
 }
+
+/* The composer keeps its hairline rim when focused: the .one-composer-glow layer (one.css) fades it in. */
 
 html:not([data-one-mode="chat"]) [data-user-message-bubble],
 [data-user-message-bubble] {
@@ -2952,7 +2956,7 @@ html[data-page-set-back] #root {
 [data-composer-send]:active:not(:disabled) {
   scale: 0.97;
   background-image: none;
-  background-color: color-mix(in oklch, var(--btn-a, var(--ui-fill)) 94%, black);
+  background-color: var(--btn-press, color-mix(in oklch, var(--btn-a, var(--ui-fill)) 94%, black));
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--btn-rim, rgb(255 255 255 / 30%)) 33%, transparent),
     inset 0 -1px 0 rgb(0 0 0 / 30%),

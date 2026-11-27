@@ -14,7 +14,13 @@ import {
   type GuidedConversationDeps,
 } from "./startConversation";
 import { setWorkspaceMode } from "./workspaceMode";
-import type { ComposerSendBridge, GuidedSendResult } from "./composerSendBridge";
+import {
+  getComposerSend,
+  publishComposerSend,
+  retractComposerSend,
+  type ComposerSendBridge,
+  type GuidedSendResult,
+} from "./composerSendBridge";
 
 const ENVIRONMENT = EnvironmentId.make("environment:local");
 const RETURN = { label: "Settings / Providers", href: "/settings/providers" };
@@ -476,4 +482,41 @@ it("records only the provider that answers when the draft's own model could", as
   await startGuidedConversation(input, value);
   const stored = JSON.parse(window.sessionStorage.getItem("one:guided-thread")!);
   expect(stored["environment:local:thread-1"]).toEqual({ asked: "Codex", actions: [] });
+});
+
+it("with the side sheet open, a reply for the main thread still goes through the main composer, and one for the sheet through the sheet's", async () => {
+  using _returns = freshReturns();
+  const main = bridge({ ok: true, messageId: "main-1" }, "main-thread");
+  const sheet = bridge({ ok: true, messageId: "sheet-1" }, "sheet-thread");
+  publishComposerSend("main-owner", main.composer);
+  publishComposerSend("sheet-owner", sheet.composer, "sheet");
+  try {
+    // The main view's quiz buttons and replies read the main bridge.
+    const forMain = await startGuidedConversation(
+      { visibleText: "Quiz me", into: "current-thread", expectThreadKey: "main-thread" },
+      deps({ composer: () => getComposerSend() }).value,
+    );
+    expect(forMain).toEqual({ ok: true, threadKey: "main-thread" });
+    expect(main.send).toHaveBeenCalledTimes(1);
+    expect(sheet.send).not.toHaveBeenCalled();
+
+    // The sheet's own replies read the sheet bridge, and never reach the main thread.
+    const forSheet = await startGuidedConversation(
+      { visibleText: "No", into: "current-thread", expectThreadKey: "sheet-thread" },
+      deps({ composer: () => getComposerSend("sheet") }).value,
+    );
+    expect(forSheet).toEqual({ ok: true, threadKey: "sheet-thread" });
+    expect(sheet.send).toHaveBeenCalledTimes(1);
+    expect(main.send).toHaveBeenCalledTimes(1);
+
+    // The main view asked about the sheet's thread is refused, not sent to the wrong place.
+    const wrong = await startGuidedConversation(
+      { visibleText: "No", into: "current-thread", expectThreadKey: "sheet-thread" },
+      deps({ composer: () => getComposerSend() }).value,
+    );
+    expect(wrong).toEqual({ ok: false, reason: "wrong-thread" });
+  } finally {
+    retractComposerSend("main-owner");
+    retractComposerSend("sheet-owner", "sheet");
+  }
 });

@@ -1,8 +1,13 @@
-import { useId, useState, type HTMLAttributes } from "react";
+import { useId, useState, type CSSProperties, type HTMLAttributes } from "react";
 
 import { cn } from "~/lib/utils";
 import { ONE_MARK_LIT_AXIS, ONE_MARK_LIT_STOPS, ONE_MARK_PATHS } from "./oneMarkPaths";
-import { ORB_MARK_DENSITIES, orbMarkUrl, type OrbMarkSize } from "./oneOrbRest";
+import {
+  ONE_RING_HALO_MIN_PX,
+  ORB_MARK_DENSITIES,
+  orbMarkUrl,
+  type OrbMarkSize,
+} from "./oneOrbRest";
 
 /** The mark drawn as vectors, from the `--one-ring-*` tokens: the stand-in when an image is missing. */
 function VectorMark() {
@@ -142,7 +147,8 @@ export function OneMark({
       {...props}
       data-one-mark={interactive ? "interactive" : "static"}
       data-vector={imageMissing ? "" : undefined}
-      className={cn("one-mark", className)}
+      className={cn("one-mark", size > ONE_RING_HALO_MIN_PX && "one-ring-halo", className)}
+      style={{ ...props.style, "--ring-size": `${size}px` } as CSSProperties}
     >
       {imageMissing ? (
         <VectorMark />

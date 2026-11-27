@@ -9,8 +9,8 @@ const FILE_TREE_CHROME_CSS = `
     --trees-indent-guide-bg-override: color-mix(in srgb, currentColor 13%, transparent);
     /* File names stay bone; only the status letter speaks: modified gold, added ember, deleted
        oxblood. The names and letters are never another product's blue, green and red. */
-    --trees-status-modified-override: var(--ui-fill-shape);
-    --trees-status-renamed-override: var(--ui-fill-shape);
+    --trees-status-modified-override: var(--gold-text);
+    --trees-status-renamed-override: var(--gold-text);
     --trees-status-added-override: var(--st-attention);
     --trees-status-untracked-override: var(--st-attention);
     --trees-status-deleted-override: var(--st-error);

@@ -79,10 +79,11 @@ describe("how long the ring waits between frames", () => {
 
 describe("how much light a ring gives off", () => {
   it.each([
-    [48, 0],
-    [64, 0],
-    [96, 0.5],
-    [128, 1],
+    [16, 0],
+    [40, 0],
+    [48, 1],
+    [64, 1],
+    [112, 1],
     [256, 1],
   ])("gives a %spx ring %s of its glow", (width, glow) => {
     expect(glowForSize(width)).toBe(glow);

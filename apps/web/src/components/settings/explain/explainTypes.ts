@@ -38,6 +38,14 @@ export type MoreExplainTopicId =
   | "provider-runtime"
   | "project-file"
   | "settings-scope"
+  | "chat-settings"
+  | "threads-settings"
+  | "codex-provider"
+  | "labs"
+  | "source-control"
+  | "worktrees"
+  | "maintenance"
+  | "keyboard-shortcuts"
   | "usage-sign-in"
   | "usage-no-accounts";
 

@@ -74,3 +74,16 @@ it("a missing picture hands the mark to the vector ring, which paints", async ()
   expect(mark.querySelector("img")).toBeNull();
   expect(await paintedPixels(mark)).toBeGreaterThan(1500);
 });
+
+it("the mark casts the shared halo above 40px, sized from its own width", async () => {
+  await using wide = await render(<OneMark size={176} />, { router: false });
+  const big = wide.container.querySelector<HTMLElement>("[data-one-mark]")!;
+  expect(big.classList.contains("one-ring-halo")).toBe(true);
+  expect(big.style.getPropertyValue("--ring-size")).toBe("176px");
+  expect(getComputedStyle(big).filter).not.toBe("none");
+
+  await using small = await render(<OneMark size={48} />, { router: false });
+  const mid = small.container.querySelector<HTMLElement>("[data-one-mark]")!;
+  expect(mid.style.getPropertyValue("--ring-size")).toBe("48px");
+  expect(getComputedStyle(mid).filter).not.toBe("none");
+});

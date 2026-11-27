@@ -75,7 +75,7 @@ function WelcomeOrb() {
   return voiceOpen ? (
     <div className="one-chat-welcome-orb aspect-square" />
   ) : (
-    <OneOrb className="one-chat-welcome-orb" />
+    <OneOrb halo className="one-chat-welcome-orb" />
   );
 }
 

@@ -11,6 +11,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  connectionMayDeliverShell,
   createAllEnvironmentProjectSnapshotsReadyAtom,
   expectsPrimaryEnvironment,
   environmentShell,
@@ -204,3 +205,39 @@ it.each([undefined, "", "Server update required"])(
     }
   },
 );
+
+describe("connectionMayDeliverShell", () => {
+  it("counts the state before the supervisor starts as still arriving, so the sidebar shows an outline and not an empty list", () => {
+    expect(connectionMayDeliverShell(AVAILABLE_CONNECTION_STATE)).toBe(true);
+  });
+
+  it.each([
+    {
+      label: "connecting",
+      state: { ...AVAILABLE_CONNECTION_STATE, phase: "connecting" },
+      expected: true,
+    },
+    {
+      label: "first retry",
+      state: { ...AVAILABLE_CONNECTION_STATE, phase: "backoff", attempt: 1 },
+      expected: true,
+    },
+    {
+      label: "third retry",
+      state: { ...AVAILABLE_CONNECTION_STATE, phase: "backoff", attempt: 3 },
+      expected: false,
+    },
+    {
+      label: "offline",
+      state: { ...AVAILABLE_CONNECTION_STATE, phase: "offline" },
+      expected: false,
+    },
+    {
+      label: "blocked",
+      state: { ...AVAILABLE_CONNECTION_STATE, phase: "blocked" },
+      expected: false,
+    },
+  ] as const)("is $expected while $label", ({ state, expected }) => {
+    expect(connectionMayDeliverShell(state)).toBe(expected);
+  });
+});

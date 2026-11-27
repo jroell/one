@@ -3,6 +3,7 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import type * as React from "react";
 
 import { cn } from "~/lib/utils";
+import { flagInputGroup } from "./inputGroupFlags";
 
 type TextareaProps = React.ComponentProps<"textarea"> & {
   size?: "sm" | "default" | "lg" | number;
@@ -27,6 +28,7 @@ function Textarea({
       }
       data-size={size}
       data-slot="textarea-control"
+      ref={(node) => flagInputGroup(node, "control")}
       data-unstyled={unstyled ? "" : undefined}
     >
       <FieldPrimitive.Control

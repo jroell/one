@@ -18,38 +18,46 @@ export function openVoiceSettings(voice: VoiceBridge, noticeId: string): void {
  * own, so an unfinished draft has to be sent or cleared first.
  */
 export function startVoiceChat(voice: VoiceBridge, origin: Element | null = null): void {
+  if (explainRefusal(voice)) return;
+  // The ring flies in from the control that opened this conversation, and from nothing else: a
+  // start that was refused never reaches here, so it cannot leave its button behind.
+  rememberVoiceLauncher(origin);
+  dispatchVoiceSession({ type: "start", threadKey: voice.threadKey, isDraft: voice.isDraft });
+}
+
+/**
+ * Why voice chat cannot start from this composer, said to the person, or false when it can. The
+ * keyboard way checks this before it changes anything on screen.
+ */
+function explainRefusal(voice: VoiceBridge): boolean {
   // A dictation already under way belongs to the editor; voice chat must not take it over and send it.
   // A recorder stopped by an error is nobody's: the new conversation clears it and starts fresh.
-  if (voice.phase !== "idle" && voice.phase !== "error") return;
+  if (voice.phase !== "idle" && voice.phase !== "error") return true;
   if (!voice.draftEmpty) {
     toastManager.add({
       type: "info",
       title: m(msg("Send or clear your draft first")),
       description: m(msg("Voice chat sends what you say on its own, without the draft.")),
     });
-    return;
+    return true;
   }
   if (voice.needsSetup) {
     // One notice per attempt: the stable id makes a second click update this toast, not stack another.
+    // The words hold whether transcription was turned off or never chosen.
     toastManager.add({
       id: "voice-chat-needs-transcription",
       type: "info",
       title: m(msg("Voice input is off")),
-      description: m(
-        msg("Voice chat needs a place to turn your speech into text, and none is chosen yet."),
-      ),
+      description: m(msg("Choose where your speech is turned into text.")),
       actionProps: {
         children: m(msg("Open Voice settings")),
         onClick: () => openVoiceSettings(voice, "voice-chat-needs-transcription"),
       },
     });
-    return;
+    return true;
   }
   if (voice.phase === "error") voice.cancel();
-  // The ring flies in from the control that opened this conversation, and from nothing else: a
-  // start that was refused above never reaches here, so it cannot leave its button behind.
-  rememberVoiceLauncher(origin);
-  dispatchVoiceSession({ type: "start", threadKey: voice.threadKey, isDraft: voice.isDraft });
+  return false;
 }
 
 /**
@@ -82,6 +90,8 @@ export function toggleVoiceChat(): void {
     });
     return;
   }
+  // A refusal is said where the person is: Code mode stays Code mode.
+  if (explainRefusal(voice)) return;
   if (getWorkspaceMode() !== "chat") setWorkspaceMode("chat");
   startVoiceChat(voice);
 }

@@ -6,6 +6,7 @@ import { useId, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "../../../lib/utils";
 import { Button } from "../../ui/button";
+import { useAskOneSheetStore } from "../../../one/askOneSheetStore";
 import { Popover, PopoverPopup, PopoverTrigger } from "../../ui/popover";
 import { useOptionalSettingsScope } from "../SettingsScopeContext";
 import { useSettingsPageIntro } from "../SettingsPageHeader";
@@ -73,6 +74,8 @@ function ExplainPopover({
     if (!next) setDetailOpen(false);
   };
   const [asking, setAsking] = useState(false);
+  // The answer opens in a side sheet; the explanation steps aside once it has, not before.
+  const sheetOpen = useAskOneSheetStore((state) => state.open);
   const [failure, setFailure] = useState<string | null>(null);
   const reasonId = useId();
   const topic = explainTopic(topicId);
@@ -88,6 +91,8 @@ function ExplainPopover({
       visibleText: m(topic.question),
       hiddenContext: buildHiddenContext(topicId, setup),
       topicKey: topicId,
+      // Over Settings or Usage the answer opens in a side sheet titled with the topic.
+      title: m(topic.title),
       // Chips under the answer that open the places it names.
       ...(topic.actions === undefined || topic.actions.length === 0
         ? {}
@@ -144,7 +149,7 @@ function ExplainPopover({
   const detailId = `${reasonId}-detail`;
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open && !(asking && sheetOpen)} onOpenChange={onOpenChange}>
       <PopoverTrigger
         data-explain-trigger={topicId}
         aria-label={variant === "icon" ? label : undefined}

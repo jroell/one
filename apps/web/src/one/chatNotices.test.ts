@@ -100,4 +100,37 @@ describe("noticeKind", () => {
     expect(noticeKind(signInNotice("linear", null), new Set())).toBe("quiet");
     expect(noticeKind(warning, new Set())).toBe("quiet");
   });
+  it("in Code, folds only the sign-ins for tools the turn never called, leaving a warning and a called tool's sign-in as rows", () => {
+    const warning = {
+      id: "warn",
+      createdAt: "2026-01-01T00:00:00Z",
+      label: "Heads up",
+      tone: "info",
+      itemType: "system_notice",
+      structuredPayload: { type: "system_notice", message: "slow start", level: "warning" },
+    } as unknown as WorkLogEntry;
+    const rows = [
+      userRow("q1"),
+      workRow("w1", toolCall("mcp__plugin_exa_exa__search")),
+      workRow("w2", signInNotice("plugin:exa:exa"), signInNotice("linear"), warning),
+      workRow("w3", signInNotice("notion")),
+    ];
+    const plan = planChatNotices(rows, "code");
+    expect(plan.has("w1")).toBe(false);
+    // Row w2 hands over the linear sign-in; the exa sign-in (a tool the turn called) and the
+    // warning stay in the row.
+    expect([...plan.get("w2")!.folded]).toEqual(["sign-in-linear"]);
+    expect(plan.get("w2")!.notices).toEqual([]);
+    expect([...plan.get("w3")!.folded]).toEqual(["sign-in-notion"]);
+    expect(plan.get("w3")!.notices.map((notice) => notice.id)).toEqual([
+      "sign-in-linear",
+      "sign-in-notion",
+    ]);
+    // Chat takes every notice of the row.
+    expect([...planChatNotices(rows).get("w2")!.folded]).toEqual([
+      "sign-in-plugin:exa:exa",
+      "sign-in-linear",
+      "warn",
+    ]);
+  });
 });

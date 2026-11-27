@@ -27,12 +27,12 @@ function Pages() {
 }
 
 describe("changing a settings page", () => {
-  it("keeps the page being left on screen as a still copy over its place, and fades it out only once the next page has mounted", async () => {
+  it("keeps the page being left on screen until the next page has mounted, then shows the next page in that same frame", async () => {
     await using screen = await render(<Pages />, { router: "/settings/general" });
     await expect.element(screen.getByText("Body of /settings/general")).toBeVisible();
 
-    // Records, in order, what a frame could have shown: the copy arriving, the new page
-    // being there when the copy starts to leave.
+    // What a frame could have shown, in order: the copy arriving, then the copy leaving with the
+    // new page already in place.
     const seen: string[] = [];
     const observer = new MutationObserver((records) => {
       for (const record of records) {
@@ -41,28 +41,49 @@ describe("changing a settings page", () => {
             seen.push(`held: ${node.textContent}`);
           }
         }
-        if (
-          record.type === "attributes" &&
-          record.target instanceof HTMLElement &&
-          record.target.hasAttribute("data-settings-leaving")
-        ) {
-          const next = document.querySelector("[data-settings-page-scroll]")?.textContent;
-          seen.push(`leaving, page now: ${next}`);
+        for (const node of record.removedNodes) {
+          if (node instanceof HTMLElement && node.matches("[data-settings-outgoing]")) {
+            const next = document.querySelector("[data-settings-page-scroll]")?.textContent;
+            seen.push(`released, page now: ${next}`);
+          }
         }
       }
     });
-    observer.observe(screen.container, { childList: true, subtree: true, attributes: true });
+    observer.observe(screen.container, { childList: true, subtree: true });
     await screen.router!.navigate({ to: "/settings/appearance" });
 
-    await vi.waitFor(() => expect(seen.some((entry) => entry.startsWith("leaving"))).toBe(true));
+    await vi.waitFor(() => expect(seen.some((entry) => entry.startsWith("released"))).toBe(true));
     observer.disconnect();
     expect(seen[0]).toContain("Body of /settings/general");
-    expect(seen.find((entry) => entry.startsWith("leaving"))).toContain(
+    expect(seen.find((entry) => entry.startsWith("released"))).toContain(
       "Body of /settings/appearance",
     );
-    await vi.waitFor(() =>
-      expect(screen.container.querySelector("[data-settings-outgoing]")).toBeNull(),
-    );
+  });
+
+  it("never leaves the old page's copy over a page that has mounted, so heading and breadcrumb agree in the frame the page arrives", async () => {
+    await using screen = await render(<Pages />, { router: "/settings/general" });
+    await expect.element(screen.getByText("Body of /settings/general")).toBeVisible();
+    // After every batch of DOM changes (one commit), the copy and the page it was held for must
+    // not both be on screen: a copy that lingers keeps the old heading under the new breadcrumb.
+    const overlaps: string[] = [];
+    const observer = new MutationObserver(() => {
+      const copy = document.querySelector("[data-settings-outgoing]");
+      const page = document.querySelector("[data-settings-page-scroll]");
+      const arrived = page?.textContent?.includes(
+        `Body of ${screen.router!.state.location.pathname}`,
+      );
+      if (copy !== null && arrived) overlaps.push(`${copy.textContent} over ${page?.textContent}`);
+    });
+    observer.observe(screen.container, { childList: true, subtree: true });
+    for (const path of ["/settings/appearance", "/settings/chat", "/settings/voice"]) {
+      await screen.router!.navigate({ to: path });
+      await expect.element(screen.getByText(`Body of ${path}`)).toBeVisible();
+      await vi.waitFor(() =>
+        expect(screen.container.querySelector("[data-settings-outgoing]")).toBeNull(),
+      );
+    }
+    observer.disconnect();
+    expect(overlaps).toEqual([]);
   });
 
   it("makes the copy a picture: over the page's own place, hidden from reading, with no focus and no repeated ids", async () => {
@@ -87,10 +108,12 @@ describe("changing a settings page", () => {
     expect(copy.getBoundingClientRect().top).toBe(pageEl.getBoundingClientRect().top);
 
     releaseOutgoingSettingsPage();
-    const quick = getComputedStyle(document.documentElement).getPropertyValue("--mo-quick").trim();
-    const style = getComputedStyle(copy);
-    expect(style.animationName).toBe("settings-fade-out");
-    expect(style.animationDuration).toBe(`${Number.parseFloat(quick) / 1000}s`);
-    await vi.waitFor(() => expect(copy.isConnected).toBe(false));
+    // The copy goes at once; the page it covered fades up from half strength.
+    expect(copy.isConnected).toBe(false);
+    const hover = getComputedStyle(document.documentElement).getPropertyValue("--mo-hover").trim();
+    const style = getComputedStyle(pageEl);
+    expect(pageEl.hasAttribute("data-settings-arriving")).toBe(true);
+    expect(style.animationName).toBe("settings-arrive");
+    expect(style.animationDuration).toBe(`${Number.parseFloat(hover) / 1000}s`);
   });
 });

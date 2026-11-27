@@ -1479,6 +1479,35 @@ it("Chat mode follows a one-line answer with nothing, an answer that asks with r
   }
 });
 
+it("Chat mode offers no replies while a turn is running, even under an answer that asks", async () => {
+  using _mode = inMode("chat");
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const container = document.createElement("div");
+  container.style.cssText = "height: 700px; width: 1184px; display: flex; flex-direction: column;";
+  await using screen = await render(
+    followUpScene(composerStandIn(""), {
+      ...baseProps(),
+      isWorking: true,
+      timelineEntries: [
+        message("ask-r", "user", "Why?"),
+        message(
+          "answer-r",
+          "assistant",
+          "It is small. It needs nothing.\n\nDo you have a second account?",
+        ),
+      ],
+    }),
+    { container },
+  );
+  await vi.waitFor(() =>
+    expect(screen.container.querySelector(".one-chat-replies")).not.toBeNull(),
+  );
+  const replies = screen.container.querySelector<HTMLElement>(".one-chat-replies")!;
+  expect(replies.hasAttribute("data-ready")).toBe(false);
+  expect(replies.hasAttribute("inert")).toBe(true);
+});
+
 it.each([1440, 390] as const)(
   "Chat mode leaves the answer's last line where it was when the turn ends and the follow-ups open beneath it, at %ipx wide",
   async (width) => {
@@ -1804,6 +1833,122 @@ it("Chat mode sets a paragraph that is all bold as a statement, keeps inline cod
   expect(language.getBoundingClientRect().left).toBeLessThan(
     block.getBoundingClientRect().left + 40,
   );
+});
+
+it("Chat mode sets code and tables in a 12px glass frame with 16px inside and a tinted head, and Code mode keeps its own look", async () => {
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const text = [
+    "```ts\nconst a = 1;\n```",
+    "| Order | Focal length |\n| --- | --- |\n| First | 920 mm |",
+  ].join("\n\n");
+  const frames = async (mode: "chat" | "code") => {
+    using _mode = inMode(mode);
+    await using screen = await renderTimeline({
+      ...baseProps(),
+      timelineEntries: [
+        message("ask-f", "user", "Show me"),
+        message("answer-f", "assistant", text),
+      ],
+    });
+    await vi.waitFor(() => {
+      expect(screen.container.querySelector(".chat-markdown-codeblock")).not.toBeNull();
+      expect(screen.container.querySelector("[data-one-table]")).not.toBeNull();
+    });
+    const read = (element: HTMLElement) => {
+      const style = getComputedStyle(element);
+      return { radius: style.borderRadius, shadow: style.boxShadow, overflow: style.overflow };
+    };
+    const code = screen.container.querySelector<HTMLElement>(".chat-markdown-codeblock")!;
+    const table = screen.container.querySelector<HTMLElement>("[data-one-table]")!;
+    return {
+      code: read(code),
+      table: read(table),
+      codeInside: getComputedStyle(code.querySelector("pre")!).paddingLeft,
+      cell: getComputedStyle(table.querySelector("td")!).paddingLeft,
+      head: getComputedStyle(code.querySelector(".chat-markdown-codeblock-header")!)
+        .backgroundColor,
+    };
+  };
+
+  const chat = await frames("chat");
+  for (const frame of [chat.code, chat.table]) {
+    expect(frame.radius).toBe("12px");
+    expect(frame.overflow).toBe("hidden");
+    // The one lit edge: an inset top highlight.
+    expect(frame.shadow).toContain("inset");
+  }
+  expect(chat.codeInside).toBe("16px");
+  expect(chat.cell).toBe("16px");
+  expect(chat.head).not.toBe("rgba(0, 0, 0, 0)");
+
+  const code = await frames("code");
+  expect(code.code.shadow).not.toBe(chat.code.shadow);
+});
+
+it("switching between Code and Chat keeps the turn the person was reading at the top, and the end for a person at the end (this harness keeps equal rows in place without the fix; only the real app shows the difference)", async () => {
+  using _motion = motion(true);
+  await using _viewport = await wideViewport(1440);
+  const paragraph = "A line of the answer that wraps differently in each mode. ".repeat(14);
+  const entries = Array.from({ length: 12 }, (_, index) =>
+    message(`turn-${index}`, index % 2 === 0 ? "user" : "assistant", `${index}: ${paragraph}`),
+  );
+  using _mode = inMode("code");
+  await using screen = await renderTimeline({ ...baseProps(), timelineEntries: entries });
+  const scroller = () => screen.container.querySelector<HTMLElement>(".messages-timeline-scroll")!;
+  const distanceFromEnd = () =>
+    scroller().scrollHeight - scroller().scrollTop - scroller().clientHeight;
+  const topRow = () => {
+    const box = scroller().getBoundingClientRect();
+    const row = [...scroller().querySelectorAll<HTMLElement>("[data-timeline-row-kind]")].find(
+      (element) => element.getBoundingClientRect().bottom > box.top + 8,
+    );
+    return row
+      ? {
+          turn: row.textContent?.match(/(\d+): A line/)?.[1],
+          offset: Math.round(row.getBoundingClientRect().top - box.top),
+        }
+      : undefined;
+  };
+  const switchTo = async (mode: "chat" | "code") => {
+    setWorkspaceMode(mode);
+    await vi.waitFor(() => expect(document.documentElement.dataset.oneMode).toBe(mode));
+  };
+  await vi.waitFor(() =>
+    expect(scroller().scrollHeight).toBeGreaterThan(scroller().clientHeight * 2),
+  );
+
+  // A person at the end of the thread is still at its end in the other mode, and back.
+  await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2));
+  await switchTo("chat");
+  await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2));
+  await switchTo("code");
+  await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2));
+
+  // Reading in the middle: the same turn stays at the top across a switch each way. The list
+  // remembers the place on its own scroll event, once its state has followed the first one.
+  const scrolled = () =>
+    new Promise<void>((resolve) =>
+      scroller().addEventListener("scroll", () => resolve(), { once: true }),
+    );
+  const target = Math.round(scroller().scrollHeight * 0.45);
+  for (const offset of [target, target + 1]) {
+    const landed = scrolled();
+    scroller().scrollTop = offset;
+    await landed;
+  }
+  const reading = topRow();
+  expect(reading?.turn).toBeDefined();
+  // The same turn, within a line or two of the same distance from the top edge, in each mode.
+  const sameSpot = () => {
+    const now = topRow();
+    expect(now?.turn).toBe(reading?.turn);
+    expect(Math.abs((now?.offset ?? 0) - (reading?.offset ?? 0))).toBeLessThan(40);
+  };
+  await switchTo("chat");
+  await vi.waitFor(sameSpot);
+  await switchTo("code");
+  await vi.waitFor(sameSpot);
 });
 
 const QUIZ_BLOCK = (explanations = true) =>
@@ -2396,7 +2541,7 @@ const SIGN_IN_SERVERS = [
   "plugin:engineering:gmail",
 ];
 
-it("Chat mode folds sign-ins for tools the turn never called into one quiet line with a sign-in per tool, and never as an alert", async () => {
+it("Chat and Code fold sign-ins for tools the turn never called into one quiet line with a sign-in per tool, and never as an alert", async () => {
   const timelineEntries = noticeFixture({ signInServers: SIGN_IN_SERVERS });
   {
     using _mode = inMode("chat");
@@ -2415,14 +2560,16 @@ it("Chat mode folds sign-ins for tools the turn never called into one quiet line
     expect(names).toEqual(["Exa", "Notion", "Gmail (productivity)", "Gmail (engineering)"]);
   }
   {
+    // Code folds the same sign-ins into the same line: four identical rows are one quiet row.
     using _mode = inMode("code");
     await using screen = await renderTimeline({ ...baseProps(), timelineEntries });
-    await vi.waitFor(() =>
-      expect(screen.container.querySelectorAll('[data-v2-item-type="system_notice"]')).toHaveLength(
-        4,
-      ),
+    await expect
+      .element(screen.getByRole("button", { name: "4 tools need sign-in" }))
+      .toBeVisible();
+    expect(screen.container.querySelectorAll('[data-v2-item-type="system_notice"]')).toHaveLength(
+      0,
     );
-    expect(screen.container.querySelector("[data-chat-sign-in-line]")).toBeNull();
+    expect(screen.container.querySelectorAll("[data-chat-sign-in-line]")).toHaveLength(1);
   }
 });
 

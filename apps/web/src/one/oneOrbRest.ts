@@ -22,9 +22,12 @@ export const ORB_REST = {
 /** A small ring is drawn at twice the screen's density and averaged down, so its rim does not sparkle. */
 export const ORB_SUPERSAMPLE = 2;
 
-/** How much light a ring of this CSS width gives off: none up to 64px, all of it from 128px. */
+/** A ring wider than this casts the shared halo (`.one-ring-halo`): the same recipe at every size. */
+export const ONE_RING_HALO_MIN_PX = 40;
+
+/** How much light a ring of this CSS width gives off: none up to 40px, all of it above, like its halo. */
 export function glowForSize(cssWidth: number): number {
-  return Math.min(1, Math.max(0, (cssWidth - 64) / 64));
+  return cssWidth > ONE_RING_HALO_MIN_PX ? 1 : 0;
 }
 
 /** The shared gold ramp (`--gold-*` in one-ui.css) as the ring's three colors in the standard theme. */

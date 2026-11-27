@@ -778,9 +778,7 @@ it("starting voice chat with no transcription source says why once, however ofte
   // Strict locators fail on a second matching toast.
   await expect.element(page.getByText("Voice input is off")).toBeVisible();
   await expect
-    .element(
-      page.getByText("Voice chat needs a place to turn your speech into text", { exact: false }),
-    )
+    .element(page.getByText("Choose where your speech is turned into text", { exact: false }))
     .toBeVisible();
   expect(getVoiceSession().stage).toBe("off");
   // The notice carries the control that fixes it; nothing opens until it is pressed.

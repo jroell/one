@@ -1,5 +1,4 @@
 import { managedCapabilityDenial } from "@t3tools/client-runtime/contract-labels";
-import { ExplainControl } from "./explain/ExplainControl";
 import { GetDesktopAppButton } from "./GetDesktopAppButton";
 import { DeviceHostUpdates } from "../device/DeviceHostUpdates";
 import { DeviceToolVersions } from "../device/DeviceToolVersions";
@@ -886,11 +885,7 @@ function DeviceIntegrationSettings() {
 
   return (
     <>
-      <SettingsSection
-        id="devices"
-        title={gt("Device access")}
-        titleAction={<ExplainControl topic="devices" variant="icon" />}
-      >
+      <SettingsSection id="devices" title={gt("Device access")}>
         <DeviceIntegrationControls
           key={`${environmentId}:${JSON.stringify(search)}`}
           environmentId={environmentId}

@@ -189,39 +189,17 @@ html:not([data-one-mode="chat"])
       opacity var(--one-hover-ms) var(--one-ease-hover);
   }
 
-  /* A row opens by its height over --mo-quick, and its content fades in after 60ms, so nothing
-     below it jumps. The clip is on only while the height moves. */
-  html:not([data-one-mode="chat"]) [data-one-work-reveal] {
-    animation: one-reveal var(--mo-quick) var(--ease-enter) both;
+  /* A row opens as a wipe over --mo-quick with the rows below sliding in step (rowsBelowFollow.ts):
+     its content is in view as the window grows, so no gap shows. Until the list has moved the rows
+     below, the reveal stays shut. */
+  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-one-armed] {
+    clip-path: inset(0 0 100% 0);
   }
 
-  html:not([data-one-mode="chat"]) [data-one-work-reveal] > div {
-    animation: one-reveal-clip var(--mo-quick) linear backwards;
-  }
-
-  html:not([data-one-mode="chat"]) [data-one-work-details] {
-    animation: one-details-in var(--mo-quick) var(--ease-enter) var(--mo-content-delay) both;
-  }
-
-  /* Closing runs the same motion back over the exit duration: the content fades first, the height
-     follows. */
-  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-closing] {
-    animation: one-reveal calc(var(--mo-quick) * var(--mo-exit)) var(--ease-exit) reverse both;
-  }
-
-  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-closing] > div {
-    animation: one-reveal-clip calc(var(--mo-quick) * var(--mo-exit)) linear both;
-  }
-
-  html:not([data-one-mode="chat"]) [data-one-work-reveal][data-closing] [data-one-work-details] {
-    animation: one-details-out calc(var(--mo-quick) * var(--mo-exit) * 0.6) var(--ease-exit) both;
-  }
-}
-
-@keyframes one-details-out {
-  to {
+  /* A change that a card's answer lets into the thread waits invisible the same way, then fades in. */
+  html:not([data-one-mode="chat"])
+    :is([data-work-entry-id], [data-timeline-row-kind="work-live"] > *)[data-one-armed] {
     opacity: 0;
-    translate: 0 -3px;
   }
 }
 
@@ -232,19 +210,6 @@ html:not([data-one-mode="chat"]) [data-one-work-reveal] {
 
 html:not([data-one-mode="chat"]) [data-one-work-reveal] > div {
   min-height: 0;
-}
-
-@keyframes one-reveal {
-  from {
-    grid-template-rows: 0fr;
-  }
-}
-
-@keyframes one-reveal-clip {
-  from,
-  to {
-    overflow: hidden;
-  }
 }
 
 @media (forced-colors: active) {
@@ -899,8 +864,9 @@ html:not([data-one-mode="chat"]) [data-one-answer] {
   padding-block-start: 0;
 }
 
-/* Turns read as pairs: 20px from a question to its answer. The room before the next question
-   follows the answer: about 24px after a line, 48px after a longer one. */
+/* Turns read as pairs: 20px from a question to its answer. A new turn's question bubble starts 48px
+   below the last line of the answer above (the answer row keeps 28px below its text), whatever
+   its length. */
 html:not([data-one-mode="chat"]) [data-timeline-row-kind="message"][data-message-role="user"] {
   padding-block-start: 0;
 }
@@ -925,8 +891,8 @@ html:not([data-one-mode="chat"])
 }
 
 html:not([data-one-mode="chat"])
-  [data-timeline-row-kind="message"][data-message-role="user"][data-one-after="long"] {
-  padding-block-start: 1.5rem;
+  [data-timeline-row-kind="message"][data-message-role="user"][data-one-after="answer"] {
+  padding-block-start: 1.25rem;
 }
 
 /* The hover actions under a bubble keep their row, so the reply starts under it. */
@@ -936,6 +902,13 @@ html:not([data-one-mode="chat"]) [data-one-message-actions] {
 
 html:not([data-one-mode="chat"]) [data-one-turn-start] {
   padding-block-start: 0.25rem;
+}
+
+/* The turn that is running now carries a 2px gold lead line down its left edge, in the working
+   color, so the eye finds where the agent is. It leaves with the turn; nothing moves when it
+   does, since it is drawn inside the rows. */
+html:not([data-one-mode="chat"]) [data-one-live-turn] {
+  box-shadow: inset 2px 0 0 var(--st-working);
 }
 
 /* "Worked for 11s" is a control, not a heading: 12px, quiet, and it lights on hover. */
@@ -1418,7 +1391,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 /* Stop fires on every run, so it is a neutral raised button with a gold square. Red is for the
    confirmation of something destructive. */
 [data-composer-stop] {
-  color: var(--ui-fill-shape);
+  color: var(--gold-text);
   background-color: color-mix(in srgb, var(--foreground) 6%, var(--m-raised));
   box-shadow:
     inset 0 0 0 1px var(--m-rim-raised-mid),
@@ -1722,7 +1695,7 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
 }
 
 [data-approval-card][data-outcome="approved"] [data-approval-outcome] svg {
-  color: var(--ui-fill-shape);
+  color: var(--gold-text);
 }
 
 [data-approval-card][data-outcome="declined"] [data-approval-outcome] svg {

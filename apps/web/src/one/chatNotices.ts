@@ -4,7 +4,7 @@ import type { MessagesTimelineRow } from "~/components/chat/MessagesTimeline.log
 import type { WorkLogEntry } from "~/session-logic";
 
 /** A notice from the run: a warning, a server that did not start, a fact. Not a failed turn. */
-export function isNoticeEntry(entry: WorkLogEntry): boolean {
+function isNoticeEntry(entry: WorkLogEntry): boolean {
   return entry.itemType === "system_notice";
 }
 
@@ -18,20 +18,17 @@ export interface ChatNoticeRowPlan {
    * conversation, a quiz), so tools it never called are none of the person's business here.
    */
   readonly fromApp: boolean;
+  /** The ids of this row's notices that leave the row because the line shows them. */
+  readonly folded: ReadonlySet<string>;
 }
 
 const NO_SERVERS: ReadonlySet<string> = new Set();
 
-export const NO_CHAT_NOTICES: ReadonlyMap<string, ChatNoticeRowPlan> = new Map();
+const NO_CHAT_NOTICES: ReadonlyMap<string, ChatNoticeRowPlan> = new Map();
 
 /** The notice plan for the rows on screen; empty outside Chat mode. */
 export const ChatNoticePlanContext = createContext(NO_CHAT_NOTICES);
 
-/**
- * Chat mode folds a turn's notices into one line at the end of the turn. Each activity row that
- * holds notices gets a plan: the last such row of a turn carries all of the turn's notices, and
- * an earlier one carries none, so its notices leave the row. Rows without notices have no plan.
- */
 /** One spelling of a server's name, so a notice's `plugin:exa:exa` meets a tool's `plugin_exa_exa`. */
 function mcpServerKey(server: string): string {
   return server.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
@@ -47,11 +44,21 @@ export function usedServerOf(entry: WorkLogEntry): string | null {
   return qualified?.[1] ? mcpServerKey(qualified[1]) : null;
 }
 
+/**
+ * Chat mode folds a turn's notices into one line at the end of the turn: the last notice-bearing
+ * row of a turn carries all of them, earlier rows none. Rows without notices have no plan.
+ */
 export function planChatNotices(
   rows: ReadonlyArray<MessagesTimelineRow>,
+  scope: "chat" | "code" = "chat",
 ): ReadonlyMap<string, ChatNoticeRowPlan> {
+  // Most threads have no notice at all, and this runs on every render.
+  if (!rows.some((row) => row.kind === "work" && row.groupedEntries.some(isNoticeEntry))) {
+    return NO_CHAT_NOTICES;
+  }
   const plans = new Map<string, ChatNoticeRowPlan>();
   let turnRowIds: string[] = [];
+  let turnRowNotices = new Map<string, WorkLogEntry[]>();
   let turnNotices: WorkLogEntry[] = [];
   let turnServers = new Set<string>();
   const fromApp = rows.some(
@@ -61,16 +68,22 @@ export function planChatNotices(
       row.message.context?.agentContext !== undefined,
   );
   const closeTurn = () => {
-    const last = turnRowIds.at(-1);
+    const folds = (entry: WorkLogEntry) =>
+      scope === "chat" || noticeKind(entry, turnServers) === "sign-in";
+    const folded = turnNotices.filter(folds);
+    const last = turnRowIds.findLast((id) => (turnRowNotices.get(id) ?? []).some(folds));
     for (const id of turnRowIds) {
+      const own = new Set((turnRowNotices.get(id) ?? []).filter(folds).map((entry) => entry.id));
+      if (own.size === 0) continue;
       plans.set(
         id,
         id === last
-          ? { notices: turnNotices, usedServers: turnServers, fromApp }
-          : { notices: [], usedServers: NO_SERVERS, fromApp },
+          ? { notices: folded, usedServers: turnServers, fromApp, folded: own }
+          : { notices: [], usedServers: NO_SERVERS, fromApp, folded: own },
       );
     }
     turnRowIds = [];
+    turnRowNotices = new Map();
     turnNotices = [];
     turnServers = new Set();
   };
@@ -94,6 +107,7 @@ export function planChatNotices(
     const notices = row.groupedEntries.filter(isNoticeEntry);
     if (notices.length === 0) continue;
     turnRowIds.push(row.id);
+    turnRowNotices.set(row.id, notices);
     turnNotices.push(...notices);
   }
   closeTurn();

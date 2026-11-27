@@ -202,7 +202,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         };
         return (
           <>
-            <div className="group/details-items">
+            <div className="has-[>section>:last-child:not(:empty)]:[--details-refill-display:none]">
               {show.environment || show.openIn || show.scripts ? (
                 <ThreadDetailsSection
                   headingId="thread-details-workspace-heading"
@@ -333,7 +333,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               ) : null}
 
               {/* Shown only when no section above has content, so an emptied card can be refilled. */}
-              <div className="p-2 group-has-[>section>:last-child:not(:empty)]/details-items:hidden">
+              <div className="p-2 [display:var(--details-refill-display,block)]">
                 <ThreadDetailsControl
                   size="xs"
                   variant="ghost"

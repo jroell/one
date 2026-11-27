@@ -69,4 +69,43 @@ describe("the project list", () => {
       state.groups = [];
     }
   });
+
+  it("treats a list holding only the scratch space as empty, and names the scratch space in words with its path under it", async () => {
+    state.groups = [
+      {
+        projectKey: "scratch",
+        displayName: "No project",
+        workspaceRoot: "/Users/me/.t3/scratch",
+        archived: false,
+        projectIcon: { kind: "monogram", text: "NP", color: "gray" },
+        memberProjects: [
+          {
+            isScratch: true,
+            environmentId: "this-mac",
+            environmentLabel: "This Mac",
+            workspaceRoot: "/Users/me/.t3/scratch",
+            physicalProjectKey: "scratch",
+          },
+        ],
+      },
+    ];
+    try {
+      await using screen = await render(
+        <SettingsScopeNotice quiet withAddProject target="project">
+          Choose a project.
+        </SettingsScopeNotice>,
+        { router: "/settings/projects" },
+      );
+      await expect.element(screen.getByText("No projects yet")).toBeVisible();
+      await expect.element(screen.getByRole("button", { name: "Add project" })).toBeVisible();
+      const row = screen.getByText("Scratch space on This Mac");
+      await expect.element(row).toBeVisible();
+      expect(document.body.textContent).toContain("For chats without a project");
+      expect(document.body.textContent).toContain("~/.t3/scratch");
+      // The path is under the words, never the row's only label.
+      expect(screen.getByText("No project", { exact: true }).query()).toBeNull();
+    } finally {
+      state.groups = [];
+    }
+  });
 });

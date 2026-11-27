@@ -1583,6 +1583,23 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/archived": "project-defaults",
 };
 
+// Pages whose rows can write per-project overrides, which the scope bar is the way to reach: those
+// the search table lists with a project scope, plus Providers, whose rows take per-project provider
+// switches but are listed under the environment scope.
+const PAGES_WITH_PROJECT_SCOPE: ReadonlySet<string> = new Set([
+  "/settings/providers",
+  ...(SETTINGS_SEARCH_ITEMS as ReadonlyArray<SettingsSearchItem>)
+    .filter((item) => item.scope === "project-defaults" || item.scope === "project")
+    .map((item) => item.to),
+  ...Object.entries(SETTINGS_CATEGORY_SCOPES)
+    .filter(([, scope]) => scope === "project-defaults" || scope === "project")
+    .map(([path]) => path),
+]);
+
+export function settingsPageHasProjectScope(path: string): boolean {
+  return PAGES_WITH_PROJECT_SCOPE.has(path);
+}
+
 const RENAMED_SETTINGS_PATHS: Readonly<Record<string, SettingsPath>> = {
   "/settings/integrations": "/settings/browser",
   "/settings/storage": "/settings/maintenance",

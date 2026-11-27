@@ -7,18 +7,19 @@ import { guidedConversationReason, useSendGuidedMessage } from "./startConversat
 
 /**
  * Sends a short reply as the person's own message in the thread these buttons are shown in, with
- * nothing hidden beside it.
+ * nothing hidden beside it. Resolves true once the server accepted it.
  */
-export function useSendReply(): (text: string) => void {
+export function useSendReply(): (text: string) => Promise<boolean> {
   const send = useSendGuidedMessage();
   const shownThreadKey = useContext(TimelineRowCtx)?.routeThreadKey;
-  return (text) => {
-    void send({ visibleText: text, expectThreadKey: shownThreadKey }).then((result) => {
-      if (result.ok) return;
+  return async (text) => {
+    const result = await send({ visibleText: text, expectThreadKey: shownThreadKey });
+    if (!result.ok) {
       toastManager.add({
         type: "info",
         title: result.detail ?? guidedConversationReason(result.reason),
       });
-    });
+    }
+    return result.ok;
   };
 }

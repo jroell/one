@@ -142,3 +142,82 @@ export function boxOf(element: Element): Box {
   const { left, top, width, height } = element.getBoundingClientRect();
   return { left, top, width, height };
 }
+
+/** Where in an animation's time (0 to 1) it reaches `progress` (0 to 1) of its distance, for a CSS cubic-bezier. */
+function easingTimeAt(easing: string, progress: number): number {
+  const match =
+    /cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(easing);
+  if (!match) return progress;
+  const [, x1, y1, x2, y2] = match.map(Number) as [number, number, number, number, number];
+  const bezier = (a: number, b: number, t: number) =>
+    3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t;
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < 40; step += 1) {
+    const middle = (low + high) / 2;
+    if (bezier(y1, y2, middle) < progress) low = middle;
+    else high = middle;
+  }
+  return bezier(x1, x2, (low + high) / 2);
+}
+
+/** How far into its time the iris has covered the whole window; the rest of the time is its settling tail. */
+const IRIS_COVER_AT = 0.6;
+
+type Iris = Readonly<{
+  /** The centre of the disc: the middle of the control the stage grows from, in window coordinates. */
+  cx: number;
+  cy: number;
+  /** The radius of the disc at full size. A little more than the farthest corner, so the corner is covered by `IRIS_COVER_AT`. */
+  radius: number;
+}>;
+
+/**
+ * The disc the dark stage grows from. It is a plain circle scaled by `transform`, so growing it costs
+ * the compositor nothing but a matrix. Its radius is chosen so the farthest corner of the window is
+ * covered at `IRIS_COVER_AT` of its time: an easing spends its last few percent of distance in a long
+ * tail, and a disc that ended exactly at the corner would leave a sliver of the old page there for it.
+ */
+export function irisGeometry(
+  origin: Box,
+  viewport: { readonly width: number; readonly height: number },
+  easing: string,
+  /** More than 1 makes a disc that covers the window for longer, for a shrinking one that has a layer to fade out first. */
+  margin = 1,
+): Iris {
+  const cx = origin.left + origin.width / 2;
+  const cy = origin.top + origin.height / 2;
+  const far = Math.hypot(Math.max(cx, viewport.width - cx), Math.max(cy, viewport.height - cy));
+  const reached = Math.max(0.5, Math.min(1, progressAt(easing, IRIS_COVER_AT)));
+  return { cx, cy, radius: Math.ceil((far / reached) * margin) };
+}
+
+/** How far along its distance an eased animation is at `time` (0 to 1). */
+function progressAt(easing: string, time: number): number {
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < 40; step += 1) {
+    const middle = (low + high) / 2;
+    if (easingTimeAt(easing, middle) < time) low = middle;
+    else high = middle;
+  }
+  return (low + high) / 2;
+}
+
+/** How long after an iris starts it covers a point `distance` from its centre, in the same unit as `durationMs`. */
+export function irisCoverMs(
+  iris: Iris,
+  distance: number,
+  durationMs: number,
+  easing: string,
+): number {
+  return easingTimeAt(easing, Math.min(1, distance / iris.radius)) * durationMs;
+}
+
+/** Sizes and places a disc element on `iris`, in the window's coordinates. */
+export function placeIris(element: HTMLElement, iris: Iris): void {
+  element.style.left = `${iris.cx - iris.radius}px`;
+  element.style.top = `${iris.cy - iris.radius}px`;
+  element.style.width = `${iris.radius * 2}px`;
+  element.style.height = `${iris.radius * 2}px`;
+}

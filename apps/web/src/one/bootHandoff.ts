@@ -5,6 +5,10 @@
  */
 const EASE = "cubic-bezier(0.2, 0.9, 0.1, 1)";
 const TRAVEL_MS = 560;
+/** On home the title leaves in this long, and the app (with its own wordmark) fades in after it (one-pages.css). */
+const NAME_LEAVE_MS = 120;
+/** How long the ring waits for a target that went away mid-flight before it fades out. */
+const TARGET_WAIT_MS = 1500;
 /** How long to wait for the app to draw a ring to fly to before the boot ring just fades. */
 const WAIT_MS = 500;
 /** The home screen draws its ring after its data arrives, so it gets longer before the lockup. */
@@ -69,6 +73,11 @@ export function captureBootGhost(): BootGhost | null {
   const ghostName = layer.querySelector<HTMLElement>("#boot-shell-name");
   if (ghostName) ghostName.style.opacity = nameOpacity;
   return { layer, ring: ghostRing, name: ghostName, from, ringShown, nameOpacity };
+}
+
+/** The angle in a `rotate` value such as `0 1 0 120deg`. */
+function angleOf(rotate: string): number {
+  return Number(/(-?\d+(?:\.\d+)?)deg/.exec(rotate)?.[1] ?? 0);
 }
 
 /** The turn the boot ring is caught in, finished the short way round so it lands face on. */
@@ -197,10 +206,6 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
     currentRotate = getComputedStyle(ghost.ring).rotate;
     idleTurn?.cancel();
     ghost.ring.style.rotate = currentRotate;
-    const to = found.element.getBoundingClientRect();
-    const scale = to.width / ghost.from.width;
-    const dx = to.left + to.width / 2 - (ghost.from.left + ghost.from.width / 2);
-    const dy = to.top + to.height / 2 - (ghost.from.top + ghost.from.height / 2);
     // The targets have their own opacity transitions; without this they would fade in after the swap.
     found.element.style.transition = "none";
     found.element.style.opacity = "0";
@@ -238,37 +243,89 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
           { opacity: ghost.nameOpacity, transform: "translateY(0)" },
           { opacity: 0, transform: "translateY(8px)" },
         ],
-        { duration: 200, easing: "linear", fill: "forwards" },
+        { duration: NAME_LEAVE_MS, easing: "linear", fill: "forwards" },
       );
     }
-    const travel = ghost.ring.animate(
-      [
-        {
-          transform: ghost.ringShown.transform,
-          opacity: ghost.ringShown.opacity,
-          rotate: currentRotate,
-        },
-        {
-          transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
-          opacity: 1,
-          rotate: untwistedRotate(currentRotate),
-        },
-      ],
-      { duration: TRAVEL_MS, easing: EASE, fill: "forwards" },
-    );
-    void travel.finished.then(() => {
+    // The halo comes up with the flight, so the ring lands in the light the app's ring is in.
+    ghost.ring.classList.add("one-ring-halo");
+    flyRing(found);
+  };
+
+  /**
+   * One ring for the whole flight. The ghost follows the live target's box frame by frame, so a
+   * layout that shifts under it (the headline arriving, a welcome remounting) cannot leave it
+   * offset; if the target goes away it waits for the next one. It lands exactly on the box, and in
+   * that one frame the ghost hides and the app's own ring shows: never two rings, never none.
+   */
+  const flyRing = (first: Target) => {
+    let current = first;
+    const begunAt = performance.now();
+    const turnFrom = angleOf(currentRotate);
+    const turnTo = angleOf(untwistedRotate(currentRotate));
+    const openFrom = Number(ghost.ringShown.opacity);
+    // Where the title moment had the ring (a settling tilt and scale), so the flight starts there.
+    const matrix = /^matrix\(([^)]+)\)$/
+      .exec(ghost.ringShown.transform)?.[1]
+      ?.split(",")
+      .map(Number);
+    const scaleFrom = matrix ? Math.hypot(matrix[0] ?? 1, matrix[1] ?? 0) : 1;
+    const tiltFrom = matrix ? (Math.atan2(matrix[1] ?? 0, matrix[0] ?? 1) * 180) / Math.PI : 0;
+    let lostSince: number | null = null;
+    const hold = (element: HTMLElement) => {
+      // The ring has its own opacity transition; without this it would fade in after the swap.
+      element.style.transition = "none";
+      element.style.opacity = "0";
+    };
+    const place = (progress: number, to: DOMRect) => {
+      const eased = 1 - (1 - progress) ** 3.4;
+      const dx = to.left + to.width / 2 - (ghost.from.left + ghost.from.width / 2);
+      const dy = to.top + to.height / 2 - (ghost.from.top + ghost.from.height / 2);
+      const scale = scaleFrom + (to.width / ghost.from.width - scaleFrom) * eased;
+      ghost.ring.style.transform = `translate(${dx * eased}px, ${dy * eased}px) rotate(${tiltFrom * (1 - eased)}deg) scale(${scale})`;
+      ghost.ring.style.rotate = `0 1 0 ${turnFrom + (turnTo - turnFrom) * eased}deg`;
+      ghost.ring.style.opacity = String(openFrom + (1 - openFrom) * eased);
+    };
+    const step = () => {
       if (finished) return;
       try {
-        // The app's marks show at once under the ghost, which then fades off them: no dip between.
-        for (const element of [found.element, wordmark]) element?.style.removeProperty("opacity");
-        if (found.kind === "home") html.dataset.oneHandoff = "arrive";
-        void fade(ghost.layer, 120).finished.then(() => {
-          window.setTimeout(finish, 320);
-        }, finish);
+        const now = performance.now();
+        if (!current.element.isConnected || !isOnScreen(current.element)) {
+          // The welcome was replaced or hidden while the ring flew: follow the new one, or wait for it.
+          const next = findTarget(current.kind === "home");
+          if (next) {
+            current = next;
+            target = next;
+            hold(next.element);
+            lostSince = null;
+          } else {
+            lostSince ??= now;
+            if (now - lostSince > TARGET_WAIT_MS) {
+              ghost.ring.style.opacity = "1";
+              void fade(ghost.layer, 200).finished.then(finish, finish);
+              return;
+            }
+            requestAnimationFrame(step);
+            return;
+          }
+        }
+        const progress = Math.min(1, (now - begunAt) / TRAVEL_MS);
+        const to = current.element.getBoundingClientRect();
+        place(progress, to);
+        if (progress < 1) {
+          requestAnimationFrame(step);
+          return;
+        }
+        // Landed on the live ring's box: swap in this one frame.
+        current.element.style.opacity = "1";
+        wordmark?.style.removeProperty("opacity");
+        ghost.layer.style.visibility = "hidden";
+        if (current.kind === "home") html.dataset.oneHandoff = "arrive";
+        window.setTimeout(finish, 320);
       } catch {
         failOpen();
       }
-    }, failOpen);
+    };
+    requestAnimationFrame(step);
   };
 
   const start = (found: Target | null) => {
@@ -282,8 +339,6 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
   // The app stays hidden until the ring is ready to fly, then fades in under it.
   html.dataset.oneHandoff = "wait";
   // Wait for the app to replace the boot screen, then give it a moment to draw a ring to fly to.
-  const expectHome = window.location.pathname === "/";
-  const expectThread = isThreadRoute();
   let begun: number | null = null;
   const lookUnsafe = () => {
     if (finished) return;
@@ -293,6 +348,10 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
     }
     begun ??= performance.now();
     const waited = performance.now() - begun;
+    // Read live: "/" redirects to the last thread, and a ring that waited for a home that never
+    // comes would sit over the shown app beside its own lockup.
+    const expectHome = window.location.pathname === "/";
+    const expectThread = isThreadRoute();
     if (reduced) {
       // A plain crossfade, after the first screen on a thread.
       if (expectThread && !firstScreenReady() && waited < holdBound) {

@@ -41,12 +41,23 @@ describe("settings scope bar", () => {
     expect(opened.container.querySelector("[data-settings-scope]")).not.toBeNull();
   });
 
-  it("is hidden while there is one project on one machine and nothing is selected, and explains itself otherwise", async () => {
+  it("is hidden for one project on one machine only on a page with no per-project settings", async () => {
     scopeState.project = undefined;
     scopeState.groups = [{ projectKey: "only", displayName: "Only", memberProjects: [] }];
     try {
-      await using lonely = await render(<SettingsScopeSentence />, { router: "/settings/voice" });
-      expect(lonely.container.querySelector("[data-settings-scope]")).toBeNull();
+      // Nothing to choose between here: no row on this page can write a per-project override.
+      await using plain = await render(<SettingsScopeSentence />, {
+        router: "/settings/scheduled-tasks",
+      });
+      expect(plain.container.querySelector("[data-settings-scope]")).toBeNull();
+      await plain.unmount();
+
+      // Threads can: the project menu is the only way to reach them, so the bar stays, shorter.
+      await using scoped = await render(<SettingsScopeSentence />, { router: "/settings/threads" });
+      const bar = scoped.container.querySelector("[data-settings-scope]")!;
+      expect(bar.textContent).toMatch(/^Applying settings for/);
+      expect(bar.textContent).not.toMatch(/\bon\b/);
+      expect(bar.querySelector("[data-explain-trigger]")).not.toBeNull();
     } finally {
       scopeState.groups = [
         { projectKey: "first-key", displayName: "Project", memberProjects: [] },
@@ -63,7 +74,7 @@ describe("settings scope bar", () => {
     scopeState.project = undefined;
     await using settings = await render(<SettingsScopeSentence />, { router: "/settings/voice" });
     const text = settings.container.querySelector("[data-settings-scope]")!.textContent!;
-    expect(text).toMatch(/^Applying settings for.*on/);
+    expect(text).toMatch(/^Applying settings for/);
     expect(text).not.toContain("across");
     await settings.unmount();
 

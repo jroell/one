@@ -28,6 +28,37 @@ let cached: {
   readonly table: Readonly<Record<string, GuidedThreadInfo>>;
 } | null = null;
 
+/** A stored entry, read back as what it must be: anything else is dropped, not trusted. */
+function parseInfo(value: unknown): GuidedThreadInfo | null {
+  if (typeof value !== "object" || value === null) return null;
+  const entry = value as Record<string, unknown>;
+  if (typeof entry.asked !== "string" || entry.asked === "") return null;
+  const skipped = entry.skipped as Record<string, unknown> | undefined;
+  const skippedOk =
+    skipped !== undefined &&
+    typeof skipped === "object" &&
+    skipped !== null &&
+    typeof skipped.name === "string" &&
+    (skipped.resetsAt === null || typeof skipped.resetsAt === "string");
+  const actions = Array.isArray(entry.actions)
+    ? safeGuidedActions(
+        entry.actions.flatMap((action: unknown) => {
+          const item = action as Record<string, unknown> | null;
+          return typeof item?.label === "string" && typeof item.href === "string"
+            ? [{ label: item.label, href: item.href }]
+            : [];
+        }),
+      )
+    : [];
+  return {
+    asked: entry.asked,
+    ...(skippedOk
+      ? { skipped: { name: skipped.name as string, resetsAt: skipped.resetsAt as string | null } }
+      : {}),
+    actions,
+  };
+}
+
 function read(): Readonly<Record<string, GuidedThreadInfo>> {
   let raw: string | null = null;
   try {
@@ -36,19 +67,26 @@ function read(): Readonly<Record<string, GuidedThreadInfo>> {
     return cached?.table ?? {};
   }
   if (cached?.raw === raw) return cached.table;
-  let table: Record<string, GuidedThreadInfo> = {};
+  const table: Record<string, GuidedThreadInfo> = {};
   try {
     const parsed: unknown = raw === null ? {} : JSON.parse(raw);
-    if (typeof parsed === "object" && parsed !== null) table = parsed as typeof table;
+    if (typeof parsed === "object" && parsed !== null) {
+      for (const [key, value] of Object.entries(parsed)) {
+        const info = parseInfo(value);
+        if (info !== null) table[key] = info;
+      }
+    }
   } catch {
-    table = {};
+    // A table that cannot be read is no table.
   }
   cached = { raw, table };
   return table;
 }
 
 /** Keeps the first few actions with an in-app address and a label; drops the rest. */
-function safeGuidedActions(actions: ReadonlyArray<GuidedAction>): ReadonlyArray<GuidedAction> {
+export function safeGuidedActions(
+  actions: ReadonlyArray<GuidedAction>,
+): ReadonlyArray<GuidedAction> {
   return actions
     .filter((action) => action.label.trim() !== "" && isSafeReturnHref(action.href))
     .slice(0, MAX_ACTIONS)

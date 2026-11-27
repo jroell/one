@@ -207,7 +207,7 @@ it("draws Stop as a neutral raised button with a gold square, not as the product
   // Red would have a red channel far above the others; a neutral surface stays within a warm tint.
   expect(red! - Math.max(green!, blue!)).toBeLessThan(30);
   const probe = document.createElement("span");
-  probe.style.color = "var(--gold-fill)";
+  probe.style.color = "var(--gold-text)";
   document.body.append(probe);
   const gold = getComputedStyle(probe).color;
   probe.remove();

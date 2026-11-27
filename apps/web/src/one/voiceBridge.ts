@@ -132,3 +132,21 @@ export function getVoiceBridge(): VoiceBridge | null {
 export function useVoiceBridge(): VoiceBridge | null {
   return useSyncExternalStore(subscribe, getVoiceBridge, () => null);
 }
+
+/**
+ * What the composer offers voice chat, from what it knows. With transcription turned off voice chat
+ * is still offered, so that pressing it can say why it cannot listen and open the setting; it is
+ * "available" to press and "needs setup" to start.
+ */
+export function resolveVoiceOffer(input: {
+  readonly composerFree: boolean;
+  readonly speechAvailable: boolean;
+  readonly grantId: string | null;
+  readonly offerFirstRunSetup: boolean;
+  readonly off: boolean;
+}): { readonly available: boolean; readonly needsSetup: boolean } {
+  return {
+    available: input.composerFree && (input.speechAvailable || input.off),
+    needsSetup: input.grantId === null && (input.offerFirstRunSetup || input.off),
+  };
+}

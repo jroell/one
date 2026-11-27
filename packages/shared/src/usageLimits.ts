@@ -76,6 +76,48 @@ export function exhaustedUsageWindow(
   }
 }
 
+export type FallbackOffer =
+  | { readonly kind: "already"; readonly selection: ModelSelection }
+  | {
+      readonly kind: "offer";
+      readonly provider: ServerProvider;
+      readonly selection: ModelSelection;
+    }
+  | { readonly kind: "none"; readonly reason: "none-signed-in" | "none-with-usage" };
+
+/**
+ * What to put beside a provider that is out of usage: its fallback is already set, another ready
+ * provider with usage left that new threads can use until it resets, or the reason there is none.
+ */
+export function fallbackOfferFor(input: {
+  readonly exhausted: ServerProvider;
+  readonly providers: readonly ServerProvider[];
+  readonly fallbackSelection: ModelSelection | null;
+  readonly now: number;
+}): FallbackOffer {
+  if (input.fallbackSelection) return { kind: "already", selection: input.fallbackSelection };
+  const signedIn = input.providers.filter(
+    (candidate) =>
+      candidate.driver !== input.exhausted.driver &&
+      candidate.enabled &&
+      candidate.installed &&
+      candidate.auth.status !== "unauthenticated" &&
+      isProviderAvailable(candidate) &&
+      candidate.models.length > 0,
+  );
+  if (signedIn.length === 0) return { kind: "none", reason: "none-signed-in" };
+  for (const candidate of signedIn) {
+    const model = candidate.models[0]!.slug;
+    if (exhaustedUsageWindow(candidate, input.now, model)) continue;
+    return {
+      kind: "offer",
+      provider: candidate,
+      selection: { instanceId: candidate.instanceId, model },
+    };
+  }
+  return { kind: "none", reason: "none-with-usage" };
+}
+
 export function resolveNewThreadModelSelection(input: {
   readonly defaultSelection: ModelSelection | null;
   readonly explicitSelection?: ModelSelection | null;

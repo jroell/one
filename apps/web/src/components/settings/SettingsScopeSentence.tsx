@@ -29,6 +29,7 @@ import {
 } from "../ui/menu";
 import { ExplainControl } from "./explain/ExplainControl";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
+import { settingsPageHasProjectScope } from "./settingsSearch";
 import { useSettingsPathname } from "./useSettingsPathname";
 import { resolveSettingsScope, type SettingsScopeSearch } from "./settingsScope";
 import {
@@ -91,12 +92,16 @@ export function SettingsScopeSentence() {
   const environment = <EnvironmentScopeMenu {...props} />;
   const checkout = <CheckoutScopeMenu {...props} />;
   const onEnvironment = scope.search.machine || scope.scope.kind === "checkout";
-  // One project on one machine leaves nothing to choose between, so the bar has nothing to say.
+  // One project on one machine, nothing selected, and a page with no per-project settings: the bar
+  // has nothing to choose between. A page that can write per-project overrides keeps it, because the
+  // project menu is the only way to reach them.
+  const singleMachine = environments.length <= 1;
   if (
     !FILTER_PATHS.has(pathname) &&
     scope.groups.length <= 1 &&
-    environments.length <= 1 &&
-    scope.scope.kind === "all"
+    singleMachine &&
+    scope.scope.kind === "all" &&
+    !settingsPageHasProjectScope(pathname)
   ) {
     return null;
   }
@@ -182,6 +187,13 @@ export function SettingsScopeSentence() {
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="shrink-0">in</span>
             <Var>{checkout}</Var>
+          </span>
+        </T>
+      ) : singleMachine ? (
+        <T context="settings scope sentence on a single machine; the variable is a menu">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0">Applying settings for</span>
+            <Var>{project}</Var>
           </span>
         </T>
       ) : (

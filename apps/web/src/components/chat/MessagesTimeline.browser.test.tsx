@@ -41,6 +41,7 @@ import { describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import "~/index.css";
 
 import { environmentThreadDetails } from "../../state/threads";
+import { commitsSoFar, startCounting, stopCounting } from "../../../test/renderCounter";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
@@ -597,6 +598,24 @@ describe("MessagesTimeline work rows", () => {
     const card = () => screen.container.querySelector("[data-approval-card]");
     expect(card()?.hasAttribute("data-leaving")).toBe(true);
     await vi.waitFor(() => expect(card()).toBeNull());
+    // The change the card named joins the thread with the card's exit: it fades in, and the rows
+    // below slide to make room, instead of appearing in one frame.
+    const change = () =>
+      [...screen.container.querySelectorAll<HTMLElement>("[data-timeline-row-id]")].find((row) =>
+        row.textContent?.includes("unique-name"),
+      )?.firstElementChild as HTMLElement | null;
+    await vi.waitFor(() => expect(change()).not.toBeNull());
+    await vi.waitFor(() =>
+      expect(
+        change()!
+          .getAnimations()
+          .some((animation) =>
+            (animation.effect as KeyframeEffect)
+              .getKeyframes()
+              .some((frame) => frame.opacity === "0"),
+          ),
+      ).toBe(true),
+    );
   });
 
   it("ends a leaving card whose animations never report, instead of keeping the request leaving", async () => {
@@ -1004,7 +1023,8 @@ describe("MessagesTimeline work rows", () => {
         ]}
       />,
     );
-    await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2));
+    // The follow is a smooth scroll of about 3,400px, which takes about a second from its first frame.
+    await vi.waitFor(() => expect(distanceFromEnd()).toBeLessThan(2), { timeout: 3000 });
   });
 
   it.each(["delegated", "legacy", "missing"] as const)(
@@ -1083,6 +1103,201 @@ describe("MessagesTimeline work rows", () => {
       }
     },
   );
+
+  it("starts each turn 48px below the last answer, short answer or long", async () => {
+    setup();
+    await using screen = await renderTimeline([
+      message("First question", {}, "q1"),
+      message("Short.", { role: "assistant" }, "a1"),
+      message("Second question", {}, "q2"),
+      message("A longer answer.\n\nWith a second paragraph.", { role: "assistant" }, "a2"),
+      message("Third question", {}, "q3"),
+    ]);
+    await vi.waitFor(() => expect(screen.text()).toContain("Third question"));
+    const el = (id: string) =>
+      screen.container.querySelector<HTMLElement>(`[data-message-id="${id}"]`)!;
+    const answerEnd = (id: string) =>
+      el(id).querySelector<HTMLElement>(".chat-markdown")!.getBoundingClientRect().bottom;
+    const bubbleTop = (id: string) => {
+      const body = el(id).querySelector<HTMLElement>("[data-user-message-body]")!;
+      return (body.closest<HTMLElement>("[class*='rounded']") ?? body).getBoundingClientRect().top;
+    };
+    expect(bubbleTop("q2") - answerEnd("a1")).toBeCloseTo(48, 0);
+    expect(bubbleTop("q3") - answerEnd("a2")).toBeCloseTo(48, 0);
+  });
+
+  it("marks the rows after the last question as the running turn with a gold lead line, and only while it runs", async () => {
+    setup();
+    const runId = RunId.make("lead-run");
+    const props = baseProps();
+    const entries = [
+      message("First question", {}, "q1"),
+      message("Done.", { role: "assistant" }, "a1"),
+      message("Second question", {}, "q2"),
+      work("lead-tool", {
+        label: "Ran command",
+        tone: "tool",
+        itemType: "command_execution",
+        command: "npm test",
+        toolLifecycleStatus: "inProgress",
+      }),
+    ];
+    const ui = (working: boolean) => (
+      <MessagesTimeline
+        {...props}
+        timelineEntries={entries}
+        isWorking={working}
+        runningRunId={working ? runId : null}
+        latestRun={
+          {
+            runId,
+            status: working ? "running" : "completed",
+            startedAt: CREATED_AT,
+            completedAt: working ? null : CREATED_AT,
+            turnEnded: !working,
+          } as never
+        }
+      />
+    );
+    await using screen = await renderElement(ui(true));
+    await vi.waitFor(() => expect(screen.text()).toContain("Second question"));
+    const live = () =>
+      [...screen.container.querySelectorAll("[data-one-live-turn] [data-timeline-row-id]")].map(
+        (row) => row.getAttribute("data-timeline-row-id"),
+      );
+    await vi.waitFor(() => expect(live().length).toBeGreaterThan(0));
+    expect(live()).not.toContain("entry-q1");
+    expect(live()).not.toContain("entry-a1");
+    expect(live()).not.toContain("entry-q2");
+    const frame = screen.container.querySelector<HTMLElement>("[data-one-live-turn]")!;
+    expect(getComputedStyle(frame).boxShadow).not.toBe("none");
+    await screen.rerender(ui(false));
+    await vi.waitFor(() => expect(live()).toEqual([]));
+  });
+
+  it("keeps the rows below a work row glued to the visible edge of its opening content, at every point of the animation", async () => {
+    setup();
+    const props = baseProps();
+    await using screen = await renderElement(
+      <div style={{ height: 700, width: 900, display: "flex", flexDirection: "column" }}>
+        <MessagesTimeline
+          {...props}
+          timelineEntries={[
+            work("tool-command", {
+              label: "Ran command",
+              tone: "tool",
+              itemType: "command_execution",
+              command: "npm test",
+              detail: Array.from({ length: 30 }, (_, line) => `OUTPUT LINE ${line}`).join("\n"),
+            }),
+            message("Reply A", { role: "assistant" }, "reply-a"),
+            message("Reply B", { role: "assistant" }, "reply-b"),
+          ]}
+        />
+      </div>,
+    );
+    await vi.waitFor(() => expect(screen.buttons(/npm test/)).toHaveLength(1));
+    const rowOf = (text: string) =>
+      [...screen.container.querySelectorAll<HTMLElement>("[data-timeline-row-id]")].find((row) =>
+        row.textContent?.includes(text),
+      )!;
+    const itemOf = (row: HTMLElement) => {
+      for (let node = row.parentElement; node; node = node.parentElement) {
+        if (node.style.position === "absolute") return node;
+      }
+      throw new Error("The row has no list item");
+    };
+    await click(screen.button(/npm test/));
+    const reveal = () => screen.container.querySelector<HTMLElement>("[data-one-work-reveal]")!;
+    // The reply slides from where the list left it to where the list puts it.
+    await vi.waitFor(() =>
+      expect(itemOf(rowOf("Reply A")).getAnimations().length).toBeGreaterThan(0),
+    );
+    const animations = () => [
+      ...reveal().getAnimations(),
+      ...itemOf(rowOf("Reply A")).getAnimations(),
+      ...itemOf(rowOf("Reply B")).getAnimations(),
+    ];
+    const at = (fraction: number) => {
+      for (const animation of animations()) {
+        animation.pause();
+        const { duration } = animation.effect!.getComputedTiming();
+        animation.currentTime = Number(duration) * fraction;
+      }
+    };
+    // The window of content in view ends at the wrapper's bottom edge; the reply stays a fixed
+    // distance below it.
+    const tail = () =>
+      rowOf("Reply A").getBoundingClientRect().top - reveal().getBoundingClientRect().bottom;
+    // The reveal is made of transforms only, and its content is in view as the window grows.
+    for (const animation of animations()) {
+      const keyframes = (animation.effect as KeyframeEffect).getKeyframes();
+      expect(keyframes.every((frame) => !("clipPath" in frame))).toBe(true);
+    }
+    at(0);
+    const resting = tail();
+    for (const fraction of [0.25, 0.5, 0.75, 1]) {
+      at(fraction);
+      expect(Math.abs(tail() - resting), `at ${fraction} of the animation`).toBeLessThan(2);
+      expect(
+        getComputedStyle(reveal().querySelector("[data-one-work-details]")!).opacity,
+        `the content at ${fraction} of the animation`,
+      ).toBe("1");
+    }
+  });
+
+  it("re-renders no row when the timeline re-renders with the same inputs, and each row at most once on a thread switch", async () => {
+    setup();
+    const props = baseProps();
+    const threads = new Map<string, Entry[]>();
+    const turns = (name: string) => {
+      const known = threads.get(name);
+      if (known) return known;
+      const made = Array.from({ length: 8 }, (_, index) => [
+        message(`${name} question ${index}`, {}, `${name}-q-${index}`),
+        message(`${name} answer ${index}`, { role: "assistant" }, `${name}-a-${index}`),
+      ]).flat();
+      threads.set(name, made);
+      return made;
+    };
+    const ui = (name: string) => (
+      <div style={{ height: 700, width: 900, display: "flex", flexDirection: "column" }}>
+        <MessagesTimeline
+          {...props}
+          routeThreadKey={`environment-local:${name}`}
+          timelineEntries={turns(name)}
+        />
+      </div>
+    );
+    await using screen = await renderElement(ui("one"));
+    await vi.waitFor(() => expect(screen.text()).toContain("one answer 7"));
+    const quiet = async () => {
+      let last = commitsSoFar();
+      await vi.waitFor(
+        () => {
+          const now = commitsSoFar();
+          const before = last;
+          last = now;
+          expect(now).toBe(before);
+        },
+        { interval: 250, timeout: 10000 },
+      );
+    };
+    await quiet();
+    startCounting();
+    await screen.rerender(ui("one"));
+    await quiet();
+    const same = stopCounting();
+    startCounting();
+    await screen.rerender(ui("two"));
+    await vi.waitFor(() => expect(screen.text()).toContain("two answer 7"));
+    await quiet();
+    const switched = stopCounting();
+    // Nothing the rows read changed, so none of them renders again.
+    expect(same.components.TimelineRowContent ?? 0).toBe(0);
+    // A thread switch brings new rows: each renders once, and the old ones are gone.
+    expect(switched.components.TimelineRowContent ?? 0).toBeLessThanOrEqual(16);
+  });
 
   it("keeps expanded tool output outside the row's toggle button", async () => {
     setup();

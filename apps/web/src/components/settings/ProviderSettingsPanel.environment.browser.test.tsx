@@ -968,6 +968,18 @@ describe("provider page through the router", () => {
     await expect.element(rowButton()).toHaveFocus();
   });
 
+  it("keeps a Codex provider's runtime paths and launch arguments in a closed Advanced section, with the page's own What is this?", async () => {
+    const { screen } = await openPage("/settings/providers?instanceId=codex");
+    await using _screen = screen;
+    await expect.element(heading()).toHaveTextContent("Codex");
+    // Closed: the paths are not on screen until the section is opened.
+    expect(document.body.textContent).not.toContain("CODEX_HOME");
+    expect(document.body.textContent).not.toContain("Launch arguments");
+    await expect.element(page.getByRole("button", { name: "What is this?" }).first()).toBeVisible();
+    await userEvent.click(page.getByRole("button", { name: /^Advanced/ }));
+    await expect.element(page.getByText("Most people never change these.")).toBeVisible();
+  });
+
   it("opens a provider straight from its address, titled by its name", async () => {
     const { screen } = await openPage("/settings/providers?instanceId=codex");
     await using _screen = screen;

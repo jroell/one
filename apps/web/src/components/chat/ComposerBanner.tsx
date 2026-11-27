@@ -165,6 +165,9 @@ function Row({
     className: cn(
       "group/banner-row grid min-h-(--composer-banner-icon-column) w-full min-w-0 grid-cols-[var(--composer-banner-icon-column)_minmax(0,1fr)_auto] items-center gap-x-1 text-start",
       "not-has-[>[data-slot=composer-banner-actions]]:grid-cols-[var(--composer-banner-icon-column)_minmax(0,1fr)]",
+      // The content reads these; a `:has()` on the row in front of a descendant selector restyled the page.
+      "not-has-[>[data-slot=composer-banner-icon]]:[--banner-content-start:1] not-has-[>[data-slot=composer-banner-icon]]:[--banner-content-end:3] not-has-[>[data-slot=composer-banner-icon]]:[--banner-content-ps:calc(var(--spacing)*2)] sm:not-has-[>[data-slot=composer-banner-icon]]:[--banner-content-ps:calc(var(--spacing)*1.5)]",
+      "not-has-[>[data-slot=composer-banner-icon],>[data-slot=composer-banner-actions]]:[--banner-content-pe:calc(var(--spacing)*2)] sm:not-has-[>[data-slot=composer-banner-icon],>[data-slot=composer-banner-actions]]:[--banner-content-pe:calc(var(--spacing)*1.5)]",
       "[&:is(button)]:cursor-pointer [&:is(button)]:rounded-xl [&:is(button)]:hover:bg-foreground/5 [&:is(button)]:focus-visible:outline-2 [&:is(button)]:focus-visible:-outline-offset-2 [&:is(button)]:focus-visible:outline-ring",
       layout === "wrap-actions" &&
         "flex flex-wrap *:data-[slot=composer-banner-content]:max-w-[calc(100%-var(--composer-banner-icon-column)-var(--spacing))] *:data-[slot=composer-banner-content]:grow",
@@ -201,10 +204,9 @@ function Content({ className, ...props }: ComponentProps<"span">) {
     <span
       data-slot="composer-banner-content"
       className={cn(
-        "col-start-2 row-start-1 flex min-w-0 items-center gap-1 *:data-[slot=composer-banner-separator]:mx-0",
+        "row-start-1 flex min-w-0 items-center gap-1 *:data-[slot=composer-banner-separator]:mx-0",
+        "[grid-column-start:var(--banner-content-start,2)] [grid-column-end:var(--banner-content-end,auto)]",
         "@max-[560px]:group-data-[composer-banner-layout=approval]/banner-row:col-end-4",
-        "group-not-has-[>[data-slot=composer-banner-icon]]/banner-row:col-[1/3] group-not-has-[>[data-slot=composer-banner-icon]]/banner-row:ps-2 sm:group-not-has-[>[data-slot=composer-banner-icon]]/banner-row:ps-1.5",
-        "group-not-has-[>[data-slot=composer-banner-icon],>[data-slot=composer-banner-actions]]/banner-row:pe-2 sm:group-not-has-[>[data-slot=composer-banner-icon],>[data-slot=composer-banner-actions]]/banner-row:pe-1.5",
         className,
       )}
       {...props}

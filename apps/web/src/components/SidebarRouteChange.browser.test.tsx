@@ -25,6 +25,8 @@ import "~/index.css";
 // store), not for the route; one that renders with a changed handler is the memo being defeated.
 const rowRenders = vi.hoisted(() => {
   const changed = new Map<string, Set<string>>();
+  /** How many times a sortable row function ran, whatever woke it (a context counts too). */
+  const sortableRowRuns = { count: 0 };
   interface Fiber {
     child: Fiber | null;
     sibling: Fiber | null;
@@ -57,6 +59,22 @@ const rowRenders = vi.hoisted(() => {
       walk(node.child);
     }
   };
+  // Only fibers on a path this commit cloned are visited: a subtree whose child pointer equals its
+  // alternate's was reused whole, and its flags are left over from an earlier commit.
+  const countRuns = (fiber: Fiber | null) => {
+    for (let node = fiber; node; node = node.sibling) {
+      const type = node.type as { name?: string } | null;
+      if (
+        typeof type === "function" &&
+        type.name === "SortableThreadRow" &&
+        node.alternate &&
+        (node.flags & PERFORMED_WORK) !== 0
+      ) {
+        sortableRowRuns.count += 1;
+      }
+      if (!node.alternate || node.child !== node.alternate.child) countRuns(node.child);
+    }
+  };
   Object.defineProperty(window, "__REACT_DEVTOOLS_GLOBAL_HOOK__", {
     configurable: true,
     value: {
@@ -67,10 +85,13 @@ const rowRenders = vi.hoisted(() => {
       onScheduleFiberRoot: () => {},
       onCommitFiberUnmount: () => {},
       onPostCommitFiberRoot: () => {},
-      onCommitFiberRoot: (_id: number, root: { current: Fiber }) => walk(root.current),
+      onCommitFiberRoot: (_id: number, root: { current: Fiber }) => {
+        walk(root.current);
+        countRuns(root.current);
+      },
     },
   });
-  return changed;
+  return Object.assign(changed, { sortableRowRuns });
 });
 
 // The socket is the only fake layer; see test/appScenarios.renders.tsx.
@@ -121,6 +142,7 @@ it("a route change re-renders only the thread rows whose open state changed, not
   expect(describeChanges(), "closing Settings: rows given new props").toEqual({});
 
   rowRenders.clear();
+  rowRenders.sortableRowRuns.count = 0;
   await router.navigate({
     to: "/$environmentId/$threadId",
     params: { environmentId: ENVIRONMENT_ID, threadId: threads[5]!.id },
@@ -135,4 +157,8 @@ it("a route change re-renders only the thread rows whose open state changed, not
     [threads[0]!.id]: ["isActive", "isRouteThread", "revealRef"],
     [threads[5]!.id]: ["isActive", "isRouteThread", "revealRef"],
   });
+  expect(
+    rowRenders.sortableRowRuns.count,
+    "switching threads runs the sortable row function for the two rows that change, never for the whole list (12 rows)",
+  ).toBeLessThanOrEqual(8);
 });

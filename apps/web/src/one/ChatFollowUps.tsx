@@ -1,4 +1,5 @@
 import { useGT } from "gt-react";
+import { useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { m } from "~/i18n/messages";
@@ -38,6 +39,14 @@ function ChatQuickReplies({
 }) {
   const gt = useGT();
   const reply = useSendReply();
+  // One press sends once: the buttons wait for the answer to the first, and a refusal frees them.
+  const [sending, setSending] = useState(false);
+  const send = async (text: string) => {
+    if (sending) return;
+    setSending(true);
+    const sent = await reply(text);
+    if (!sent) setSending(false);
+  };
   return (
     <div
       className="one-chat-followups one-chat-replies"
@@ -47,7 +56,13 @@ function ChatQuickReplies({
       inert={!ready}
     >
       {replies.map((text) => (
-        <button key={text} type="button" className="one-chat-reply" onClick={() => reply(text)}>
+        <button
+          key={text}
+          type="button"
+          className="one-chat-reply"
+          disabled={sending}
+          onClick={() => void send(text)}
+        >
           {text}
         </button>
       ))}

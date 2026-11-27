@@ -20,11 +20,14 @@ export function OneOrb({
   levelRef,
   glowLevelRef,
   opening = false,
+  halo = false,
   className,
 }: {
   /** Plays the opening: the ring ignites out of the dark. Set once at mount. */
   readonly opening?: boolean;
   readonly state?: OneOrbState;
+  /** Casts the shared halo, as the static mark does above 40px. The opening and voice stage light themselves. */
+  readonly halo?: boolean;
   /** Live sound level, 0 to 1. Read every frame without re-rendering. */
   readonly levelRef?: { readonly current: number };
   /**
@@ -68,7 +71,10 @@ export function OneOrb({
   }, [glowLevelRef, levelRef, opening]);
 
   return (
-    <div className={cn("relative aspect-square", className)} data-one-orb={state}>
+    <div
+      className={cn("relative aspect-square", halo && "one-ring-halo", className)}
+      data-one-orb={state}
+    >
       {/* The canvas stays mounted under the fallback: a lost context comes back to the same canvas. */}
       <canvas
         ref={canvasRef}

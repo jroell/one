@@ -312,14 +312,7 @@
 /* One control column. A row whose control is a select, a text input or a chip picker gets a
    fixed-width column, and the control fills it, so right edges, widths and heights line up. */
 @container settings-row (min-width: 32rem) {
-  [data-settings-control]:is(
-    :has(> [data-slot="select-trigger"]),
-    :has(> :is(div, span) > [data-slot="select-trigger"]):not(
-      :has(> :is(div, span) > :not([data-slot="select-trigger"], input))
-    ),
-    :has([data-slot="input-control"]):not(:has([type="number"], [data-slot="number-field-input"])),
-    :has([data-chat-provider-model-picker-label], [data-composer-control-label])
-  ) {
+  [data-settings-control][data-fixed] {
     inline-size: var(--settings-control-w);
 
     > * {
@@ -335,11 +328,7 @@
 
   /* Chip pickers (model, then effort) stack in the column, each one as wide and tall as a select,
      so what they read is never cut off. */
-  [data-settings-control]:has(
-      [data-chat-provider-model-picker-label],
-      [data-composer-control-label]
-    )
-    > div {
+  [data-settings-control][data-chips] > div {
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: stretch;
@@ -363,10 +352,7 @@
 /* In a narrow row the pickers fill the row, one under the other, as a select does there, so the
    icon and the value are never squeezed into a shrunk chip. */
 @container settings-row (width < 32rem) {
-  [data-settings-control]:has(
-    [data-chat-provider-model-picker-label],
-    [data-composer-control-label]
-  ) {
+  [data-settings-control][data-chips] {
     inline-size: 100%;
 
     > div {
@@ -450,8 +436,7 @@
 }
 
 [data-settings-control] :is([data-slot="select-trigger"], [data-slot="input-control"]),
-[data-settings-control]:has([data-chat-provider-model-picker-label], [data-composer-control-label])
-  button {
+[data-settings-control][data-chips] button {
   block-size: var(--settings-control-h);
 }
 
@@ -514,12 +499,12 @@
   pointer-events: none;
 }
 
-.settings-slider-range:has(> :nth-child(3)) {
+.settings-slider-range[data-mid] {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
 }
 
-.settings-slider-range:has(> :nth-child(3)) > :last-child {
+.settings-slider-range[data-mid] > :last-child {
   text-align: end;
 }
 
@@ -819,12 +804,6 @@
   }
 }
 
-/* In light the band's shaded gold reads dark on a pale page, so it sits in a soft warm glow of
-   its own highlight color; in dark the same glow is barely visible. */
-[data-settings-about-hero] .one-mark {
-  filter: drop-shadow(0 0 1rem color-mix(in oklab, var(--one-ring-hi) 85%, transparent));
-}
-
 [data-settings-about-name] {
   font-family: var(--one-serif);
   font-size: 3rem;
@@ -922,16 +901,10 @@
 /* ------------------------------------------------------------------- motion */
 
 /* A page change keeps the page being left on screen as a still copy (settingsPageCrossfade.ts)
-   and fades it out over the page that has mounted underneath, so the new page is never dimmed
-   and the two never add up to less than full strength. */
+   until the next page has mounted, then drops the copy in that frame and fades the new page up
+   from half strength: the heading and the breadcrumb never disagree. */
 @keyframes settings-fade-in {
   from {
-    opacity: 0;
-  }
-}
-
-@keyframes settings-fade-out {
-  to {
     opacity: 0;
   }
 }
@@ -940,8 +913,14 @@
   z-index: 1;
 }
 
-[data-settings-outgoing][data-settings-leaving] {
-  animation: settings-fade-out var(--mo-quick) var(--ease-enter) both;
+@keyframes settings-arrive {
+  from {
+    opacity: 0.5;
+  }
+}
+
+[data-settings-page-scroll][data-settings-arriving] {
+  animation: settings-arrive var(--mo-hover) var(--ease-enter) both;
 }
 
 /* A confirmation takes the place of the action it asks about: it arrives from the side the

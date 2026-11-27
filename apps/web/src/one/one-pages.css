@@ -94,8 +94,10 @@
   transition: opacity var(--one-hover-ms) var(--one-ease-hover);
 }
 
+/* The next row's hairline uses focus-within: a has() on the row in front of a sibling selector
+   restyled the whole page. */
 [data-one-row]:is(:hover, [data-selected], :has(> button:focus-visible))::before,
-[data-one-row]:is(:hover, [data-selected], :has(> button:focus-visible)) + [data-one-row]::before {
+[data-one-row]:is(:hover, [data-selected], :focus-within) + [data-one-row]::before {
   opacity: 0;
 }
 
@@ -837,10 +839,51 @@ html:not(.dark) .one-mark > img[data-mark-theme="dark"] {
   display: none;
 }
 
+/* ------------------------------------------------------------ the ring's halo */
+
+/* One halo for every ring wider than 40px (the static mark, the home ring, the boot ring in
+   flight), sized from the ring's own width (--ring-size) so it scales with it. On dark the ring
+   gives off warm light. On a pale page light is invisible and a glow reads as a stain, so the ring
+   stands on it instead: a hairline in the deep tone and a soft grounded shadow. */
+.one-ring-halo {
+  --ring-halo: calc(var(--ring-size, 11rem) * 0.0909);
+
+  filter: drop-shadow(
+    0 0 var(--ring-halo) color-mix(in oklab, var(--one-ring-hi) 85%, transparent)
+  );
+}
+
+/* The boot ring's halo comes up over the flight; the app's own rings keep their own transitions. */
+#boot-shell-ring.one-ring-halo {
+  transition: filter var(--mo-surface, 240ms) ease-out;
+}
+
+html:not(.dark) .one-ring-halo {
+  filter: drop-shadow(0 0 0.5px color-mix(in oklab, var(--one-ring-deep) 80%, transparent))
+    drop-shadow(
+      0 calc(var(--ring-halo) * 0.3) calc(var(--ring-halo) * 0.55)
+        color-mix(in oklab, var(--one-ring-deep) 34%, transparent)
+    );
+}
+
+/* The welcome's children rise in over 520ms on mount. The ring is not one of them: the boot ring
+   flies to its box and swaps in on one frame, so a rise still running then would leave the ring
+   dim and 10px off its place (the dimming seen in the phone handoff strip). */
+.one-chat-welcome > .one-chat-welcome-orb {
+  animation: none;
+}
+
 /* ------------------------------------------------------------ boot to home handoff */
 
 /* While the boot ring flies to the home ring, the rest of the welcome waits, then arrives behind
    it: opacity and a small rise only. The page itself never waits; this only moves. */
+/* No welcome ring shows under the flying one, including one that mounts mid-flight: the flight
+   hands it a single frame of its own at the end. */
+html[data-one-handoff]:not([data-one-handoff="fade"]) .one-chat-welcome-orb {
+  opacity: 0;
+  transition: none;
+}
+
 html[data-one-handoff] #root {
   opacity: 0;
 }
@@ -851,6 +894,12 @@ html[data-one-handoff="travel"] #root,
 html[data-one-handoff="arrive"] #root {
   opacity: 1;
   transition: opacity var(--mo-surface, 240ms) var(--ease-enter, ease-out);
+}
+
+/* The boot title leaves the centre in 120ms; the app, with its own wordmark, comes up after it, so
+   two wordmarks are never on screen at once. */
+html[data-one-handoff="travel"] #root {
+  transition-delay: 120ms;
 }
 
 html[data-one-handoff]:not([data-one-handoff="fade"])

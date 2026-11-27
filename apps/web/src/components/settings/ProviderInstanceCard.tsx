@@ -73,7 +73,6 @@ import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SettingResetButton, SettingsRow, SettingsSection } from "./settingsLayout";
 import { AcpSessionManagementSection } from "./AcpSessionManagementSection";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
-import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import {
   type CustomModelSave,
   customModelsKey,
@@ -1461,7 +1460,7 @@ export function ProviderInstanceCard({
         </SettingsSection>
       ) : null}
 
-      {instance.driver === "codex" && readCodexSetupMode(instance.config) === "managed" ? (
+      {instance.driver === "codex" ? (
         <div
           inert={readOnly}
           aria-disabled={readOnly || undefined}
@@ -1474,6 +1473,9 @@ export function ProviderInstanceCard({
             headerPlacement="outside"
             control={<ExplainControl topic="provider-runtime" variant="icon" />}
           >
+            <p className="px-3 py-2 text-xs text-(--settings-description) sm:px-4">
+              {gt("Most people never change these.")}
+            </p>
             {runtime ?? runtimeFields}
           </FoldedSettingsSection>
         </div>

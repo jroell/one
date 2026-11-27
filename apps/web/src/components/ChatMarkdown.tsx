@@ -2140,6 +2140,7 @@ function ChatMarkdown({
     useChatMarkdownState({ text, inline, ...props }, streamingBlocks);
   const Root = inline ? "span" : "div";
   useChatBuild(markdownRef, componentState.isStreaming);
+  const chatStreaming = useWorkspaceMode() === "chat" && componentState.isStreaming;
   const bindMarkdownRef = (node: HTMLElement | null) => {
     markdownRef.current = node;
   };
@@ -2162,6 +2163,7 @@ function ChatMarkdown({
         className,
       )}
       data-streaming={componentState.isStreaming ? "" : undefined}
+      data-chat-streaming={chatStreaming ? "" : undefined}
       onCopy={handleCopy}
     >
       <ChatMarkdownRendererContext value={componentState}>

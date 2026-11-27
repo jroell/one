@@ -198,7 +198,8 @@ export class GnomeCaptureSetup {
       if (info.state?.value === 1)
         return {
           status: "enabled",
-          message: "The One extension is running. Active-window snapshots are available.",
+          message:
+            "The T3 Code SnapShots extension is running. Active-window snapshots are available.",
         };
       if (info.state?.value === 3 || info.state?.value === 4)
         return {
@@ -210,7 +211,7 @@ export class GnomeCaptureSetup {
       return {
         status: "disabled",
         message:
-          "Enable the One extension to allow active-window snapshots. You can disable it here at any time.",
+          "Enable the T3 Code SnapShots extension to allow active-window snapshots. You can disable it here at any time.",
       };
     } catch (error) {
       return {

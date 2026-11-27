@@ -2,6 +2,22 @@ import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "../../lib/utils";
 
+/** Keeps `data-empty` on a section while its last child renders nothing. */
+function trackEmpty(section: HTMLElement | null): (() => void) | undefined {
+  if (section === null) return undefined;
+  const update = () => {
+    const last = section.lastElementChild;
+    section.toggleAttribute(
+      "data-empty",
+      last instanceof HTMLDivElement && last.childNodes.length === 0,
+    );
+  };
+  update();
+  const observer = new MutationObserver(update);
+  observer.observe(section, { childList: true, subtree: true, characterData: true });
+  return () => observer.disconnect();
+}
+
 export function ThreadDetailsSection({
   headingId,
   title,
@@ -23,10 +39,12 @@ export function ThreadDetailsSection({
       aria-labelledby={showHeading ? headingId : undefined}
       aria-label={showHeading ? undefined : title}
       // A row can still render nothing (a fresh draft quiets Git actions), so an empty section
-      // collapses, and a divider only follows a section that has content.
+      // collapses, and a divider only follows a section that has content. `data-empty` is kept in
+      // step by `trackEmpty`: a `:has()` of the earlier sibling in front of `~` restyled the page.
+      ref={trackEmpty}
       className={cn(
         "px-2 pt-2 pb-2.5 has-[>div:last-child:empty]:hidden",
-        separated && "border-border/65 [section:not(:has(>div:last-child:empty))~&]:border-t",
+        separated && "border-border/65 [section:not([data-empty])~&]:border-t",
       )}
     >
       <div

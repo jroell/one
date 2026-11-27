@@ -42,14 +42,16 @@ export function ChatNav({
 }) {
   const chatWidth = useClientSettings((settings) => settings.chatWidth);
   const [fits, setFits] = useState(false);
+  // Sized from the observer's own entry: it arrives after layout, before paint, so mounting
+  // (and a switch of mode) never forces a layout read.
   const hostRef = (node: HTMLDivElement | null) => {
     if (!node) return;
-    const measure = () => {
+    return observeResize(node, (entries) => {
+      const size = entries.at(-1)?.contentRect;
+      if (size === undefined) return;
       const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      setFits(chatOutlineFits({ width: node.clientWidth, height: node.clientHeight, rem }));
-    };
-    measure();
-    return observeResize(node, measure);
+      setFits(chatOutlineFits({ width: size.width, height: size.height, rem }));
+    });
   };
   const showsOutline =
     fits && items.length >= CHAT_OUTLINE_MIN_TURNS && chatWidth !== "wide" && chatWidth !== "full";
@@ -60,7 +62,7 @@ export function ChatNav({
     return () => reportShown(false);
   }, [showsOutline, reportShown]);
   return (
-    <div className="one-chat-nav" ref={hostRef}>
+    <div className="one-chat-nav" data-outline={showsOutline ? "" : undefined} ref={hostRef}>
       <div className="one-chat-progress" aria-hidden ref={progressRef}>
         <span />
       </div>

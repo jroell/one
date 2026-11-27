@@ -3,7 +3,7 @@ import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environ
 import type { ContextMenuSource } from "@t3tools/contracts";
 import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
-import { memo } from "react";
+import { memo, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { contextMenuSourceOf } from "../../contextMenuSource";
@@ -54,6 +54,8 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   const m = useMessages();
   const { group, collapsed, hiddenThreads } = props;
   const rowId = sidebarFolderRowId(group.projectKey);
+  // Set while the new-thread button has focus; it hides the count it sits over.
+  const [actionFocused, setActionFocused] = useState(false);
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
   const dot = collapsed
     ? resolveSidebarFolderDot(
@@ -72,6 +74,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
     <li
       data-testid="sidebar-project-folder"
       className="group/project-folder relative mt-2 list-none first:mt-0"
+      data-action-focus={actionFocused ? "" : undefined}
     >
       <button
         type="button"
@@ -98,7 +101,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           </span>
         ) : null}
         {collapsed && hiddenThreads.length > 0 ? (
-          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible">
+          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible group-data-[action-focus]/project-folder:invisible pointer-coarse:invisible">
             {hiddenThreads.length}
           </span>
         ) : null}
@@ -111,7 +114,11 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
         />
       </button>
       {/* Sits over the count, which hides on hover or focus, and left of the chevron. */}
-      <span className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100">
+      <span
+        className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100"
+        onFocus={() => setActionFocused(true)}
+        onBlur={() => setActionFocused(false)}
+      >
         <Tooltip>
           <TooltipTrigger
             render={

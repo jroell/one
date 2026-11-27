@@ -309,6 +309,20 @@ export function materializeReplayTranscriptRuntimeInstructions(
             : undefined;
         const resend =
           recordedNotes === undefined && deliveredNotes.get(promptSessionId) !== expected;
+        // A recorded block stands for the current one, so a later change to the wording does not
+        // break recordings made before it: the prompt is expected to carry today's block.
+        if (recordedNotes !== undefined && recordedNotes !== expected) {
+          const swapped = prompt.map((part, index) =>
+            index === prompt.length - 1 ? { ...(part as object), text: expected } : part,
+          );
+          pendingPrompt = {
+            sessionId: promptSessionId,
+            notes: expected,
+            compact: false,
+            compactionsAtSend: compactionCounts.get(promptSessionId) ?? 0,
+          };
+          return { ...entry, frame: { ...frame, params: { ...frame.params, prompt: swapped } } };
+        }
         pendingPrompt = {
           sessionId: promptSessionId,
           // Recorders normalize the notes they keep, so a recorded block stands for this model's.

@@ -684,7 +684,9 @@ function newFenceId(): string {
  * reads them as quoted words: the header line, and the fence tags in any case or spacing.
  */
 function neutralizeAppNotesFrame(text: string): string {
-  return text.replace(/<(\s*\/?\s*app-notes)/gi, "&lt;$1").replace(/\[(\s*One app\b)/gi, "\\[$1");
+  return text
+    .replace(/<(\s*\/?\s*app-notes)/gi, "&lt;$1")
+    .replace(/\[(\s*One app notes\s+[\w-]+\.)/gi, "\\[$1");
 }
 
 /**

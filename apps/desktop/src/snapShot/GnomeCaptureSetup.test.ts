@@ -139,6 +139,19 @@ it("requires login for local installs and updates until the new version is loade
   setup.close();
 });
 
+it("names the extension the way GNOME lists it, so a person can find it", async () => {
+  const listed = JSON.parse(await NodeFSP.readFile(NodePath.join(bundle, "metadata.json"), "utf8"))
+    .name as string;
+  for (const options of [
+    { state: 1, version: 3 },
+    { state: 2, version: 3 },
+  ] as const) {
+    const { setup } = fixture(options);
+    expect((await setup.state()).message).toContain(listed);
+    setup.close();
+  }
+});
+
 it("never changes the global user-extensions preference", async () => {
   const { setup, call } = fixture({ state: 2, version: 3, enabled: false });
   await expect(setup.perform("enable-extension")).rejects.toThrow("GNOME has disabled");

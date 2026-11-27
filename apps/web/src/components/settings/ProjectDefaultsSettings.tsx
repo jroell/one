@@ -6,10 +6,12 @@ import {
 } from "@t3tools/contracts";
 import { createModelSelection, pickModelSelection } from "@t3tools/shared/model";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { exhaustedUsageWindow } from "@t3tools/shared/usageLimits";
 import { useNavigate } from "@tanstack/react-router";
 import { T, useGT, useMessages } from "gt-react";
 
 import { useClientSettings } from "../../hooks/useSettings";
+import { useNowMinute } from "../../hooks/useNowMinute";
 import {
   defaultModelSelectionsAreMixed,
   getCustomModelOptionsByInstance,
@@ -23,6 +25,7 @@ import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { runtimeModeConfig, runtimeModeOptions } from "../chat/runtimeModeConfig";
 import { PULL_REQUEST_MERGE_METHOD_LABELS } from "../pullRequest/pullRequestDetail.logic";
 import { TraitsPicker } from "../chat/TraitsPicker";
+import { UsageFallbackControl } from "../usage/UsageFallbackControl";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
 import { Switch } from "../ui/switch";
@@ -98,6 +101,16 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
     targets.length > 0 &&
     targets.every((candidate) => candidate.settings.defaultModelSelection === null);
   const mixedFallback = useScopedSettingsMixed(["fallbackModelSelection"]);
+  // When the default model's provider is out of usage, the row offers the other signed-in
+  // provider as the fallback in one click (the same control the Usage page and the sidebar use).
+  const nowMs = Date.parse(`${useNowMinute()}:00.000Z`);
+  const defaultProvider = providers.find((entry) => entry.instanceId === selection?.instanceId);
+  const outOfUsageProvider =
+    !mixedFallback &&
+    selection !== null &&
+    exhaustedUsageWindow(defaultProvider, nowMs, selection.model) !== undefined
+      ? defaultProvider
+      : undefined;
   const fallbackSelection = settings.fallbackModelSelection ?? selection;
   const fallbackEntry = entries.find((entry) => entry.instanceId === fallbackSelection?.instanceId);
   const fallbackModelOptions = getCustomModelOptionsByInstance(
@@ -284,6 +297,19 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       mixed={mixedFallback}
       {...searchableSetting("fallback-model")}
       description={gt("Used for new threads when the default model's provider is out of usage.")}
+      status={
+        outOfUsageProvider !== undefined && representative !== undefined ? (
+          <UsageFallbackControl
+            compact
+            target={{
+              environmentId: representative.environmentId,
+              exhausted: outOfUsageProvider,
+              providers,
+            }}
+            now={nowMs}
+          />
+        ) : undefined
+      }
       resetAction={
         mixedFallback || settings.fallbackModelSelection !== null ? (
           <SettingResetButton

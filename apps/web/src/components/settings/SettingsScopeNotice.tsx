@@ -12,6 +12,7 @@ import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import { displayPath } from "./displayPath";
 import { ITEM_ROW_CLASSNAME } from "./itemRows";
 import { SettingsEmptyState } from "./SettingsEmptyState";
@@ -73,6 +74,17 @@ export function SettingsScopeNotice({
       ? groups.filter((group) => !search.project || group.projectKey === search.project)
       : [null];
   const projectGroups = projectScopeMenuGroups(groups, search);
+  // The scratch space is where chats with no project work. It is a project for the app and not one
+  // the person added, so a list holding only it is still empty.
+  const isScratchGroup = (group: SidebarProjectSnapshot) =>
+    group.memberProjects.length > 0 &&
+    group.memberProjects.every((member) =>
+      isScratchProject(
+        member,
+        environments.find((entry) => entry.environmentId === member.environmentId)?.serverConfig
+          ?.scratchWorkspaceRoot,
+      ),
+    );
   const renderChoices = (group: SidebarProjectSnapshot | null) => {
     const choices: ScopeChoice[] = group
       ? group.memberProjects.map((member) => {
@@ -97,21 +109,35 @@ export function SettingsScopeNotice({
           };
         })
       : target === "project"
-        ? projectGroups.map((group) => ({
-            label: group.displayName,
-            secondary: [
-              ...(group.archived ? [gt("Archived", { $context: "project state" })] : []),
-              ...(projectGroups.some(
-                (other) =>
-                  other.projectKey !== group.projectKey && other.displayName === group.displayName,
-              )
-                ? settingsScopeProjectMachines(group, environments)
-                : []),
-              displayPath(group.workspaceRoot),
-            ].join(" · "),
-            icon: <ProjectFavicon project={group} className="size-4 shrink-0" />,
-            search: selectProjectAxis(search, group.projectKey),
-          }))
+        ? projectGroups.map((group) => {
+            const scratch = isScratchGroup(group);
+            const member = group.memberProjects[0];
+            const machine = (() => {
+              const environment = environments.find(
+                (entry) => entry.environmentId === member?.environmentId,
+              );
+              return environment
+                ? settingsScopeEnvironmentLabels(environment, environments).primary
+                : (member?.environmentLabel ?? gt("this computer"));
+            })();
+            return {
+              label: scratch ? gt("Scratch space on {machine}", { machine }) : group.displayName,
+              secondary: [
+                ...(scratch ? [gt("For chats without a project")] : []),
+                ...(group.archived ? [gt("Archived", { $context: "project state" })] : []),
+                ...(projectGroups.some(
+                  (other) =>
+                    other.projectKey !== group.projectKey &&
+                    other.displayName === group.displayName,
+                )
+                  ? settingsScopeProjectMachines(group, environments)
+                  : []),
+                displayPath(group.workspaceRoot),
+              ].join(" · "),
+              icon: <ProjectFavicon project={group} className="size-4 shrink-0" />,
+              search: selectProjectAxis(search, group.projectKey),
+            };
+          })
         : target === "environment"
           ? environments
               .filter(
@@ -183,7 +209,7 @@ export function SettingsScopeNotice({
       <T>Add project</T>
     </Button>
   );
-  if (withAddProject && projectGroups.length === 0) {
+  if (withAddProject && projectGroups.every(isScratchGroup)) {
     const empty = (
       <SettingsEmptyState
         icon={<FolderPlusIcon />}
@@ -199,7 +225,16 @@ export function SettingsScopeNotice({
         }
       />
     );
-    return inline ? empty : <SettingsPageContainer>{empty}</SettingsPageContainer>;
+    const body =
+      projectGroups.length === 0 ? (
+        empty
+      ) : (
+        <div className="space-y-4">
+          {empty}
+          <SettingsSection title={gt("Scratch space")}>{renderChoices(null)}</SettingsSection>
+        </div>
+      );
+    return inline ? body : <SettingsPageContainer>{body}</SettingsPageContainer>;
   }
   const notice = (
     <div className="space-y-3">

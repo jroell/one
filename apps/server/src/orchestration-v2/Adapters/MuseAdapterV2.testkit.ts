@@ -87,8 +87,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function replayValueMatches(expected: unknown, actual: unknown): boolean {
+/**
+ * What a runtime-info block says about the run: the harness, model and effort, without the app's
+ * name or the rest of its wording. A recording made before a copy change still matches the block
+ * the adapter sends now, while a block naming another model or effort does not.
+ */
+export function runtimeInfoKey(text: string): string | undefined {
+  const match =
+    /^<runtime_info>In case you're asked: you are running in [^\n]*? through the (.*?) harness(.*?)\. No need to mention this otherwise\./su.exec(
+      text,
+    );
+  return match === null ? undefined : `${match[1]}|${match[2]}`;
+}
+
+export function replayValueMatches(expected: unknown, actual: unknown): boolean {
   if (expected === MUSE_REPLAY_ANY) return true;
+  if (typeof expected === "string" && typeof actual === "string") {
+    const expectedKey = runtimeInfoKey(expected);
+    if (expectedKey !== undefined) return expectedKey === runtimeInfoKey(actual);
+  }
   if (Array.isArray(expected)) {
     return (
       Array.isArray(actual) &&

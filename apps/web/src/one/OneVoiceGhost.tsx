@@ -3,18 +3,24 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { setToastsSuppressed } from "~/components/ui/toast";
 import { OneMark } from "./OneMark";
 import {
+  EASE_ENTER_FALLBACK,
   EASE_EXIT_FALLBACK,
   EXIT_RATIO,
   flightTo,
   flightTransform,
   motionMs,
   motionToken,
+  irisGeometry,
+  placeIris,
   type VoiceExitPlan,
 } from "./voiceStageMotion";
 
 /** How long the glint lasts at the button, and how far into the flight it begins. */
 const GLINT_MS = 280;
 const GLINT_START = 0.82;
+/** The disc is this much larger than needed to cover the window, and the rectangle behind it fades out in this long. */
+const GHOST_DISC_MARGIN = 1.1;
+const RECT_FADE_MS = 40;
 
 /**
  * What stays on screen for one exit beat after voice chat ends: the dark stage fades, the ring
@@ -30,6 +36,7 @@ export function OneVoiceGhost({
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);
+  const rectRef = useRef<HTMLDivElement | null>(null);
   const orbRef = useRef<HTMLDivElement | null>(null);
   const glintRef = useRef<HTMLDivElement | null>(null);
 
@@ -44,9 +51,10 @@ export function OneVoiceGhost({
   useLayoutEffect(() => {
     const root = rootRef.current;
     const backdrop = backdropRef.current;
+    const rect = rectRef.current;
     const orb = orbRef.current;
     const glint = glintRef.current;
-    if (!root || !backdrop || !orb || !glint) return;
+    if (!root || !backdrop || !rect || !orb || !glint) return;
     const container = root.getBoundingClientRect();
     orb.style.left = `${plan.orb.left - container.left}px`;
     orb.style.top = `${plan.orb.top - container.top}px`;
@@ -70,9 +78,24 @@ export function OneVoiceGhost({
       ],
       { duration, easing, fill: "forwards" },
     );
-    const backdropAnimation = backdrop.animate([{ opacity: 1 }, { opacity: 0 }], {
-      duration,
-      easing,
+    // The dark area shrinks back into the control as the ring lands in it, the way it grew out of it:
+    // the same disc, scaled down by transform alone. The stage's soft backdrop is a rectangle and goes
+    // first, while the disc, made a little larger than the window, still covers all of it.
+    const viewport = { width: container.width, height: container.height };
+    const disc = irisGeometry(
+      origin,
+      viewport,
+      motionToken(root, "--ease-enter", EASE_ENTER_FALLBACK),
+      GHOST_DISC_MARGIN,
+    );
+    placeIris(backdrop, disc);
+    const backdropAnimation = backdrop.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(0)" }],
+      { duration, easing, fill: "forwards" },
+    );
+    const rectAnimation = rect.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: RECT_FADE_MS,
+      easing: "linear",
       fill: "forwards",
     });
     const glintSize = Math.max(56, Math.max(origin.width, origin.height) * 2.2);
@@ -98,12 +121,14 @@ export function OneVoiceGhost({
     void Promise.all([
       orbAnimation.finished,
       backdropAnimation.finished,
+      rectAnimation.finished,
       glintAnimation.finished,
     ]).then(finish, () => undefined);
     return () => {
       cancelled = true;
       orbAnimation.cancel();
       backdropAnimation.cancel();
+      rectAnimation.cancel();
       glintAnimation.cancel();
     };
   }, [plan, onDone]);
@@ -111,6 +136,7 @@ export function OneVoiceGhost({
   return (
     <div ref={rootRef} aria-hidden="true" inert className="one-voice-ghost">
       <div ref={backdropRef} className="one-voice-ghost-backdrop" />
+      <div ref={rectRef} className="one-voice-ghost-rect" />
       <div ref={orbRef} className="one-voice-ghost-orb">
         <OneMark size={256} className="size-full" />
       </div>

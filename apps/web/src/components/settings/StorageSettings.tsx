@@ -50,6 +50,7 @@ import {
   useUpdateScopedSettings,
 } from "./useScopedSettings";
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
+import { worktreesDirectoryExample } from "./worktreesDirectoryExample";
 
 export function WorktreesDirectoryRow() {
   const setting = useSearchableSetting();
@@ -73,7 +74,14 @@ export function WorktreesDirectoryRow() {
     <SettingsRow
       {...setting("storage-worktrees-location")}
       description={gt(
-        "Folder where new worktrees are created, on any drive, such as D:\\worktrees or ~/worktrees. Existing worktrees stay where they are. Leave empty to use One’s data folder.",
+        "Folder where new worktrees are created, such as {example}. Existing worktrees stay where they are. Leave empty to use One’s data folder.",
+        {
+          example: worktreesDirectoryExample(
+            connectedEnvironments.map(
+              (environment) => environment.serverConfig?.environment.platform.os,
+            ),
+          ),
+        },
       )}
       serverScoped
       settingKeys={["worktreesDirectory"]}

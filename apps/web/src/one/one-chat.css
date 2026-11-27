@@ -26,6 +26,19 @@ html[data-one-mode="chat"][data-chat-reading-face="sans"] {
   --one-chat-face: var(--font-sans);
 }
 
+/* The Ask One sheet is a narrow reading column: its answers are set one size smaller. */
+[data-ask-one-sheet] {
+  --one-chat-size: 1.0625rem;
+}
+
+/* A full-window page (Settings, Usage) makes room beside the open sheet, so nothing it shows is
+   covered, where the window is wide enough for both. Narrower, the sheet covers the page. */
+@media (min-width: 70rem) {
+  html[data-ask-one-sheet] [data-app-modal] {
+    margin-inline-end: calc(26.25rem + 1.5rem);
+  }
+}
+
 /* ------------------------------------------------------- answer typography */
 
 html[data-one-mode="chat"]
@@ -175,37 +188,42 @@ html[data-one-mode="chat"]
 
 /* ----------------------------------------------------------------- figures */
 
-/* Code and tables are figures: a hairline above and below, the caption under them, no box.
-   They run the width of the lane, wider than the text measure. */
+/* Code and tables sit in the composer's glass: a 12px frame with the one lit edge, a tinted head
+   row and 16px inside. They run the width of the lane, wider than the text measure, and rise with
+   the rest of the answer's blocks (the reveal above). */
 html[data-one-mode="chat"]
   :is([data-message-role="assistant"], [data-timeline-row-kind="sent-message"])
   .chat-markdown {
-  & .chat-markdown-codeblock {
+  & :is(.chat-markdown-codeblock, [data-one-table]) {
     display: flex;
     flex-direction: column;
     margin-block: 2rem;
+    overflow: hidden;
     border: 0;
-    border-block: 1px solid var(--one-hairline);
-    border-radius: 0;
-    background: transparent;
+    border-radius: var(--m-radius-floating, 12px);
+    background: var(--m-card-fill, color-mix(in srgb, var(--foreground) 3%, transparent));
     background-image: none;
-    box-shadow: none;
+    box-shadow: var(--m-edge, 0 0 0 1px var(--one-hairline));
+  }
+
+  & .chat-markdown-codeblock {
     font-size: 0.875rem;
     line-height: 1.6;
   }
 
   & .chat-markdown-codeblock pre {
-    padding: 1rem 0.25rem;
+    padding: 1rem;
   }
 
-  /* A slim row above the figure: the language on the left, what to do with it on the right. */
+  /* A slim head row: the language on the left, what to do with it on the right. */
   & .chat-markdown-codeblock-header,
   & [data-one-table-header] {
     order: -1;
-    min-height: 1.75rem;
-    padding: 0.375rem 0 0;
+    min-height: 2.25rem;
+    padding: 0.375rem 1rem;
     border: 0;
-    background: transparent;
+    border-bottom: 1px solid var(--one-hairline);
+    background: color-mix(in srgb, var(--foreground) 4%, transparent);
     color: var(--one-text-quiet, var(--muted-foreground));
     font-family: var(--font-sans);
     font-size: 0.8125rem;
@@ -224,9 +242,12 @@ html[data-one-mode="chat"]
     color: var(--muted-foreground);
   }
 
-  /* The actions wait until the figure is pointed at; touch screens always show them. */
+  /* The actions wait until the figure is pointed at; touch screens always show them. Each keeps a
+     32px target. */
   & .chat-markdown-codeblock-header button,
   & [data-one-table-header] button {
+    min-width: 2rem;
+    min-height: 2rem;
     opacity: 0.55;
   }
 
@@ -237,25 +258,32 @@ html[data-one-mode="chat"]
     opacity: 1;
   }
 
-  & [data-one-table] {
-    display: flex;
-    flex-direction: column;
-    margin-block: 2rem;
-    border: 0;
-    border-block: 1px solid var(--one-hairline);
-    border-radius: 0;
-    background: transparent;
-    background-image: none;
-    box-shadow: none;
-  }
-
   & [data-one-table-label] {
     display: none;
   }
 
-  /* A table has no caption of its own: its row of actions sits at the end. */
+  /* A table has no caption of its own: its copy action floats at the frame's top right corner
+     while the table is pointed at or focused, and over the column heads, not in a bar. */
+  & [data-one-table] {
+    position: relative;
+  }
+
   & [data-one-table-header] {
-    justify-content: flex-end;
+    position: absolute;
+    inset: 0.25rem 0.375rem auto auto;
+    z-index: 1;
+    min-height: 0;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  & [data-one-table-header] button {
+    opacity: 0;
+  }
+
+  & [data-one-table]:is(:hover, :focus-within) [data-one-table-header] button {
+    opacity: 1;
   }
 
   /* Plain rows in the answer's own voice, with lining figures that line up. Only the column
@@ -268,16 +296,12 @@ html[data-one-mode="chat"]
   }
 
   & :is(th, td) {
-    padding: 0.6rem 1rem 0.6rem 0;
-  }
-
-  & :is(th, td):last-child {
-    padding-inline-end: 0;
+    padding: 0.6rem 1rem;
   }
 
   & thead th {
     border-bottom: 1px solid var(--one-hairline);
-    background: transparent;
+    background: color-mix(in srgb, var(--foreground) 4%, transparent);
     color: var(--muted-foreground);
     font-family: var(--font-sans);
     font-size: 0.8125rem;
@@ -313,7 +337,7 @@ html[data-one-mode="chat"]
   border-block: 1px solid var(--one-hairline);
 
   & [data-one-figure-caption] {
-    display: block;
+    display: var(--one-figure-caption-display, block);
     margin-top: 0.625rem;
     color: var(--muted-foreground);
     font-family: var(--font-sans);
@@ -837,7 +861,7 @@ html[data-one-mode="chat"]
   width: 0.75rem;
   height: 0.75rem;
   margin-inline-start: auto;
-  color: var(--ui-fill-shape, var(--one-brand));
+  color: var(--gold-text);
 }
 
 .one-chat-outline-section:not([data-complete]) .one-chat-outline-tick::after {
@@ -884,6 +908,9 @@ html[data-one-mode="chat"]
 /* The answer takes over from the stage by a cross-fade: its first block fades in over the same
    180ms the picture fades out (linear, so the two add up to one at every frame). The quiet
    working line waits until the picture is gone. */
+/* Marker rules. The markers (data-chat-arrival, data-chat-handoff, data-chat-streaming) are only
+   ever set in Chat mode, so these rules do not read the root's mode: a rule whose last part is
+   `*` or `:nth-child()` behind the root attribute restyles the whole document on every switch. */
 [data-chat-handoff] {
   --one-reveal-base: 0ms;
 }
@@ -896,60 +923,57 @@ html[data-one-mode="chat"]
 
 @media (prefers-reduced-motion: no-preference) {
   /* The quiet working line that follows the stage fades in after the picture has gone too. */
-  html[data-one-mode="chat"] [data-chat-handoff][data-timeline-row-kind="working"] {
+  [data-chat-handoff][data-timeline-row-kind="working"] {
     animation: one-chat-stage-in var(--mo-quick, 180ms) var(--ease-enter, ease-out)
       var(--mo-quick, 180ms) both;
   }
 
   /* The first block of the answer is the picture's other half of the cross-fade. */
-  html[data-one-mode="chat"] [data-chat-handoff] .chat-markdown > :first-child,
-  html[data-one-mode="chat"]
-    [data-chat-handoff][data-chat-arrival]
-    .chat-markdown:not([data-streaming])
-    > :first-child {
+  [data-chat-handoff] .chat-markdown > :first-child,
+  [data-chat-handoff][data-chat-arrival] .chat-markdown:not([data-streaming]) > :first-child {
     animation: one-chat-handoff-in var(--mo-quick, 180ms) linear both;
     transition: none;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] {
+  [data-chat-arrival] {
     animation: one-chat-arrive 1600ms linear both;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown:not([data-streaming]) > * {
+  [data-chat-arrival] .chat-markdown:not([data-streaming]) > * {
     animation: one-chat-reveal 480ms var(--one-ease-out) both;
     animation-delay: calc(var(--one-reveal-base, 100ms) + var(--one-reveal-index, 0) * 80ms);
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(2) {
+  [data-chat-arrival] .chat-markdown > :nth-child(2) {
     --one-reveal-index: 1;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(3) {
+  [data-chat-arrival] .chat-markdown > :nth-child(3) {
     --one-reveal-index: 2;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(4) {
+  [data-chat-arrival] .chat-markdown > :nth-child(4) {
     --one-reveal-index: 3;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(5) {
+  [data-chat-arrival] .chat-markdown > :nth-child(5) {
     --one-reveal-index: 4;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(6) {
+  [data-chat-arrival] .chat-markdown > :nth-child(6) {
     --one-reveal-index: 5;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(7) {
+  [data-chat-arrival] .chat-markdown > :nth-child(7) {
     --one-reveal-index: 6;
   }
 
-  html[data-one-mode="chat"] [data-chat-arrival] .chat-markdown > :nth-child(n + 8) {
+  [data-chat-arrival] .chat-markdown > :nth-child(n + 8) {
     --one-reveal-index: 7;
   }
 
   /* While an answer streams, a new block fades in and rises as it is added (one shot). */
-  html[data-one-mode="chat"] .chat-markdown[data-streaming] > * {
+  .chat-markdown[data-chat-streaming] > * {
     transition:
       opacity 520ms var(--one-ease-out) var(--one-reveal-base, 0ms),
       transform 520ms var(--one-ease-out) var(--one-reveal-base, 0ms);
@@ -964,7 +988,7 @@ html[data-one-mode="chat"]
 @media (prefers-reduced-motion: no-preference) {
   /* A heading that streams in is the outline of the answer taking shape: it arrives with a longer
      rise than the paragraphs, which then fill in beneath it. */
-  html[data-one-mode="chat"] .chat-markdown[data-streaming] > :is(h1, h2, h3, h4) {
+  .chat-markdown[data-chat-streaming] > :is(h1, h2, h3, h4) {
     transition-duration: 640ms;
 
     @starting-style {
@@ -977,11 +1001,7 @@ html[data-one-mode="chat"]
 /* A key term of a finished answer gets a gold line that draws in once, after its block has
    appeared. It is never on code, and an answer has three at most (chatBuild.ts). */
 html[data-one-mode="chat"] .chat-markdown strong[data-key-term] {
-  background: linear-gradient(
-      var(--ui-fill-shape, var(--one-brand)),
-      var(--ui-fill-shape, var(--one-brand))
-    )
-    no-repeat 0 100% / 100% 1px;
+  background: linear-gradient(var(--gold-text), var(--gold-text)) no-repeat 0 100% / 100% 1px;
   box-decoration-break: clone;
   padding-bottom: 1px;
 }
@@ -1203,7 +1223,7 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
 }
 
 /* The outline's rail already says where you are, so the hairline stands down beside it. */
-.one-chat-nav:has(.one-chat-outline) > .one-chat-progress {
+.one-chat-nav[data-outline] > .one-chat-progress {
   display: none;
 }
 
@@ -1321,7 +1341,7 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
 }
 
 .one-chat-followup:is(:hover, :focus-visible) {
-  border-top-color: color-mix(in srgb, var(--ui-fill-shape, var(--one-brand)) 60%, transparent);
+  border-top-color: color-mix(in srgb, var(--gold-text) 60%, transparent);
   background: var(--one-row-hover, color-mix(in srgb, var(--foreground) 5%, transparent));
 }
 
@@ -1462,13 +1482,13 @@ html[data-one-mode="chat"] [data-one-working] [data-one-reflect] > .one-reflecti
   font-size: 0.75rem;
 }
 
-/* The failure draws its own caption; the figure's would say the same thing twice. */
+/* The failure draws its own caption; the figure's would say the same thing twice. The figure sets
+   a variable its caption reads, so no `:has()` sits in front of a descendant selector. */
 html[data-one-mode="chat"]
   :is([data-message-role="assistant"], [data-timeline-row-kind="sent-message"])
   .chat-markdown
-  > p[data-one-figure]:has(.one-chat-image-failure)
-  [data-one-figure-caption] {
-  display: none;
+  > p[data-one-figure]:has(.one-chat-image-failure) {
+  --one-figure-caption-display: none;
 }
 
 .one-chat-image-failure-caption {
@@ -1490,7 +1510,7 @@ html[data-one-mode="chat"]
    wider one scrolls. Its nodes appear, then each edge is drawn on, 80ms after the one before. */
 html[data-one-mode="chat"] .chat-markdown-mermaid {
   /* A deeper gold on the light page, so a 1.5px line keeps 3:1 against it. */
-  --chat-diagram-stroke: var(--ui-fill-shape, var(--one-brand));
+  --chat-diagram-stroke: var(--gold-text);
   --chat-diagram-fill: color-mix(
     in oklch,
     var(--background) 90%,
@@ -1757,7 +1777,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 
 .one-chat-quiz-option[data-state="correct"] {
   background: color-mix(in srgb, var(--ui-fill-shape, var(--one-brand)) 9%, transparent);
-  box-shadow: inset 0 0 0 1.5px var(--ui-fill-shape, var(--one-brand));
+  box-shadow: inset 0 0 0 1.5px var(--gold-text);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1820,7 +1840,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   from,
   8% {
     background: color-mix(in srgb, var(--ui-fill-shape, var(--one-brand)) 9%, transparent);
-    box-shadow: inset 0 0 0 1.5px var(--ui-fill-shape, var(--one-brand));
+    box-shadow: inset 0 0 0 1.5px var(--gold-text);
     opacity: 1;
   }
 
@@ -1878,7 +1898,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
   width: 1.125rem;
   height: 1.125rem;
   margin-inline-start: auto;
-  color: var(--ui-fill-shape, var(--one-brand));
+  color: var(--gold-text);
 }
 
 /* The explanation turns down from its top edge: transform and opacity only. */
@@ -1935,7 +1955,7 @@ html[data-one-mode="chat"] .chat-markdown-mermaid {
 }
 
 .one-chat-quiz-ring {
-  stroke: var(--ui-fill-shape, var(--one-brand));
+  stroke: var(--gold-text);
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: 52px 52px;

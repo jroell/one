@@ -1002,7 +1002,7 @@ export function ThemeLibrary({
                     <span className="absolute right-2 top-2 inline-grid size-5 grid-cols-1 sm:size-4">
                       <input
                         checked={checked}
-                        className="col-start-1 row-start-1 size-full appearance-none rounded-sm border border-input bg-background outline-none checked:border-(--ui-fill) checked:bg-(--ui-fill) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring checked:focus-visible:inset-ring-3 checked:focus-visible:inset-ring-background dark:not-checked:bg-input/32 forced-colors:appearance-auto"
+                        className="peer col-start-1 row-start-1 size-full appearance-none rounded-sm border border-input bg-background outline-none checked:border-(--ui-fill) checked:bg-(--ui-fill) focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring checked:focus-visible:inset-ring-3 checked:focus-visible:inset-ring-background dark:not-checked:bg-input/32 forced-colors:appearance-auto"
                         id={checkboxId}
                         name="themes-to-remove"
                         type="checkbox"
@@ -1015,7 +1015,7 @@ export function ThemeLibrary({
                           );
                         }}
                       />
-                      <CheckIcon className="pointer-events-none col-start-1 row-start-1 size-3.5 shrink-0 self-center justify-self-center stroke-(--ui-on-fill) opacity-0 group-has-checked:opacity-100 sm:size-3" />
+                      <CheckIcon className="pointer-events-none col-start-1 row-start-1 size-3.5 shrink-0 self-center justify-self-center stroke-(--ui-on-fill) opacity-0 peer-checked:opacity-100 sm:size-3" />
                     </span>
                     <span className="flex min-h-12 items-center justify-center gap-1">
                       {card.previews.map((preview) => (

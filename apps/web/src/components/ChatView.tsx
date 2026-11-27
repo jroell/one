@@ -224,8 +224,10 @@ import {
 import { ChatStatusScope } from "~/one/ChatStatusScope";
 import { OneVoiceStage } from "~/one/OneVoiceStage";
 import { useThreadPanelInlineOpen, useThreadPanelView } from "~/one/chatThreadPanel";
+import { resolveProviderInstanceDisplayName } from "@t3tools/client-runtime/state/provider-instance-display";
 import { ChatUsageLimitFailure } from "~/one/ChatUsageLimitFailure";
 import { useGuidedThread } from "~/one/guidedThread";
+import { liveGuidedInfo } from "~/one/guidedThreadLine";
 import { deriveUsageLimitRecovery } from "~/one/chatUsageRecovery";
 import { waitForComposerSend } from "~/one/composerSendBridge";
 import { useWorkspaceMode } from "~/one/workspaceMode";
@@ -3443,7 +3445,33 @@ function ChatView(props: ChatViewProps) {
       .join(" · ") || null;
   // The end of the timeline holds the thread's present and next turns: what it is doing now,
   // its lifecycle status, guest messages awaiting you, then your queued messages.
-  const guidedThread = useGuidedThread(workspaceMode === "chat" ? activeThreadKey : null);
+  const storedGuidedThread = useGuidedThread(workspaceMode === "chat" ? activeThreadKey : null);
+  const guidedReset = Date.parse(storedGuidedThread?.skipped?.resetsAt ?? "");
+  const guidedNow = useNowAfter(Number.isFinite(guidedReset) ? guidedReset : null);
+  const guidedThread = (() => {
+    if (storedGuidedThread === null) return null;
+    const answeredRunIds = new Set(
+      (serverProjection?.turnItems ?? []).flatMap((item) =>
+        item.type === "assistant_message" && !item.streaming && item.runId !== null
+          ? [item.runId]
+          : [],
+      ),
+    );
+    const answeredRuns = (serverProjection?.runs ?? [])
+      .filter((run) => answeredRunIds.has(run.id))
+      .toSorted((a, b) => a.ordinal - b.ordinal);
+    const firstRun = answeredRuns[0];
+    const firstProvider = providerStatuses.find(
+      (provider) => provider.instanceId === firstRun?.modelSelection.instanceId,
+    );
+    return liveGuidedInfo({
+      stored: storedGuidedThread,
+      firstAnswerProvider:
+        firstProvider === undefined ? null : resolveProviderInstanceDisplayName(firstProvider),
+      answeredRuns: answeredRuns.length,
+      now: guidedNow,
+    });
+  })();
   const usageLimitResetMs = Date.parse(serverRuntime?.usageLimitResetAt ?? "");
   const usageLimitNow = useNowAfter(Number.isFinite(usageLimitResetMs) ? usageLimitResetMs : null);
   const usageLimitRun =
@@ -3962,12 +3990,12 @@ function ChatView(props: ChatViewProps) {
               <div ref={draftHeroTransitionGroupRef} className="chat-composer-lane w-full">
                 <div
                   data-chat-composer-stack="true"
-                  className="group/composer-stack pointer-events-auto relative z-10 mx-auto w-full max-w-(--chat-content-max-width)"
+                  className="[--composer-stack-lift:--spacing(4)] has-data-[composer-shoulder-tab]:[--composer-stack-lift:0px] pointer-events-auto relative z-10 mx-auto w-full max-w-(--chat-content-max-width)"
                 >
                   {draftHeroCentered ? (
                     <div className="absolute inset-x-0 bottom-full">
                       <div
-                        className="pb-4 group-has-data-[composer-shoulder-tab]/composer-stack:pb-0"
+                        className="pb-(--composer-stack-lift)"
                         style={
                           forceExpandedMobileComposer
                             ? { viewTransitionName: MOBILE_DRAFT_HEADLINE_VIEW_TRANSITION_NAME }

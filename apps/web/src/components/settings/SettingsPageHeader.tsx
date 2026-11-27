@@ -1,5 +1,7 @@
 import { msg, useMessages } from "gt-react";
 
+import { ExplainControl } from "./explain/ExplainControl";
+import type { ExplainTopicId } from "./explain/explainTypes";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
 import { useSettingsBreadcrumbTail } from "./settingsBreadcrumbTail";
 import { useSettingsPathname } from "./useSettingsPathname";
@@ -105,6 +107,18 @@ export const SETTINGS_PAGE_INTROS: Readonly<Record<string, SettingsPageIntro>> =
   },
 };
 
+/** Pages whose title carries a "What is this?" for the whole page. */
+const PAGE_EXPLAIN_TOPICS: Readonly<Record<string, ExplainTopicId>> = {
+  "/settings/chat": "chat-settings",
+  "/settings/threads": "threads-settings",
+  "/settings/labs": "labs",
+  "/settings/source-control": "source-control",
+  "/settings/worktrees": "worktrees",
+  "/settings/devices": "devices",
+  "/settings/maintenance": "maintenance",
+  "/settings/keybindings": "keyboard-shortcuts",
+};
+
 /** The current page's intro, or null for an address that has none. */
 export function useSettingsPageIntro() {
   const m = useMessages();
@@ -118,6 +132,9 @@ export function useSettingsPageIntro() {
 
 export function SettingsPageHeader() {
   const intro = useSettingsPageIntro();
+  const pathname = useSettingsPathname();
+  const tail = useSettingsBreadcrumbTail();
+  const explain = tail ? tail.explain : PAGE_EXPLAIN_TOPICS[pathname];
   if (!intro) return null;
   return (
     <header data-settings-page-header="" className="flex flex-col gap-1 px-3 sm:px-4">
@@ -125,6 +142,11 @@ export function SettingsPageHeader() {
         {intro.title}
       </h1>
       <p data-settings-page-purpose="">{intro.purpose}</p>
+      {explain ? (
+        <div data-settings-page-explain="" className="-ms-1">
+          <ExplainControl topic={explain} />
+        </div>
+      ) : null}
     </header>
   );
 }

@@ -65,6 +65,41 @@ it("keys the composer's banner styles on data-banner-attached, not on :has() of 
   expect(offenders).toEqual([]);
 });
 
+/**
+ * Selectors with a `:has()` on an ancestor, followed by a combinator and more selector, such as
+ * `:is(.group\/row:has(:focus-visible) *)` (Tailwind's `group-has-*` and `has-*:*:`) or
+ * `:where(dialog:has(footer)) .x`. The `:has()` is not on the styled element.
+ */
+function ancestorHasRules(): string[] {
+  return selectors().filter((selector) => {
+    let from = 0;
+    for (;;) {
+      const start = selector.indexOf(":has(", from);
+      if (start === -1) return false;
+      let depth = 0;
+      let end = start + 4;
+      for (; end < selector.length; end += 1) {
+        if (selector[end] === "(") depth += 1;
+        if (selector[end] === ")") {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      let next = end + 1;
+      while (selector[next] === ")") next += 1;
+      if (/^(\s|[>+~])\s*[^\s,]/.test(selector.slice(next))) return true;
+      from = end;
+    }
+  });
+}
+
+// With 62 such rules the production build restyled 57,500 elements (330 ms) when the palette
+// opened, against 10,900 (70 ms) with none. An attribute, tag or structure argument costs it on
+// its own, so none is allowed: set a data attribute or a variable on the element that knows.
+it("has no :has() on an ancestor in front of a combinator, which restyles the page on every DOM change", () => {
+  expect(ancestorHasRules()).toEqual([]);
+});
+
 const cleaned = import.meta.glob(
   ["../components/chat/ComposerSurface.tsx", "../components/chat/ComposerBanner.tsx"],
   {
@@ -74,25 +109,12 @@ const cleaned = import.meta.glob(
   },
 ) as Record<string, string>;
 
-// Leaves left on purpose (each scoped to one control, and measured at no cost):
-//   ComposerBanner.tsx  not-has-data-[composer-banner-surface=attached]:hidden  (the dock itself)
-//   ComposerBanner.tsx  [&:has(+[data-slot=composer-banner-attachment])]       (a banner and its next sibling)
-const ALLOWED_GROUP_HAS: ReadonlyArray<string> = [
-  // Each banner row styles its own padding from whether it has an icon or actions child (child
-  // combinator, one row): a leaf.
-  "group-not-has-[>[data-slot=composer-banner-icon]]/banner-row:col-[1/3]",
-  "group-not-has-[>[data-slot=composer-banner-icon]]/banner-row:ps-2",
-  "group-not-has-[>[data-slot=composer-banner-icon]]/banner-row:ps-1.5",
-  "group-not-has-[>[data-slot=composer-banner-icon],>[data-slot=composer-banner-actions]]/banner-row:pe-2",
-  "group-not-has-[>[data-slot=composer-banner-icon],>[data-slot=composer-banner-actions]]/banner-row:pe-1.5",
-];
-
-it("the composer files use no group-has-* utility except the leaves listed here", () => {
+// Left on purpose: not-has-data-[composer-banner-surface=attached]:hidden (the dock itself) and
+// [&:has(+[data-slot=composer-banner-attachment])] (a banner and its next sibling); each is the
+// :has() on the styled element, which costs nothing.
+it("the composer files use no group-has-* or group-not-has-* utility", () => {
   const found = Object.entries(cleaned).flatMap(([file, text]) =>
-    [...text.matchAll(/group-(?:not-)?has-[^\s"'`]+/g)]
-      .map((match) => match[0])
-      .filter((utility) => !ALLOWED_GROUP_HAS.includes(utility))
-      .map((utility) => `${file}: ${utility}`),
+    [...text.matchAll(/group-(?:not-)?has-[^\s"'`]+/g)].map((match) => `${file}: ${match[0]}`),
   );
   expect(found).toEqual([]);
 });

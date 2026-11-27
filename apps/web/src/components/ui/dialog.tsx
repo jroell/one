@@ -135,6 +135,8 @@ function DialogPopup({
         className={cn(
           variant === "media" ? DIALOG_MEDIA_POPUP_CLASS : DIALOG_POPUP_CLASS,
           "row-start-2 text-popover-foreground",
+          // The header and panel read these. A `:has()` of the popup in front of a descendant selector restyled the page.
+          "has-[[data-slot=dialog-panel]]:[--dialog-header-pb:calc(var(--spacing)*3)] has-[[data-slot=dialog-header]]:[--dialog-panel-pt:calc(var(--spacing)*1)] has-[[data-slot=dialog-footer]:not(.border-t)]:[--dialog-panel-pb:calc(var(--spacing)*1)]",
           variant === "default" && "max-h-full max-w-lg",
           bottomStickOnMobile && DIALOG_MOBILE_SHEET_CLASS,
           className,
@@ -197,7 +199,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 p-6 in-[[data-slot=dialog-popup]:has([data-slot=dialog-panel])]:pb-3 max-sm:pb-4",
+        "flex flex-col gap-2 p-6 pb-[var(--dialog-header-pb,calc(var(--spacing)*6))] max-sm:pb-4",
         className,
       )}
       data-slot="dialog-header"
@@ -256,7 +258,7 @@ function DialogPanel({
     <ScrollArea scrollFade={scrollFade}>
       <div
         className={cn(
-          "space-y-4 p-6 in-[[data-slot=dialog-popup]:has([data-slot=dialog-header])]:pt-1 in-[[data-slot=dialog-popup]:has([data-slot=dialog-footer]:not(.border-t))]:pb-1",
+          "space-y-4 p-6 pt-[var(--dialog-panel-pt,calc(var(--spacing)*6))] pb-[var(--dialog-panel-pb,calc(var(--spacing)*6))]",
           className,
         )}
         data-slot="dialog-panel"

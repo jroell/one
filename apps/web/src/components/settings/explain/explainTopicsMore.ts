@@ -251,6 +251,221 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     docs: { page: "project-settings.md", anchor: "defaults-and-inheritance" },
     facts: () => [],
   },
+  "chat-settings": {
+    id: "chat-settings",
+    title: msg("Chat settings"),
+    whatItIs: msg(
+      "These choose how the message box behaves and how much of an agent's work you see while it runs.",
+    ),
+    verdict: msg("The defaults suit most people. Change one only when something bothers you."),
+    terms: [
+      {
+        term: msg("Follow-up behavior"),
+        meaning: msg(
+          "What a message you send while the agent is working does: wait for the current step, or interrupt and redirect it.",
+        ),
+      },
+      {
+        term: msg("Tool calls in chat"),
+        meaning: msg(
+          "How much of what the agent runs (commands, edits, searches) you see. Approvals, questions and errors always show.",
+        ),
+      },
+      {
+        term: msg("Side chats"),
+        meaning: msg("A short conversation about one thread that opens next to it."),
+      },
+    ],
+    useWhen: [msg("The agent's work fills the chat, or Enter sends when you meant a new line.")],
+    skipWhen: [msg("Chat already feels right.")],
+    question: msg("What do the Chat settings change, and which should I look at first?"),
+    notes: `Settings, Chat holds per-device choices for the composer and the thread view: Send shortcut (when Enter sends a prompt or inserts a new line), Follow-up behavior (Queue, shown as "Wait for the current step", or Steer, shown as "Interrupt and redirect"; the opposite action is one shortcut away for a single message; docs/user/composer.md), Rich text composer, Show skills in the / command menu (skills always appear when you type $), Tool calls in chat (Show all, Hide successful, Hide all, Final answers only; approvals, questions and errors always show), the face answers are set in while in Chat mode (Code mode always uses the interface face), what a screen reader hears from the open thread, and where subagents and side chats open. Do not state defaults that the person's setup does not show.`,
+    docs: { page: "composer.md" },
+    facts: () => [],
+  },
+  "threads-settings": {
+    id: "threads-settings",
+    title: msg("Thread defaults"),
+    whatItIs: msg(
+      "These are the starting choices for new threads: which model, where the work happens, and when a quiet thread settles or snoozes.",
+    ),
+    verdict: msg("Set the model and workspace once and forget them."),
+    terms: [
+      {
+        term: msg("Fallback model"),
+        meaning: msg(
+          "The model new threads use when the default model's provider is out of usage.",
+        ),
+      },
+      {
+        term: msg("Settle"),
+        meaning: msg("Moves a finished thread out of the way. A new message wakes it again."),
+      },
+      {
+        term: msg("Snooze"),
+        meaning: msg("Holds a thread until a time you pick, or until usage limits reset."),
+      },
+    ],
+    useWhen: [
+      msg("You want new threads to start on a particular model, or in a worktree."),
+      msg("The default provider runs out of usage and you want another to take over."),
+    ],
+    skipWhen: [msg("You choose the model each time.")],
+    question: msg("What do thread defaults change, and what should I set?"),
+    notes: `Settings, Threads holds the defaults for new projects and threads. Default model and Fallback model: the fallback is used for new threads when the default model's provider is out of usage (a Fallback model of None means nothing takes over). Permissions, New threads (Workspace: where new threads start; a project, or the t3.json in its repository, can override it), Add project starts in, Clone into host folders (clones go to github.com/owner/repo under the chosen folder), Text generation model (thread titles and other generated text; Source control has its own), Thread title instructions, Snooze options, Snooze until limits reset and Resume after usage limits (snooze until usage limits reset; auto-resume continues the agent after the reset, and can be cancelled in each thread), Auto-settle inactive threads and Auto-settle merged threads (settle a thread when its pull request merges; sidebar threads with no activity for the chosen days settle automatically; any new activity un-settles), Keep threads with a PR (inactivity does not settle threads with a pull request; merge and close still do), and Response streaming. In project scope the same rows write that project's overrides. docs/user/thread-sidebar.md covers settling and snoozing.`,
+    docs: { page: "thread-sidebar.md" },
+    facts: () => [],
+  },
+  "codex-provider": {
+    id: "codex-provider",
+    title: msg("Codex"),
+    whatItIs: msg(
+      "This page is one Codex account: how it signs in, which models it offers, and where One finds the Codex program on this computer.",
+    ),
+    verdict: msg(
+      "Sign in and pick models. Leave the Advanced section alone unless Codex is installed in a custom place.",
+    ),
+    useWhen: [
+      msg("You want a second Codex account, or a different sign-in."),
+      msg("One cannot find your Codex installation."),
+    ],
+    skipWhen: [msg("Codex already shows Ready.")],
+    question: msg("What is on a Codex provider page, and when do I change anything?"),
+    notes: `A Codex provider page (Settings, Providers, Codex) holds the account (shown as Signed in with the plan and, behind Show, the account), setup (connect with ChatGPT, or use an existing Codex login; docs/user/providers-codex.md), models, and a closed Advanced section with the Binary path (selected by One), the CODEX_HOME path (shared Codex config, sessions and state), the Shadow home path (keeps auth.json separate while sharing state from CODEX_HOME) and Launch arguments (passed to codex app-server). Several accounts are added as separate Codex provider instances (docs "Use multiple accounts"). The page for a provider that says it hit a usage limit is covered by "Codex says I hit a usage limit". The paths are real places on the machine that runs the environment; mention them only if the person says One cannot find Codex.`,
+    docs: { page: "providers-codex.md" },
+    facts: providerLines,
+  },
+  labs: {
+    id: "labs",
+    title: msg("Labs"),
+    whatItIs: msg(
+      "Labs holds early features. Each one can change, break or go away, and each is off until you switch it on.",
+    ),
+    verdict: msg("Try one when you want it. Nothing here is needed for One to work."),
+    terms: [
+      {
+        term: msg("Snoozed and Settled"),
+        meaning: msg(
+          "Two groups in the sidebar: Snoozed threads wait for a time you chose, Settled threads are finished for now.",
+        ),
+      },
+    ],
+    useWhen: [msg("A feature here solves something you keep running into.")],
+    skipWhen: [msg("You want a steady app: leave them off.")],
+    question: msg("What are the Labs features, and are any worth turning on?"),
+    notes: `Settings, Labs lists early features, each with its own switch: Group threads by project (the sidebar as project folders; pinned threads stay on top, and Snoozed and Settled stay below the folders), Two-line folder rows, Guest links (needs T3 Connect on the machine; docs/user/guest-links.md), Linked environments (agents here work on other machines and theirs here; turn on per machine, link them in Environments), Workflows (run workflows from files in the server's workflows folder, start them from the command palette), Skipped runs kept, Suggest next prompt (after a Claude or Codex turn, shows a predicted next message in the empty composer; Tab uses it; each prediction is one extra request on the person's plan; Codex needs version 0.165 or newer), Simlock device hosts (alpha), Fast worktree checkout (macOS beta, docs/user/project-settings.md) and Agent feedback. Early features can change or go away.`,
+    docs: { page: "project-settings.md", anchor: "fast-worktree-checkout-on-macos" },
+    facts: () => [],
+  },
+  "source-control": {
+    id: "source-control",
+    title: msg("Source control & issues"),
+    whatItIs: msg(
+      "These settings connect One to where your code lives and decide how commits and pull requests are written.",
+    ),
+    verdict: msg("Sign in to your code host, then leave the rest on its defaults."),
+    terms: [
+      {
+        term: msg("Rescan"),
+        meaning: msg("Looks again for Git and for the code hosts you have signed in to."),
+      },
+      {
+        term: msg("Merge method"),
+        meaning: msg("How a pull request is merged by default: merge commit, squash or rebase."),
+      },
+    ],
+    useWhen: [msg("You want One to open or merge pull requests for you.")],
+    skipWhen: [msg("You only use local folders.")],
+    youWillNeed: [
+      msg("Git, and a sign-in to your code host on the computer that runs the server."),
+    ],
+    question: msg("What do the source control settings do, and what do I need to set up?"),
+    notes: `Settings, Source control & issues: Server environment and Version control (Git; shows what the server found, with Rescan), Source control providers (GitHub, GitLab, Forgejo and Gitea, Bitbucket, Azure DevOps and others; sign-in is on the machine that runs the server; docs/user/source-control.md), Automatically pull, Default merge method, Remove agent credits when merging (removes recognized agent credit lines from merge and squash messages on hosts that support it, keeping human co-authors; includes auto-merge; excludes merge queues, stack merges and existing commits), Issue trackers, Commit and pull request writing (a writer model for commit messages, pull request text and branch names; Follow pull request templates), and Review guides (beta: adds a Guide tab to pull requests where an agent explains the changes; the model must be a coding agent).`,
+    docs: { page: "source-control.md", anchor: "connect-an-account" },
+    facts: () => [],
+  },
+  worktrees: {
+    id: "worktrees",
+    title: msg("Worktrees"),
+    whatItIs: msg(
+      "A worktree is a second copy of your project, so an agent can work on its own branch without touching the files you have open.",
+    ),
+    verdict: msg(
+      "Nothing to set up. These settings only choose where the copies go and when they are cleaned up.",
+    ),
+    terms: [
+      {
+        term: msg("Static prefix"),
+        meaning: msg("Text put at the start of every automatically named branch, such as t3/."),
+      },
+      {
+        term: msg("Start from remote"),
+        meaning: msg("Begin each new worktree from the remote branch instead of your local one."),
+      },
+    ],
+    useWhen: [
+      msg("Worktrees fill the disk, or you want them on another drive."),
+      msg("You want branches named a certain way."),
+    ],
+    skipWhen: [msg("Threads work in your own folder and you never use worktrees.")],
+    question: msg("What is a worktree, and which of these settings should I touch?"),
+    notes: `Settings, Worktrees: Worktree cleanup (remove unused worktrees when active or archived threads are deleted; worktrees with local changes are kept; also removes worktrees whose pull request is merged, worktrees inactive for a number of days, days after a thread settles, and worktrees with no commits beyond the default branch; branches and thread history are kept), Worktree location (a folder for new worktrees, per machine, an absolute path such as ~/worktrees or D:\\worktrees on Windows; existing worktrees stay; empty means One's data folder), Submodules (how new worktrees populate git submodules: recursively by default, top level only or skip), Start from remote, Worktree branch naming (a static prefix defaulting to t3/, a model-selected semantic prefix such as feat/ or fix/, or custom instructions; docs/user/project-settings.md). Fast worktree checkout is a macOS beta in Labs. Do not claim what Start from remote does beyond what the row's own description says.`,
+    docs: { page: "project-settings.md", anchor: "worktree-location" },
+    facts: () => [],
+  },
+  maintenance: {
+    id: "maintenance",
+    title: msg("Maintenance"),
+    whatItIs: msg(
+      "Maintenance keeps One and its agents healthy: update checks, background work, and cleaning up old files.",
+    ),
+    verdict: msg(
+      "Leave it on its defaults. Come here when the computer is busy or the disk is full.",
+    ),
+    terms: [
+      {
+        term: msg("Provider update checks"),
+        meaning: msg(
+          "Looks for newer versions of the AI tools you use, and for new models. When off, new models may not appear.",
+        ),
+      },
+      {
+        term: msg("Rotated logs"),
+        meaning: msg("Older log files kept after a newer one started. Current logs are kept."),
+      },
+    ],
+    useWhen: [msg("Fans spin while you are away, or old captures and logs pile up.")],
+    skipWhen: [msg("Nothing is slow and the disk has room.")],
+    question: msg("What does Maintenance do, and when do I need it?"),
+    notes: `Settings, Maintenance: Updates (Provider update checks: check installed provider CLIs for newer versions and fetch model catalog updates; Continue threads after restarts: automatically resume interrupted threads after an update, crash or machine restart on the selected environments), Resources (Background activity profile, Keep awake while agents work: stops the computer from going to sleep while agents are working and lets it sleep once they finish; closing a laptop lid still puts it to sleep), and Artifacts and logs (delete old browser artifacts once past an age, which stops older capture links opening; delete inactive rotated log files past an age; current logs are kept). Diagnostics is a separate page.`,
+    facts: () => [],
+  },
+  "keyboard-shortcuts": {
+    id: "keyboard-shortcuts",
+    title: msg("Keyboard shortcuts"),
+    whatItIs: msg(
+      "Shortcuts are key presses that run a command without the mouse. This list shows every command, its keys and where it works.",
+    ),
+    verdict: msg("Use the defaults, or change a key only when it clashes with another app."),
+    terms: [
+      {
+        term: msg("Settle"),
+        meaning: msg("Moves a finished thread out of the way. A new message wakes it again."),
+      },
+      {
+        term: msg("When"),
+        meaning: msg(
+          "Some shortcuts only work in one place, such as while the message box has focus.",
+        ),
+      },
+    ],
+    useWhen: [msg("A shortcut clashes with another app, or you want one that does not exist yet.")],
+    skipWhen: [msg("You rarely use the keyboard for commands.")],
+    question: msg("How do keyboard shortcuts work here, and how do I change one?"),
+    notes: `Settings, Keyboard shortcuts lists every command with its keys (docs/user/keybindings.md): change a command's keys, add an additional shortcut to a command (Add shortcut), or remove one. Some shortcuts apply only in a condition, shown under the command. A browser may claim some shortcuts before the page sees them; the desktop app receives them all. The command "Send the other way" sends a message the opposite of your follow-up default while the agent works (interrupt or wait).`,
+    docs: { page: "keybindings.md" },
+    facts: () => [],
+  },
   "provider-runtime": {
     id: "provider-runtime",
     title: msg("Advanced runtime settings"),

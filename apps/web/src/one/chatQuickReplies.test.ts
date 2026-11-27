@@ -21,6 +21,14 @@ describe("readAnswerEnding", () => {
     });
   });
 
+  it("treats a question that offers a choice as open, so yes and no are not offered", () => {
+    const text = "Both work.\n\nDo you want to add a hub or an HTTP source?";
+    expect(readAnswerEnding(text)).toEqual({
+      kind: "replies",
+      replies: ["Not sure", "Skip that and give me your best recommendation."],
+    });
+  });
+
   it("offers nothing after a one-sentence answer and the follow-ups after a longer one that does not ask", () => {
     expect(readAnswerEnding("The command printed one JSON line.")).toEqual({ kind: "none" });
     expect(

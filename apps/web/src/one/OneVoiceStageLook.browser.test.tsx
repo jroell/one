@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { cdp } from "vite-plus/test/browser";
 
 import "~/index.css";
@@ -178,7 +178,9 @@ it("the stage is a dark scene with the transcript set in the serif face, whateve
   await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
   await settle();
   const stage = stageElement();
-  expect(getComputedStyle(stage).backgroundImage).toContain("radial-gradient");
+  expect(getComputedStyle(stage.querySelector(".one-voice-backdrop")!).backgroundImage).toContain(
+    "radial-gradient",
+  );
   expect(getComputedStyle(stage).colorScheme).toBe("dark");
   expect(getComputedStyle(stage.querySelector(".one-voice-caption")!).fontFamily).toMatch(
     /Iowan|Palatino|Georgia|serif/,
@@ -545,4 +547,219 @@ it("the old transcript leaves before the new one comes in, and its copy is gone 
   await settle();
   // The finished animation reports its end, and the copy is removed.
   await vi.waitFor(() => expect(stageElement().querySelector(".one-voice-caption-out")).toBeNull());
+});
+
+it("the 'You said' label and the first words of the question arrive together, not the label first", async () => {
+  using voice = setup();
+  voice.state.phase = "preparing";
+  voice.publish();
+  await using _screen = await render(<Scene />, { router: false });
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+  await settle();
+  expect(stageElement().querySelector(".one-voice-caption")!.textContent).toBe("");
+
+  // The microphone starts and the first words are heard.
+  await act(() => {
+    voice.state.phase = "recording";
+    voice.publish();
+  });
+  const label = stageElement().querySelector<HTMLElement>(".one-voice-eyebrow")!;
+  const caption = stageElement().querySelector<HTMLElement>(".one-voice-caption")!;
+  expect(label.textContent).toBe("You said");
+  expect(caption.textContent).toBe("why is the sky blue");
+  const labelTiming = label.getAnimations()[0]!.effect!.getTiming();
+  const captionTiming = caption.getAnimations()[0]!.effect!.getTiming();
+  expect(Number(labelTiming.delay)).toBeCloseTo(Number(captionTiming.delay), 3);
+  expect(Number(labelTiming.duration)).toBeCloseTo(Number(captionTiming.duration), 3);
+});
+
+it("the window's own sidebar control is hidden while the stage covers the window, and back when it ends", async () => {
+  using _voice = setup();
+  await using _screen = await render(
+    <>
+      <div data-sidebar-control="" style={{ position: "fixed", left: 10, top: 10, zIndex: 50 }}>
+        <button type="button">Toggle main sidebar</button>
+      </div>
+      <Scene />
+    </>,
+    { router: false },
+  );
+  const control = document.querySelector<HTMLElement>("[data-sidebar-control]")!;
+  expect(getComputedStyle(control).visibility).toBe("visible");
+
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+  expect(getComputedStyle(control).visibility).toBe("hidden");
+
+  await act(() => dispatchVoiceSession({ type: "stop" }));
+  await settle();
+  await vi.waitFor(() => expect(getComputedStyle(control).visibility).toBe("visible"));
+});
+
+describe("the mark that hides the window's controls while the stage is on screen", () => {
+  const marked = () => document.documentElement.hasAttribute("data-one-voice-open");
+
+  it("is set when the stage appears and gone once voice chat ends, with the exit beat still to play", async () => {
+    using _voice = setup();
+    await using _screen = await render(<Scene />, { router: false });
+    expect(marked()).toBe(false);
+
+    await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+    expect(marked()).toBe(true);
+
+    await act(() => dispatchVoiceSession({ type: "stop" }));
+    expect(marked()).toBe(false);
+    await settle();
+    expect(marked()).toBe(false);
+  });
+
+  it("is gone when Escape ends voice chat", async () => {
+    using _voice = setup();
+    await using _screen = await render(<Scene />, { router: false });
+    await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+    expect(marked()).toBe(true);
+
+    await act(
+      () =>
+        void window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+    );
+    await vi.waitFor(() => expect(marked()).toBe(false));
+  });
+
+  it("is gone when the End button ends voice chat", async () => {
+    using _voice = setup();
+    await using _screen = await render(<Scene />, { router: false });
+    await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+
+    await act(() => document.querySelector<HTMLElement>('[aria-label="End voice chat"]')!.click());
+    await vi.waitFor(() => expect(marked()).toBe(false));
+  });
+
+  it("is gone when the screen holding the stage unmounts while it is open", async () => {
+    using _voice = setup();
+    const screen = await render(<Scene />, { router: false });
+    await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+    expect(marked()).toBe(true);
+
+    await screen[Symbol.asyncDispose]();
+    expect(marked()).toBe(false);
+  });
+});
+
+/** The properties an animation changes, from its keyframes and, for CSS ones, its @keyframes rule. */
+function animatedProperties(animation: Animation): string[] {
+  const declared = (name: string): string[] => {
+    const found: string[] = [];
+    for (const sheet of document.styleSheets) {
+      for (const rule of sheet.cssRules) {
+        if (rule instanceof CSSKeyframesRule && rule.name === name) {
+          for (const frame of rule.cssRules) {
+            const style = (frame as CSSKeyframeRule).style;
+            for (let index = 0; index < style.length; index += 1) found.push(style.item(index));
+          }
+        }
+      }
+    }
+    return found;
+  };
+  return [
+    ...(animation.effect as KeyframeEffect).getKeyframes().flatMap((frame) => Object.keys(frame)),
+    ...(animation instanceof CSSAnimation ? declared(animation.animationName) : []),
+    ...(animation instanceof CSSTransition ? [animation.transitionProperty] : []),
+  ];
+}
+
+const COMPOSITOR_ONLY = new Set([
+  "opacity",
+  "transform",
+  "rotate",
+  "scale",
+  "translate",
+  "offset",
+  "easing",
+  "composite",
+  "computedOffset",
+]);
+
+it("the stage opens as a disc growing from the control that opened it, by transform alone, with no fade of the stage over the page", async () => {
+  using _voice = setup();
+  await using _screen = await render(<Scene />, { router: false });
+  const launcher = document.querySelector<HTMLElement>("#launcher")!;
+  rememberVoiceLauncher(launcher);
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+
+  const stage = stageElement();
+  const iris = stage.querySelector<HTMLElement>(".one-voice-iris")!;
+  expect(stage.dataset.iris).toBe("growing");
+  // The disc is centred on the control and animates nothing but its scale, from nothing to full size.
+  const box = launcher.getBoundingClientRect();
+  const disc = iris.getBoundingClientRect();
+  expect(disc.left + disc.width / 2).toBeCloseTo(box.left + box.width / 2, 0);
+  expect(disc.top + disc.height / 2).toBeCloseTo(box.top + box.height / 2, 0);
+  const [growth] = iris.getAnimations();
+  const frames = (growth!.effect as KeyframeEffect).getKeyframes();
+  expect(frames.map((frame) => frame.transform)).toEqual(["scale(0)", "scale(1)"]);
+  expect(animatedProperties(growth!).filter((name) => !COMPOSITOR_ONLY.has(name))).toEqual([]);
+  // A blend of the page with the dark would be a grey frame: nothing animates the stage's own opacity.
+  const own = stage
+    .getAnimations()
+    .filter((animation) => (animation.effect as KeyframeEffect).target === stage);
+  expect(own).toEqual([]);
+
+  // Once the disc has grown the stage's own backdrop takes over, and the disc is gone.
+  growth!.finish();
+  await vi.waitFor(() => expect(stage.dataset.iris).toBeUndefined());
+  expect(getComputedStyle(iris).display).toBe("none");
+});
+
+it("the words and controls wait for the disc to reach them", async () => {
+  using _voice = setup();
+  await using _screen = await render(<Scene />, { router: false });
+  rememberVoiceLauncher(document.querySelector<HTMLElement>("#launcher")!);
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+
+  const stage = stageElement();
+  const delay = Number.parseFloat(stage.style.getPropertyValue("--vs-content-delay"));
+  expect(delay).toBeGreaterThan(60);
+  expect(delay).toBeLessThan(320);
+  const controls = stage.querySelector<HTMLElement>(".one-voice-stage-actions")!;
+  const timing = controls.getAnimations()[0]!.effect!.getTiming();
+  expect(Number(timing.delay)).toBe(delay);
+});
+
+it("when voice chat ends the same disc shrinks back into the control the ring lands in, by transform alone", async () => {
+  using _voice = setup();
+  await using _screen = await render(<Scene />, { router: false });
+  const launcher = document.querySelector<HTMLElement>("#launcher")!;
+  rememberVoiceLauncher(launcher);
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+  await act(() => settle());
+
+  await act(() => dispatchVoiceSession({ type: "stop" }));
+  const backdrop = document.querySelector<HTMLElement>(".one-voice-ghost-backdrop")!;
+  const [shrink] = backdrop.getAnimations();
+  const frames = (shrink!.effect as KeyframeEffect).getKeyframes();
+  expect(frames.map((frame) => frame.transform)).toEqual(["scale(1)", "scale(0)"]);
+  const box = launcher.getBoundingClientRect();
+  const disc = backdrop.getBoundingClientRect();
+  expect(disc.left + disc.width / 2).toBeCloseTo(box.left + box.width / 2, 0);
+  expect(disc.top + disc.height / 2).toBeCloseTo(box.top + box.height / 2, 0);
+  expect(animatedProperties(shrink!).filter((name) => !COMPOSITOR_ONLY.has(name))).toEqual([]);
+});
+
+it("only compositor properties animate while the stage opens and while it closes", async () => {
+  using _voice = setup();
+  await using _screen = await render(<Scene />, { router: false });
+  rememberVoiceLauncher(document.querySelector<HTMLElement>("#launcher")!);
+
+  const running = () => document.getAnimations().flatMap(animatedProperties);
+  await act(() => dispatchVoiceSession({ type: "start", threadKey: "thread-a" }));
+  const opening = running();
+  expect(opening.length).toBeGreaterThan(0);
+  expect(opening.filter((name) => !COMPOSITOR_ONLY.has(name))).toEqual([]);
+
+  await act(() => settle());
+  await act(() => dispatchVoiceSession({ type: "stop" }));
+  const closing = running();
+  expect(closing.length).toBeGreaterThan(0);
+  expect(closing.filter((name) => !COMPOSITOR_ONLY.has(name))).toEqual([]);
 });

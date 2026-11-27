@@ -102,6 +102,12 @@ export function createSidebarCollisionDetection(
   };
 }
 
+/**
+ * What every row does when nothing is being dragged. One function for the whole app: a new one per
+ * render would change the SortableContext value, and every row that reads it would render again.
+ */
+export const idleSidebarSortingStrategy: SortingStrategy = () => stationary;
+
 export function createSidebarSortingStrategy(input: {
   items: readonly SidebarListItem[];
   enabled?: boolean;
@@ -115,7 +121,7 @@ export function createSidebarSortingStrategy(input: {
   slimHeight?: number;
   boundaryLabelHeight?: number;
 }): SortingStrategy {
-  if (input.enabled === false) return () => stationary;
+  if (input.enabled === false) return idleSidebarSortingStrategy;
   const { items } = input;
   const indices = new Map(items.map((item, index) => [sidebarListItemId(item), index]));
   let previous: Pick<Layout, "rects" | "activeIndex" | "overIndex"> | undefined;

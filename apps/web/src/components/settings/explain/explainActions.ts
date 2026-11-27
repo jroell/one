@@ -47,5 +47,13 @@ export const EXPLAIN_ACTIONS: Readonly<Record<ExplainTopicId, ReadonlyArray<Expl
   "background-activity": [{ label: msg("Open Maintenance"), href: "/settings/maintenance" }],
   "browser-profiles": [{ label: msg("Open Browser"), href: "/settings/browser" }],
   "project-file": [{ label: msg("Open Projects"), href: "/settings/projects" }],
+  "chat-settings": [{ label: msg("Open Chat settings"), href: "/settings/chat" }],
+  "threads-settings": [{ label: msg("Open Threads"), href: "/settings/threads" }],
+  "codex-provider": [PROVIDERS],
+  labs: [LABS],
+  "source-control": [{ label: msg("Open Source control"), href: "/settings/source-control" }],
+  worktrees: [{ label: msg("Open Worktrees"), href: "/settings/worktrees" }],
+  maintenance: [{ label: msg("Open Maintenance"), href: "/settings/maintenance" }],
+  "keyboard-shortcuts": [{ label: msg("Open Keyboard shortcuts"), href: "/settings/keybindings" }],
   "settings-scope": [{ label: msg("Open Projects"), href: "/settings/projects" }],
 };

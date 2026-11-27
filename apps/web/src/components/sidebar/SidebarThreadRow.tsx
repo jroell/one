@@ -1,3 +1,4 @@
+import { LimitedFallbackPopover } from "./LimitedFallbackPopover";
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { asLaunchingThread } from "@t3tools/client-runtime/state/thread-inbox";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
@@ -1125,6 +1126,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     onSnooze(threadRef, preset);
   };
   const [snoozeMenuOpenRaw, setSnoozeMenuOpen] = useState(false);
+  // Set by the slot's focus events: a `:has(:focus-visible)` on the slot restyled the whole page.
+  const [slotKeyboardFocus, setSlotKeyboardFocus] = useState(false);
   // The React Compiler caches render results on their inputs, so a clock read
   // here would stay frozen until `thread` changes and a queued-turn gate would
   // never reopen. The gate's clock is state, reset with the thread.
@@ -1788,12 +1791,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     props.sweepAction !== null && "hidden",
                     jumpHintLabel && JUMP_HINT_SLOT_CLASS_NAME,
                   )}
+                  data-keyboard-focus={slotKeyboardFocus ? "" : undefined}
+                  onFocus={(event) => setSlotKeyboardFocus(event.target.matches(":focus-visible"))}
+                  onBlur={() => setSlotKeyboardFocus(false)}
                 >
                   <span
                     className={cn(
                       isWokeStatus
                         ? "pointer-events-auto"
-                        : "pointer-events-none group-has-[:focus-visible]/sidebar-status-slot:absolute group-has-[:focus-visible]/sidebar-status-slot:right-0 group-has-[:focus-visible]/sidebar-status-slot:opacity-0 group-any-hover/sidebar-row:absolute group-any-hover/sidebar-row:right-0 group-any-hover/sidebar-row:opacity-0",
+                        : "pointer-events-none group-data-[keyboard-focus]/sidebar-status-slot:absolute group-data-[keyboard-focus]/sidebar-status-slot:right-0 group-data-[keyboard-focus]/sidebar-status-slot:opacity-0 group-any-hover/sidebar-row:absolute group-any-hover/sidebar-row:right-0 group-any-hover/sidebar-row:opacity-0",
                       "flex items-center self-center justify-self-end tabular-nums text-secondary-label",
                       snoozeMenuOpen && "pointer-events-none absolute right-0 opacity-0",
                     )}
@@ -1838,13 +1844,21 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           {/* Not a live region: a collapsed sidebar is inert, so
                             BackgroundThreadAnnouncer and the open thread's
                             timeline speak status changes instead. */}
-                          <span
-                            className={
-                              status === "failed" || status === "limited" ? undefined : "sr-only"
-                            }
-                          >
-                            {topStatus.label}
-                          </span>
+                          {status === "limited" ? (
+                            <LimitedFallbackPopover
+                              environmentId={thread.environmentId}
+                              instanceId={
+                                thread.runtime?.providerInstanceId ??
+                                thread.modelSelection.instanceId
+                              }
+                            >
+                              <span>{topStatus.label}</span>
+                            </LimitedFallbackPopover>
+                          ) : (
+                            <span className={status === "failed" ? undefined : "sr-only"}>
+                              {topStatus.label}
+                            </span>
+                          )}
                           {status === "preparing" || status === "working" ? (
                             <span aria-hidden>
                               <WorkingDuration

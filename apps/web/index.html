@@ -948,16 +948,15 @@
       }
     </script>
     <style>
-      /* Only the plain boot placeholder goes black. A boot error keeps its own readable colors. */
-      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) {
+      /* Only the plain boot placeholder goes black. showBootError clears data-one-opening, so a
+         boot error keeps its own readable colors without a :has() here. */
+      html[data-one-opening] #boot-shell {
         background: #000;
       }
-      html[data-one-opening]
-        #boot-shell:not(:has(> #boot-error))
-        :is(#boot-shell-ring, #boot-shell-name) {
+      html[data-one-opening] #boot-shell :is(#boot-shell-ring, #boot-shell-name) {
         visibility: hidden;
       }
-      html[data-one-opening] #boot-shell:not(:has(> #boot-error)) #boot-shell-card::before {
+      html[data-one-opening] #boot-shell #boot-shell-card::before {
         display: none;
       }
     </style>

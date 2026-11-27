@@ -39,6 +39,7 @@ import { environmentServerConfigsAtom } from "./server";
 import {
   allEnvironmentProjectSnapshotsReadyAtom,
   allEnvironmentShellsBootstrappedAtom,
+  anyEnvironmentAwaitingShellAtom,
 } from "./shell";
 import { environmentThreadDetails, environmentThreadShells } from "./threads";
 import { waitForAtomValue } from "./waitForAtomValue";
@@ -137,6 +138,10 @@ export function useAllEnvironmentShellsBootstrapped(): boolean {
   return useAtomValue(allEnvironmentShellsBootstrappedAtom);
 }
 
+export function useAnyEnvironmentAwaitingShell(): boolean {
+  return useAtomValue(anyEnvironmentAwaitingShellAtom);
+}
+
 export function useAllEnvironmentProjectSnapshotsReady(): boolean {
   return useAtomValue(allEnvironmentProjectSnapshotsReadyAtom);
 }
@@ -177,6 +182,12 @@ export function useQuietThreadShell(ref: ScopedThreadRef | null): EnvironmentThr
  */
 export function useQuietThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
   return useDeferredValue(useAtomValue(environmentThreadShells.quietThreadShellsAtom));
+}
+
+/** True while the thread list `useQuietThreadShells` returns is behind the one in the store. */
+export function useQuietThreadShellsLagging(): boolean {
+  const fresh = useAtomValue(environmentThreadShells.quietThreadShellsAtom);
+  return useDeferredValue(fresh) !== fresh;
 }
 
 export function useChildThreadInputs(ref: ScopedThreadRef | null) {

@@ -101,6 +101,7 @@ import { useSecretSources } from "./SecretSourceInput";
 import { TextGeneratorsSettings } from "./TextGeneratorsSettings";
 import { UsageProviderSettings } from "./UsageProviderSettings";
 import { ExplainControl } from "./explain/ExplainControl";
+import { useProviderInstancePersister } from "./useProviderInstancePersister";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
@@ -110,7 +111,6 @@ import { useSearchableSetting } from "./settingsSearch";
 import { CompactIdleThreadsRow } from "./SettingsPanels";
 import {
   backgroundActivityOverrideSettings,
-  buildProviderInstanceUpdatePatch,
   durationToSeconds,
   PROVIDER_HEALTH_INTERVAL_STEP_SECONDS,
 } from "./SettingsPanels.logic";
@@ -867,38 +867,10 @@ function EnvironmentProviderSettingsBody({
       : providerInstanceName(selectedRow.explicitInstance ?? { driver: selectedRow.driver }),
     gt("Its account, setup, runtime and models on this device."),
     backToList,
+    selectedRow !== null && String(selectedRow.driver) === "codex" ? "codex-provider" : undefined,
   );
 
-  const persistInstance = async (
-    instanceId: ProviderInstanceId,
-    next: ProviderInstanceConfig,
-    textGenerationModelSelection?: Parameters<
-      typeof buildProviderInstanceUpdatePatch
-    >[0]["textGenerationModelSelection"],
-  ) => {
-    const { providerInstances: _providerInstances, ...patch } = buildProviderInstanceUpdatePatch({
-      settings,
-      instanceId,
-      instance: next,
-      textGenerationModelSelection,
-    });
-    const result = await persistProviderInstance(
-      { operation: "upsert", instanceId, instance: next },
-      patch,
-    );
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      const error = squashAtomCommandFailure(result);
-      toastManager.add({
-        type: "error",
-        title: gt("Could not update provider instance"),
-        description:
-          error instanceof Error
-            ? (thrownErrorMessage(error, resolveNow) ?? error.message)
-            : gt("The settings update failed."),
-      });
-    }
-    return result._tag !== "Failure";
-  };
+  const persistInstance = useProviderInstancePersister(environmentId, settings);
 
   const updateInstance = useStableCallback(
     (

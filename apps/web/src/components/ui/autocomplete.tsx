@@ -24,7 +24,15 @@ function AutocompleteInput({
   const sizeValue = (size ?? "default") as "sm" | "default" | "lg" | number;
 
   return (
-    <div className="relative not-has-[>*.w-full]:w-fit w-full text-foreground has-disabled:opacity-64">
+    <div
+      className={cn(
+        "relative not-has-[>*.w-full]:w-fit w-full text-foreground has-disabled:opacity-64",
+        // The input reads this; a `:has()` of the input in front of a child selector restyled the page.
+        sizeValue === "sm"
+          ? "has-[>[data-slot=autocomplete-trigger],>[data-slot=autocomplete-clear]]:[--autocomplete-pe:calc(var(--spacing)*6.5)]"
+          : "has-[>[data-slot=autocomplete-trigger],>[data-slot=autocomplete-clear]]:[--autocomplete-pe:calc(var(--spacing)*7)]",
+      )}
+    >
       {startAddon && (
         <div
           aria-hidden="true"
@@ -39,8 +47,8 @@ function AutocompleteInput({
           startAddon &&
             "data-[size=sm]:*:data-[slot=autocomplete-input]:ps-[calc(--spacing(7.5)-1px)] *:data-[slot=autocomplete-input]:ps-[calc(--spacing(8.5)-1px)] sm:data-[size=sm]:*:data-[slot=autocomplete-input]:ps-[calc(--spacing(7)-1px)] sm:*:data-[slot=autocomplete-input]:ps-[calc(--spacing(8)-1px)]",
           sizeValue === "sm"
-            ? "has-[+[data-slot=autocomplete-trigger],+[data-slot=autocomplete-clear]]:*:data-[slot=autocomplete-input]:pe-6.5"
-            : "has-[+[data-slot=autocomplete-trigger],+[data-slot=autocomplete-clear]]:*:data-[slot=autocomplete-input]:pe-7",
+            ? "*:data-[slot=autocomplete-input]:pe-[var(--autocomplete-pe,calc(var(--spacing)*2.5_-_1px))]"
+            : "*:data-[slot=autocomplete-input]:pe-[var(--autocomplete-pe,calc(var(--spacing)*3_-_1px))]",
           className,
         )}
         data-slot="autocomplete-input"

@@ -41,7 +41,7 @@ async function openGuidedThread(name: string, mode: "chat" | "code") {
   const environment = installFakeEnvironment([thread], { acceptCommands: true });
   rememberGuidedThread(`${ENVIRONMENT_ID}:${thread.id}`, {
     asked: "Claude",
-    skipped: { name: "Codex", resetsAt: "2099-11-30T16:46:00.000Z" },
+    skipped: { name: "Gemini", resetsAt: "2099-11-30T16:46:00.000Z" },
     actions: [{ label: "Open Usage", href: "/settings/providers" }],
   });
   __setClientSettingsForTests({
@@ -68,7 +68,7 @@ async function openGuidedThread(name: string, mode: "chat" | "code") {
 
 it("a guided thread says which provider answered and why, and its chips open the place the answer names", async () => {
   await using opened = await openGuidedThread("guided-footer", "chat");
-  await expect.element(page.getByText(/^Asked Claude: Codex is out until .+\.$/)).toBeVisible();
+  await expect.element(page.getByText(/^Asked Codex: Gemini is out until .+\.$/)).toBeVisible();
   await page.getByRole("button", { name: "Open Usage" }).click();
   await vi.waitFor(() => expect(opened.router.state.location.pathname).toBe("/settings/providers"));
 });
@@ -217,7 +217,7 @@ it("a guided answer ends in one block, in order: the replies it asks for, the li
     // AppRoot brings its own router.
     router: false,
   });
-  await expect.element(page.getByText("Asked Claude.")).toBeVisible();
+  await expect.element(page.getByText("Asked Codex.")).toBeVisible();
   const replies = document.querySelector<HTMLElement>(".one-chat-replies")!;
   const links = document.querySelector<HTMLElement>(".one-guided-links")!;
   const line = document.querySelector<HTMLElement>(".one-guided-line")!;
@@ -231,4 +231,33 @@ it("a guided answer ends in one block, in order: the replies it asks for, the li
   expect(replies.contains(links) || links.contains(replies)).toBe(false);
   expect(replies.querySelector("a, .one-guided-link")).toBeNull();
   expect(links.querySelector(".one-chat-reply")).toBeNull();
+});
+
+it("a guided thread says nothing about its provider once a second run has answered", async () => {
+  setWorkspaceMode("chat");
+  onTestFinished(() => {
+    setWorkspaceMode("code");
+    window.sessionStorage.removeItem("one:guided-thread");
+  });
+  const thread = threadWithHistory("guided-two-answers", 2);
+  rememberGuidedThread(`${ENVIRONMENT_ID}:${thread.id}`, {
+    asked: "Claude",
+    skipped: { name: "Codex", resetsAt: "2099-11-30T16:46:00.000Z" },
+    actions: [{ label: "Open Usage limits", href: "/settings/providers" }],
+  });
+  using _environment = installFakeEnvironment([thread], { acceptCommands: true });
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  await expect.element(page.getByText(`Answer 1 for ${thread.id}.`)).toBeVisible();
+  expect(document.querySelector("[data-guided-footer]")).toBeNull();
 });

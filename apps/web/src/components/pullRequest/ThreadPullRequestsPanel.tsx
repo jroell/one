@@ -326,7 +326,7 @@ function LinkRowImpl({
           "pointer-events-none opacity-0 group-hover/pr-row:pointer-events-auto group-hover/pr-row:opacity-100",
           "has-[[data-popup-open]]:pointer-events-auto has-[[data-popup-open]]:opacity-100",
           "has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100",
-          "group-has-[[data-pull-request-action-pending=true]]/pr-row:hidden",
+          "peer-data-[pull-request-action-pending=true]/pr-actions:hidden",
           speedMode && hasQuickActions && "hidden",
         )}
       >

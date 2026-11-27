@@ -67,3 +67,33 @@ it("the ring shows the flat mark for good when WebGL is not available", async ()
 
   expect(screen.container.querySelector("[data-one-mark]")).not.toBeNull();
 });
+
+it("the ring's halo is sized from the ring's drawn width and, in light, is a grounded shadow instead of a glow", async () => {
+  using _webgl = answerWebglWith(fakeGl());
+  await using screen = await render(<OneOrb halo className="w-28" />, { router: false });
+  const ring = screen.container.querySelector<HTMLElement>("[data-one-orb]")!;
+
+  await vi.waitFor(() => expect(ring.style.getPropertyValue("--ring-size")).toBe("112px"));
+  // The filter eases in, so each theme is read once it has settled.
+  document.documentElement.classList.add("dark");
+  await vi.waitFor(() =>
+    expect(getComputedStyle(ring).filter.match(/drop-shadow/g)).toHaveLength(1),
+  );
+  // 112px × 0.0909 = 10.2px of glow on dark.
+  expect(getComputedStyle(ring).filter).toMatch(/10\.1\d*px/);
+  document.documentElement.classList.remove("dark");
+  // On cream: a hairline plus a lower, tighter shadow, never the 10px glow.
+  // On cream: a hairline plus a lower, tighter shadow, never the 10px glow.
+  await vi.waitFor(() => {
+    const light = getComputedStyle(ring).filter;
+    expect(light.match(/drop-shadow/g)).toHaveLength(2);
+    expect(light).not.toMatch(/0px 0px 10\.1/);
+  });
+});
+
+it("a ring without the halo prop casts none, so the opening and the voice stage light themselves", async () => {
+  using _webgl = answerWebglWith(fakeGl());
+  await using screen = await render(<OneOrb className="w-28" />, { router: false });
+  const ring = screen.container.querySelector<HTMLElement>("[data-one-orb]")!;
+  expect(getComputedStyle(ring).filter).toBe("none");
+});

@@ -112,7 +112,11 @@ function SliderRange({
   unit: string;
 }) {
   return (
-    <span aria-hidden className="settings-slider-range">
+    <span
+      aria-hidden
+      className="settings-slider-range"
+      data-mid={mid === undefined ? undefined : ""}
+    >
       <span>
         {min}
         {unit}

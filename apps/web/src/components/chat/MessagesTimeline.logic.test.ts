@@ -1728,7 +1728,7 @@ describe("deriveMessagesTimelineRows", () => {
     });
   });
 
-  it("marks the question after a longer answer, and not the one after a single line", () => {
+  it("marks every question that follows an answer, and not the first one", () => {
     const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
     const message = (id: string, second: number, role: "user" | "assistant", text: string) =>
       ({
@@ -1762,10 +1762,11 @@ describe("deriveMessagesTimelineRows", () => {
       supportsConversationRollback: false,
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
-    expect(byId.get("q1")).not.toHaveProperty("afterLongAnswer");
-    expect(byId.get("q2")).not.toHaveProperty("afterLongAnswer");
-    expect(byId.get("q3")).toMatchObject({ afterLongAnswer: true });
-    expect(byId.get("q4")).toMatchObject({ afterLongAnswer: true });
+    expect(byId.get("q1")).not.toHaveProperty("afterAnswer");
+    // Every question after an answer opens a turn, short answer or long.
+    expect(byId.get("q2")).toMatchObject({ afterAnswer: true });
+    expect(byId.get("q3")).toMatchObject({ afterAnswer: true });
+    expect(byId.get("q4")).toMatchObject({ afterAnswer: true });
   });
 
   it("keeps the previous turn folded while a newly sent message awaits its turn", () => {

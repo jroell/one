@@ -14,11 +14,15 @@ import {
 } from "@t3tools/contracts";
 import { msg } from "gt-react";
 import { useContext } from "react";
+import { runAtomCommand } from "@t3tools/client-runtime/state/runtime";
 import { RegistryContext } from "@effect/atom-react";
+import type { AtomRegistry } from "effect/reactivity";
 import { useRouter } from "@tanstack/react-router";
 
 import { useComposerDraftStore } from "~/composerDraftStore";
-import { readThreadShell, useThreadShell } from "~/state/entities";
+import { readThreadShell, useThreadShell, waitForThreadShell } from "~/state/entities";
+import { threadEnvironment } from "~/state/threads";
+import { newThreadId } from "~/lib/utils";
 import { createScratchProjectActions } from "~/hooks/useScratchProject";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -32,11 +36,13 @@ import {
   type EnvironmentPresentation,
 } from "~/state/environments";
 
+import { useAskOneSheetStore } from "./askOneSheetStore";
 import {
   getComposerSend,
   waitForComposerSend,
   type ComposerSendBridge,
 } from "./composerSendBridge";
+import { GuidedBridgeScopeContext } from "./guidedBridgeScope";
 import {
   chooseGuidedModel,
   earliestUsageReset,
@@ -65,6 +71,8 @@ export interface StartConversationInput {
   readonly topicKey?: string;
   /** Places the answer points to, shown as chips under it (in-app paths only; at most three). */
   readonly actions?: ReadonlyArray<GuidedAction>;
+  /** What a side sheet over Settings or Usage is titled, already translated. Absent: the question. */
+  readonly title?: string;
 }
 
 export type GuidedConversationInput = StartConversationInput & {
@@ -313,12 +321,99 @@ export function conversationAvailability(
   return { ok: true };
 }
 
+/** Settings and Usage are the pages the Ask One side sheet opens over. */
+function isSheetPage(pathname: string): boolean {
+  return pathname === "/usage" || pathname === "/settings" || pathname.startsWith("/settings/");
+}
+
+/**
+ * The entry point's dependencies for the side sheet: the thread is created empty (so the sheet can
+ * show it and its composer carry the first message), the sheet's own composer sends, and giving up
+ * closes the sheet and removes the empty thread.
+ */
+function sheetDeps(input: {
+  readonly deps: GuidedConversationDeps;
+  readonly scratch: ReturnType<typeof createScratchProjectActions>;
+  readonly registry: AtomRegistry.AtomRegistry;
+  readonly providers: ReadonlyMap<EnvironmentId, ReadonlyArray<ServerProvider>>;
+  readonly input: StartConversationInput;
+}): GuidedConversationDeps {
+  const { deps, scratch, registry, providers } = input;
+  const sheet = useAskOneSheetStore.getState();
+  const titleOf = () => input.input.title ?? input.input.visibleText.slice(0, 60);
+  return {
+    ...deps,
+    openScratchDraft: async (environmentId) => {
+      const project = await scratch.openScratchProject(environmentId);
+      if (project === null) return null;
+      const modelSelection = firstProviderWithUsageLeft(
+        providers.get(environmentId) ?? [],
+        Date.now(),
+      );
+      if (modelSelection === null) return null;
+      const threadId = newThreadId();
+      const created = await runAtomCommand(
+        registry,
+        threadEnvironment.create,
+        {
+          environmentId,
+          input: {
+            threadId,
+            projectId: project.id,
+            title: titleOf().trim() || m(msg("Ask One")),
+            modelSelection,
+            runtimeMode: "approval-required",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+          },
+        },
+        { label: threadEnvironment.create.label, reportFailure: false },
+      );
+      if (created._tag === "Failure") return null;
+      const threadRef = scopeThreadRef(environmentId, threadId);
+      if (!(await waitForThreadShell(threadRef))) return null;
+      sheet.attach(threadRef);
+      const threadKey = scopedThreadKey(threadRef);
+      return { draftKey: threadKey, threadKey };
+    },
+    discardDraft: (threadKey) => {
+      sheet.close();
+      const ref = parseScopedThreadKey(threadKey);
+      if (ref === null) return;
+      void runAtomCommand(
+        registry,
+        threadEnvironment.delete,
+        { environmentId: ref.environmentId, input: { threadId: ref.threadId, onlyIfUnused: true } },
+        { label: threadEnvironment.delete.label, reportFailure: false },
+      );
+    },
+    // The page under the sheet is already where the person was; going back is closing.
+    navigateTo: () => sheet.close(),
+    openThread: (threadKey) => {
+      const ref = parseScopedThreadKey(threadKey);
+      if (ref !== null) sheet.show({ title: titleOf(), thread: ref });
+    },
+    composer: () => getComposerSend("sheet"),
+    composerFor: (threadKey, timeoutMs, accept) =>
+      waitForComposerSend(threadKey, timeoutMs, accept, "sheet"),
+    setDraftModel: (threadKey, selection) => {
+      const ref = parseScopedThreadKey(threadKey);
+      if (ref !== null) useComposerDraftStore.getState().setModelSelection(ref, selection);
+    },
+  };
+}
+
 function useGuidedConversationDeps(): {
   readonly deps: GuidedConversationDeps;
   readonly environments: ReadonlyArray<ConversationEnvironment>;
   readonly providers: ReadonlyMap<EnvironmentId, ReadonlyArray<ServerProvider>>;
   readonly scratchEnvironmentId: EnvironmentId | null;
   readonly timestampFormat: TimestampFormat;
+  /** The same entry point's dependencies, for a conversation shown in the side sheet. */
+  readonly openSheetDeps: (input: StartConversationInput) => GuidedConversationDeps;
+  /** Whether the page on screen is one the sheet opens over (Settings, Usage). */
+  readonly onSheetPage: () => boolean;
 } {
   const { environments } = useEnvironments();
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
@@ -327,6 +422,7 @@ function useGuidedConversationDeps(): {
   const registry = useContext(RegistryContext);
   const handleNewThread = useNewThreadHandler();
   const router = useRouter();
+  const bridgeScope = useContext(GuidedBridgeScopeContext);
   const scratch = createScratchProjectActions({
     environments: () => environments,
     primaryEnvironmentId: () => primaryEnvironmentId,
@@ -370,8 +466,9 @@ function useGuidedConversationDeps(): {
         params: { environmentId: ref.environmentId, threadId: ref.threadId },
       });
     },
-    composer: getComposerSend,
-    composerFor: waitForComposerSend,
+    composer: () => getComposerSend(bridgeScope),
+    composerFor: (threadKey, timeoutMs, accept) =>
+      waitForComposerSend(threadKey, timeoutMs, accept, bridgeScope),
     providersFor: (environmentId) => providers.get(environmentId) ?? [],
     now: Date.now,
     providerName: (environmentId, instanceId) => {
@@ -396,6 +493,8 @@ function useGuidedConversationDeps(): {
     providers,
     scratchEnvironmentId: scratch.scratchEnvironmentId(null),
     timestampFormat,
+    openSheetDeps: (input) => sheetDeps({ deps, scratch, registry, providers, input }),
+    onSheetPage: () => isSheetPage(router.state.location.pathname),
   };
 }
 
@@ -433,8 +532,15 @@ export function useConversationAvailability(topicKey?: string): ConversationAvai
  * The promise rejects with an Error whose message is the reason in the person's words.
  */
 export function useStartConversation(): (input: StartConversationInput) => Promise<void> {
-  const { deps, environments, providers, scratchEnvironmentId, timestampFormat } =
-    useGuidedConversationDeps();
+  const {
+    deps,
+    environments,
+    providers,
+    scratchEnvironmentId,
+    timestampFormat,
+    openSheetDeps,
+    onSheetPage,
+  } = useGuidedConversationDeps();
   return async (input) => {
     const earlier = input.topicKey === undefined ? null : guidedTopicThread(input.topicKey);
     const reusable = earlier !== null && deps.threadHasAnswer(earlier);
@@ -443,8 +549,18 @@ export function useStartConversation(): (input: StartConversationInput) => Promi
       timestampFormat,
     });
     if (!availability.ok && !reusable) throw new Error(availability.reason);
-    const result = await startGuidedConversation(input, deps);
+    // Over Settings or Usage the answer opens beside the page, with the question showing at once;
+    // anywhere else it is its own thread.
+    const inSheet = onSheetPage();
+    if (inSheet) {
+      useAskOneSheetStore.getState().begin({
+        title: input.title ?? input.visibleText.slice(0, 60),
+        question: input.visibleText,
+      });
+    }
+    const result = await startGuidedConversation(input, inSheet ? openSheetDeps(input) : deps);
     if (!result.ok) {
+      if (inSheet) useAskOneSheetStore.getState().close();
       throw new Error(
         result.detail ??
           guidedConversationReason(result.reason, { resetsAt: result.resetsAt, timestampFormat }),

@@ -230,18 +230,33 @@ html[data-theme-id=""] {
   }
 }
 
-/* The composer is the main object on screen: it lifts and takes a brand-tinted
-   edge when it has focus. */
-[data-slot="composer-host"] {
-  transition: box-shadow 260ms var(--one-ease-out);
+/* The composer is the main object on screen: it takes a brand-tinted edge when it has focus. The
+   edge is a layer of its own that fades in by opacity, so the shadow is painted once and never
+   animated (an animated box-shadow repaints the composer on every frame). A notice joined to the
+   composer draws the outline of the pair, so the host stays bare then. */
+[data-slot="composer-host"] > .one-composer-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    var(--m-shadow-raised),
+    var(--m-lit),
+    0 0 0 1px color-mix(in oklch, var(--one-brand) 38%, transparent);
+  transition: opacity 260ms var(--one-ease-out);
 }
 
-/* A notice joined to the composer draws the outline of the pair, so the host stays bare then. */
-[data-slot="composer-shell"]:not([data-banner-attached]):focus-within [data-slot="composer-host"] {
-  box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--one-brand) 38%, transparent),
-    0 0 0 5px color-mix(in oklch, var(--one-brand) 10%, transparent),
-    0 18px 44px -22px var(--one-brand-glow);
+[data-slot="composer-shell"]:not([data-banner-attached]):focus-within
+  [data-slot="composer-host"]
+  > .one-composer-glow {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="composer-host"] > .one-composer-glow {
+    transition: none;
+  }
 }
 
 [data-slot="composer-host"]::before,
@@ -410,58 +425,9 @@ html[data-one-mode="chat"] {
   --chat-content-max-width: 43rem;
 }
 
-/* The switch between Code and Chat never shows two layouts at once. The sidebar slides out (or
-   back) and the header stays put, each as a layer of its own. What differs in type, measure and
-   chrome (the page, the sidebar's rows, the composer's placeholder) leaves in 100ms and the new
-   one arrives over the next 180ms, on the page's own colour. */
-html[data-one-mode-transition] [data-slot="sidebar-container"] {
-  view-transition-name: one-sidebar;
-}
-
-html[data-one-mode-transition] [data-chat-header] {
-  view-transition-name: one-header;
-}
-
-html[data-one-mode-transition] [data-slot="composer-host"] {
-  view-transition-name: one-composer;
-}
-
-html[data-one-mode-transition]::view-transition {
-  background: var(--background);
-}
-
-html[data-one-mode-transition]::view-transition-group(root),
-html[data-one-mode-transition]::view-transition-group(one-sidebar),
-html[data-one-mode-transition]::view-transition-group(one-header),
-html[data-one-mode-transition]::view-transition-group(one-composer) {
-  animation-duration: var(--mo-sheet, 320ms);
-  animation-timing-function: var(--ease-enter, var(--one-ease-out));
-}
-
-html[data-one-mode-transition]::view-transition-old(root),
-html[data-one-mode-transition]::view-transition-old(one-sidebar),
-html[data-one-mode-transition]::view-transition-old(one-composer) {
-  animation: one-mode-leave var(--mo-press, 100ms) linear both;
-}
-
-html[data-one-mode-transition]::view-transition-new(root),
-html[data-one-mode-transition]::view-transition-new(one-sidebar),
-html[data-one-mode-transition]::view-transition-new(one-composer) {
-  animation: one-mode-arrive var(--mo-quick, 180ms) var(--ease-enter, ease-out)
-    var(--mo-press, 100ms) both;
-}
-
-@keyframes one-mode-leave {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes one-mode-arrive {
-  from {
-    opacity: 0;
-  }
-}
+/* The switch between Code and Chat is made in workspaceMode.ts: the page's own two layers fade out
+   and in, one after the other, with the change made while they are invisible. No view transition
+   is used, because its snapshots would put an old and a new page on screen together. */
 
 /* Chat mode composer: a rounder, lifted bar, closer to a message field than an editor. */
 html[data-one-mode="chat"] [data-slot="composer-shell"],
