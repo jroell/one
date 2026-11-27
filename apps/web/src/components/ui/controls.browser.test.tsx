@@ -499,7 +499,8 @@ describe("the material ramp", () => {
       expect(lumSolid!).toBeGreaterThan(lumBase!);
       expect(lumGlass!, "glass reads above the page").toBeGreaterThan(lumBase!);
       expect(lumGlass!, "and below the card it floats over").toBeLessThan(lumSolid!);
-      for (const [r, g, b] of [raised, card, floating]) {
+      for (const rgb of [raised, card, floating]) {
+        const [r, g, b] = rgb!;
         expect(r! - g!).toBeGreaterThanOrEqual(2);
         expect(g! - b!).toBeGreaterThanOrEqual(2);
       }
