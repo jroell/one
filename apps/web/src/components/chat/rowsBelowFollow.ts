@@ -163,10 +163,18 @@ export interface RowsClosing {
  * released in that same frame. If the row opens again first, `reopen` plays the wipe and the slide
  * back from where they are, as nothing below has moved.
  */
+/** The newest close of each row; only it may give the row its overflow back. */
+const latestClose = new WeakMap<HTMLElement, object>();
+
 export function closeRowsBelow(reveal: HTMLElement): RowsClosing | null {
   if (!prefersMotion()) return null;
   const item = listItemOf(reveal);
   if (item === null) return null;
+  const owner = {};
+  latestClose.set(reveal, owner);
+  const unclip = () => {
+    if (latestClose.get(reveal) === owner) reveal.style.overflow = "";
+  };
   const below = itemsBelow(item);
   const before = tops(below);
   const by = reveal.getBoundingClientRect().height;
@@ -187,7 +195,7 @@ export function closeRowsBelow(reveal: HTMLElement): RowsClosing | null {
     unwatch();
     for (const slide of slides) slide.cancel();
     for (const animation of clips) animation.cancel();
-    reveal.style.overflow = "";
+    unclip();
   };
   void clip.finished.then(() => {
     if (over) return;
@@ -211,7 +219,7 @@ export function closeRowsBelow(reveal: HTMLElement): RowsClosing | null {
       for (const animation of all) animation.reverse();
       void Promise.allSettled(all.map((animation) => animation.finished)).then(() => {
         for (const animation of all) animation.cancel();
-        reveal.style.overflow = "";
+        unclip();
       });
       return true;
     },
