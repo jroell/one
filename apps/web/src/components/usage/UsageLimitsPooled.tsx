@@ -11,6 +11,7 @@ import {
   exhaustedUsageWindow,
   paceOf,
   paceRemainingPercent,
+  providersWithLimits,
   remainingPercent,
   type ResetCreditChoice,
 } from "@t3tools/shared/usageLimits";
@@ -827,8 +828,7 @@ function PoolSection({
   readonly pool: LimitPool;
   readonly now: number;
   readonly rowOffset: number;
-  /** Where a standing fallback model can be set for a provider that is out, by driver. */
-  readonly fallbackTargets: ReadonlyMap<string, UsageFallbackTarget>;
+  readonly fallbackTargets: readonly UsageFallbackTarget[];
 }) {
   const color = barColor(pool.driver);
   const label = providerClients.get(pool.driver)?.label ?? String(pool.driver);
@@ -861,9 +861,13 @@ function PoolSection({
           />
         );
       })}
-      {fallbackTargets.get(pool.driver) ? (
-        <UsageFallbackControl target={fallbackTargets.get(pool.driver)!} now={now} />
-      ) : null}
+      {fallbackTargets.map((target) => (
+        <UsageFallbackControl
+          key={JSON.stringify([target.environmentId, target.exhausted.instanceId])}
+          target={target}
+          now={now}
+        />
+      ))}
     </section>
   );
 }
@@ -1041,15 +1045,17 @@ export function UsageLimitsPooled({
   const segmentPopoverActions = useRef<PopoverPrimitive.Root.Actions | null>(null);
   const pools = collectLimitPools(collectLimitAccounts(presentations), now);
   const quotaSources = collectHttpQuotaSources(presentations);
-  const fallbackTargets = new Map<string, UsageFallbackTarget>(
-    [...presentations].flatMap(([environmentId, presentation]) => {
-      const providers = presentation.serverConfig?.providers ?? [];
-      const exhausted = providers.find((provider) => exhaustedUsageWindow(provider, now));
-      return exhausted
-        ? [[exhausted.driver, { environmentId, exhausted, providers }] as const]
-        : [];
-    }),
-  );
+  const fallbackTargets = new Map<LimitPool["driver"], UsageFallbackTarget[]>();
+  for (const [environmentId, presentation] of presentations) {
+    const providers = presentation.serverConfig?.providers ?? [];
+    const environmentLabel = presentations.size > 1 ? presentation.entry.target.label : undefined;
+    for (const exhausted of providersWithLimits(providers)) {
+      if (!exhaustedUsageWindow(exhausted, now)) continue;
+      const targets = fallbackTargets.get(exhausted.driver) ?? [];
+      targets.push({ environmentId, environmentLabel, exhausted, providers });
+      fallbackTargets.set(exhausted.driver, targets);
+    }
+  }
   const setupPrompts = collectLimitSetupPrompts(presentations);
   const notices = collectLimitNotices(presentations, m, { withoutSetupPrompts: true });
   const externalLinks = collectExternalUsageLinks(presentations, m);
@@ -1078,7 +1084,7 @@ export function UsageLimitsPooled({
               pool={pool}
               now={now}
               rowOffset={rowCounts.slice(0, position).reduce((sum, count) => sum + count, 0)}
-              fallbackTargets={fallbackTargets}
+              fallbackTargets={fallbackTargets.get(pool.driver) ?? []}
             />
           </Fragment>
         ))}

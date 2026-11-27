@@ -21,6 +21,7 @@ import {
 import * as DateTime from "effect/DateTime";
 
 import { isLocalLoopbackHost, isWildcardHost } from "./hostClassification.ts";
+import { defaultProviderModel } from "./model.ts";
 
 const MINUTE = 60_000;
 
@@ -73,6 +74,21 @@ export type FallbackOffer =
     }
   | { readonly kind: "none"; readonly reason: "none-signed-in" | "none-with-usage" };
 
+function canUseFallbackProvider(
+  provider: ServerProvider | undefined,
+  settings?: ServerSettings,
+  projectId: ProjectId | null = null,
+): provider is ServerProvider {
+  return (
+    provider?.enabled === true &&
+    provider.installed &&
+    provider.auth.status !== "unauthenticated" &&
+    isProviderAvailable(provider) &&
+    (settings === undefined ||
+      resolveProjectProviderInstanceEnabled(settings, projectId, provider.instanceId))
+  );
+}
+
 /**
  * What to put beside a provider that is out of usage: its fallback is already set, another ready
  * provider with usage left that new threads can use until it resets, or the reason there is none.
@@ -82,21 +98,30 @@ export function fallbackOfferFor(input: {
   readonly providers: readonly ServerProvider[];
   readonly fallbackSelection: ModelSelection | null;
   readonly now: number;
+  readonly settings?: ServerSettings;
 }): FallbackOffer {
-  if (input.fallbackSelection) return { kind: "already", selection: input.fallbackSelection };
-  const signedIn = input.providers.filter(
+  const { exhausted, providers, fallbackSelection, now, settings } = input;
+  const alternatives = providers.filter(
     (candidate) =>
-      candidate.driver !== input.exhausted.driver &&
-      candidate.enabled &&
-      candidate.installed &&
-      candidate.auth.status !== "unauthenticated" &&
-      isProviderAvailable(candidate) &&
-      candidate.models.length > 0,
+      candidate.instanceId !== exhausted.instanceId && canUseFallbackProvider(candidate, settings),
   );
-  if (signedIn.length === 0) return { kind: "none", reason: "none-signed-in" };
-  for (const candidate of signedIn) {
-    const model = candidate.models[0]!.slug;
-    if (exhaustedUsageWindow(candidate, input.now, model)) continue;
+  if (fallbackSelection !== null) {
+    const saved = alternatives.find(
+      (provider) => provider.instanceId === fallbackSelection.instanceId,
+    );
+    if (saved && !exhaustedUsageWindow(saved, now, fallbackSelection.model)) {
+      return { kind: "already", selection: fallbackSelection };
+    }
+  }
+  const ready = alternatives.filter((candidate) => candidate.status === "ready");
+  if (ready.length === 0) return { kind: "none", reason: "none-signed-in" };
+  for (const candidate of ready) {
+    const defaultModel = defaultProviderModel(candidate);
+    const model =
+      defaultModel !== undefined && !exhaustedUsageWindow(candidate, now, defaultModel)
+        ? defaultModel
+        : candidate.models.find((entry) => !exhaustedUsageWindow(candidate, now, entry.slug))?.slug;
+    if (model === undefined) continue;
     return {
       kind: "offer",
       provider: candidate,
@@ -126,17 +151,8 @@ export function resolveNewThreadModelSelection(input: {
   if (
     !provider ||
     !window ||
-    !fallback?.enabled ||
-    !fallback.installed ||
-    fallback.auth.status === "unauthenticated" ||
-    !isProviderAvailable(fallback) ||
-    exhaustedUsageWindow(fallback, input.now, input.fallbackSelection.model) ||
-    (input.settings &&
-      !resolveProjectProviderInstanceEnabled(
-        input.settings,
-        input.projectId ?? null,
-        fallback.instanceId,
-      ))
+    !canUseFallbackProvider(fallback, input.settings, input.projectId) ||
+    exhaustedUsageWindow(fallback, input.now, input.fallbackSelection.model)
   )
     return unchanged;
   return {

@@ -150,6 +150,69 @@ describe("new thread model fallback", () => {
       });
     });
 
+    it.each([
+      ["the exhausted instance", selection, [limited, ready]],
+      [
+        "a removed instance",
+        { ...fallback, instanceId: ProviderInstanceId.make("removed") },
+        [limited, ready],
+      ],
+      ["a disabled instance", fallback, [limited, { ...ready, enabled: false }]],
+      ["an uninstalled instance", fallback, [limited, { ...ready, installed: false }]],
+      [
+        "a signed-out instance",
+        fallback,
+        [limited, { ...ready, auth: { status: "unauthenticated" } }],
+      ],
+      ["an unavailable instance", fallback, [limited, { ...ready, availability: "unavailable" }]],
+      [
+        "an exhausted fallback",
+        fallback,
+        [limited, { ...ready, usageLimits: limited.usageLimits }],
+      ],
+    ] as const)("never reports %s as an active fallback", (_name, fallbackSelection, providers) => {
+      expect(offer({ fallbackSelection, providers }).kind).not.toBe("already");
+    });
+
+    it.each([
+      ["the provider default", [], "default"],
+      ["another model when the default is out", ["default", "custom"], "other"],
+    ] as const)(
+      "offers %s on a different ready account for the same driver",
+      (_name, modelIds, model) => {
+        const account = provider({
+          instanceId: ProviderInstanceId.make("codex-work"),
+          models: [
+            { slug: "custom", name: "Custom", isCustom: true, capabilities: null },
+            { slug: "other", name: "Other", isCustom: false, capabilities: null },
+            {
+              slug: "default",
+              name: "Default",
+              isDefault: true,
+              isCustom: false,
+              capabilities: null,
+            },
+          ],
+          usageLimits: {
+            checkedAt: limited.checkedAt,
+            windows: [{ ...window, usedPercent: 100, modelIds }],
+          },
+        });
+        const result = offer({
+          providers: [
+            limited,
+            { ...ready, status: "warning" },
+            { ...ready, instanceId: ProviderInstanceId.make("claude-failed"), status: "error" },
+            account,
+          ],
+        });
+        expect(result).toMatchObject({
+          kind: "offer",
+          selection: { instanceId: "codex-work", model },
+        });
+      },
+    );
+
     it("offers nothing when no other provider is signed in, and says so", () => {
       expect(offer({ providers: [limited] })).toEqual({ kind: "none", reason: "none-signed-in" });
       expect(

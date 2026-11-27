@@ -1,5 +1,6 @@
 import {
   type CustomModelSetting,
+  DEFAULT_MODEL_BY_PROVIDER,
   MODEL_SLUG_ALIASES_BY_PROVIDER,
   ModelCapabilities,
   type ModelSelection,
@@ -7,12 +8,22 @@ import {
   ProviderInstanceId,
   type ProviderOptionDescriptor,
   type ProviderOptionSelection,
+  type ServerProvider,
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { copySorted } from "./Array.ts";
 
 const DEFAULT_PROVIDER_DRIVER_KIND = ProviderDriverKind.make("codex");
+
+export function defaultProviderModel(provider: Pick<ServerProvider, "models" | "driver">) {
+  return (
+    provider.models.find((model) => model.isDefault && !model.isCustom)?.slug ??
+    provider.models.find((model) => !model.isCustom)?.slug ??
+    provider.models[0]?.slug ??
+    DEFAULT_MODEL_BY_PROVIDER[provider.driver]
+  );
+}
 
 export function modelSelectionCommandType(
   currentInstanceId: ProviderInstanceId,

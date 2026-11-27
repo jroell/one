@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { resolveProviderInstanceDisplayName } from "@t3tools/client-runtime/state/provider-instance-display";
 import { isAtomCommandInterrupted } from "@t3tools/client-runtime/state/runtime";
 import {
   AuthSettingsWriteScope,
@@ -6,6 +7,7 @@ import {
   type ModelSelection,
   type ServerProvider,
 } from "@t3tools/contracts";
+import { modelSelectionsEqual } from "@t3tools/shared/model";
 import { exhaustedUsageWindow, fallbackOfferFor } from "@t3tools/shared/usageLimits";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { useGT, useMessages } from "gt-react";
@@ -15,18 +17,15 @@ import { usePrimarySettings } from "../../hooks/useSettings";
 import { useEnvironmentScope } from "../../state/session";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { providerClients } from "../settings/providerDriverMeta";
 import { Button } from "../ui/button";
 
 /** The standing fallback model, read from this machine's settings and written back to them. */
 export interface UsageFallbackTarget {
   readonly environmentId: EnvironmentId;
+  readonly environmentLabel?: string | undefined;
   readonly exhausted: ServerProvider;
   readonly providers: readonly ServerProvider[];
 }
-
-const providerName = (provider: ServerProvider) =>
-  providerClients.get(provider.driver)?.label ?? provider.displayName?.trim() ?? provider.driver;
 
 /**
  * Beside a provider that is out of usage: switch new threads to another ready provider until it
@@ -45,33 +44,43 @@ export function UsageFallbackControl({
   const gt = useGT();
   const m = useMessages();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
-  const { environmentId, exhausted, providers } = target;
+  const { environmentId, environmentLabel, exhausted, providers } = target;
   const settings = useAtomValue(serverEnvironment.settingsValueAtom(environmentId));
   const canWrite = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const update = useAtomCommand(serverEnvironment.updateSettings, { reportFailure: false });
-  // What this control itself set, so the line it shows stays an undoable message, not a status.
-  const [done, setDone] = useState<ModelSelection | null>(null);
+  const [change, setChange] = useState<{
+    readonly previous: ModelSelection | null;
+    readonly selection: ModelSelection;
+  } | null>(null);
   const [failed, setFailed] = useState<"set" | "undo" | null>(null);
   const [pending, setPending] = useState(false);
 
+  const fallbackSelection = settings?.fallbackModelSelection ?? null;
   const offer = fallbackOfferFor({
     exhausted,
     providers,
-    fallbackSelection: settings?.fallbackModelSelection ?? null,
+    fallbackSelection,
     now,
+    ...(settings === null ? {} : { settings }),
   });
+  const undoable =
+    change !== null &&
+    offer.kind === "already" &&
+    modelSelectionsEqual(offer.selection, change.selection)
+      ? change
+      : null;
   const window = exhaustedUsageWindow(exhausted, now);
-  const from = providerName(exhausted);
+  const from = resolveProviderInstanceDisplayName(exhausted);
   const nameOf = (selection: ModelSelection) => {
     const provider = providers.find((entry) => entry.instanceId === selection.instanceId);
-    return provider ? providerName(provider) : selection.model;
+    return provider ? resolveProviderInstanceDisplayName(provider) : selection.model;
   };
   const resets =
     window?.resetsAt !== undefined
       ? formatUpcomingTimestamp(window.resetsAt, timestampFormat, now, undefined, m)
       : null;
 
-  const write = async (selection: ModelSelection | null) => {
+  const write = async (selection: ModelSelection | null, action: "set" | "undo") => {
     setPending(true);
     setFailed(null);
     const result = await update({
@@ -80,56 +89,85 @@ export function UsageFallbackControl({
     });
     setPending(false);
     if (result._tag === "Success") {
-      setDone(selection);
+      setChange(
+        action === "set" && selection !== null ? { previous: fallbackSelection, selection } : null,
+      );
       return;
     }
-    if (!isAtomCommandInterrupted(result)) setFailed(selection === null ? "undo" : "set");
+    if (!isAtomCommandInterrupted(result)) setFailed(action);
   };
 
-  if (done !== null) {
-    return (
-      <div className={compact ? "usage-fallback usage-fallback-compact" : "usage-fallback"}>
+  let content;
+  if (undoable !== null) {
+    content = (
+      <>
         <p className="usage-fallback-text" role="status">
           {resets
             ? gt("New threads use {to} until {from} resets on {resets}.", {
-                to: nameOf(done),
+                to: nameOf(undoable.selection),
                 from,
                 resets,
               })
-            : gt("New threads use {to} until {from} resets.", { to: nameOf(done), from })}
+            : gt("New threads use {to} until {from} resets.", {
+                to: nameOf(undoable.selection),
+                from,
+              })}
         </p>
-        <Button variant="ghost-muted" size="xs" disabled={pending} onClick={() => void write(null)}>
+        <Button
+          variant="ghost-muted"
+          size="xs"
+          disabled={pending || !canWrite}
+          onClick={() => void write(undoable.previous, "undo")}
+        >
           {gt("Undo")}
         </Button>
-      </div>
+      </>
+    );
+  } else if (offer.kind === "already") {
+    content = (
+      <p className="usage-fallback-text">
+        {gt("New threads use {to} while {from} is out of usage.", {
+          to: nameOf(offer.selection),
+          from,
+        })}
+      </p>
+    );
+  } else if (offer.kind === "none") {
+    content = (
+      <p className="usage-fallback-text">
+        {offer.reason === "none-signed-in"
+          ? gt("No other provider is signed in on this machine.")
+          : gt("No other signed-in provider has usage left.")}
+      </p>
+    );
+  } else {
+    if (!canWrite || settings === null) return null;
+    content = (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={pending}
+        onClick={() => void write(offer.selection, "set")}
+      >
+        {failed === "set"
+          ? gt("Retry")
+          : gt("Use {to} until {from} resets", {
+              to: resolveProviderInstanceDisplayName(offer.provider),
+              from,
+            })}
+      </Button>
     );
   }
-  if (offer.kind === "already") {
-    return (
-      <div className={compact ? "usage-fallback usage-fallback-compact" : "usage-fallback"}>
-        <p className="usage-fallback-text">
-          {gt("New threads use {to} while {from} is out of usage.", {
-            to: nameOf(offer.selection),
-            from,
-          })}
-        </p>
-      </div>
-    );
-  }
-  if (offer.kind === "none") {
-    return (
-      <div className={compact ? "usage-fallback usage-fallback-compact" : "usage-fallback"}>
-        <p className="usage-fallback-text">
-          {offer.reason === "none-signed-in"
-            ? gt("No other provider is signed in on this machine.")
-            : gt("No other signed-in provider has usage left.")}
-        </p>
-      </div>
-    );
-  }
-  if (!canWrite) return null;
+
   return (
-    <div className={compact ? "usage-fallback usage-fallback-compact" : "usage-fallback"}>
+    <div
+      className={compact ? "usage-fallback usage-fallback-compact" : "usage-fallback"}
+      role={environmentLabel === undefined ? undefined : "group"}
+      aria-label={environmentLabel}
+    >
+      {environmentLabel !== undefined ? (
+        <p className="usage-fallback-text w-full font-medium">{environmentLabel}</p>
+      ) : null}
       {failed ? (
         <p className="usage-fallback-text" role="alert">
           {failed === "set"
@@ -137,16 +175,7 @@ export function UsageFallbackControl({
             : gt("Could not undo the fallback model.")}
         </p>
       ) : null}
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={pending}
-        onClick={() => void write(offer.selection)}
-      >
-        {failed
-          ? gt("Retry")
-          : gt("Use {to} until {from} resets", { to: providerName(offer.provider), from })}
-      </Button>
+      {content}
     </div>
   );
 }
