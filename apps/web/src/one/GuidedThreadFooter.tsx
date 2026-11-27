@@ -13,7 +13,7 @@ import { safeGuidedActions, type GuidedThreadInfo } from "./guidedThread";
 /**
  * What a guided thread says about itself, in the order a person reads it: once the turn has an
  * answer, links to the places it names (they leave the conversation, so they are links with an
- * arrow, never pills), then which provider answered, last and quietest.
+ * arrow, never pills), then who answered, last and quietest.
  */
 export function GuidedThreadFooter({
   info,
@@ -27,13 +27,16 @@ export function GuidedThreadFooter({
   const gt = useGT();
   const router = useRouter();
   const inSheet = use(GuidedBridgeScopeContext) === "sheet";
+  if (inSheet && !answered) return null;
+
   const { asked, skipped } = info;
   // Whatever reached here, only in-app places are ever opened.
   const actions = safeGuidedActions(info.actions ?? []);
   const time =
     skipped?.resetsAt != null ? formatUpcomingTimestamp(skipped.resetsAt, timestampFormat) : "";
-  const line =
-    skipped === undefined
+  const line = inSheet
+    ? gt("Answered by One")
+    : skipped === undefined
       ? gt("Asked {asked}.", { asked })
       : time !== ""
         ? gt("Asked {asked}: {skipped} is out until {time}.", {

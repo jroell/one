@@ -31,8 +31,11 @@ describe("chatFoldLabel", () => {
     expect(chatFoldLabel(summary(0, 0, true, "4s"), m)).toBe("Thought for 4s");
   });
 
-  it("keeps the fold's own label when it has no summary, or the work was neither", () => {
+  it("keeps a stopped Chat turn's label when it has no summary", () => {
     expect(chatFoldLabel({ label: "You stopped after 3s" }, m)).toBe("You stopped after 3s");
-    expect(chatFoldLabel(summary(0, 0), m)).toBe(label);
+  });
+
+  it("calls unclassified Chat work Activity instead of showing a generic elapsed time", () => {
+    expect(chatFoldLabel(summary(0, 0), m)).toBe("Activity");
   });
 });

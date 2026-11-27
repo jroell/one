@@ -5,8 +5,8 @@ import type { TurnFoldSummary } from "~/components/chat/MessagesTimeline.logic";
 
 /**
  * Chat mode names the work behind an answer by what it was, in plain words with no file or
- * command language: "Looked at 2 sources", "Took 3 steps", "Thought for 4s". A fold that is
- * neither (a stopped turn, or work of a kind this does not know) keeps its own label.
+ * command language: "Looked at 2 sources", "Took 3 steps", "Thought for 4s". A stopped
+ * turn keeps its own label.
  */
 export function chatFoldLabel(
   row: { readonly label: string; readonly summary?: TurnFoldSummary | undefined },
@@ -41,5 +41,5 @@ export function chatFoldLabel(
       ? resolve(msg("Thought for {duration}", { duration }))
       : resolve(msg("Thought"));
   }
-  return row.label;
+  return resolve(msg("Activity"));
 }

@@ -31,7 +31,7 @@ export const SETTINGS_PAGE_INTROS: Readonly<Record<string, SettingsPageIntro>> =
   ),
   "/settings/chat": section(
     "/settings/chat",
-    msg("How the composer, follow-ups and tool calls behave."),
+    msg("Writing messages, follow-ups and how tool activity appears."),
   ),
   "/settings/diffs": section(
     "/settings/diffs",
@@ -41,10 +41,7 @@ export const SETTINGS_PAGE_INTROS: Readonly<Record<string, SettingsPageIntro>> =
     "/settings/keybindings",
     msg("Shortcuts for every command. Change, add or remove them here."),
   ),
-  "/settings/voice": section(
-    "/settings/voice",
-    msg("Microphone, transcription and your dictionary."),
-  ),
+  "/settings/voice": section("/settings/voice", msg("Talk to One and hear answers read back.")),
   "/settings/snap-shot": section(
     "/settings/snap-shot",
     msg("Capture part of your screen and send it to a thread."),

@@ -1272,7 +1272,10 @@ export function ChatSettingsPanel() {
 
   return (
     <SettingsPageContainer searchTargetFallbacks={CHAT_LEGACY_SECTION_FRAGMENTS}>
-      <SettingsSection id="composer" title={gt("Composer")}>
+      <SettingsSection
+        id="composer"
+        title={gt("Writing", { $context: "settings section for writing messages" })}
+      >
         <SettingsRow
           {...setting("composer-rich-text")}
           description={gt("Show formatted Markdown as you type.")}
@@ -1513,20 +1516,20 @@ const isChatReadingFace = Schema.is(ChatReadingFace);
 
 function ChatReadingFaceRow() {
   const messages = useMessages();
-  const setting = useSearchableSetting();
+  const readingFont = useSearchableSetting()("chat-reading-face");
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   return (
     <SettingsRow
-      {...setting("chat-reading-face")}
+      {...readingFont}
       description={gt(
-        "The face answers are set in while you are in Chat mode. Code mode always uses the interface face.",
+        "The font answers use in Chat mode. Code answers always use the interface font.",
       )}
       resetAction={
         settings.chatReadingFace !== DEFAULT_UNIFIED_SETTINGS.chatReadingFace ? (
           <SettingResetButton
-            ariaLabel={gt("Reset the reading face to default")}
+            ariaLabel={gt("Reset the chat reading font to default")}
             onClick={() =>
               updateSettings({ chatReadingFace: DEFAULT_UNIFIED_SETTINGS.chatReadingFace })
             }
@@ -1540,7 +1543,7 @@ function ChatReadingFaceRow() {
             if (isChatReadingFace(value)) updateSettings({ chatReadingFace: value });
           }}
         >
-          <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Reading face")}>
+          <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={readingFont.title}>
             <SelectValue>
               {messages(CHAT_READING_FACE_LABELS[settings.chatReadingFace])}
             </SelectValue>

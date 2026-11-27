@@ -15,6 +15,11 @@ vi.mock(import("./explain/explainFacts"), () => ({
   useSetupSnapshot: (() => ({ providers: [], usageSources: [], textGenerators: [] })) as never,
 }));
 
+it("the Voice settings header explains that you can talk to One and hear its answers", async () => {
+  await using screen = await render(<SettingsPageHeader />, { router: "/settings/voice" });
+  await expect.element(screen.getByText("Talk to One and hear answers read back.")).toBeVisible();
+});
+
 describe("the page-level What is this?", () => {
   it.each([
     ["/settings/chat", "chat-settings"],
