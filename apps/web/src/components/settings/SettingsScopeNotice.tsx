@@ -11,7 +11,6 @@ import { useEnvironments, type EnvironmentPresentation } from "../../state/envir
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import { displayPath } from "./displayPath";
 import { ITEM_ROW_CLASSNAME } from "./itemRows";
@@ -28,6 +27,7 @@ import {
   settingsScopeEnvironmentLabels,
   settingsScopeProjectMachines,
 } from "./settingsScopeAxis";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
 interface ScopeChoice {
   label: string;
@@ -189,14 +189,12 @@ export function SettingsScopeNotice({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{choice.label}</span>
           {choice.secondary ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={<span className="block truncate text-xs text-muted-foreground" />}
-              >
-                {choice.secondary}
-              </TooltipTrigger>
-              <TooltipPopup>{choice.secondary}</TooltipPopup>
-            </Tooltip>
+            <SharedTooltipTrigger
+              render={<span className="block truncate text-xs text-muted-foreground" />}
+              label={choice.secondary}
+            >
+              {choice.secondary}
+            </SharedTooltipTrigger>
           ) : null}
         </span>
         <ChevronRightIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />

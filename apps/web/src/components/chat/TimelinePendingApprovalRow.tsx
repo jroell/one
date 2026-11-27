@@ -1,6 +1,8 @@
 import {
   FULL_ACCESS_OVERRIDE_QUESTION,
   fullAccessOverrideExplanation,
+  PUSH_HOOKS_APPROVAL_LABEL,
+  PUSH_HOOKS_APPROVAL_QUESTION,
 } from "@t3tools/client-runtime/state/thread-requests";
 import { chordApprovalRequestId } from "./approvalChord";
 import { msg, T, useGT, useMessages } from "gt-react";
@@ -26,7 +28,9 @@ import {
   type ApprovalSubject,
   type ApprovalSubjectChange,
 } from "~/one/chatApprovalSubject";
+import { ApprovalText } from "./ApprovalText";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
+import { PushHooksApprovalDetails } from "./PushHooksApprovalDetails";
 import { ToolActivityIconView, type WorkEntryIconName } from "./TimelineToolActivityIcon";
 import { TimelineRowCtx } from "./timelineRowContext";
 
@@ -421,13 +425,16 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
     };
   }, [leaving, approval.requestId, onApprovalLeft]);
   const presentation = APPROVAL_PRESENTATION[approval.requestKind];
+  // T3 Code's own question reads as the app asking: a plain sentence, then what it names.
+  const { pushHooks } = approval;
+  const label = pushHooks ? PUSH_HOOKS_APPROVAL_LABEL : presentation.label;
   const canRespond = approval.responseCapability === "live";
   return (
     <div data-approval-host="" data-leaving={leaving ? "" : undefined}>
       <div
         ref={cardRef}
         role="group"
-        aria-label={m(presentation.label)}
+        aria-label={m(label)}
         data-approval-card=""
         data-approval-request-id={approval.requestId}
         data-leaving={leaving ? "" : undefined}
@@ -440,7 +447,7 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
         <header data-approval-header="">
           <ToolActivityIconView
             icon={undefined}
-            fallbackName={presentation.icon}
+            fallbackName={pushHooks ? "terminal" : presentation.icon}
             className="block size-4 shrink-0 stroke-2 text-icon-muted"
             muted
           />
@@ -451,6 +458,8 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
                 workspaceRoot={workspaceRoot}
                 label={m(presentation.detailLabel)}
               />
+            ) : pushHooks ? (
+              m(PUSH_HOOKS_APPROVAL_QUESTION)
             ) : (
               m(presentation.title)
             )}
@@ -472,6 +481,11 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
                 {approval.reason ? <span>{approval.reason}</span> : null}
               </div>
             ) : null}
+            {pushHooks ? (
+              <div data-approval-content="text" className="px-4 py-2.5">
+                <PushHooksApprovalDetails pushHooks={pushHooks} />
+              </div>
+            ) : null}
             {subject ? (
               <ApprovalHunk
                 subject={subject}
@@ -481,15 +495,14 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
                     : null
                 }
               />
-            ) : (
-              <code
-                aria-label={m(presentation.detailLabel)}
-                data-approval-content="command"
-                data-approval-detail="complete"
-                tabIndex={0}
-              >
-                {approval.detail || m(presentation.label)}
-              </code>
+            ) : pushHooks ? null : (
+              <div data-approval-content="text" className="[&>span]:px-4 [&>span]:pb-2">
+                <ApprovalText
+                  text={approval.detail || m(presentation.label)}
+                  label={m(presentation.detailLabel)}
+                  className="px-4 py-2.5"
+                />
+              </div>
             )}
           </div>
         </div>

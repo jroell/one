@@ -253,7 +253,10 @@ describe("V2 thread find", () => {
         const projection = yield* setup;
         yield* putItems([
           {
-            ...item("with-note", 1, "What is this page for?", "user_message"),
+            ...(item("with-note", 1, "What is this page for?", "user_message") as Extract<
+              OrchestrationV2TurnItem,
+              { type: "user_message" }
+            >),
             context: {
               version: 1 as const,
               records: [],

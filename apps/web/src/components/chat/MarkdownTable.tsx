@@ -11,14 +11,20 @@ import {
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { ScrollArea } from "../ui/scroll-area";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { reportMarkdownActionFailure, type TableCopyFormat } from "./markdownActionFailure";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
-const TABLE_COPY_SERIALIZERS: Record<TableCopyFormat, (table: Element) => string> = {
+type TableTextFormat = Exclude<TableCopyFormat, "png">;
+
+const TABLE_COPY_SERIALIZERS: Record<TableTextFormat, (table: Element) => string> = {
   markdown: serializeTableElementToMarkdown,
   csv: serializeTableElementToCsv,
   html: serializeTableElementToHtml,
 };
+
+// Loaded on first use; the clipboard write still starts inside the click.
+const renderTablePng = (table: HTMLTableElement) =>
+  import("./tablePng").then((module) => module.renderTablePng(table));
 
 interface HastElementLike {
   readonly type?: string;
@@ -53,14 +59,21 @@ export function MarkdownTable({
 }) {
   const gt = useGT();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { copyToClipboard, isCopied: copied } = useCopyToClipboard<TableCopyFormat>({
+  const {
+    copyToClipboard,
+    copyPngToClipboard,
+    isCopied: copied,
+  } = useCopyToClipboard<TableCopyFormat>({
     timeout: 1200,
     onError: (cause, format) =>
       reportMarkdownActionFailure({ operation: "copy-table", format }, cause),
   });
   const copyLabel = copied ? gt("Copied") : gt("Copy table");
+  // Insecure origins (plain http over a LAN or tailnet) have no async clipboard for images.
+  const canCopyPng =
+    typeof ClipboardItem !== "undefined" && typeof navigator.clipboard?.write === "function";
 
-  const handleCopy = (format: TableCopyFormat) => {
+  const handleCopy = (format: TableTextFormat) => {
     const table = containerRef.current?.querySelector("table");
     if (!table) return;
     const text = TABLE_COPY_SERIALIZERS[format](table);
@@ -71,6 +84,12 @@ export function MarkdownTable({
       format === "html" ? { "text/html": `<meta charset="utf-8">${text}` } : undefined,
       { requireHtml: format === "html" },
     );
+  };
+
+  const handleCopyPng = () => {
+    const table = containerRef.current?.querySelector("table");
+    if (!table) return;
+    copyPngToClipboard(() => renderTablePng(table), "png");
   };
 
   return (
@@ -92,30 +111,28 @@ export function MarkdownTable({
           </span>
         ) : null}
         <Menu>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <MenuTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost-muted"
-                      size="icon-xs"
-                      aria-label={copyLabel}
-                      data-one-copied={copied ? "" : undefined}
-                    />
-                  }
-                />
-              }
-            >
-              {copied ? (
-                <CheckIcon className="size-3" data-one-copy-check="" />
-              ) : (
-                <CopyIcon className="size-3" />
-              )}
-            </TooltipTrigger>
-            <TooltipPopup side="top">{copyLabel}</TooltipPopup>
-          </Tooltip>
+          <SharedTooltipTrigger
+            render={
+              <MenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost-muted"
+                    size="icon-xs"
+                    aria-label={copyLabel}
+                    data-one-copied={copied ? "" : undefined}
+                  />
+                }
+              />
+            }
+            label={copyLabel}
+          >
+            {copied ? (
+              <CheckIcon className="size-3" data-one-copy-check="" />
+            ) : (
+              <CopyIcon className="size-3" />
+            )}
+          </SharedTooltipTrigger>
           <MenuPopup align="end">
             <MenuItem onClick={() => handleCopy("markdown")}>
               <T>Copy as Markdown</T>
@@ -126,6 +143,11 @@ export function MarkdownTable({
             <MenuItem onClick={() => handleCopy("html")}>
               <T>Copy as HTML</T>
             </MenuItem>
+            {canCopyPng ? (
+              <MenuItem onClick={handleCopyPng}>
+                <T>Copy as PNG</T>
+              </MenuItem>
+            ) : null}
           </MenuPopup>
         </Menu>
       </div>

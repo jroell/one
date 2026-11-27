@@ -6,12 +6,15 @@ import { Button } from "../ui/button";
 import {
   resolveTimelineMinimapHeightStyle,
   resolveTimelineMinimapIndexFromPointer,
+  resolveTimelineMinimapMarkCount,
+  resolveTimelineMinimapMarkIndex,
   resolveTimelineMinimapNavigationInteractive,
   resolveTimelineMinimapTopPercent,
   TIMELINE_MINIMAP_MIN_ITEMS,
 } from "./MessagesTimeline.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
+import { observeResize } from "~/lib/observeResize";
 
 // A release outside the window can skip `mouseup`, so the next button-free
 // `mousemove` also counts.
@@ -57,6 +60,15 @@ export function TimelineMinimap({
     return () => node.removeEventListener("wheel", onWheel);
   };
 
+  const [railHeight, setRailHeight] = useState(0);
+  const railRef = (node: HTMLDivElement | null) => {
+    if (!node) return;
+    setRailHeight(node.getBoundingClientRect().height);
+    return observeResize(node, ([entry]) => {
+      if (entry) setRailHeight(entry.contentRect.height);
+    });
+  };
+
   const pressedOnStripRef = useRef(false);
   const [passThrough, setPassThrough] = useState(false);
 
@@ -78,20 +90,35 @@ export function TimelineMinimap({
   const nextItem =
     resolvedCurrentIndex === null || atEnd ? null : (items[resolvedCurrentIndex + 1] ?? null);
 
-  // The tick nearest the pointer: ticks sit where their turns do, so they are not evenly spaced.
+  // A rail too short for every item groups neighbours onto one strip; the pointer and
+  // keyboard still resolve single items.
+  const markCount = resolveTimelineMinimapMarkCount(items.length, railHeight);
+  const marks: TimelineMinimapItem[][] = Array.from({ length: markCount }, () => []);
+  for (const [index, item] of items.entries()) {
+    marks[resolveTimelineMinimapMarkIndex(index, items.length, markCount)]?.push(item);
+  }
+  const activeMarkIndex =
+    resolvedActiveIndex === null
+      ? null
+      : resolveTimelineMinimapMarkIndex(resolvedActiveIndex, items.length, markCount);
+
+  // Ticks sit where their turns do, so they are not evenly spaced; the tick nearest the pointer
+  // wins. A grouped strip stands for several turns, so a short rail falls back to even spacing.
   const resolveActiveIndexFromPointer = (event: MouseEvent<HTMLElement>) => {
-    let nearest: number | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const [index, item] of items.entries()) {
-      const box = stripMap.get(item.id)?.getBoundingClientRect();
-      if (!box) continue;
-      const distance = Math.abs(box.top + box.height / 2 - event.clientY);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = index;
+    if (markCount === items.length) {
+      let nearest: number | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const [index, item] of items.entries()) {
+        const box = stripMap.get(item.id)?.getBoundingClientRect();
+        if (!box) continue;
+        const distance = Math.abs(box.top + box.height / 2 - event.clientY);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = index;
+        }
       }
+      if (nearest !== null) return nearest;
     }
-    if (nearest !== null) return nearest;
     const rect = event.currentTarget.getBoundingClientRect();
     return resolveTimelineMinimapIndexFromPointer({
       itemCount: items.length,
@@ -135,6 +162,7 @@ export function TimelineMinimap({
             "absolute top-1/2 -translate-y-1/2",
             hitStripWidth > 0 && !passThrough ? "pointer-events-auto" : "pointer-events-none",
           )}
+          ref={railRef}
           onMouseDown={() => {
             if (pressedOnStripRef.current) return;
             pressedOnStripRef.current = true;
@@ -204,10 +232,10 @@ export function TimelineMinimap({
             onMouseDown={(event) => event.preventDefault()}
             type="button"
           >
-            {items.map((item, index) => {
-              const top = `${resolveTimelineMinimapTopPercent(index, items.length)}%`;
+            {marks.map((markItems, index) => {
+              const top = `${resolveTimelineMinimapTopPercent(index, markCount)}%`;
               const activeDistance =
-                resolvedActiveIndex === null ? null : Math.abs(index - resolvedActiveIndex);
+                activeMarkIndex === null ? null : Math.abs(index - activeMarkIndex);
               return (
                 // Compositor-friendly on purpose: in-view state and the hover
                 // fisheye animate constantly (every scroll tick and streaming
@@ -228,13 +256,15 @@ export function TimelineMinimap({
                   )}
                   data-in-view="false"
                   data-minimap-strip
-                  key={item.id}
+                  key={markItems[0]?.id ?? index}
                   ref={(node) => {
-                    if (node) {
-                      stripMap.set(item.id, node);
-                    } else {
-                      stripMap.delete(item.id);
-                    }
+                    if (!node) return;
+                    for (const item of markItems) stripMap.set(item.id, node);
+                    return () => {
+                      for (const item of markItems) {
+                        if (stripMap.get(item.id) === node) stripMap.delete(item.id);
+                      }
+                    };
                   }}
                   style={{ top }}
                 />

@@ -10,8 +10,8 @@ import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { answerApproval, useApprovalDecision } from "~/one/approvalDecision";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
 interface ComposerPendingApprovalActionsProps {
   presentation?: "composer" | "inline" | "card";
@@ -122,10 +122,7 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
       </Button>
     );
     return option.warning ? (
-      <Tooltip key={option.decision}>
-        <TooltipTrigger render={button} />
-        <TooltipPopup side="top">{option.warning}</TooltipPopup>
-      </Tooltip>
+      <SharedTooltipTrigger key={option.decision} render={button} label={option.warning} />
     ) : (
       button
     );
@@ -175,10 +172,7 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
               </MenuItem>
             );
             return option.warning ? (
-              <Tooltip key={option.decision}>
-                <TooltipTrigger render={item} />
-                <TooltipPopup side="top">{option.warning}</TooltipPopup>
-              </Tooltip>
+              <SharedTooltipTrigger key={option.decision} render={item} label={option.warning} />
             ) : (
               item
             );

@@ -27,6 +27,7 @@ function Canvas({ anchor }: { anchor: HTMLElement }) {
       threadRef={threadRef}
       preview={null}
       composerOverlayElement={null}
+      rightPanelOpen={false}
       data-testid="canvas"
     >
       <ThreadDetailsCard

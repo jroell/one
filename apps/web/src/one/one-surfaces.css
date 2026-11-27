@@ -1181,27 +1181,6 @@ html:not([data-one-mode="chat"]) [data-one-fold="quiet"]:not(:hover, :focus-with
   background-color: var(--one-tint);
 }
 
-[data-approval-content="command"] {
-  display: block;
-  max-height: 10rem;
-  padding: 0.625rem 1rem;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--foreground);
-  -webkit-user-select: text;
-  user-select: text;
-  scrollbar-width: thin;
-}
-
-[data-approval-content="command"]:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-
 [data-approval-content="hunk"] {
   display: flex;
   flex-direction: column;

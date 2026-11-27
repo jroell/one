@@ -18,7 +18,6 @@ import { useEnvironmentQuery } from "~/state/query";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Button } from "../ui/button";
 import { ScrollArea } from "../ui/scroll-area";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
 import { groupPullRequestChecks } from "./pullRequestDetail.logic";
 import {
@@ -28,6 +27,7 @@ import {
   pullRequestChecksStatePresentation,
   summarizePullRequestChecks,
 } from "./pullRequestPresentation";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
 // Fetch only on open to avoid per-row requests.
 function LazyChecksBody({
@@ -97,10 +97,10 @@ function ChecksBody({
                 className="col-span-full grid grid-cols-subgrid items-center text-xs"
               >
                 <PullRequestCheckStatusIcon status={check.status} />
-                <Tooltip>
-                  <TooltipTrigger render={<span className="min-w-0 truncate">{check.name}</span>} />
-                  <TooltipPopup side="top">{check.description ?? check.name}</TooltipPopup>
-                </Tooltip>
+                <SharedTooltipTrigger
+                  render={<span className="min-w-0 truncate">{check.name}</span>}
+                  label={check.description ?? check.name}
+                />
                 <span className="justify-self-end whitespace-nowrap text-muted-foreground">
                   {pullRequestCheckStatusLabel(check, resolve)}
                 </span>
@@ -183,27 +183,25 @@ export function PullRequestChecksPopover({
           ) : null}
         </PopoverTrigger>
       ) : (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <PopoverTrigger
-                nativeButton={false}
-                aria-label={gt("Checks: {summary}", { summary: presentation.label })}
-                render={
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className={cn("inline-flex shrink-0 cursor-pointer items-center", className)}
-                  />
-                }
-                onClick={(event) => event.stopPropagation()}
-              />
-            }
-          >
-            <presentation.Icon aria-hidden className={cn("size-3.5", presentation.toneClassName)} />
-          </TooltipTrigger>
-          <TooltipPopup>{gt("Checks: {summary}", { summary: presentation.label })}</TooltipPopup>
-        </Tooltip>
+        <SharedTooltipTrigger
+          render={
+            <PopoverTrigger
+              nativeButton={false}
+              aria-label={gt("Checks: {summary}", { summary: presentation.label })}
+              render={
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className={cn("inline-flex shrink-0 cursor-pointer items-center", className)}
+                />
+              }
+              onClick={(event) => event.stopPropagation()}
+            />
+          }
+          label={gt("Checks: {summary}", { summary: presentation.label })}
+        >
+          <presentation.Icon aria-hidden className={cn("size-3.5", presentation.toneClassName)} />
+        </SharedTooltipTrigger>
       )}
       <PopoverPopup align="start" width="md" side="bottom">
         <p className="mb-2 font-medium text-sm">{presentation.label}</p>

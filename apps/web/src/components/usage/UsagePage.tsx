@@ -818,7 +818,7 @@ function UsageOverview({
             <p className="usage-hero-meta inline-flex items-center gap-1 text-xs">
               <span>
                 <span>
-                  {gt("{count, plural, one {{formatted} sessions} other {{formatted} sessions}}", {
+                  {gt("{count, plural, one {{formatted} session} other {{formatted} sessions}}", {
                     count: merged.sessions,
                     formatted: formatCount(merged.sessions, locale),
                   })}

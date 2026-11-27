@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 
 const REDACTED_TEXT_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
@@ -53,24 +53,22 @@ export function RedactedSensitiveText(props: {
           {gt("Hidden", { $context: "a value kept out of sight until revealed" })}
         </span>
       )}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              size="micro"
-              variant="outline"
-              className="shrink-0"
-              aria-label={props.ariaLabel}
-              aria-pressed={revealed}
-              onClick={() => setRevealed((current) => !current)}
-            >
-              {revealed ? gt("Hide") : gt("Show")}
-            </Button>
-          }
-        />
-        <TooltipPopup side="top">{revealed ? props.hideTooltip : props.revealTooltip}</TooltipPopup>
-      </Tooltip>
+      <SharedTooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="micro"
+            variant="outline"
+            className="shrink-0"
+            aria-label={props.ariaLabel}
+            aria-pressed={revealed}
+            onClick={() => setRevealed((current) => !current)}
+          >
+            {revealed ? gt("Hide") : gt("Show")}
+          </Button>
+        }
+        label={revealed ? props.hideTooltip : props.revealTooltip}
+      />
     </span>
   );
 }

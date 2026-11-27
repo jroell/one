@@ -350,3 +350,52 @@ it("says in words, not behind an icon, that a browser may claim some shortcuts",
     .element(page.getByRole("link", { name: "Get the desktop app" }))
     .toHaveAttribute("href", DESKTOP_DOWNLOAD_URL);
 });
+
+it.each([
+  {
+    name: "macOS",
+    platform: "MacIntel",
+    pills: [
+      { ariaLabel: "Edit shortcut for Terminal: previous: Shift+Command+[", keys: ["⇧", "⌘", "["] },
+      {
+        ariaLabel: "Edit shortcut for Queue: edit last queued message: Option+Up arrow",
+        keys: ["⌥", "↑"],
+      },
+      { ariaLabel: "Edit shortcut for Focus next workspace area: F6", keys: ["F6"] },
+    ],
+    otherPlatform: "Edit shortcut for Terminal: previous: Control+Option+[",
+  },
+  {
+    name: "Linux",
+    platform: "Linux x86_64",
+    pills: [
+      { ariaLabel: "Edit shortcut for Terminal: previous: Ctrl+Alt+[", keys: ["Ctrl", "Alt", "["] },
+      {
+        ariaLabel: "Edit shortcut for Queue: edit last queued message: Alt+Up arrow",
+        keys: ["Alt", "↑"],
+      },
+      { ariaLabel: "Edit shortcut for Focus next workspace area: F6", keys: ["F6"] },
+    ],
+    otherPlatform: "Edit shortcut for Terminal: previous: Shift+Meta+[",
+  },
+])(
+  "shows this platform's keys as glyph keycaps with spoken names, and leaves out another platform's default, on $name",
+  async ({ platform, pills, otherPlatform }) => {
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    await using screen = await render(<KeybindingsSettingsPanel />);
+
+    for (const expected of pills) {
+      const button = screen.getByRole("button", { name: expected.ariaLabel, exact: true });
+      await expect.element(button).toBeVisible();
+      const kbdTexts = Array.from(
+        button.element().querySelectorAll('[data-slot="kbd"]'),
+        (el) => el.textContent,
+      );
+      expect(kbdTexts).toEqual(expected.keys);
+    }
+    // A default bound only on the other platform can never fire here, so it has no row.
+    expect(
+      screen.getByRole("button", { name: otherPlatform, exact: true }).elements(),
+    ).toHaveLength(0);
+  },
+);

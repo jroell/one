@@ -241,12 +241,37 @@ describe("ToastQueue", () => {
     expect(queue.getWaiting().map((item) => item.id)).toEqual(["other"]);
     expect(added().map((item) => item.id)).toEqual(["shown"]);
 
-    // Closing the id the caller holds closes the notice that stands.
+    // The notice stands for both callers, so it closes when the last of them closes it.
     queue.handle({ action: "close", options: { id: "dup" } });
+    expect(events.some((event) => event.action === "close")).toBe(false);
+    queue.handle({ action: "close", options: { id: "shown" } });
     expect(events.at(-1)).toEqual({ action: "close", options: { id: "shown" } });
     expect(calls).toEqual([]);
     queue.handle({ action: "close", options: { id: "other-again" } });
     expect(queue.getWaiting()).toEqual([]);
     expect(calls).toEqual(["again:close"]);
+  });
+
+  it("keeps a folded notice for the caller still working when another caller closes it: the second checkout's result still shows", () => {
+    const { add, closed, queue, events } = setup();
+    const preparing = { type: "loading", title: "Preparing the pull request checkout..." };
+    add({ id: "first-checkout", ...preparing });
+    add({ id: "second-checkout", ...preparing });
+
+    // The first checkout was superseded and closes its notice.
+    queue.handle({ action: "close", options: { id: "first-checkout" } });
+    expect(closed()).toEqual([]);
+
+    queue.handle({
+      action: "update",
+      options: { id: "second-checkout", updates: { type: "success", title: "Checked out" } },
+    });
+    expect(events.at(-1)).toEqual({
+      action: "update",
+      options: { id: "first-checkout", updates: { type: "success", title: "Checked out" } },
+    });
+
+    queue.handle({ action: "close", options: { id: "second-checkout" } });
+    expect(closed()).toEqual(["first-checkout"]);
   });
 });

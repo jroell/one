@@ -25,6 +25,7 @@ import { msg } from "gt-react";
 import { pickSnoozePreset, resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
+  canMarkLatestRunUnread,
   isThreadTriageAction,
   threadActionRequiresOperate,
   type ThreadActionMenuId,
@@ -74,7 +75,7 @@ function failureToast(title: string, error: unknown) {
 interface ThreadActionInput {
   readonly threadRef: ScopedThreadRef | null;
   readonly projectCwd: string | null;
-  /** Absent where no inline title editor exists, such as the command palette. */
+  /** Omitted where no inline title editor is rendered; the rename item is then disabled. */
   readonly onStartRename?: (() => void) | undefined;
   readonly onFind?: ((threadRef: ScopedThreadRef) => void) | undefined;
   readonly canShareWithGuest: boolean;
@@ -155,7 +156,7 @@ export function useThreadActionRunner(input: ThreadActionInput) {
         canSnoozeNow: canSnooze(thread, { now: now.toISOString() }),
         isRegeneratingTitle: thread.titleRegeneration != null,
         isRunning: !threadRuntimeCanArchive(thread.runtime),
-        hasCompletedRun: thread.latestRun?.completedAt != null,
+        hasCompletedRun: canMarkLatestRunUnread(thread.latestRun),
         supports,
         snoozePresets,
         canShareWithGuest,
@@ -421,10 +422,22 @@ export function useThreadActionRunner(input: ThreadActionInput) {
     void readLocalApi()?.contextMenu.close();
   };
 
-  return { openMenu, closeMenu, runAction, buildMenu };
+  /** The thread's menu as of now, and a runner for its actions. Null until the thread loads. */
+  const readMenu = () => {
+    if (threadRef === null) return null;
+    const thread = readThreadShell(threadRef);
+    if (!thread) return null;
+    const menu = buildMenu(thread);
+    return {
+      items: menu.items,
+      run: (action: ThreadActionMenuId) => runAction(action, menu.snoozePresets),
+    };
+  };
+
+  return { openMenu, closeMenu, runAction, buildMenu, readMenu };
 }
 
 export function useThreadActionMenu(input: ThreadActionInput) {
-  const { openMenu, closeMenu } = useThreadActionRunner(input);
-  return { openMenu, closeMenu };
+  const { openMenu, closeMenu, readMenu } = useThreadActionRunner(input);
+  return { openMenu, closeMenu, readMenu };
 }

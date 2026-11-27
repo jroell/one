@@ -782,11 +782,6 @@ export function answerRpc(method: string, handler: (input: never) => unknown): D
   };
 }
 
-export async function emitTerminalMetadata(event: TerminalMetadataStreamEvent): Promise<void> {
-  if (terminalMetadataSubscriber === null) throw new Error("No terminal metadata subscription");
-  await Effect.runPromise(Queue.offer(terminalMetadataSubscriber, event));
-}
-
 /** Whether the app holds a live subscription to the thread, so events reach it. */
 export function isThreadSubscribed(threadId: ThreadId): boolean {
   return threadSubscribers.has(threadId);

@@ -1,5 +1,12 @@
 import { workspaceAreaProps } from "../lib/workspaceFocus";
-import { Navigate, Outlet, createFileRoute, redirect, useLocation } from "@tanstack/react-router";
+import {
+  Navigate,
+  Outlet,
+  createFileRoute,
+  redirect,
+  useLocation,
+  useRouter,
+} from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import { T, useGT, useMessages, Var } from "gt-react";
 import { RotateCcwIcon } from "lucide-react";
@@ -70,7 +77,11 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
   const { environments } = useEnvironments();
   const gt = useGT();
   const m = useMessages();
-  const hash = useLocation({ select: (location) => location.hash });
+  // A pending navigation's hash targets the page still loading, not the one on screen.
+  const hash = useLocation({
+    select: (location) =>
+      trimTrailingSlashes(location.pathname).toLowerCase() === pathname ? location.hash : "",
+  });
   const searchTarget = getSettingsSearchTargetScope(hash);
   const agentFeedbackAvailability = searchTarget?.agentFeedbackOnly
     ? {
@@ -163,6 +174,11 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
 function SettingsContentLayout() {
   const gt = useGT();
   const contentArea = workspaceAreaProps("settings", 1, gt("Settings content"));
+  // The nav follows the address so a click answers at once; the header and page follow the match
+  // on screen, which stays the old page until the next one has loaded.
+  const navPathname = useLocation({
+    select: (location) => trimTrailingSlashes(location.pathname).toLowerCase(),
+  });
   const pathname = useSettingsPathname();
   const { search, environment } = useSettingsScope();
   const contentScopeKey =
@@ -181,7 +197,7 @@ function SettingsContentLayout() {
       skeleton={<SettingsSheetSkeleton />}
     >
       <div className="relative flex min-h-0 flex-1">
-        <SettingsSidebarNav pathname={pathname} />
+        <SettingsSidebarNav pathname={navPathname} />
         <div {...contentArea} className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header
             data-settings-header=""
@@ -218,6 +234,7 @@ function SettingsContentLayout() {
 function SettingsRouteLayout() {
   const rawSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  const router = useRouter();
   const pathname = useSettingsPathname();
   return (
     <SettingsScopeProvider
@@ -227,7 +244,9 @@ function SettingsRouteLayout() {
       onChange={(next) => {
         // Send every axis so retain middleware recognizes "all" as an explicit target.
         void navigate({
-          to: pathname,
+          // Read at call time: subscribing would hand every scope consumer a new context value on
+          // each click. A pending navigation's target wins over the page still on screen.
+          to: router.state.location.pathname,
           search: () => ({
             project: next.project,
             machine: next.machine,

@@ -80,7 +80,6 @@ function ThreadHeader({ fixture }: { fixture: ReturnType<typeof setup> }) {
     gitCwd: null,
     activeProjectCwd: null,
     onDiffPanelOpen: undefined,
-    closeRightPanelSurface: () => {},
   });
   const toggleCommand = actions.shortcuts["threadPanel.toggle"];
   const panelProps = {

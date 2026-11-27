@@ -93,10 +93,17 @@ export class ToastQueue {
   private advancing = false;
   /** Ids of notices that were folded into an identical one, mapped to the one that stands. */
   private readonly aliases = new Map<string, string>();
+  /** Callers of a folded notice that have closed it while another caller still holds it. */
+  private readonly closedOwners = new Set<string>();
 
   constructor(private readonly host: ToastQueueHost) {}
 
   handle(event: ToastQueueEvent): void {
+    if (event.action === "close" && event.options.id !== undefined) {
+      const id = this.releaseOwner(event.options.id);
+      if (id !== null) this.close(id);
+      return;
+    }
     event = this.resolveAlias(event);
     switch (event.action) {
       case "add":
@@ -119,6 +126,7 @@ export class ToastQueue {
     this.presented = null;
     this.held = this.held.filter((item) => !item.live);
     this.aliases.clear();
+    this.closedOwners.clear();
     this.publish();
   }
 
@@ -162,15 +170,30 @@ export class ToastQueue {
   }
 
   private resolveAlias(event: ToastQueueEvent): ToastQueueEvent {
-    if (event.action === "close" && event.options.id !== undefined) {
-      const id = this.aliases.get(event.options.id);
-      return id === undefined ? event : { action: "close", options: { id } };
-    }
     if (event.action === "update") {
       const id = this.aliases.get(event.options.id);
       return id === undefined ? event : { action: "update", options: { ...event.options, id } };
     }
     return event;
+  }
+
+  /**
+   * A folded notice stands for every caller that raised it, so it closes only when the last of
+   * them closes it; one caller finishing must not take away the notice another is about to update.
+   * Returns the id to close, or null while another caller still holds the notice.
+   */
+  private releaseOwner(id: string): string | null {
+    const standing = this.aliases.get(id) ?? id;
+    const owners = [standing];
+    for (const [alias, target] of this.aliases) if (target === standing) owners.push(alias);
+    if (owners.length === 1) return standing;
+    this.closedOwners.add(id);
+    if (owners.some((owner) => !this.closedOwners.has(owner))) return null;
+    for (const owner of owners) {
+      this.closedOwners.delete(owner);
+      if (owner !== standing) this.aliases.delete(owner);
+    }
+    return standing;
   }
 
   private findTwin(options: QueuedToastOptions): Entry | null {
@@ -211,6 +234,8 @@ export class ToastQueue {
       } else {
         const replaced = twin.options;
         twin.options = { ...options, id: replaced.id };
+        // The replaced caller is told its toast closed, so only the new caller holds the notice.
+        this.closedOwners.add(replaced.id);
         replaced.onClose?.();
         replaced.onRemove?.();
         this.publish();

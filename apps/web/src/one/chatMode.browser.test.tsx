@@ -798,6 +798,8 @@ it("Chat mode takes the permissions chips out of the composer, and Code mode kee
     await using screen = await render(
       <ComposerContextPermissions
         environmentId={null}
+        instanceId={undefined}
+        cwd={null}
         runtimeMode="approval-required"
         supportedRuntimeModes={["approval-required", "full-access"]}
         onRuntimeModeChange={() => {}}

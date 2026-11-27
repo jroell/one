@@ -1,5 +1,5 @@
 import { assert, describe, expect, it } from "vite-plus/test";
-import type { ResolvedKeybindingsConfig } from "@t3tools/contracts";
+import { STATIC_KEYBINDING_COMMANDS, type ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import {
   compileResolvedKeybindingsConfig,
   DEFAULT_RESOLVED_KEYBINDINGS,
@@ -18,6 +18,7 @@ import {
   describeWhen,
   groupKeybindingRows,
   buildWhenVariableOptions,
+  filterKeybindingRows,
   keybindingConflictLabels,
   keybindingFromKeyboardEvent,
   parseWhenExpressionDraft,
@@ -30,6 +31,37 @@ import {
 import { parseKeybindingWhenExpression } from "@t3tools/shared/keybindings";
 
 describe("KeybindingsSettings.logic", () => {
+  it("finds a shortcut by the label its row shows", () => {
+    const rows = buildKeybindingRows(
+      compileResolvedKeybindingsConfig([
+        { command: "commandPalette.toggle", key: "mod+k" },
+        { command: "chat.new", key: "mod+shift+o" },
+      ]),
+      "Linux x86_64",
+    );
+    expect(
+      filterKeybindingRows(rows, "Ctrl+K", undefined, "Linux x86_64").map((row) => row.command),
+    ).toEqual(["commandPalette.toggle"]);
+    expect(
+      filterKeybindingRows(rows, "ctrl+shift+o", undefined, "Linux x86_64").map(
+        (row) => row.command,
+      ),
+    ).toEqual(["chat.new"]);
+  });
+
+  it("lists back and forward under Navigation", () => {
+    const groups = groupKeybindingRows(
+      buildKeybindingRows(
+        compileResolvedKeybindingsConfig([
+          { command: "navigation.back", key: "mod+[" },
+          { command: "navigation.forward", key: "mod+]" },
+        ]),
+        "MacIntel",
+      ),
+    );
+    expect(groups.map((group) => group.id)).toEqual(["navigation"]);
+  });
+
   it("keeps sibling row identities when a saved binding moves to the end", () => {
     const bindings = compileResolvedKeybindingsConfig([
       { command: "chat.new", key: "mod+n" },
@@ -77,6 +109,15 @@ describe("KeybindingsSettings.logic", () => {
       ),
     );
     expect(unassigned.find((row) => row.key === "f8")?.defaultKey).toBe("mod+n");
+  });
+
+  it("gives every built-in command a translatable label", () => {
+    const translated = (() => "translated") as unknown as MessageResolver;
+    expect(
+      STATIC_KEYBINDING_COMMANDS.filter(
+        (command) => commandLabel(command, translated) !== "translated",
+      ),
+    ).toEqual([]);
   });
 
   it("shares a stable editor for resolved duplicates but separates commands, shortcuts, and conditions", () => {
@@ -337,10 +378,15 @@ describe("KeybindingsSettings.logic", () => {
         },
       },
     });
-    const previewOpenDraft = parseWhenExpressionDraft("previewOpen && !previewFocus");
-    assert(previewOpenDraft.ok);
-    expect(unknownWhenVariables(previewOpenDraft.value)).toEqual([]);
-    expect(buildWhenVariableOptions()).toContain("previewOpen");
+    for (const [expression, condition] of [
+      ["previewOpen && !previewFocus", "previewOpen"],
+      ["composerFocus && turnRunning && composerEmpty", "composerEmpty"],
+    ] as const) {
+      const draft = parseWhenExpressionDraft(expression);
+      assert(draft.ok);
+      expect(unknownWhenVariables(draft.value)).toEqual([]);
+      expect(buildWhenVariableOptions()).toContain(condition);
+    }
     expect(parseWhenExpressionDraft("editorFocus &&")).toEqual({
       ok: false,
       message: "Use variables with !, &&, ||, and parentheses.",
@@ -430,6 +476,18 @@ describe("KeybindingsSettings.logic", () => {
     expect(
       keybindingConflictLabels(rows, { rowId: "new", key: "ctrl+k", when: "" }, expected.platform),
     ).toEqual(["Chat: new local", ...expected.ctrl].toSorted());
+  });
+
+  it("treats a true condition like no condition when reporting conflicts", () => {
+    const rows = buildKeybindingRows(
+      compileResolvedKeybindingsConfig([
+        { command: "chat.new", key: "mod+k", when: "true" },
+        { command: "chat.newLocal", key: "mod+k", when: "terminalFocus" },
+      ]),
+      "Linux x86_64",
+    );
+
+    expect(rows.map((row) => row.conflicts)).toEqual([["Chat: new local"], ["Chat: new"]]);
   });
 
   it("keeps mod and ctrl shortcuts apart when their when contexts differ", () => {

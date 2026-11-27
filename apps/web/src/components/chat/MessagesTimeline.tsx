@@ -1247,14 +1247,23 @@ const ConversationTimeline = memo(function ConversationTimeline({
           firstBufferedRow.getBoundingClientRect().top
         : state.scroll;
     const visibleRange = resolveTimelineMinimapVisibleRange({ ...state, scroll });
+    // Long threads share a strip between items; it is in view if any of them is.
+    const itemsPerStrip = new Map<HTMLSpanElement, number>();
+    for (const item of minimapItems) {
+      const strip = minimapStripMap.get(item.id);
+      if (strip) itemsPerStrip.set(strip, (itemsPerStrip.get(strip) ?? 0) + 1);
+    }
     // Each tick sits where its turn sits in the whole thread, so the ladder reads as a map.
     const lastRow = rows.length - 1;
     const total =
       lastRow < 0 ? 0 : (state.positionAtIndex(lastRow) ?? 0) + (state.sizeAtIndex(lastRow) ?? 0);
+    const stripsInView = new Map<HTMLSpanElement, boolean>();
     for (const [index, item] of minimapItems.entries()) {
       const strip = minimapStripMap.get(item.id);
+      if (!strip) continue;
       const position = state.positionAtIndex(item.rowIndex);
-      if (strip && total > 0 && position !== undefined) {
+      // A shared strip keeps the even spacing the minimap gives it.
+      if (itemsPerStrip.get(strip) === 1 && total > 0 && position !== undefined) {
         const top = `${Math.min(100, Math.max(0, (position / total) * 100)).toFixed(2)}%`;
         if (strip.style.top !== top) strip.style.top = top;
       }
@@ -1264,9 +1273,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
         visibleRange.start,
         visibleRange.end,
       );
+      stripsInView.set(strip, inView || stripsInView.get(strip) === true);
+    }
+    for (const [strip, inView] of stripsInView) {
       const next = inView ? "true" : "false";
       // Avoid dirtying style state on every scroll tick for unchanged strips.
-      if (strip && strip.dataset.inView !== next) {
+      if (strip.dataset.inView !== next) {
         strip.dataset.inView = next;
       }
     }
@@ -1496,18 +1508,16 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   const measureTimelineGutter = (viewportElement: HTMLElement) => {
-    const viewportWidth = viewportElement.getBoundingClientRect().width;
-    const contentWidth =
-      viewportElement.querySelector<HTMLElement>("[data-timeline-root]")?.getBoundingClientRect()
-        .width ?? viewportWidth;
-    const nextHasPersistentGutter = resolveTimelineMinimapHasPersistentGutter(
-      viewportWidth,
-      contentWidth,
-    );
+    const lane = viewportElement.querySelector<HTMLElement>("[data-timeline-root]");
+    // ChatCanvas can shift the lane off center, so measure the gutter the minimap sits in.
+    const sideGutter = lane
+      ? lane.getBoundingClientRect().left - viewportElement.getBoundingClientRect().left
+      : 0;
+    const nextHasPersistentGutter = resolveTimelineMinimapHasPersistentGutter(sideGutter);
     setMinimapHasPersistentGutter((current) =>
       current === nextHasPersistentGutter ? current : nextHasPersistentGutter,
     );
-    const nextHitStrip = resolveTimelineMinimapHitStrip(viewportWidth, contentWidth);
+    const nextHitStrip = resolveTimelineMinimapHitStrip(sideGutter);
     setMinimapHitStrip((current) =>
       current.left === nextHitStrip.left && current.width === nextHitStrip.width
         ? current
@@ -1524,16 +1534,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     }
     handleScroll();
   });
-  // The content lane only changes width with the viewport or the chat width
-  // setting, never with streamed content; measuring per content frame would
-  // force a layout on every chunk.
-  const measuredLaneWidthRef = useRef<number | null>(null);
+  // The content lane only moves or changes width with the viewport, the chat
+  // width setting or the canvas insets (which resize its row frame), never with
+  // streamed content; measuring per content frame would force a layout on every chunk.
+  const measuredLaneWidthRef = useRef<string | null>(null);
   const observeLaneWidth = (lane: HTMLDivElement | null) => {
-    if (!lane) return;
-    return observeResize(lane, (entries) => {
-      const width = entries.at(-1)?.contentRect.width;
-      if (width === undefined || width === measuredLaneWidthRef.current) return;
-      measuredLaneWidthRef.current = width;
+    const frame = lane?.parentElement;
+    if (!lane || !frame) return;
+    return observeResize([frame, lane], () => {
+      const widths = `${frame.clientWidth}:${lane.clientWidth}`;
+      if (widths === measuredLaneWidthRef.current) return;
+      measuredLaneWidthRef.current = widths;
       const viewportElement = lane.closest<HTMLElement>("[data-assistant-citation-viewport]");
       if (viewportElement) measureTimelineGutter(viewportElement);
     });
