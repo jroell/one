@@ -13,11 +13,14 @@ export function useShellArriving(limitMs = SHELL_ARRIVAL_LIMIT_MS): boolean {
   const awaiting = useAnyEnvironmentAwaitingShell();
   const lagging = useQuietThreadShellsLagging();
   const [gaveUp, setGaveUp] = useState(false);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a timer that ends the outline while mounted
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a timer that ends the outline while mounted; the cleanup re-arms it for the next wait
   useEffect(() => {
     if (!awaiting) return;
     const timer = setTimeout(() => setGaveUp(true), limitMs);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      setGaveUp(false);
+    };
   }, [awaiting, limitMs]);
   return (awaiting && !gaveUp) || lagging;
 }
