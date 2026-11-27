@@ -49,6 +49,7 @@ import {
   useDiffPanelStore,
 } from "../diffPanelStore";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { isTestChangedFile } from "@t3tools/shared/changedFileKind";
 import { useHideTestFiles } from "./diffs/useHideTestFiles";
 import { useRenderedAppearance } from "../hooks/useTheme";
@@ -295,6 +296,8 @@ export default function DiffPanel({
   const wordWrap = wordWrapOverride ?? settings.wordWrap;
   const diffIgnoreWhitespace =
     useDiffPanelSessionStore((state) => state.ignoreWhitespace) ?? settings.diffIgnoreWhitespace;
+  // On a phone the tree would take almost half the sheet, so it waits to be asked for.
+  const isPhoneViewport = useMediaQuery("max-sm");
   // Null until the person chooses, so a large diff can open on its folders and a small one on the list.
   const [fileTreeChoice, setFileTreeOpen] = useLocalStorage(
     DIFF_FILE_TREE_STORAGE_KEY,
@@ -863,7 +866,8 @@ export default function DiffPanel({
   const allDiffFilesCollapsed = areAllDiffFilesCollapsed(shownFileKeys, collapsedDiffFileKeys);
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
   const summaryFileCount = lazySource?.files?.length ?? renderableFiles.length;
-  const fileTreeOpen = fileTreeChoice ?? summaryFileCount >= LARGE_DIFF_FILE_COUNT;
+  const fileTreeOpen =
+    fileTreeChoice ?? (!isPhoneViewport && summaryFileCount >= LARGE_DIFF_FILE_COUNT);
   const shownFiles = renderableFiles.filter(isFileShown);
   const shownFileCount = summaryFileCount - (renderableFiles.length - shownFiles.length);
   const fileTreeEntries = diffFileTreeEntries(shownFiles);

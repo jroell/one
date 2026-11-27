@@ -741,29 +741,40 @@ it("opens a file from a tool call's diff by the path its agent recorded", async 
   );
 });
 
-it("opens a large diff on its folder tree until the person chooses otherwise", async () => {
-  const filePatch = (index: number) => [
-    `diff --git a/dir/file-${index}.txt b/dir/file-${index}.txt`,
-    `--- a/dir/file-${index}.txt`,
-    `+++ b/dir/file-${index}.txt`,
-    "@@ -1 +1 @@",
-    "-a",
-    "+b",
-  ];
-  const large = [...Array.from({ length: 120 }, (_, index) => filePatch(index)).flat(), ""];
-  const treeChecked = async (stored: string | null) => {
-    if (stored === null) localStorage.removeItem("t3code.diffFileTreeOpen");
-    else localStorage.setItem("t3code.diffFileTreeOpen", stored);
-    const view = await renderTurnPatch(large, 900);
-    using _context = view.context;
-    await using _screen = view.screen;
-    await expect.element(view.screen.getByText(/^120 files$/)).toBeVisible();
-    await view.screen.getByRole("button", { name: "View options" }).click();
-    const item = page.getByRole("menuitemcheckbox", { name: "Show file tree" });
-    await expect.element(item).toBeVisible();
-    return item.element().getAttribute("aria-checked");
-  };
-  onTestFinished(() => localStorage.removeItem("t3code.diffFileTreeOpen"));
-  expect(await treeChecked(null)).toBe("true");
-  expect(await treeChecked("false")).toBe("false");
-});
+it.each([
+  { width: 1280, height: 800, opensOnTree: "true" },
+  { width: 390, height: 844, opensOnTree: "false" },
+])(
+  "a large diff at $width px wide opens with the folder tree shown $opensOnTree until the person chooses otherwise",
+  async ({ width, height, opensOnTree }) => {
+    const filePatch = (index: number) => [
+      `diff --git a/dir/file-${index}.txt b/dir/file-${index}.txt`,
+      `--- a/dir/file-${index}.txt`,
+      `+++ b/dir/file-${index}.txt`,
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+    ];
+    const large = [...Array.from({ length: 120 }, (_, index) => filePatch(index)).flat(), ""];
+    const treeChecked = async (stored: string | null) => {
+      if (stored === null) localStorage.removeItem("t3code.diffFileTreeOpen");
+      else localStorage.setItem("t3code.diffFileTreeOpen", stored);
+      const view = await renderTurnPatch(large, 900);
+      using _context = view.context;
+      await using _screen = view.screen;
+      await expect.element(view.screen.getByText(/^120 files$/)).toBeVisible();
+      await view.screen.getByRole("button", { name: "View options" }).click();
+      const item = page.getByRole("menuitemcheckbox", { name: "Show file tree" });
+      await expect.element(item).toBeVisible();
+      return item.element().getAttribute("aria-checked");
+    };
+    await page.viewport(width, height);
+    onTestFinished(async () => {
+      localStorage.removeItem("t3code.diffFileTreeOpen");
+      await page.viewport(414, 896);
+    });
+    expect(await treeChecked(null)).toBe(opensOnTree);
+    expect(await treeChecked("false")).toBe("false");
+    expect(await treeChecked("true")).toBe("true");
+  },
+);
