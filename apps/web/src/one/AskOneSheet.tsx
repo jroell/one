@@ -1,3 +1,4 @@
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { T, useGT } from "gt-react";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
@@ -7,6 +8,7 @@ import { BackgroundThreadContext } from "~/components/chat/backgroundThread";
 import { Button } from "~/components/ui/button";
 import { Sheet, SheetHeader, SheetPopup, SheetTitle } from "~/components/ui/sheet";
 import { ComposerHandleContext } from "~/composerHandleContext";
+import { useThreadShell } from "~/state/entities";
 import type { SideChatParentPanel } from "~/lib/sideChatPane";
 import { buildThreadRouteParams } from "~/threadRoutes";
 
@@ -75,24 +77,39 @@ function PendingQuestion({
   );
 }
 
-/** Whether the conversation under `root` shows the answer taking shape: its own stage or an answer. */
-function useConversationShowing(root: HTMLElement | null): boolean {
-  const [has, setHas] = useState(false);
+/**
+ * Whether the conversation under `root` has shown the answer taking shape (its own stage or an
+ * answer) at any time since `threadKey` opened. It stays true once seen: the stage leaves when the
+ * answer lands or the run fails, and the question must not come back over what replaced it.
+ */
+function useConversationShowing(root: HTMLElement | null, threadKey: string | null): boolean {
+  const [seenIn, setSeenIn] = useState<string | null>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- watches the embedded conversation's DOM for its first message row, which nothing in this tree announces
   useEffect(() => {
-    if (root === null) return;
-    const look = () =>
-      setHas(
+    if (root === null || threadKey === null) return;
+    const look = () => {
+      if (
         root.querySelector('[data-chat-stage][data-shown], [data-message-role="assistant"]') !==
-          null,
-      );
+        null
+      ) {
+        setSeenIn(threadKey);
+      }
+    };
     look();
     const observer = new MutationObserver(look);
     observer.observe(root, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [root]);
-  return has;
+  }, [root, threadKey]);
+  return threadKey !== null && seenIn === threadKey;
 }
+
+const ENDED_RUN_STATUSES: ReadonlySet<string> = new Set([
+  "completed",
+  "interrupted",
+  "failed",
+  "cancelled",
+  "rolled_back",
+]);
 
 /**
  * Where "Ask One about this" answers over Settings and Usage: a sheet beside the page, opened with
@@ -106,9 +123,14 @@ export function AskOneSheetHost() {
   const reset = useAskOneSheetStore((state) => state.reset);
   const router = useRouter();
   const [conversation, setConversation] = useState<HTMLDivElement | null>(null);
-  const showing = useConversationShowing(conversation);
+  const threadKey = thread === null ? null : scopedThreadKey(thread);
+  const showing = useConversationShowing(conversation, threadKey);
+  // A run that ended without an answer (a provider error, a usage refusal) has nothing to wait for:
+  // the conversation's own rows say what happened.
+  const runEnded = ENDED_RUN_STATUSES.has(useThreadShell(thread)?.latestRun?.status ?? "");
   const openAsThread = () => {
     if (thread === null) return;
+    useAskOneSheetStore.getState().keepMode();
     setWorkspaceMode("chat");
     close();
     void router.navigate({
@@ -172,7 +194,10 @@ export function AskOneSheetHost() {
               </div>
             )}
             {question !== null ? (
-              <PendingQuestion question={question} done={thread !== null && showing} />
+              <PendingQuestion
+                question={question}
+                done={thread !== null && (showing || runEnded)}
+              />
             ) : null}
           </div>
         </div>
