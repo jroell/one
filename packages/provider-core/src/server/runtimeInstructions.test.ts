@@ -7,6 +7,28 @@ import {
 } from "./runtimeInstructions.ts";
 
 describe("buildRuntimeInstructions", () => {
+  it("tells the agent where it runs, how to embed media and how to link files, in words the replay recordings do not pin", () => {
+    const instructions = buildRuntimeInstructions({
+      harness: "Codex",
+      model: "gpt-6.2-sol",
+      reasoningEffort: "high",
+      pullRequestLinking: false,
+    });
+
+    assert.include(
+      instructions,
+      "<runtime_info>In case you're asked: you are running in One through the Codex harness, as gpt-6.2-sol with high reasoning effort. No need to mention this otherwise.",
+    );
+    assert.include(
+      instructions,
+      "You can embed images, video, and audio using Markdown image syntax with absolute file paths.",
+    );
+    assert.include(
+      instructions,
+      "Link every other file you cite or produce by its absolute path, as in [http.ts:42](/abs/path/http.ts:42), so the user can open it in One's files viewer.</runtime_info>",
+    );
+  });
+
   it("leaves PR linking to a session that already carries it, and keeps runtime identity", () => {
     const instructions = buildRuntimeInstructions({
       harness: "Antigravity",
