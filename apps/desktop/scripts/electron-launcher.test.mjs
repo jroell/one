@@ -9,6 +9,7 @@ import { assert, describe, it } from "vite-plus/test";
 
 import {
   makeDevelopmentEnvironmentScript,
+  isBundleRunning,
   makeDevelopmentLauncherScript,
   resolveElectronBinaryPath,
   resolveMacLauncherPaths,
@@ -38,6 +39,39 @@ describe("electron development launcher", () => {
     } finally {
       NodeFS.rmSync(runtimeDir, { recursive: true, force: true });
     }
+  });
+
+  it("keeps a running legacy bundle whose name has parentheses, using the real process check", async () => {
+    const runtimeDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "launcher-runtime-"));
+    const oldDev = NodePath.join(runtimeDir, "T3 Code (Dev).app");
+    const oldBeta = NodePath.join(runtimeDir, "T3 Code (Beta).app");
+    for (const bundle of [oldDev, oldBeta]) NodeFS.mkdirSync(bundle);
+    const running = NodeChildProcess.spawn(
+      process.execPath,
+      ["-e", "setTimeout(() => {}, 60000)", NodePath.join(oldDev, "Contents", "MacOS", "T3 Code")],
+      { stdio: "ignore" },
+    );
+    try {
+      await NodeEvents.once(running, "spawn");
+      const retired = retireLegacyLauncherBundles(runtimeDir, {
+        unregister: () => {},
+        log: () => {},
+      });
+      assert.deepEqual(retired, [oldBeta]);
+      assert.isTrue(NodeFS.existsSync(oldDev), "the running bundle stays");
+      assert.isFalse(NodeFS.existsSync(oldBeta), "the idle bundle goes");
+    } finally {
+      running.kill();
+      NodeFS.rmSync(runtimeDir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats a bundle as running when the process list cannot be read", () => {
+    assert.isTrue(isBundleRunning("/x/T3 Code (Dev).app", () => null));
+    assert.isFalse(isBundleRunning("/x/T3 Code (Dev).app", () => "/bin/zsh\n/usr/bin/ssh"));
+    assert.isTrue(
+      isBundleRunning("/x/T3 Code (Dev).app", () => "/x/T3 Code (Dev).app/Contents/MacOS/T3 Code"),
+    );
   });
 
   it("uses captured values only as fallbacks for a live runner environment", () => {
