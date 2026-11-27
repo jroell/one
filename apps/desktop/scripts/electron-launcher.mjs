@@ -181,6 +181,25 @@ const LSREGISTER =
 const LEGACY_DEV_DISPLAY_NAMES = ["T3 Code (Dev)", "T3 Code (Beta)"];
 
 /**
+ * True when any process command line contains `bundlePath`. A plain substring search, because
+ * `pgrep -f` reads its pattern as a regular expression and the legacy names contain parentheses.
+ * When the process list cannot be read the bundle counts as running, so it is kept.
+ */
+export function isBundleRunning(
+  bundlePath,
+  listCommands = () => {
+    const result = NodeChildProcess.spawnSync("ps", ["-axww", "-o", "command="], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return result.status === 0 && typeof result.stdout === "string" ? result.stdout : null;
+  },
+) {
+  const commands = listCommands();
+  return commands === null || commands.includes(bundlePath);
+}
+
+/**
  * Removes a development bundle left under an old name, and its LaunchServices registration, so the
  * same bundle id and URL scheme are not offered by two apps. A bundle that is running is left
  * alone. Only runs in `.electron-runtime`, which this script builds and can rebuild.
@@ -188,8 +207,7 @@ const LEGACY_DEV_DISPLAY_NAMES = ["T3 Code (Dev)", "T3 Code (Beta)"];
 export function retireLegacyLauncherBundles(
   runtimeDir,
   {
-    isRunning = (bundlePath) =>
-      NodeChildProcess.spawnSync("pgrep", ["-f", bundlePath]).status === 0,
+    isRunning = isBundleRunning,
     unregister = (bundlePath) => runChecked(LSREGISTER, ["-u", bundlePath]),
     remove = (bundlePath) => NodeFS.rmSync(bundlePath, { recursive: true, force: true }),
     log = (message) => console.log(`[desktop-launcher] ${message}`),
