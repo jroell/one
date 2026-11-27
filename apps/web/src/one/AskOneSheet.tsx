@@ -87,17 +87,20 @@ function useConversationShowing(root: HTMLElement | null, threadKey: string | nu
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- watches the embedded conversation's DOM for its first message row, which nothing in this tree announces
   useEffect(() => {
     if (root === null || threadKey === null) return;
+    const observer = new MutationObserver(() => look());
+    // Once seen it stays seen, so stop querying the subtree on every streamed change.
     const look = () => {
       if (
-        root.querySelector('[data-chat-stage][data-shown], [data-message-role="assistant"]') !==
+        root.querySelector('[data-chat-stage][data-shown], [data-message-role="assistant"]') ===
         null
       ) {
-        setSeenIn(threadKey);
+        return false;
       }
+      setSeenIn(threadKey);
+      observer.disconnect();
+      return true;
     };
-    look();
-    const observer = new MutationObserver(look);
-    observer.observe(root, { childList: true, subtree: true });
+    if (!look()) observer.observe(root, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [root, threadKey]);
   return threadKey !== null && seenIn === threadKey;
