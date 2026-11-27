@@ -1,12 +1,15 @@
 import { RegistryContext } from "@effect/atom-react";
+import { minuteTick } from "@t3tools/client-runtime/clock";
 import {
+  DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ServerProvider,
 } from "@t3tools/contracts";
+import { Atom } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { page, userEvent } from "vite-plus/test/browser";
+import { cdp, page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -14,20 +17,18 @@ import { render } from "../../../test/render";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 
 const setup = vi.hoisted(() => ({
-  settings: null as unknown,
   providers: new Map<string, unknown>(),
   update: vi.fn(),
 }));
+const settings = Atom.make(DEFAULT_SERVER_SETTINGS).pipe(Atom.keepAlive);
 
 vi.mock(import("../../state/server"), async (original) => {
-  const { Atom } = await import("effect/reactivity");
   const actual = await original();
-  setup.settings = Atom.make({ fallbackModelSelection: null }).pipe(Atom.keepAlive);
   return {
     ...actual,
     serverEnvironment: {
       ...actual.serverEnvironment,
-      settingsValueAtom: (() => setup.settings) as never,
+      settingsValueAtom: () => settings,
       updateSettings: "updateSettings" as never,
     },
   };
@@ -49,8 +50,7 @@ import { LimitedFallbackPopover } from "./LimitedFallbackPopover";
 
 const environmentId = EnvironmentId.make("desk");
 const checkedAt = "2026-10-25T16:00:00.000Z";
-// Far enough ahead that the window is still open whenever the test runs.
-const inAWeek = "2099-01-01T00:00:00.000Z";
+const resetAt = "2026-10-25T18:00:00.000Z";
 
 const provider = (instanceId: string, driver: string, usedPercent: number): ServerProvider =>
   ({
@@ -67,7 +67,7 @@ const provider = (instanceId: string, driver: string, usedPercent: number): Serv
     skills: [],
     usageLimits: {
       checkedAt,
-      windows: [{ id: "weekly", label: "Weekly", kind: "weekly", usedPercent, resetsAt: inAWeek }],
+      windows: [{ id: "weekly", label: "Weekly", kind: "weekly", usedPercent, resetsAt: resetAt }],
     },
   }) as unknown as ServerProvider;
 
@@ -87,22 +87,43 @@ function chip(instanceId: string, onRowClick: () => void) {
 }
 
 describe("the Limited status word of a thread", () => {
-  it("opens the fallback action for the provider that is out, without opening the thread", async () => {
+  it("opens the fallback action from New York with two hours left before the reset", async () => {
+    const session = cdp();
+    await session.send("Emulation.setTimezoneOverride", { timezoneId: "America/New_York" });
+    await using _zone = {
+      async [Symbol.asyncDispose]() {
+        await session.send("Emulation.setTimezoneOverride", { timezoneId: "" });
+      },
+    };
+    using _minute = vi.spyOn(minuteTick, "getSnapshot").mockReturnValue(checkedAt.slice(0, 16));
     setup.providers = new Map([
-      [environmentId, [provider("codex", "codex", 100), provider("claude", "claudeAgent", 20)]],
+      [
+        environmentId,
+        [provider("codex", "codex", 100), provider("claudeAgent", "claudeAgent", 20)],
+      ],
     ]);
-    setup.update.mockReset().mockResolvedValue({ _tag: "Success" });
+    appAtomRegistry.set(settings, DEFAULT_SERVER_SETTINGS);
+    setup.update
+      .mockReset()
+      .mockImplementation(
+        async (request: {
+          input: { patch: Pick<typeof DEFAULT_SERVER_SETTINGS, "fallbackModelSelection"> };
+        }) => {
+          appAtomRegistry.set(settings, { ...DEFAULT_SERVER_SETTINGS, ...request.input.patch });
+          return { _tag: "Success" };
+        },
+      );
     const openThread = vi.fn();
     await using _screen = await chip("codex", openThread);
 
-    await userEvent.click(page.getByRole("button", { name: "Usage limit: what to do" }));
-    await userEvent.click(page.getByRole("button", { name: /^Use .* until .* resets$/ }));
+    const trigger = page.getByRole("button", { name: "Usage limit: what to do" });
+    expect(trigger.elements()).toHaveLength(1);
+    await userEvent.click(trigger);
+    await userEvent.click(page.getByRole("button", { name: "Use Claude until Codex resets" }));
     await vi.waitFor(() =>
-      expect(setup.update).toHaveBeenCalledWith({
-        environmentId,
-        input: {
-          patch: { fallbackModelSelection: { instanceId: "claude", model: "claudeAgent-model" } },
-        },
+      expect(appAtomRegistry.get(settings).fallbackModelSelection).toEqual({
+        instanceId: "claudeAgent",
+        model: "claudeAgent-model",
       }),
     );
     expect(openThread).not.toHaveBeenCalled();

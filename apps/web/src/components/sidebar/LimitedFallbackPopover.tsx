@@ -19,7 +19,7 @@ export function LimitedFallbackPopover(props: {
 }) {
   const gt = useGT();
   const providers = useEnvironmentProviders().get(props.environmentId);
-  const now = Date.parse(useNowMinute());
+  const now = Date.parse(`${useNowMinute()}:00.000Z`);
   const exhausted = providers?.find(
     (provider) => provider.instanceId === props.instanceId && exhaustedUsageWindow(provider, now),
   );
