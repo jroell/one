@@ -124,6 +124,40 @@ describe("src/one/bootHandoff.ts", () => {
     expect(document.querySelector<HTMLElement>("[data-one-wordmark]")!.style.opacity).toBe("");
   });
 
+  it("the wordmark flies on the same curve as the ring, so the lockup does not split mid-flight", async () => {
+    await page.viewport(1200, 800);
+    using _clean = cleanUpOnDispose();
+    using _page = mountThreadPage();
+    mountBootScreen();
+    const ghost = captureBootGhost()!;
+    document.getElementById("boot-shell")?.remove();
+    playBootHandoff(ghost, { holdBoundMs: 10_000 });
+    await vi.waitFor(() => expect(document.documentElement.dataset.oneHandoff).toBe("hold"));
+    document.getElementById("timeline")!.setAttribute("data-first-screen-ready", "");
+    const name = await vi.waitFor(() => {
+      const animation = ghost.name?.getAnimations()[0];
+      expect(animation).toBeDefined();
+      return animation!;
+    });
+    const samples: Array<{ time: number; progress: number }> = [];
+    await vi.waitFor(
+      () => {
+        const progress = name.effect?.getComputedTiming().progress;
+        if (typeof progress === "number")
+          samples.push({ time: Number(name.currentTime), progress });
+        expect(name.playState).not.toBe("running");
+      },
+      { interval: 8, timeout: 3000 },
+    );
+    expect(samples.length).toBeGreaterThan(10);
+    const early = samples.filter(({ time }) => time > 100 && time < 250);
+    expect(early.length).toBeGreaterThan(0);
+    for (const { time, progress } of early) {
+      // The ring has covered this share of its flight at this moment.
+      expect(progress).toBeCloseTo(1 - (1 - time / 560) ** 3.4, 1);
+    }
+  });
+
   it("a thread that never reports its first screen releases the ring at the bound and still lands", async () => {
     await page.viewport(1200, 800);
     using _clean = cleanUpOnDispose();
