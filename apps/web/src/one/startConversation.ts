@@ -292,6 +292,7 @@ export async function startGuidedConversation(
   }
   const sent = await sendThrough(bridge);
   if (!sent.ok) {
+    if (deps.cancelled?.()) return giveUp(stopped("send-failed"));
     return giveUp({
       ok: false,
       reason:

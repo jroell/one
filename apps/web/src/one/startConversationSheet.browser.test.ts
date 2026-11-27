@@ -206,3 +206,23 @@ it("asking in the sheet shows Chat only while the sheet is open, and gives back 
     stopComposer();
   }
 });
+
+it("closing the sheet while its question is being sent reports a cancel, not a failed question, when the send then fails", async () => {
+  using _flow = freshFlow();
+  mocks.waitForThreadShell.mockResolvedValue(true);
+  const sending = deferred<{ ok: false; reason: "rejected" }>();
+  const send = vi.fn(() => sending.promise);
+  const stopComposer = sheetComposer(send);
+  try {
+    const generation = useAskOneSheetStore.getState().begin({ title: "Hubs", question: "?" });
+    const pending = start(generation);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+
+    useAskOneSheetStore.getState().close();
+    sending.resolve({ ok: false, reason: "rejected" });
+
+    expect(await pending).toEqual({ ok: false, reason: "cancelled" });
+  } finally {
+    stopComposer();
+  }
+});
