@@ -44,16 +44,36 @@ export function holdOutgoingSettingsPage(): void {
   held = { copy, timer: window.setTimeout(remove, 1500) };
 }
 
+let arriving: HTMLElement | null = null;
+
+function endArrival(): void {
+  arriving?.removeAttribute("data-settings-arriving");
+  arriving = null;
+}
+
 /** Removes the held copy and fades the new page up; call once the new page has mounted. */
 export function releaseOutgoingSettingsPage(): void {
   if (held === null) return;
   remove();
+  endArrival();
   const page = document.querySelector<HTMLElement>("[data-settings-page-scroll]");
   if (page === null) return;
   page.setAttribute("data-settings-arriving", "");
-  page.addEventListener("animationend", () => page.removeAttribute("data-settings-arriving"), {
-    once: true,
-  });
+  arriving = page;
+  // The page's own fade, not an animation inside it, ends the arrival; with no fade it ends now.
+  const fade = page
+    .getAnimations()
+    .find(
+      (animation) => "animationName" in animation && animation.animationName === "settings-arrive",
+    );
+  if (fade === undefined) {
+    endArrival();
+    return;
+  }
+  const end = () => {
+    if (arriving === page) endArrival();
+  };
+  void fade.finished.then(end, end);
 }
 
 /** Holds the outgoing page whenever the address changes while the Settings sheet is open. */
