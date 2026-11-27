@@ -44,7 +44,7 @@ import {
 
 import { isElectron } from "../../env";
 import { useOpenInPreferredEditor } from "../../editorPreferences";
-import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
+import { formatShortcutKeyParts } from "../../keybindings";
 import { cn } from "../../lib/utils";
 import { serverEnvironment } from "../../state/server";
 import { useSettingsScope } from "./SettingsScopeContext";
@@ -113,7 +113,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 function KeybindingPill({ shortcut }: { shortcut: KeybindingShortcut }) {
   return (
     <KbdGroup>
-      {shortcutKeycaps(shortcut).map((cap) => (
+      {formatShortcutKeyParts(shortcut).map((cap) => (
         <Kbd key={cap}>{cap}</Kbd>
       ))}
     </KbdGroup>

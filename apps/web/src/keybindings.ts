@@ -327,7 +327,7 @@ export function formatShortcutSpokenLabel(
   return parts.join(" ");
 }
 
-function formatShortcutKeyParts(
+export function formatShortcutKeyParts(
   shortcut: KeybindingShortcut,
   platform = navigator.platform,
 ): readonly string[] {

@@ -7,9 +7,13 @@ import type {
 import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "../../i18n/messages";
-import { shortcutConflictKey, shortcutForContext, spokenKeycapName } from "../../keybindings";
+import {
+  formatShortcutKeyParts,
+  shortcutConflictKey,
+  shortcutForContext,
+  spokenKeycapName,
+} from "../../keybindings";
 import { COMMAND_SECTIONS, commandSectionFor } from "../../shortcuts/commandSections";
-import { shortcutKeycaps } from "../../shortcuts/shortcutKeycaps";
 import {
   commandActionLabel,
   commandLabel,
@@ -312,7 +316,7 @@ function buildShortcutRows(
       }
       if (draft.claimed.has(conflictKey)) continue;
       draft.claimed.add(conflictKey);
-      draft.keys.push(shortcutKeycaps(shortcuts[index]!, platform));
+      draft.keys.push(formatShortcutKeyParts(shortcuts[index]!, platform));
     }
   });
   return collapseNumberedFamilies([...drafts.values()], resolve);
