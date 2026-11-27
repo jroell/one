@@ -68,8 +68,9 @@ export function planChatNotices(
       row.message.context?.agentContext !== undefined,
   );
   const closeTurn = () => {
+    // A thread the app started shows no sign-in line, so in Code its sign-ins stay in their rows.
     const folds = (entry: WorkLogEntry) =>
-      scope === "chat" || noticeKind(entry, turnServers) === "sign-in";
+      scope === "chat" || (!fromApp && noticeKind(entry, turnServers) === "sign-in");
     const folded = turnNotices.filter(folds);
     const last = turnRowIds.findLast((id) => (turnRowNotices.get(id) ?? []).some(folds));
     for (const id of turnRowIds) {

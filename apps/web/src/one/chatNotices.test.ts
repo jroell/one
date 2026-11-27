@@ -133,4 +133,15 @@ describe("noticeKind", () => {
       "warn",
     ]);
   });
+
+  it("in Code, leaves every sign-in in its row in a thread the app started, as that thread shows no sign-in line", () => {
+    const appQuestion = {
+      kind: "message",
+      id: "q1",
+      message: { role: "user", id: "q1", context: { agentContext: { note: "hidden" } } },
+    } as unknown as MessagesTimelineRow;
+    const rows = [appQuestion, workRow("w1", signInNotice("linear"))];
+    expect(planChatNotices(rows, "code").has("w1")).toBe(false);
+    expect([...planChatNotices(rows, "chat").get("w1")!.folded]).toEqual(["sign-in-linear"]);
+  });
 });
