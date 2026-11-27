@@ -3,8 +3,12 @@
  * (the home ring, else the sidebar lockup with its wordmark). Transform and opacity only, no
  * input taken, and under reduced motion a plain crossfade.
  */
-const EASE = "cubic-bezier(0.2, 0.9, 0.1, 1)";
 const TRAVEL_MS = 560;
+const FLIGHT_EXPONENT = 3.4;
+/** How far into its flight the ring is, for the share `progress` of the time. */
+const flightEase = (progress: number) => 1 - (1 - progress) ** FLIGHT_EXPONENT;
+/** The ring's curve for a CSS animation, so the wordmark flies exactly as the ring does. */
+const FLIGHT_EASING = `linear(${Array.from({ length: 33 }, (_, index) => flightEase(index / 32).toFixed(4)).join(", ")})`;
 /** On home the title leaves in this long, and the app (with its own wordmark) fades in after it (one-pages.css). */
 const NAME_LEAVE_MS = 120;
 /** How long the ring waits for a target that went away mid-flight before it fades out. */
@@ -234,7 +238,7 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
             }px) scale(${nameScale})`,
           },
         ],
-        { duration: TRAVEL_MS, easing: EASE, fill: "forwards" },
+        { duration: TRAVEL_MS, easing: FLIGHT_EASING, fill: "forwards" },
       );
     } else if (ghost.name) {
       // On home the name leaves as the ring does.
@@ -277,7 +281,7 @@ export function playBootHandoff(ghost: BootGhost, options: HandoffOptions = {}):
       element.style.opacity = "0";
     };
     const place = (progress: number, to: DOMRect) => {
-      const eased = 1 - (1 - progress) ** 3.4;
+      const eased = flightEase(progress);
       const dx = to.left + to.width / 2 - (ghost.from.left + ghost.from.width / 2);
       const dy = to.top + to.height / 2 - (ghost.from.top + ghost.from.height / 2);
       const scale = scaleFrom + (to.width / ghost.from.width - scaleFrom) * eased;
