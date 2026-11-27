@@ -426,6 +426,18 @@ interface MessagesTimelineProps {
   findNavigationId?: number;
 }
 
+function liveTurnStart(rows: ReadonlyArray<MessagesTimelineRow>): number {
+  const question = rows.findLastIndex(
+    (row) => row.kind === "message" && row.message.role === "user",
+  );
+  if (question !== -1) return question + 1;
+  return (
+    rows.findLastIndex(
+      (row) => row.kind === "message" && row.message.role === "assistant" && !row.message.streaming,
+    ) + 1
+  );
+}
+
 export function MessagesTimeline(props: MessagesTimelineProps) {
   const find = useContext(ThreadFindTimelineContext);
   const findOpen = find?.findOpen ?? props.findOpen;
@@ -1043,15 +1055,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
   }, [chatMode, quietStatus, statusScope]);
   const [stageLayer, setStageLayer] = useState<HTMLElement | null>(null);
   const turnRunning = isWorking && latestRun?.turnEnded !== true;
-  // The turn that is running now: every row after the last question you sent.
+  // The turn that is running now: every row after the last question you sent. A thread with no
+  // question in it (one that was delegated or scheduled) starts it after the last finished answer.
   const liveTurnIds = new Set(
-    turnRunning
-      ? rows
-          .slice(
-            rows.findLastIndex((row) => row.kind === "message" && row.message.role === "user") + 1,
-          )
-          .map((row) => row.id)
-      : [],
+    turnRunning ? rows.slice(liveTurnStart(rows)).map((row) => row.id) : [],
   );
   const chatStage = useChatStage(
     listIdentityKey,

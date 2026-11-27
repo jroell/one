@@ -1203,6 +1203,45 @@ describe("MessagesTimeline work rows", () => {
     await vi.waitFor(() => expect(live()).toEqual([]));
   });
 
+  it("marks only the rows after the last answer as the running turn in a thread with no question in it", async () => {
+    setup();
+    const runId = RunId.make("scheduled-run");
+    const props = baseProps();
+    await using screen = await renderElement(
+      <MessagesTimeline
+        {...props}
+        timelineEntries={[
+          message("Earlier answer.", { role: "assistant" }, "a1"),
+          work("lead-tool", {
+            label: "Ran command",
+            tone: "tool",
+            itemType: "command_execution",
+            command: "npm test",
+            toolLifecycleStatus: "inProgress",
+          }),
+        ]}
+        isWorking
+        runningRunId={runId}
+        latestRun={
+          {
+            runId,
+            status: "running",
+            startedAt: CREATED_AT,
+            completedAt: null,
+            turnEnded: false,
+          } as never
+        }
+      />,
+    );
+    await vi.waitFor(() => expect(screen.text()).toContain("Earlier answer."));
+    const live = () =>
+      [...screen.container.querySelectorAll("[data-one-live-turn] [data-timeline-row-id]")].map(
+        (row) => row.getAttribute("data-timeline-row-id"),
+      );
+    await vi.waitFor(() => expect(live().length).toBeGreaterThan(0));
+    expect(live()).not.toContain("entry-a1");
+  });
+
   it("keeps the rows below a work row glued to the visible edge of its opening content, at every point of the animation", async () => {
     setup();
     const props = baseProps();
