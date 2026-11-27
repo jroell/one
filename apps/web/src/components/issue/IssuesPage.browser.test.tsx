@@ -88,3 +88,14 @@ describe("IssuesPage shortcuts", () => {
     expect(state.navigate).toHaveBeenCalledWith({ search: { who: "all", status: "open" } });
   });
 });
+
+it("opens the issue tracker settings when connecting a tracker from Issues", async () => {
+  setup();
+  await using screen = await render(<IssuesPage />, { router: "/issues" });
+
+  await screen.getByRole("link", { name: "Connect a tracker" }).click();
+
+  await vi.waitFor(() =>
+    expect(screen.router!.state.location.href).toBe("/settings/source-control#issue-trackers"),
+  );
+});

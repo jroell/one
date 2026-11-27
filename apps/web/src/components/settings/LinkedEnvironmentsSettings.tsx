@@ -102,17 +102,19 @@ export function LinkedEnvironmentsSettings({
   const search = searchableSetting("linked-environments");
   // A batch needs at least two other machines this app has saved.
   const otherMachines = useEnvironments().environments.length - 1;
+  const showBatchAction = canLink && otherMachines > 1;
+  const showHeaderLinkAction = canLink && Boolean(links.error || links.data?.links.length);
   return (
     <SettingsSection
       {...(isSearchTarget ? { id: search.id } : {})}
       title={environmentLabel === null ? search.title : `${search.title} · ${environmentLabel}`}
       headerAction={
-        canLink ? (
+        showBatchAction || showHeaderLinkAction ? (
           <div className="flex items-center gap-2">
-            {otherMachines > 1 ? (
+            {showBatchAction ? (
               <LinkSeveralEnvironmentsAction environmentId={environmentId} />
             ) : null}
-            <LinkEnvironmentAction environmentId={environmentId} />
+            {showHeaderLinkAction ? <LinkEnvironmentAction environmentId={environmentId} /> : null}
           </div>
         ) : null
       }
@@ -127,6 +129,7 @@ export function LinkedEnvironmentsSettings({
           description={gt(
             "Link another machine running One, such as a VPS, so agents here can launch and drive threads there.",
           )}
+          control={canLink ? <LinkEnvironmentAction environmentId={environmentId} empty /> : null}
         />
       ) : (
         links.data.links.map((link) => (
@@ -197,7 +200,13 @@ function LinkedEnvironmentRow({
   );
 }
 
-function LinkEnvironmentAction({ environmentId }: { readonly environmentId: EnvironmentId }) {
+function LinkEnvironmentAction({
+  environmentId,
+  empty = false,
+}: {
+  readonly environmentId: EnvironmentId;
+  readonly empty?: boolean;
+}) {
   const gt = useGT();
   const [open, setOpen] = useState(false);
   return (
@@ -208,9 +217,11 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
       trigger={
         <DialogTrigger
           render={
-            <Button size="xs" variant="default">
+            <Button size={empty ? "sm-multiline" : "xs"} variant={empty ? "outline" : "default"}>
               <PlusIcon className="size-3" />
-              {gt("Link", { $context: "verb, links an environment" })}
+              {empty
+                ? gt("Link another computer")
+                : gt("Link", { $context: "verb, links an environment" })}
             </Button>
           }
         />

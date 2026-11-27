@@ -20,7 +20,7 @@ import type {
   IssueTrackerSummary,
   ProjectId,
 } from "@t3tools/contracts";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   ArrowDownUpIcon,
   AtSignIcon,
@@ -534,6 +534,16 @@ export function IssuesPage() {
             scopes: issueScopeCount,
           },
         );
+  const connectTracker = (
+    <Button
+      variant="outline"
+      render={
+        <Link to="/settings/source-control" hash="issue-trackers" hashScrollIntoView={false} />
+      }
+    >
+      <T>Connect a tracker</T>
+    </Button>
+  );
 
   const listBody: ReactNode = !issuesSupported ? (
     <PullRequestsUnavailableState
@@ -578,9 +588,10 @@ export function IssuesPage() {
           <T>No trackers to read</T>
         </EmptyTitle>
         <EmptyDescription>
-          <T>Add a project whose remote is on a supported tracker.</T>
+          <T>Connect a tracker and link it to a project to list its issues here.</T>
         </EmptyDescription>
       </EmptyHeader>
+      <EmptyContent>{connectTracker}</EmptyContent>
     </Empty>
   ) : (
     <div className="flex flex-col gap-5">
@@ -824,6 +835,14 @@ export function IssuesPage() {
                 </Button>
               </div>
               {listBody}
+              {issuesSupported && !everyProjectHidden && groups.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    <T>Issues come from your tracker.</T>
+                  </p>
+                  {connectTracker}
+                </div>
+              ) : null}
             </WorkspacePageContainer>
           </div>
         </div>
