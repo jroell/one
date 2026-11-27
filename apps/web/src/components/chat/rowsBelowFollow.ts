@@ -152,15 +152,21 @@ export function openRowsBelow(
   };
 }
 
+/** A close in progress. `reopen` turns it around and returns false when it already finished. */
+export interface RowsClosing {
+  readonly reopen: () => boolean;
+}
+
 /**
  * Closes `reveal` while its content is still mounted: the clip wipes it away and the rows below
  * slide up by its height. When the content leaves and the list moves the rows, the slide is
- * released in that same frame.
+ * released in that same frame. If the row opens again first, `reopen` plays the wipe and the slide
+ * back from where they are, as nothing below has moved.
  */
-export function closeRowsBelow(reveal: HTMLElement): void {
-  if (!prefersMotion()) return;
+export function closeRowsBelow(reveal: HTMLElement): RowsClosing | null {
+  if (!prefersMotion()) return null;
   const item = listItemOf(reveal);
-  if (item === null) return;
+  if (item === null) return null;
   const below = itemsBelow(item);
   const before = tops(below);
   const by = reveal.getBoundingClientRect().height;
@@ -175,21 +181,39 @@ export function closeRowsBelow(reveal: HTMLElement): void {
     }),
   );
   let unwatch = () => {};
+  let over = false;
   const release = () => {
+    over = true;
     unwatch();
     for (const slide of slides) slide.cancel();
     for (const animation of clips) animation.cancel();
     reveal.style.overflow = "";
   };
   void clip.finished.then(() => {
+    if (over) return;
     // The content leaves and the list moves the rows: release the slide in that frame.
     unwatch = watchTops(below, before, release);
     let frame = 0;
     const look = () => {
+      if (over) return;
       frame += 1;
       if (frame >= LOOK_FRAMES) release();
       else requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
   }, release);
+  return {
+    reopen: () => {
+      if (over) return false;
+      over = true;
+      unwatch();
+      const all = [...clips, ...slides];
+      for (const animation of all) animation.reverse();
+      void Promise.allSettled(all.map((animation) => animation.finished)).then(() => {
+        for (const animation of all) animation.cancel();
+        reveal.style.overflow = "";
+      });
+      return true;
+    },
+  };
 }

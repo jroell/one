@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "../../lib/utils";
-import { closeRowsBelow, openRowsBelow } from "./rowsBelowFollow";
+import { closeRowsBelow, openRowsBelow, type RowsClosing } from "./rowsBelowFollow";
 
 const GroupedRows = createContext(false);
 
@@ -231,12 +231,18 @@ export function WorkLogDetails({
   const toggled = use(ToggledContext);
   const revealRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const closingRef = useRef<RowsClosing | null>(null);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the reveal's clip and the rows' slide below it once the row's content is in the DOM
   useLayoutEffect(() => {
     const reveal = revealRef.current;
     if (reveal === null || !toggled) return;
-    if (!closing) return openRowsBelow(reveal);
-    closeRowsBelow(reveal);
+    if (!closing) {
+      const wasClosing = closingRef.current;
+      closingRef.current = null;
+      if (wasClosing?.reopen()) return;
+      return openRowsBelow(reveal);
+    }
+    closingRef.current = closeRowsBelow(reveal);
   }, [closing, toggled]);
   const atLiveEdgeRef = useRef(true);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pins the scroller's scrollTop to the bottom after each commit while following live output
