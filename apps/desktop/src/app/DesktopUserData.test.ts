@@ -15,7 +15,7 @@ it.effect.each(["t3code", "T3 Code (Alpha)"])(
       const path = yield* Path.Path;
       const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-v2-profile-" });
       const source = path.join(directory, sourceName);
-      const destination = path.join(directory, "t3code-v2");
+      const destination = path.join(directory, "one");
       const state = '{"os_crypt":{"encrypted_key":"test-encrypted-key"}}';
       yield* fs.makeDirectory(path.join(directory, "T3 Code (Alpha)"), { recursive: true });
       yield* fs.makeDirectory(path.join(source, "IndexedDB"), { recursive: true });
@@ -93,12 +93,29 @@ it.effect.each([
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
+it.effect(
+  "the installed One app uses its own browser profile folder, so it can run while T3 Code is open",
+  () =>
+    Effect.gen(function* () {
+      const path = yield* Path.Path;
+      const fs = yield* FileSystem.FileSystem;
+      const appData = yield* fs.makeTempDirectoryScoped({ prefix: "one-profile-" });
+      yield* fs.makeDirectory(path.join(appData, "t3code-v2"), { recursive: true });
+      const installed = yield* resolveUserDataPath({
+        appDataDirectory: appData,
+        isDevelopment: false,
+        platform: "darwin",
+      });
+      assert.equal(installed, path.join(appData, "one"));
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
 it.effect("keeps GPU caches built on the first launch of a fresh install", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const appData = yield* fs.makeTempDirectoryScoped({ prefix: "t3-v2-fresh-" });
-    const userDataPath = path.join(appData, "t3code-v2");
+    const userDataPath = path.join(appData, "one");
 
     yield* clearStaleGpuCaches({ userDataPath, electronVersion: "44.10.1" });
     yield* fs.makeDirectory(path.join(userDataPath, "GPUCache"));
