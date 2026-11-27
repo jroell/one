@@ -116,4 +116,42 @@ describe("changing a settings page", () => {
     expect(style.animationName).toBe("settings-arrive");
     expect(style.animationDuration).toBe(`${Number.parseFloat(hover) / 1000}s`);
   });
+
+  it("keeps fading the arriving page until its own fade ends, even when an animation inside it ends sooner", async () => {
+    const style = document.createElement("style");
+    style.textContent =
+      "@keyframes blip { from { opacity: 0.99; } } [data-blip] { animation: blip 10ms; }";
+    document.head.append(style);
+    try {
+      await using screen = await render(
+        <div data-app-modal="" style={{ position: "relative", height: 300, width: 600 }}>
+          <SettingsPageContainer>
+            <SettingsSection title="Section">
+              <div data-blip="">small</div>
+            </SettingsSection>
+          </SettingsPageContainer>
+        </div>,
+        { router: "/settings/general" },
+      );
+      const pageEl = screen.container.querySelector<HTMLElement>("[data-settings-page-scroll]")!;
+      holdOutgoingSettingsPage();
+      releaseOutgoingSettingsPage();
+      const startedAt = Number(document.timeline.currentTime);
+      const fadeMs = Number(
+        pageEl
+          .getAnimations()
+          .find((animation) => (animation as CSSAnimation).animationName === "settings-arrive")!
+          .effect!.getComputedTiming().duration,
+      );
+      let endedAfter: number | null = null;
+      new MutationObserver(() => {
+        if (!pageEl.hasAttribute("data-settings-arriving"))
+          endedAfter ??= Number(document.timeline.currentTime) - startedAt;
+      }).observe(pageEl, { attributes: true, attributeFilter: ["data-settings-arriving"] });
+      await vi.waitFor(() => expect(endedAfter).not.toBeNull());
+      expect(endedAfter!).toBeGreaterThanOrEqual(fadeMs);
+    } finally {
+      style.remove();
+    }
+  });
 });
