@@ -18,8 +18,8 @@ Voice chat is a spoken conversation in the current thread. You talk, One sends w
 flowchart LR
   Listen["Listening"] -->|you pause| Send["Sending"]
   Send --> Think["Thinking"]
-  Think -->|reply finished| Speak["Speaking"]
-  Speak --> Listen
+  Think -->|first sentence written| Speak["Speaking"]
+  Speak -->|whole reply read| Listen
   Think -->|approval or question needed| Close["Voice chat closes"]
 ```
 
@@ -33,7 +33,9 @@ Things to know:
 - Send or clear a draft first. Voice chat sends only what you say, so it will not start while the composer holds text or attachments.
 - If the agent needs an approval or an answer, voice chat closes so you can respond on the page.
 - Voice chat belongs to one thread. Opening another thread or switching to Code mode ends it.
-- Replies are read with the voice built into your browser or operating system, and code blocks are skipped.
+- Reading starts as soon as the agent has written its first sentence and keeps up as it writes more. If the agent answers again after a tool call, that answer is read next. Code blocks are skipped.
+- Replies are read in the voice you pick under **Settings -> Voice -> Reading aloud**. See [Read replies aloud](./voice-input.md#read-replies-aloud).
+- A short question ends after a brief pause; a longer one gets a little more time. Steady background noise, such as a fan, does not keep the turn open.
 
 ## The opening
 

@@ -36,6 +36,13 @@ export type SpokenReply = Readonly<{
   runId?: string | null;
   /** A message from voice chat itself (the connection dropped), not an answer from the thread. */
   kind?: "notice";
+  /**
+   * False while the answer is still being written: `text` is what can already be read, and it only
+   * grows. Absent means the reply is complete.
+   */
+  final?: boolean;
+  /** Where the current message begins in `text`; earlier answers of the same turn come before it. */
+  segmentStart?: number;
 }>;
 
 export type VoiceSessionState = Readonly<{
@@ -77,8 +84,13 @@ export type VoiceSessionEvent =
   /** The composer is sending `submission`'s question to the thread under this id. */
   | { readonly type: "identified"; readonly submission: string; readonly messageId: string }
   | { readonly type: "working" }
-  /** The turn is over. `reply` is its finished answer, or null when it ended with nothing to read. */
+  /**
+   * The answer can be read. `reply` is the finished answer, or the part written so far when its
+   * `final` is false; null when the turn ended with nothing to read.
+   */
   | { readonly type: "replied"; readonly reply: SpokenReply | null }
+  /** More of the answer being read was written, or it is now complete. */
+  | { readonly type: "grew"; readonly reply: SpokenReply }
   /** Reading ended. With `replyId`, only the reply that was being read can end it. */
   | { readonly type: "spoken"; readonly replyId?: string }
   /** The question could not be sent or ran into a limit. With `submission`, only that send can fail it. */
@@ -165,6 +177,10 @@ export function reduceVoiceSession(
       return state.stage === "sending" && event.reply !== null
         ? { ...state, stage: "speaking", reply: event.reply, ...markRead(state, event.reply) }
         : state;
+    case "grew":
+      // Only an answer still being written grows, and a finished one never reopens.
+      if (state.stage !== "speaking" || state.reply?.final !== false) return state;
+      return { ...state, reply: event.reply, ...markRead(state, event.reply) };
     case "spoken":
       if (state.stage !== "speaking") return state;
       // A late end event of an earlier reading must not finish this one.
@@ -205,10 +221,12 @@ export function reduceVoiceSession(
   }
 }
 
+/** A reply counts as read once it is complete; until then later answers of its turn can still join it. */
 function markRead(
   state: VoiceSessionState,
   reply: SpokenReply,
 ): Pick<VoiceSessionState, "readIds" | "readRuns"> {
+  if (reply.final === false) return { readIds: state.readIds, readRuns: state.readRuns };
   return {
     readIds: [...state.readIds, reply.id],
     readRuns:
@@ -479,13 +497,28 @@ export type SilenceDetectorOptions = Readonly<{
   minSpeechMs: number;
   /** Quiet time after speech that ends the turn. */
   silenceMs: number;
+  /** A turn with less speech than this ends after `shortSilenceMs`: a quick "yes" needs no long wait. */
+  shortTurnMs?: number;
+  shortSilenceMs?: number;
+  /** Raise the speech level above steady background noise (a fan, a busy room). */
+  adaptToNoise?: boolean;
 }>;
 
 const DEFAULT_SILENCE_DETECTOR: SilenceDetectorOptions = {
-  speechLevel: 0.08,
-  minSpeechMs: 350,
-  silenceMs: 1600,
+  speechLevel: 0.06,
+  minSpeechMs: 300,
+  silenceMs: 1100,
+  shortTurnMs: 1500,
+  shortSilenceMs: 800,
+  adaptToNoise: true,
 };
+
+/**
+ * How fast the background estimate follows the level, per millisecond: down quickly, so the gaps
+ * between words keep it at the room's level, and up slowly, so only a steady sound raises it.
+ */
+const NOISE_FALL_PER_MS = 1 / 150;
+const NOISE_RISE_PER_MS = 1 / 4000;
 
 /**
  * Decides when the speaker has finished: enough speech, then a pause.
@@ -494,6 +527,7 @@ const DEFAULT_SILENCE_DETECTOR: SilenceDetectorOptions = {
 export function createSilenceDetector(options: SilenceDetectorOptions = DEFAULT_SILENCE_DETECTOR) {
   let speechMs = 0;
   let quietMs = 0;
+  let noise: number | null = null;
   let last: number | null = null;
   let finished = false;
   return {
@@ -501,20 +535,29 @@ export function createSilenceDetector(options: SilenceDetectorOptions = DEFAULT_
       if (finished) return false;
       const delta = last === null ? 0 : Math.min(250, Math.max(0, nowMs - last));
       last = nowMs;
-      if (level >= options.speechLevel) {
+      if (options.adaptToNoise) {
+        const rate = noise === null || level < noise ? NOISE_FALL_PER_MS : NOISE_RISE_PER_MS;
+        noise = noise === null ? level : noise + (level - noise) * Math.min(1, delta * rate);
+      }
+      const threshold =
+        noise === null ? options.speechLevel : Math.max(options.speechLevel, noise * 2 + 0.02);
+      if (level >= threshold) {
         speechMs += delta;
         quietMs = 0;
         return false;
       }
       if (speechMs < options.minSpeechMs) return false;
       quietMs += delta;
-      if (quietMs < options.silenceMs) return false;
+      const shortTurn = options.shortTurnMs !== undefined && speechMs < options.shortTurnMs;
+      const needed = shortTurn ? (options.shortSilenceMs ?? options.silenceMs) : options.silenceMs;
+      if (quietMs < needed) return false;
       finished = true;
       return true;
     },
     reset() {
       speechMs = 0;
       quietMs = 0;
+      noise = null;
       last = null;
       finished = false;
     },

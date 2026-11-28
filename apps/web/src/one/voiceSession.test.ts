@@ -72,6 +72,35 @@ describe("voice chat turn order", () => {
     ).toBe(speaking);
   });
 
+  it("starts reading an answer that is still being written and lets only that reading grow until it is complete", () => {
+    const speaking = run([
+      { type: "start", threadKey: "t1" },
+      { type: "sent", after: NOTHING_BEFORE, submission: "s1" },
+      { type: "working" },
+      { type: "replied", reply: { id: "a2", text: "Light bends.", runId: "r1", final: false } },
+    ]);
+    expect(speaking).toMatchObject({ stage: "speaking", readIds: [], readRuns: [] });
+
+    const grown = reduceVoiceSession(speaking, {
+      type: "grew",
+      reply: { id: "a2", text: "Light bends. It splits.", runId: "r1", final: false },
+    });
+    expect(grown.reply?.text).toBe("Light bends. It splits.");
+
+    const complete = reduceVoiceSession(grown, {
+      type: "grew",
+      reply: { id: "a2", text: "Light bends. It splits into colors.", runId: "r1" },
+    });
+    expect(complete).toMatchObject({ readIds: ["a2"], readRuns: ["r1"] });
+    // A complete reply never reopens.
+    expect(
+      reduceVoiceSession(complete, {
+        type: "grew",
+        reply: { id: "a2", text: "More.", final: false },
+      }),
+    ).toBe(complete);
+  });
+
   it("ignores the end of an earlier reading once another reply is being read", () => {
     const speaking = run([
       { type: "start", threadKey: "t1" },
@@ -636,6 +665,42 @@ describe("end of speech detection", () => {
         [0, 3000],
       ]),
     ).toEqual([]);
+  });
+
+  it("ends a short turn after 800 ms of quiet and a long one after 1100 ms with the default settings", () => {
+    const endAfter = (speechMs: number) => {
+      const detector = createSilenceDetector();
+      let now = 0;
+      detector.sample(0, now);
+      for (; now < speechMs;) {
+        now += 50;
+        detector.sample(0.5, now);
+      }
+      const stopped = now;
+      while (!detector.sample(0, (now += 50))) if (now > 10_000) return null;
+      return now - stopped;
+    };
+    expect(endAfter(600)).toBe(800);
+    expect(endAfter(2000)).toBe(1100);
+  });
+
+  it("ends the turn when the person stops talking over a steady fan louder than the base speech level", () => {
+    const detector = createSilenceDetector();
+    const endings: number[] = [];
+    let now = 0;
+    const play = (level: number, durationMs: number) => {
+      for (const end = now + durationMs; now < end; now += 50) {
+        if (detector.sample(level, now)) endings.push(now);
+      }
+    };
+    // A fan at 0.07 alone is not speech, so nothing is sent.
+    play(0.07, 3000);
+    expect(endings).toEqual([]);
+    // The person speaks over it for two seconds, then only the fan is left.
+    play(0.5, 2000);
+    play(0.07, 3000);
+    expect(endings).toHaveLength(1);
+    expect(endings[0]! - 5000).toBeLessThanOrEqual(1200);
   });
 
   it("restarts the pause when speech resumes within 1000 ms", () => {

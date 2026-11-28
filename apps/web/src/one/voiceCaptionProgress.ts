@@ -40,10 +40,15 @@ export function createCaptionProgress(
   root: ParentNode,
   onActive?: (word: HTMLElement) => void,
 ): CaptionProgress {
-  const words = [...root.querySelectorAll<HTMLElement>("[data-start]")];
-  const starts = words.map((word) => Number(word.dataset.start));
+  let words = [...root.querySelectorAll<HTMLElement>("[data-start]")];
+  let starts = words.map((word) => Number(word.dataset.start));
   let next = 0;
   const reach = (char: number) => {
+    // A caption that is still being written gains words; look for them once the known ones run out.
+    if (next >= words.length) {
+      words = [...root.querySelectorAll<HTMLElement>("[data-start]")];
+      starts = words.map((word) => Number(word.dataset.start));
+    }
     let last: HTMLElement | null = null;
     while (next < words.length && (starts[next] ?? Infinity) <= char) {
       const word = words[next];

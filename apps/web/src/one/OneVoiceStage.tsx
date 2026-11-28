@@ -24,7 +24,9 @@ import {
   voiceLevel,
   type VoiceBridge,
 } from "./voiceBridge";
-import { applyVoiceChatStyle, getVoiceChatStyle, replyLanguage } from "./voiceChatPreferences";
+import { speakWith, useSpeechEngines } from "~/speech/readAloud";
+import { settledMarkdown, type SpeechChunk } from "~/speech/speechChunks";
+import type { SpeechPlayback } from "~/speech/speechOutput";
 import {
   beginMicrophone,
   createSilenceDetector,
@@ -39,7 +41,6 @@ import {
   selectReply,
   settleMicrophone,
   speakableText,
-  speechDeadlineMs,
   useVoiceSession,
   type VoiceMessage,
 } from "./voiceSession";
@@ -93,12 +94,6 @@ const SEND_ACCEPT_MS = 60_000;
 const TURN_LOST_MS = 10_000;
 /** How long a followed turn may go without a live thread connection before voice chat stops waiting on it. */
 const RECONNECT_GRACE_MS = 20_000;
-/** How long speech may take to begin before an idle synthesizer is taken to have dropped it. */
-const SPEECH_START_MS = 4_000;
-/** How long an utterance the engine holds back may wait for its start event before it is retried once, then given up on. */
-const SPEECH_ENGINE_START_MS = 6_000;
-/** How long the first deep-voice reply waits for the device to list its voices. */
-const VOICES_WAIT_MS = 1_500;
 
 let mountedStages = 0;
 const NO_RUNS: ReadonlyArray<never> = [];
@@ -249,8 +244,10 @@ function ActiveVoiceStage({
         ? "open"
         : "ended"
       : ownTurnState(messages, runs, session.messageId);
+  // A reply that is still being written keeps following its turn while it is read.
+  const growing = stage === "speaking" && session.reply?.final === false;
   const answer =
-    (stage === "sending" || stage === "thinking") && session.sentAfter !== null
+    (stage === "sending" || stage === "thinking" || growing) && session.sentAfter !== null
       ? selectReply(messages, session.sentAfter, {
           messageId: session.messageId,
           readIds: session.readIds,
@@ -258,9 +255,18 @@ function ActiveVoiceStage({
         })
       : null;
   const answerText = answer === null ? "" : speakableText(answer.text);
-  const answerReady = answer !== null && !answer.streaming && answerText.length > 0;
+  // Nothing more will be added: the message is written and its turn is over.
+  const answerComplete = answer !== null && !answer.streaming && ownTurn === "ended";
+  // What can be read already: all of a written message, the settled part of one being written.
+  const answerReadable =
+    answer === null
+      ? ""
+      : answer.streaming
+        ? speakableText(settledMarkdown(answer.text))
+        : answerText;
   const answerId = answer?.id ?? null;
   const answerRunId = answer?.runId ?? null;
+  const engines = useSpeechEngines();
   const tookTooLong = gt("Voice input took too long");
   const notSent = gt("The question was not sent");
   const sentToSideChat = gt("That went to a side chat, so there is no reply to read here");
@@ -272,10 +278,18 @@ function ActiveVoiceStage({
       "Lost the connection. Your question was sent; the answer will appear in the thread.",
     ),
   };
-  const latest = useRef({ bridge, messages, tookTooLong, notSent, sentToSideChat, notices });
+  const latest = useRef({
+    bridge,
+    messages,
+    tookTooLong,
+    notSent,
+    sentToSideChat,
+    notices,
+    engines,
+  });
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- publishes the committed bridge, messages and notices for the frame loop, timers and speech effect below
   useEffect(() => {
-    latest.current = { bridge, messages, tookTooLong, notSent, sentToSideChat, notices };
+    latest.current = { bridge, messages, tookTooLong, notSent, sentToSideChat, notices, engines };
   });
 
   const submit = () => {
@@ -611,59 +625,99 @@ function ActiveVoiceStage({
     return () => window.clearTimeout(timer);
   }, [connectionLost]);
 
-  // Sending or thinking: read the answer once the turn is over and it has finished streaming.
-  // The finished answer can be seen without any frame that showed the thread working.
-  // A turn that ends without one gets a short grace period, then voice chat listens again.
-  const answerSettled =
-    ownTurn === "ended" &&
-    (stage === "thinking" || (stage === "sending" && recordingPhase === "idle"));
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- waits for the finished answer to the question that was sent; the timer covers a turn that ends with nothing to read
+  // Sending or thinking: start reading as soon as part of the answer can be read, even while the
+  // agent is still writing it. The finished answer can be seen without any frame that showed the
+  // thread working. A turn that ends without one gets a short grace period, then voice chat listens.
+  const answerStage = stage === "thinking" || (stage === "sending" && recordingPhase === "idle");
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts reading the answer to the question that was sent; the timer covers a turn that ends with nothing to read
   useEffect(() => {
-    if (!answerSettled) return;
-    if (answerReady && answerId !== null) {
+    if (!answerStage) return;
+    if (answerId !== null && answerReadable.length > 0) {
       dispatchVoiceSession({
         type: "replied",
-        reply: { id: answerId, text: answerText, runId: answerRunId },
+        reply: {
+          id: answerId,
+          text: answerReadable,
+          runId: answerRunId,
+          ...(answerComplete ? {} : { final: false, segmentStart: 0 }),
+        },
       });
       return;
     }
     // A send that is still waiting to start a turn has its own timeout above.
-    if (stage !== "thinking") return;
+    if (ownTurn !== "ended" || stage !== "thinking") return;
     const timer = window.setTimeout(
       () => dispatchVoiceSession({ type: "replied", reply: null }),
       REPLY_GRACE_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [answerSettled, stage, answerReady, answerId, answerText, answerRunId]);
+  }, [answerStage, stage, ownTurn, answerId, answerReadable, answerRunId, answerComplete]);
 
-  // Speaking: read the reply aloud once, from the text it had when reading began.
-  const speakingReplyId = stage === "speaking" ? (session.reply?.id ?? null) : null;
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drives the browser speech synthesizer, an external system, for the speaking stage
+  // Speaking a reply that is still being written: add what the agent writes next, including a later
+  // answer of the same turn after a tool call, and mark it complete once the turn is over.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- follows the thread, which lives outside this component, while its answer is read aloud
   useEffect(() => {
-    if (speakingReplyId === null) return;
+    if (!growing) return;
+    const current = getVoiceSession().reply;
+    if (current === null || current.final !== false) return;
+    const segmentStart = current.segmentStart ?? 0;
+    let next: typeof current;
+    if (answerId === null) {
+      if (ownTurn !== "ended") return;
+      next = { ...current, final: true };
+    } else if (answerId === current.id) {
+      next = {
+        ...current,
+        text: current.text.slice(0, segmentStart) + answerReadable,
+        final: answerComplete,
+      };
+    } else {
+      // A later answer joins the reading; the one before it is complete by now.
+      const previous = latest.current.messages.find((message) => message.id === current.id);
+      const before =
+        current.text.slice(0, segmentStart) +
+        (previous ? speakableText(previous.text) : current.text.slice(segmentStart));
+      const joined = before.length > 0 ? `${before}\n` : before;
+      next = {
+        id: answerId,
+        runId: answerRunId,
+        text: joined + answerReadable,
+        segmentStart: joined.length,
+        final: answerComplete,
+      };
+    }
+    if (next.final === true) {
+      const { final: _final, segmentStart: _start, ...complete } = next;
+      next = complete;
+    }
+    if (next.id === current.id && next.text === current.text && next.final === current.final)
+      return;
+    dispatchVoiceSession({ type: "grew", reply: next });
+  }, [growing, ownTurn, answerId, answerReadable, answerRunId, answerComplete]);
+
+  // Speaking: read the reply aloud, a stretch at a time, as more of it can be read.
+  const speakingKey =
+    stage === "speaking" ? (session.submission ?? session.reply?.id ?? null) : null;
+  const playbackRef = useRef<SpeechPlayback | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drives the speech engine, an external system, for the speaking stage
+  useEffect(() => {
+    if (speakingKey === null) return;
     const current = getVoiceSession();
     const spoken = current.reply;
-    if (spoken === null || spoken.id !== speakingReplyId) return;
+    if (spoken === null) return;
     // A reply belongs to the thread it was asked in; never read it over another thread.
     const committedKey = getCommittedVoiceThreadKey();
     if (committedKey !== null && committedKey !== current.threadKey) {
       dispatchVoiceSession({ type: "stop" });
       return;
     }
-    const synthesis = typeof window === "undefined" ? undefined : window.speechSynthesis;
-    if (!synthesis || typeof SpeechSynthesisUtterance === "undefined" || spoken.text.length === 0) {
-      dispatchVoiceSession({ type: "spoken", replyId: spoken.id });
+    const finishReading = () =>
+      dispatchVoiceSession({ type: "spoken", replyId: getVoiceSession().reply?.id ?? spoken.id });
+    if (spoken.text.length === 0 && spoken.final !== false) {
+      finishReading();
       return;
     }
-    let finished = false;
-    /** The utterance this reading is waiting on; events of one it gave up on are ignored. */
-    let active: SpeechSynthesisUtterance | null = null;
-    let startWatch: number | undefined;
-    let startDeadline: number | undefined;
-    let deadline: number | undefined;
-    let voicesWait: number | undefined;
-    let onVoices: (() => void) | undefined;
-    let sawBoundary = false;
+    let sawTiming = false;
     const sentenceTimers: number[] = [];
     const clearSentenceTimers = () => {
       for (const timer of sentenceTimers.splice(0)) window.clearTimeout(timer);
@@ -678,120 +732,67 @@ function ActiveVoiceStage({
           box.scrollTop = Math.max(0, top - box.clientHeight / 2);
         })
       : null;
-    const finish = () => {
-      // A late event of this reading must not end another turn's.
-      if (finished) return;
-      finished = true;
-      dispatchVoiceSession({ type: "spoken", replyId: spoken.id });
-    };
-    const speak = (retried: boolean) => {
-      if (finished) return;
-      window.clearTimeout(startWatch);
-      window.clearTimeout(startDeadline);
-      const utterance = new SpeechSynthesisUtterance(spoken.text);
-      utterance.lang = replyLanguage(
-        spoken.text,
-        document.documentElement.lang || navigator.language,
-      );
-      applyVoiceChatStyle(utterance, synthesis.getVoices(), getVoiceChatStyle());
-      let began = false;
-      // The length-based deadline counts from the moment the engine begins, not from the hand-over.
-      const begin = () => {
-        if (finished || began || active !== utterance) return;
-        began = true;
-        window.clearTimeout(startWatch);
-        window.clearTimeout(startDeadline);
-        deadline = window.setTimeout(finish, speechDeadlineMs(spoken.text));
-        // An engine that reports no word timing gets the caption warmed a sentence at a time.
-        sentenceTimers.push(
-          window.setTimeout(() => {
-            if (sawBoundary) return;
-            const starts = sentenceStarts(spoken.text);
-            const times = estimatedSentenceTimesMs(spoken.text);
-            starts.forEach((start, index) => {
-              const wait = (times[index] ?? 0) - NO_TIMING_WAIT_MS;
-              // A sentence the estimate says is already under way is warmed at once.
-              if (wait <= 0) progress?.reachSentence(start, spoken.text);
-              else {
-                sentenceTimers.push(
-                  window.setTimeout(() => progress?.reachSentence(start, spoken.text), wait),
-                );
-              }
-            });
-          }, NO_TIMING_WAIT_MS),
-        );
-      };
-      const end = () => {
-        if (active === utterance) finish();
-      };
-      utterance.onstart = begin;
-      utterance.onboundary = (event) => {
-        if (active !== utterance) return;
-        speechPulseRef.current = 0.62;
-        sawBoundary = true;
-        clearSentenceTimers();
-        progress?.reach(event.charIndex);
-        begin();
-      };
-      utterance.onend = end;
-      utterance.onerror = end;
-      active = utterance;
-      synthesis.cancel();
-      synthesis.speak(utterance);
-      // Some engines drop an utterance without any event. Idle and never started means it is not coming.
-      startWatch = window.setTimeout(() => {
-        if (began) return;
-        if (synthesis.speaking) begin();
-        else if (!synthesis.pending) finish();
-      }, SPEECH_START_MS);
-      // An engine that keeps the utterance queued and never starts it gets one more try. One that
-      // started since the first check is speaking it, only its start event is late.
-      startDeadline = window.setTimeout(() => {
-        if (began) return;
-        if (synthesis.speaking) {
-          begin();
-          return;
-        }
-        // The engine dropped it since the first check: there is nothing left to retry.
-        if (retried || !synthesis.pending) {
-          finish();
-          return;
-        }
-        active = null;
-        synthesis.cancel();
-        speak(true);
-      }, SPEECH_ENGINE_START_MS);
-    };
-    // The deep voice is chosen from the device's voice list, which is empty until the device reports it.
-    if (getVoiceChatStyle() === "conqueror" && synthesis.getVoices().length === 0) {
-      onVoices = () => {
-        synthesis.removeEventListener("voiceschanged", onVoices as () => void);
-        window.clearTimeout(voicesWait);
-        speak(false);
-      };
-      synthesis.addEventListener("voiceschanged", onVoices);
-      voicesWait = window.setTimeout(onVoices, VOICES_WAIT_MS);
-    } else {
-      speak(false);
-    }
-    return () => {
-      finished = true;
-      active = null;
-      window.clearTimeout(startWatch);
-      window.clearTimeout(startDeadline);
-      window.clearTimeout(deadline);
-      window.clearTimeout(voicesWait);
+    const readText = () => getVoiceSession().reply?.text ?? spoken.text;
+    // An engine that reports no word timing gets the caption warmed a sentence at a time, by an
+    // estimate of the speaking time from the moment each stretch begins.
+    const onChunkStart = (chunk: SpeechChunk) => {
       clearSentenceTimers();
-      if (onVoices) synthesis.removeEventListener("voiceschanged", onVoices);
-      synthesis.cancel();
+      sawTiming = false;
+      sentenceTimers.push(
+        window.setTimeout(() => {
+          if (sawTiming) return;
+          const starts = sentenceStarts(chunk.text);
+          const times = estimatedSentenceTimesMs(chunk.text);
+          starts.forEach((start, index) => {
+            const at = chunk.start + start;
+            const wait = (times[index] ?? 0) - NO_TIMING_WAIT_MS;
+            // A sentence the estimate says is already under way is warmed at once.
+            if (wait <= 0) progress?.reachSentence(at, readText());
+            else {
+              sentenceTimers.push(
+                window.setTimeout(() => progress?.reachSentence(at, readText()), wait),
+              );
+            }
+          });
+        }, NO_TIMING_WAIT_MS),
+      );
     };
-  }, [speakingReplyId]);
+    const playback = speakWith(latest.current.engines(), {
+      onChunkStart,
+      onProgress: (offset) => {
+        speechPulseRef.current = 0.62;
+        sawTiming = true;
+        clearSentenceTimers();
+        progress?.reach(offset);
+      },
+    });
+    if (playback === null) {
+      finishReading();
+      return;
+    }
+    let active = true;
+    playbackRef.current = playback;
+    playback.update(spoken.text, spoken.final !== false);
+    void playback.done.then((how) => {
+      if (active && how === "finished") finishReading();
+    });
+    return () => {
+      active = false;
+      if (playbackRef.current === playback) playbackRef.current = null;
+      clearSentenceTimers();
+      playback.stop();
+    };
+  }, [speakingKey]);
 
-  // The device lists its voices lazily; asking when voice chat opens gives it time to answer.
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- primes the browser's voice list, an external system
+  // More of a reply that is being read can be read now.
+  const replyText = session.reply?.text ?? null;
+  const replyFinal = session.reply?.final !== false;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands newly written text to the speech engine, an external system
   useEffect(() => {
-    window.speechSynthesis?.getVoices();
-  }, []);
+    if (speakingKey !== null && replyText !== null) {
+      playbackRef.current?.update(replyText, replyFinal);
+    }
+  }, [speakingKey, replyText, replyFinal]);
 
   const stageRendered = bridge !== null;
   // Opening takes focus; closing releases the microphone and gives focus back. While open, what

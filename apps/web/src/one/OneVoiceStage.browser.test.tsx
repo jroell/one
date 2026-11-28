@@ -326,7 +326,7 @@ it("voice chat sends the spoken question, reads only the new reply aloud, then r
   expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 });
 });
 
-it("voice chat waits for a reply that is still streaming and reads it once, in full", async () => {
+it("voice chat reads nothing of a streaming reply before its first sentence is finished, then reads it once, in full", async () => {
   using voice = setup();
   await using screen = await render(voice.stage(false, []), NO_ROUTER);
   using _speak = vi
@@ -346,6 +346,101 @@ it("voice chat waits for a reply that is still streaming and reads it once, in f
   await screen.rerender(voice.stage(false, [QUESTION, NEW_REPLY]));
   await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
   expect(voice.spoken.map((utterance) => utterance.text)).toEqual([NEW_REPLY_SPOKEN]);
+});
+
+it("voice chat starts reading a reply while the agent is still writing it, reads the rest as it arrives, and listens again only after the last part", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  const writing = (text: string) => ({ ...NEW_REPLY, text, streaming: true });
+  const said = () => voice.spoken.map((utterance) => utterance.text);
+  const finish = (index: number) =>
+    act(() => voice.spoken[index]?.onend?.(new Event("end") as SpeechSynthesisEvent));
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, [QUESTION]));
+  await screen.rerender(
+    voice.stage(true, [QUESTION, writing("Light bends inside each drop. The rest is still")]),
+  );
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+  expect(said()).toEqual(["Light bends inside each drop."]);
+
+  // The first part is read before the agent has written more: voice chat waits, it does not listen.
+  await finish(0);
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+  expect(voice.microphone.recordings).toBe(1);
+
+  await screen.rerender(
+    voice.stage(true, [
+      QUESTION,
+      writing("Light bends inside each drop. The rest is still coming.\nAnd"),
+    ]),
+  );
+  await vi.waitFor(() =>
+    expect(said()).toEqual(["Light bends inside each drop.", "The rest is still coming."]),
+  );
+
+  await screen.rerender(
+    voice.stage(false, [
+      QUESTION,
+      { ...NEW_REPLY, text: "Light bends inside each drop. The rest is still coming.\nAnd done." },
+    ]),
+  );
+  await finish(1);
+  await vi.waitFor(() => expect(said().at(-1)).toBe("And done."));
+  expect(said()).toHaveLength(3);
+  expect(voice.microphone.recordings).toBe(1);
+
+  await finish(2);
+  await vi.waitFor(() =>
+    expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 }),
+  );
+});
+
+it("voice chat reads a later answer of the same turn after the first one, without reading the first again", async () => {
+  using voice = setup();
+  await using screen = await render(voice.stage(false, []), NO_ROUTER);
+  using _speak = vi
+    .spyOn(window.speechSynthesis, "speak")
+    .mockImplementation((utterance) => void voice.spoken.push(utterance));
+  const said = () => voice.spoken.map((utterance) => utterance.text);
+  const finish = (index: number) =>
+    act(() => voice.spoken[index]?.onend?.(new Event("end") as SpeechSynthesisEvent));
+  const first: VoiceStageMessage = {
+    id: "a2",
+    role: "assistant",
+    text: "Let me look at the code first.",
+    streaming: false,
+  };
+  const later: VoiceStageMessage = {
+    id: "a3",
+    role: "assistant",
+    text: "It keeps the answer in a cache for an hour.",
+    streaming: false,
+  };
+
+  await voice.start();
+  await screen.getByRole("button", { name: "Send what I said" }).click();
+  await voice.finishTranscribing();
+  await screen.rerender(voice.stage(true, [QUESTION]));
+  await screen.rerender(voice.stage(true, [QUESTION, first]));
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Speaking");
+  expect(said()).toEqual([first.text]);
+
+  await finish(0);
+  await screen.rerender(voice.stage(true, [QUESTION, first, later]));
+  await vi.waitFor(() => expect(said()).toEqual([first.text, later.text]));
+
+  await screen.rerender(voice.stage(false, [QUESTION, first, later]));
+  await finish(1);
+  await vi.waitFor(() =>
+    expect(voice.microphone).toMatchObject({ phase: "recording", recordings: 2 }),
+  );
+  expect(said()).toEqual([first.text, later.text]);
 });
 
 it("voice chat closes and releases the microphone when the composer moves to another thread", async () => {
