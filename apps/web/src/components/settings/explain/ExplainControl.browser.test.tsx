@@ -88,7 +88,7 @@ describe("the Explain control", () => {
       expect(detail.textContent, text).toContain(text);
     }
     const docs = page.getByRole("link", { name: "Read the docs" }).element() as HTMLAnchorElement;
-    expect(docs.href).toContain("docs/user/usage.md#track-subscription-limits");
+    expect(docs.href).toContain("docs/user/usage.md#subscription-limits");
   });
 
   it("makes Ask One the one filled control and the docs a quiet link, and puts focus on Ask when it works", async () => {

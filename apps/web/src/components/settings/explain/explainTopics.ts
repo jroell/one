@@ -93,7 +93,7 @@ const TOPICS: Readonly<Record<ExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What are usage providers, and do I need one?"),
     notes: USAGE_NOTES,
-    docs: { page: "usage.md", anchor: "track-subscription-limits" },
+    docs: { page: "usage.md", anchor: "subscription-limits" },
     facts: usageFacts,
   },
   "usage-hub": {
@@ -311,7 +311,7 @@ const TOPICS: Readonly<Record<ExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What are scheduled tasks, and could they help me?"),
     notes: `Scheduled tasks are under Settings, Scheduled tasks. A task runs one prompt on a timer or when a webhook URL is called ("On webhook"), or once at a chosen date and time ("Once"). Each task runs on the environment the person chooses, using its project, model and workspace settings; fixed-time schedules use that environment's time zone, which may differ from the phone's. Destination says where runs go: New thread each run keeps every run separate; the two one-thread choices start a thread on the first run and post later runs there (one continues the same conversation; the other starts each run in a fresh session that does not see earlier runs). Tasks can be edited, paused, resumed, run now, or deleted; webhook tasks only run when their URL is called, so they cannot be run now. A public webhook URL needs a T3 Connect managed tunnel; after saving the task the URL is copied from the editor, and Rotate replaces it. The prompt can use placeholders such as {{body.path}}, {{headers.name}}, {{query.name}}, {{body}} and {{request}}; values reach the agent wrapped in tags and marked as untrusted request data. A task that posts into one thread keeps running after that thread is archived, and each run fails, so settle the thread instead or move or pause the task. Deleting a thread also deletes tasks that post into it. For work with stages (triage, a fix, approval, a release) a workflow fits better than a scheduled task.`,
-    docs: { page: "project-settings.md", anchor: "scheduled-tasks-on-mobile" },
+    docs: { page: "project-settings.md", anchor: "scheduled-tasks-and-webhooks" },
     facts: () => [],
   },
   devices: {
@@ -364,7 +364,7 @@ const TOPICS: Readonly<Record<ExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What are guest links, and is it safe to turn them on?"),
     notes: `Guest links are a beta, turned on under Settings, Labs, Guest links for the machine that runs the thread. They also need T3 Connect (sign in and link the machine, because the link points at its T3 Connect address), and the machine must stay online while the guest uses it. While the setting is off, every guest link on that machine stops working; links that have not expired work again when it is turned back on. To share: right-click the thread in the sidebar and choose Share with guest (also in the thread menu and the command palette; long-press the thread in the mobile app). Copy the link and send it to one person: it works in one browser and expires after 24 hours; opening it again in that browser returns to the thread. When the guest sends a message it appears at the end of the thread and the sidebar shows Request; the person chooses Send (runs as a normal turn) or Dismiss. Stop sharing ends the link at once; archiving the thread, creating a new link, or unlinking the machine from T3 Connect also ends it. The guest sees the thread's recent history and everything after, as it streams: messages and files, the agent's replies with images from the machine, reasoning, plans, questions, and its work, with command output when expanded. They cannot change the model, see diffs, fork, revert, open files on the machine, or answer the agent for the person. Anything the agent read or printed can show, such as a value from a file, so only threads the person is comfortable showing should be shared. Guests can attach images (PNG, JPEG, GIF, WebP) and other files: up to 4 files and 10 MB per message, 20 MB while messages wait.`,
-    docs: { page: "guest-links.md", anchor: "share-a-thread" },
+    docs: { page: "guest-links.md", anchor: "prerequisites-and-sharing" },
     facts: () => [],
   },
   "linked-environments": {
@@ -404,7 +404,7 @@ const TOPICS: Readonly<Record<ExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What are workflows, and when would I use one instead of a scheduled task?"),
     notes: `A workflow is a TypeScript script that chains agents, plain code, schedules, webhooks, issue and pull request events, and questions to the person into one durable run that survives server restarts; each step's result is saved when it succeeds, so restarts pick up where the run left off. Workflows are an early feature: runs start from the t3 CLI or a trigger and are followed in the app. For one prompt on a timer or webhook use a scheduled task; use a workflow when work has stages such as triage, a fix, approval and a release. Turn on Settings, Labs, Workflows for the server that runs them (off by default); while off, nothing in the workflows folder runs and the t3 workflow command says how to turn it on; runs are kept and continue once it is on again. Workflow files live in ~/.t3/workflows/ (or where T3CODE_WORKFLOWS points); the server watches the folder and reloads changes. The recommended way to create one is to ask an agent, using the t3-workflows skill.`,
-    docs: { page: "workflows.md", anchor: "turn-on-workflows" },
+    docs: { page: "workflows.md", anchor: "enable-workflows" },
     facts: () => [],
   },
   "preview-tunnel": {
@@ -444,7 +444,7 @@ const TOPICS: Readonly<Record<ExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What does archiving a thread do, and should I archive or settle?"),
     notes: `Archive is for work the person wants out of the way. An archived thread leaves the sidebar and search and shows only in Settings, Archive, where it can be unarchived or deleted. It refuses new messages, including ones from agents and scheduled tasks, until it is unarchived. Settle is for work that is done for now: a settled thread stays in the sidebar's Settled section and in search, and a message to it from the person, an agent or a scheduled task makes it active again. A scheduled task that posts into one thread keeps running after that thread is archived, and each run fails; settle the thread instead, or move or pause the task. Removing a project deletes its threads either way. A thread is archived from its menu in the sidebar.`,
-    docs: { page: "thread-sidebar.md", anchor: "settle-or-archive" },
+    docs: { page: "thread-sidebar.md", anchor: "settle-snooze-and-archive" },
     facts: () => [],
   },
 };
