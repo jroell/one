@@ -25,22 +25,25 @@ test(
         ),
       );
       await t3.open("/settings/keybindings");
-      const search = screen.getByLabel("Search keybindings");
+      const search = screen.getByLabel("Search shortcuts");
       await search.fill("Command Palette");
       await screen
-        .getByRole("button", "Edit shortcut for Command Palette: Toggle: Enter")
+        .getByRole("button", "Edit shortcut for Command palette: toggle: Enter")
         .waitFor();
 
-      await search.fill("Chat: New");
-      const unchanged = screen.getByRole("button", "Edit shortcut for Chat: New: Ctrl+N", {
-        exact: true,
-      });
+      await search.fill("Chat: new");
+      const unchanged = screen.getByRole(
+        "button",
+        /^Edit shortcut for Chat: new: (Ctrl\+N|Command\+N)$/,
+      );
       await unchanged.waitFor();
-      await screen.getByRole("button", "Edit shortcut for Chat: New: Ctrl+Shift+O").tap();
-      await screen.getByRole("textbox", "Keybinding for Chat: New", { exact: true }).press("F8");
+      await screen
+        .getByRole("button", /^Edit shortcut for Chat: new: (Ctrl\+Shift\+O|Shift\+Command\+O)$/)
+        .tap();
+      await screen.getByRole("textbox", "Keybinding for Chat: new", { exact: true }).press("F8");
       await screen.getByRole("button", "Save", { exact: true }).tap();
       await screen
-        .getByRole("button", "Edit shortcut for Chat: New: F8", { exact: true })
+        .getByRole("button", "Edit shortcut for Chat: new: F8", { exact: true })
         .waitFor();
 
       try {
