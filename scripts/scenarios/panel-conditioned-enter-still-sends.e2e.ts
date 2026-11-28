@@ -38,7 +38,7 @@ test(
       // The settings list shows the rule once the server has loaded the saved file.
       await t3.open("/settings/keybindings");
       await screen
-        .getByRole("button", "Edit shortcut for Command Palette: Toggle: Enter")
+        .getByRole("button", "Edit shortcut for Command palette: toggle: Enter")
         .waitFor();
 
       await t3.open(thread);
