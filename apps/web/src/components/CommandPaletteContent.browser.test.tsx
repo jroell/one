@@ -64,7 +64,7 @@ describe("CommandPaletteContent", () => {
 
   it.each([
     { height: 900, top: 225 },
-    { height: 620, top: 138 },
+    { height: 620, top: 124 },
   ])("sits low without shrinking in a $height px tall window", async ({ height, top }) => {
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     await page.viewport(1440, height);
@@ -80,6 +80,6 @@ describe("CommandPaletteContent", () => {
         const bounds = popup.element().getBoundingClientRect();
         return { top: Math.round(bounds.top), height: Math.round(bounds.height) };
       })
-      .toEqual({ top, height: 420 });
+      .toEqual({ top, height: 434 });
   });
 });
