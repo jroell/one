@@ -10,8 +10,8 @@ const LONG_MESSAGE = Array.from({ length: SEEDED_MATCHES / 10 }, () =>
 
 const findTotal = `(() => {
   const label = document.querySelector("[data-thread-find-bar] span[aria-hidden]")?.textContent ?? "";
-  const match = /^\\d+\\/(\\d+)$/.exec(label.trim());
-  return match ? Number(match[1]) : 0;
+  const match = /^\\d+ of ([\\d,.]+)\\+?$/.exec(label.trim());
+  return match ? Number(match[1].replace(/[,.]/g, "")) : 0;
 })()`;
 
 const paint = `(() => {

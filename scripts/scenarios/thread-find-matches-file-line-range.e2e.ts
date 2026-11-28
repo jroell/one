@@ -30,7 +30,7 @@ test(
             ),
           { message: "Find in thread counts the displayed line range as a match" },
         )
-        .toBe("1/1");
+        .toBe("1 of 1");
     } finally {
       await app.screenshot("file-range-find-result");
     }
