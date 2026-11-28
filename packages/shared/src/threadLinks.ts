@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema";
 import type { Nodes } from "mdast";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
-import { unified } from "unified";
+import { unified, type Data, type Processor } from "unified";
 
 import { DEFAULT_HOSTED_APP_URL } from "./connectAuth.ts";
 
@@ -308,8 +308,27 @@ export function threadLinkRefs(
   return [...refs.values()];
 }
 
+type FromMarkdownExtension = Exclude<
+  NonNullable<Data["fromMarkdownExtensions"]>[number],
+  readonly unknown[]
+>;
+
+const withoutTransforms = (extension: FromMarkdownExtension): FromMarkdownExtension => ({
+  ...extension,
+  transforms: [],
+});
+
+// The GFM autolink-literal transform walks the tree recursively and overflows the stack on
+// deeply nested quotes. Code ranges do not depend on it, so the parser skips tree transforms.
+function skipTreeTransforms(this: Processor) {
+  const data = this.data();
+  data.fromMarkdownExtensions = (data.fromMarkdownExtensions ?? []).map((extension) =>
+    Array.isArray(extension) ? extension.map(withoutTransforms) : withoutTransforms(extension),
+  );
+}
+
 // GFM like the chat renderer, so footnotes and other GFM containers hold prose, not code.
-const markdownParser = unified().use(remarkParse).use(remarkGfm);
+const markdownParser = unified().use(remarkParse).use(remarkGfm).use(skipTreeTransforms);
 const INDENTED_CODE_LINE = /^[ \t>*+\-\d.)]*(?: {4}|\t)/m;
 const FENCE_LIKE_LINE = /^[ \t>*+\-\d.)]*(?:`{3}|~{3})/m;
 const LIST_ITEM_LINE = /^[ \t>]*(?:[-*+]|\d{1,9}[.)])(?:[ \t]|\r?$)/m;
