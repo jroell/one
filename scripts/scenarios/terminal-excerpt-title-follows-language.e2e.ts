@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+// The DOM lib types the function this scenario runs in the page.
 import { expect } from "e2e";
 
 import { test, WEB } from "./t3.ts";
@@ -19,7 +21,9 @@ test(
     await input.waitFor();
     await input.focus();
     await browser.keyboard.type("printf 'first\\nsecond\\n'\n");
-    await browser.keyboard.press("Control+Shift+A");
+    // The terminal selects all with Cmd+A on macOS and Ctrl+Shift+A elsewhere.
+    const mac = await browser.evaluate(() => navigator.platform.startsWith("Mac"));
+    await browser.keyboard.press(mac ? "Meta+A" : "Control+Shift+A");
     await browser.locator("canvas.cursor-text").secondaryTap();
     await screen.getByText("チャットに追加", { exact: true }).tap();
 
