@@ -423,7 +423,7 @@ describe("settings layout", () => {
 
     await expect.element(page.getByRole("heading", { level: 1, name: "Chat" })).toBeVisible();
     await expect
-      .element(page.getByText("How the composer, follow-ups and tool calls behave."))
+      .element(page.getByText("Writing messages, follow-ups and how tool activity appears."))
       .toBeVisible();
   });
 
