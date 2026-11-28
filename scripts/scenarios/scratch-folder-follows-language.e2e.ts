@@ -67,7 +67,7 @@ test(
     }, project);
 
     await t3.open("/settings/labs");
-    await screen.getByLabel("Boring sidebar (group by project)", { exact: true }).tap();
+    await screen.getByLabel("Group threads by project", { exact: true }).tap();
     await screen.getByLabel("Two-line folder rows", { exact: true }).waitFor();
 
     await t3.open("/settings/general");

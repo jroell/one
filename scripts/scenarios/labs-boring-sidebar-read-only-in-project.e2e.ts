@@ -9,7 +9,7 @@ test(
     await t3.project("demo");
     await t3.open("/settings/labs");
 
-    await screen.getByRole("switch", "Boring sidebar (group by project)").check();
+    await screen.getByRole("switch", "Group threads by project").check();
     await expect(screen.getByRole("switch", "Two-line folder rows")).toBeVisible();
 
     await screen.getByRole("button", "Project scope: All projects").tap();
@@ -18,9 +18,7 @@ test(
     await app.screenshot("project-selected");
 
     // A project cannot override a device preference, so neither switch may offer an edit.
-    await expect(
-      browser.locator('[inert] [aria-label="Boring sidebar (group by project)"]'),
-    ).toBeVisible();
+    await expect(browser.locator('[inert] [aria-label="Group threads by project"]')).toBeVisible();
     await expect(browser.locator('[inert] [aria-label="Two-line folder rows"]')).toBeVisible();
   },
 );
