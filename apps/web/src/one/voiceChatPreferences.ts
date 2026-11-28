@@ -3,18 +3,22 @@ import { useSyncExternalStore } from "react";
 /** How voice chat reads replies aloud. A device choice. */
 export type VoiceChatStyle = "natural" | "conqueror";
 
+/** The style a device reads in until someone picks the other one. */
+export const DEFAULT_VOICE_CHAT_STYLE: VoiceChatStyle = "conqueror";
+
 const STYLE_KEY = "one:voice-chat-style";
 const listeners = new Set<() => void>();
 
 function readStyle(): VoiceChatStyle {
   try {
-    return window.localStorage.getItem(STYLE_KEY) === "conqueror" ? "conqueror" : "natural";
+    const stored = window.localStorage.getItem(STYLE_KEY);
+    return stored === "natural" || stored === "conqueror" ? stored : DEFAULT_VOICE_CHAT_STYLE;
   } catch {
-    return "natural";
+    return DEFAULT_VOICE_CHAT_STYLE;
   }
 }
 
-let style: VoiceChatStyle = typeof window === "undefined" ? "natural" : readStyle();
+let style: VoiceChatStyle = typeof window === "undefined" ? DEFAULT_VOICE_CHAT_STYLE : readStyle();
 
 // Another window changed the choice: the switch and the next reply must use it. This
 // listens for the life of the page, so a reply read while Settings is closed is current too.
@@ -35,7 +39,7 @@ export function getVoiceChatStyle(): VoiceChatStyle {
 export function setVoiceChatStyle(next: VoiceChatStyle): void {
   style = next;
   try {
-    if (next === "natural") window.localStorage.removeItem(STYLE_KEY);
+    if (next === DEFAULT_VOICE_CHAT_STYLE) window.localStorage.removeItem(STYLE_KEY);
     else window.localStorage.setItem(STYLE_KEY, next);
   } catch {
     // Without storage the choice lasts for this session only.
@@ -115,13 +119,14 @@ const DEEP_VOICE_NAMES = [
 ];
 
 /**
- * Shapes an utterance for the chosen style. The Conqueror is the deepest voice
- * this device offers in the reply's language, pitched down and slowed.
+ * Shapes an utterance for the chosen style. The Conqueror is pitched down and slowed, in the
+ * voice the person picked, else the deepest voice this device offers in the reply's language.
  */
 export function applyVoiceChatStyle(
   utterance: SpeechSynthesisUtterance,
   voices: ReadonlyArray<SpeechSynthesisVoice>,
   chosen: VoiceChatStyle,
+  keepVoice = false,
 ): void {
   if (chosen === "natural") {
     utterance.rate = 1.04;
@@ -132,7 +137,7 @@ export function applyVoiceChatStyle(
   const deep = DEEP_VOICE_NAMES.map((name) =>
     sameLanguage.find((voice) => voice.name.startsWith(name)),
   ).find((voice) => voice !== undefined);
-  if (deep) utterance.voice = deep;
+  if (deep && !keepVoice) utterance.voice = deep;
   utterance.pitch = 0.35;
   utterance.rate = 0.86;
 }

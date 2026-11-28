@@ -138,7 +138,11 @@ import { useUpdateEverythingRun } from "../sidebar/updateEverythingRun";
 import { awaitsTrackSwitch, channelSwitchLabel } from "../sidebar/updateEverything.logic";
 import { isHostedByThisApp } from "../sidebar/useUpdateEverything";
 import { setOpeningPreferences, useOpeningPreferences } from "~/one/openingPreferences";
-import { setVoiceChatStyle, useVoiceChatStyle } from "~/one/voiceChatPreferences";
+import {
+  DEFAULT_VOICE_CHAT_STYLE,
+  setVoiceChatStyle,
+  useVoiceChatStyle,
+} from "~/one/voiceChatPreferences";
 
 const RESPONSE_STREAMING_MODE_LABELS: Record<ResponseStreamingMode, string> = {
   turn: msg("Wait for the full response"),
@@ -664,7 +668,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       : []),
     ...(opening.animation ? [] : [gt("Opening animation")]),
     ...(opening.sound ? [] : [gt("Opening sound")]),
-    ...(voiceChatStyle === "natural" ? [] : [gt("Conqueror voice")]),
+    ...(voiceChatStyle === DEFAULT_VOICE_CHAT_STYLE ? [] : [gt("Conqueror voice")]),
   ];
 
   const restoreDefaults = async () => {
@@ -721,7 +725,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     }
     // After the theme, which can fail and stop the restore, so nothing changes before an error.
     setOpeningPreferences({ animation: true, sound: true });
-    setVoiceChatStyle("natural");
+    setVoiceChatStyle(DEFAULT_VOICE_CHAT_STYLE);
     updateSettings({
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,

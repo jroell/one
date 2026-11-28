@@ -104,12 +104,10 @@ export function createSystemEngine(input: {
             const language = replyLanguage(chunk.text, pageLanguage);
             utterance.lang = language;
             const voices = synthesis.getVoices();
-            const style = getVoiceChatStyle();
-            applyVoiceChatStyle(utterance, voices, style);
-            if (style === "natural") {
-              const voice = pickSystemVoice(voices, language, input.voiceURI);
-              if (voice) utterance.voice = voice;
-            }
+            const voice = pickSystemVoice(voices, language, input.voiceURI);
+            if (voice) utterance.voice = voice;
+            const picked = input.voiceURI !== null && voice?.voiceURI === input.voiceURI;
+            applyVoiceChatStyle(utterance, voices, getVoiceChatStyle(), picked);
             utterance.rate *= input.rate;
             // The length-based deadline counts from the moment the engine begins, not from the hand-over.
             const begin = () => {

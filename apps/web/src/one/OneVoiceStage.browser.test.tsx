@@ -14,7 +14,12 @@ import {
   voiceLevel,
   type VoiceSendReport,
 } from "./voiceBridge";
-import { getVoiceChatStyle, setVoiceChatStyle, useVoiceChatStyle } from "./voiceChatPreferences";
+import {
+  DEFAULT_VOICE_CHAT_STYLE,
+  getVoiceChatStyle,
+  setVoiceChatStyle,
+  useVoiceChatStyle,
+} from "./voiceChatPreferences";
 import {
   dispatchVoiceSession,
   getVoiceSession,
@@ -758,7 +763,7 @@ it("voice chat moves on from a reply the speech engine keeps speaking past its d
   expect(screen.getByRole("status").element()).toHaveTextContent("Listening");
 });
 
-it("the first reply in the Conqueror voice waits for the device's voice list instead of using the default voice", async () => {
+it("voice chat reads the first reply in the Conqueror voice with nothing set up, waiting for the device's voice list instead of using the default voice", async () => {
   using voice = setup();
   await using screen = await render(voice.stage(false, [OLD_REPLY]), NO_ROUTER);
   using _speak = vi
@@ -785,10 +790,8 @@ it("the first reply in the Conqueror voice waits for the device's voice list ins
   const listed: SpeechSynthesisVoice[] = [];
   using _voices = vi.spyOn(window.speechSynthesis, "getVoices").mockImplementation(() => listed);
   using _language = vi.spyOn(document.documentElement, "lang", "get").mockReturnValue("en-GB");
-  using _style = {
-    [Symbol.dispose]: () => setVoiceChatStyle("natural"),
-  };
-  setVoiceChatStyle("conqueror");
+  window.localStorage.removeItem("one:voice-chat-style");
+  await act(() => window.dispatchEvent(new StorageEvent("storage", { key: null })));
 
   await voice.start();
   await screen.getByRole("button", { name: "Send what I said" }).click();
@@ -810,17 +813,17 @@ function StyleProbe() {
 it("a change to the reading style made in another window reaches the switch and the next reply", async () => {
   await using screen = await render(<StyleProbe />, NO_ROUTER);
   using _style = {
-    [Symbol.dispose]: () => setVoiceChatStyle("natural"),
+    [Symbol.dispose]: () => setVoiceChatStyle(DEFAULT_VOICE_CHAT_STYLE),
   };
-  await expect.element(screen.getByText("natural")).toBeVisible();
+  await expect.element(screen.getByText("conqueror")).toBeVisible();
 
-  // Another window wrote the choice; the browser reports it here as a storage event.
-  window.localStorage.setItem("one:voice-chat-style", "conqueror");
+  // Another window turned the Conqueror off; the browser reports it here as a storage event.
+  window.localStorage.setItem("one:voice-chat-style", "natural");
   await act(() =>
     window.dispatchEvent(new StorageEvent("storage", { key: "one:voice-chat-style" })),
   );
-  await expect.element(screen.getByText("conqueror")).toBeVisible();
-  expect(getVoiceChatStyle()).toBe("conqueror");
+  await expect.element(screen.getByText("natural")).toBeVisible();
+  expect(getVoiceChatStyle()).toBe("natural");
 });
 
 it("voice chat covers the content behind it from the keyboard, keeps its transcript reachable and hands focus back to the composer when its launcher is gone", async () => {
