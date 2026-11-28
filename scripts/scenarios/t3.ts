@@ -326,11 +326,21 @@ export const rpcClient = Effect.fn("scenario.rpcClient")(function* (home: string
 export const test = base.extend<{ t3: T3 }>({
   t3: async ({ app, browser }, use) => {
     const { state, cleanup } = makeState(T3_HOME);
+    let openingSeen = false;
     await use({
       ...state,
       open: async (target = "/") => {
         const baseUrl = app.baseUrl ?? "";
         await browser.setCookies(await runPromise(signIn(baseUrl)));
+        // One's opening takes the first key or click; mark it seen as the web browser tests do.
+        if (!openingSeen) {
+          await app.open("/");
+          await browser.evaluate(() => {
+            window.sessionStorage.setItem("one:opening-seen", "1");
+            return null;
+          });
+          openingSeen = true;
+        }
         await app.open(
           typeof target === "string"
             ? target
