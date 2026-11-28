@@ -1,16 +1,21 @@
 import { forgetProviderCounts } from "../components/usage/usageSkeletonMemory";
 import { useAtomValue } from "@effect/atom-react";
 import {
+  AuthProvidersManageScope,
   AuthDiagnosticsReadScope,
   USAGE_CONTRACT_VERSION,
   type EnvironmentId,
   type UsageBucket,
+  type UsageAccessRequest,
   type UsageSummary,
   type UsageProviderKind,
   type UsageSummaryInput,
 } from "@t3tools/contracts";
 import { refreshUsage, usageSummaryInput } from "@t3tools/client-runtime/state/usage";
-import { resolveUsageAccess } from "@t3tools/client-runtime/state/usage-access";
+import {
+  resolveUsageAccess,
+  unansweredUsageAccessRequests,
+} from "@t3tools/client-runtime/state/usage-access";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { msg } from "gt-react";
 import { useState } from "react";
@@ -24,6 +29,7 @@ import {
   environmentSession,
   forgetEnvironmentAuthorization,
   readEnvironmentScope,
+  sessionHasScope,
 } from "./session";
 import { m } from "../i18n/messages";
 
@@ -32,6 +38,8 @@ export interface EnvironmentUsageStatus {
   readonly label: string;
   readonly isPending: boolean;
   readonly canReadDiagnostics: boolean;
+  /** Agents still waiting for a usage access answer that this session may save. */
+  readonly accessRequests: readonly UsageAccessRequest[];
   readonly isConnected: boolean;
   readonly error: string | null;
   readonly summary: UsageSummary | null;
@@ -121,6 +129,7 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
           label: presentation.entry.target.label,
           isConnected,
           ...access,
+          accessRequests: [],
           summary: null,
           generation: authorization.generation,
         });
@@ -141,6 +150,11 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
         label: presentation.entry.target.label,
         isPending: result.waiting || (summary === null && AsyncResult.isSuccess(result)),
         canReadDiagnostics: true,
+        accessRequests: unansweredUsageAccessRequests({
+          canAnswer: sessionHasScope(sessionResult, AuthProvidersManageScope),
+          summary,
+          config: get(serverEnvironment.configValueAtom(environmentId)),
+        }),
         isConnected,
         error:
           result._tag === "Failure" ? m(msg("This environment could not report usage.")) : null,

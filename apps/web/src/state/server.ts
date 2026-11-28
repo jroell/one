@@ -34,6 +34,7 @@ export const serverEnvironment = createServerEnvironmentAtoms(connectionAtomRunt
   initialConfigValueAtom: environmentSession.initialConfigValueAtom,
   environmentThemes: true,
   usageLimitSources: true,
+  hostPressure: true,
   usageLimitsCommand: true,
   providerCatalogsOnDemand: true,
   providerCatalogDigests: true,

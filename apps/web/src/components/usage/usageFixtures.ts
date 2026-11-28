@@ -75,6 +75,7 @@ export function status(
     label: id,
     isPending: false,
     canReadDiagnostics: true,
+    accessRequests: [],
     isConnected: true,
     error: null,
     summary: null,

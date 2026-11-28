@@ -73,6 +73,7 @@ import { Skeleton } from "../ui/skeleton";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
+import { UsageAccessQuestion, type UsageAccessPrompt } from "./UsageAccessDialog";
 import { UsageLimitsSection } from "./UsageLimits";
 import { UsagePriceOverrides } from "./UsagePriceOverrides";
 import { UsageProviderChart } from "./UsageProviderChart";
@@ -286,6 +287,15 @@ export function UsagePage() {
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
     reportFailure: false,
   });
+
+  const accessPrompts: UsageAccessPrompt[] = selectedEnvironments.flatMap((environment) =>
+    environment.accessRequests.map((request) => ({
+      environmentId: environment.environmentId,
+      environmentLabel: environment.label,
+      instanceId: request.instanceId,
+      driver: request.driver,
+    })),
+  );
 
   const canReadDiagnostics = selectedEnvironments.some(
     (environment) => environment.canReadDiagnostics,
@@ -552,7 +562,9 @@ export function UsagePage() {
           <ScrollArea className="min-h-0 flex-1" observeContent>
             <WorkspacePageContainer width="wide" className="usage-page">
               <UsageControlsProvider value={usageControls}>
-                {selectedEnvironments.length === 0 ? (
+                {accessPrompts.length > 0 ? (
+                  <UsageAccessQuestion prompts={accessPrompts} />
+                ) : selectedEnvironments.length === 0 ? (
                   <div className="usage-stack">
                     <UsageControlsSlot />
                     <p className="text-sm text-muted-foreground">
