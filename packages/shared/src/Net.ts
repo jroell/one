@@ -1,4 +1,5 @@
 import * as NodeNet from "node:net";
+import * as NodeOS from "node:os";
 
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -179,6 +180,34 @@ export const make = () => {
     return yield* canListenOnHost(port, host);
   });
 
+  // Linux refuses a wildcard bind while a specific address holds the port; macOS allows it and
+  // routes LAN traffic to the specific listener, so the wildcard server would never see it.
+  const hasListenerOnLocalAddress = Effect.fn("Net.hasListenerOnLocalAddress")(function* (
+    port: number,
+  ): Effect.fn.Return<boolean> {
+    const addresses = Object.values(NodeOS.networkInterfaces())
+      .flatMap((entries) => entries ?? [])
+      .filter((entry) => !entry.internal && !entry.address.toLowerCase().startsWith("fe80"))
+      .map((entry) => entry.address);
+    const results = yield* Effect.forEach(
+      addresses,
+      (address) => hasListenerOnHost(port, address),
+      {
+        concurrency: "unbounded",
+      },
+    );
+    return results.some(Boolean);
+  });
+
+  const isWildcardPortFree = Effect.fn("Net.isWildcardPortFree")(function* (
+    port: number,
+    wildcardHost: string,
+  ): Effect.fn.Return<boolean> {
+    return (
+      (yield* canListenOnHost(port, wildcardHost)) && !(yield* hasListenerOnLocalAddress(port))
+    );
+  });
+
   const reserveLoopbackPort = (host = "127.0.0.1"): Effect.Effect<number, NetError> =>
     Effect.callback<number, NetError>((resume) => {
       const probe = NodeNet.createServer();
@@ -225,7 +254,7 @@ export const make = () => {
       if (
         preferred > 0 &&
         (yield* isPortAvailableForHost(preferred, host)) &&
-        (wildcardHost === undefined || (yield* canListenOnHost(preferred, wildcardHost)))
+        (wildcardHost === undefined || (yield* isWildcardPortFree(preferred, wildcardHost)))
       ) {
         return preferred;
       }
@@ -236,7 +265,9 @@ export const make = () => {
       // A wildcard bind can succeed while another address family owns the localhost port.
       for (let attempt = 0; attempt < WILDCARD_PORT_ATTEMPTS; attempt += 1) {
         const port = yield* reserveLoopbackPort(wildcardHost);
-        if (yield* isPortAvailableOnLoopback(port)) return port;
+        if ((yield* isPortAvailableOnLoopback(port)) && !(yield* hasListenerOnLocalAddress(port))) {
+          return port;
+        }
       }
       return yield* new NetError({ message: "Failed to find an available wildcard port" });
     }),
