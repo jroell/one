@@ -637,14 +637,18 @@ describe("source file scroll", () => {
       await anchored;
       await mouse("mouseMoved", startRect.left + 80, nearEdgeY);
       await mouse("mouseMoved", startRect.left + 80, outsideEdgeY);
-      await vi.waitFor(() => {
-        const firstMounted = Number(rows()[0]?.getAttribute("data-line"));
-        if (direction === "down") {
-          expect(firstMounted).toBeGreaterThanOrEqual(targetFirstMounted);
-        } else {
-          expect(firstMounted).toBeLessThanOrEqual(targetFirstMounted);
-        }
-      });
+      // The browser scrolls a held drag on a timer that a loaded machine slows past the default 1 s.
+      await vi.waitFor(
+        () => {
+          const firstMounted = Number(rows()[0]?.getAttribute("data-line"));
+          if (direction === "down") {
+            expect(firstMounted).toBeGreaterThanOrEqual(targetFirstMounted);
+          } else {
+            expect(firstMounted).toBeLessThanOrEqual(targetFirstMounted);
+          }
+        },
+        { timeout: 10_000 },
+      );
       await mouse("mouseReleased", startRect.left + 80, outsideEdgeY);
 
       const overlayRanges = shadowRoot()!.querySelectorAll("[data-selection-range]");
