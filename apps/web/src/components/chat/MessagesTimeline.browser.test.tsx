@@ -4122,3 +4122,43 @@ it("keeps concurrent approvals actionable outside collapsed work and restores se
     .element(screen.getByRole("button", { name: "Open the current tab", exact: true }))
     .toBeVisible();
 });
+
+describe("MessagesTimeline read aloud", () => {
+  it("reads a finished reply aloud without its code, shows Stop reading while it reads, and stops on a second press", async () => {
+    const spoken: SpeechSynthesisUtterance[] = [];
+    using _speak = vi
+      .spyOn(window.speechSynthesis, "speak")
+      .mockImplementation((utterance) => void spoken.push(utterance));
+    using cancel = vi.spyOn(window.speechSynthesis, "cancel").mockImplementation(() => undefined);
+    await using screen = await renderTimeline([
+      message("Why do rainbows form?", {}, "question"),
+      message(
+        "Light **bends** inside each drop.\n```js\nrefract()\n```",
+        { role: "assistant" },
+        "answer",
+      ),
+    ]);
+
+    await click(screen.getByRole("button", { name: "Read aloud" }).element() as HTMLElement);
+    expect(spoken.map((utterance) => utterance.text)).toEqual([
+      "Light bends inside each drop.\nThe code is in the thread.",
+    ]);
+    const stop = screen.getByRole("button", { name: "Stop reading" });
+    await expect.element(stop).toHaveAttribute("aria-pressed", "true");
+
+    const cancelsBefore = cancel.mock.calls.length;
+    await click(stop.element() as HTMLElement);
+    await expect.element(screen.getByRole("button", { name: "Read aloud" })).toBeVisible();
+    expect(cancel.mock.calls.length).toBeGreaterThan(cancelsBefore);
+    expect(spoken).toHaveLength(1);
+  });
+
+  it("offers no Read aloud on a reply that is still streaming", async () => {
+    await using screen = await renderTimeline([
+      message("Why do rainbows form?", {}, "question"),
+      message("Light bends", { role: "assistant", streaming: true }, "answer"),
+    ]);
+    await expect.element(screen.getByText("Light bends")).toBeVisible();
+    expect(screen.container.querySelector('button[aria-label="Read aloud"]')).toBeNull();
+  });
+});

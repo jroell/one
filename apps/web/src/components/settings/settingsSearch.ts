@@ -367,6 +367,18 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("transparent transparency solid menus dialogs composer")],
   },
   {
+    id: "setting-read-aloud-voice",
+    title: msg("Read-aloud voice"),
+    to: "/settings/voice",
+    searchTerms: [msg("text to speech tts read aloud voice chat natural openrouter speaker sound")],
+  },
+  {
+    id: "setting-read-aloud-speed",
+    title: msg("Reading speed"),
+    to: "/settings/voice",
+    searchTerms: [msg("text to speech tts read aloud voice chat rate faster slower pace")],
+  },
+  {
     id: "setting-voice-chat-conqueror",
     title: msg("Conqueror voice"),
     to: "/settings/voice",

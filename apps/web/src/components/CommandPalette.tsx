@@ -603,6 +603,7 @@ function OpenCommandPaletteDialog(props: {
     themeEditorItem,
     workspaceModeItem,
     voiceChatItem,
+    stopReadingItem,
   } = useCommandPaletteThemeItems();
   const portForwardItem = useCommandPalettePortForwardItem({
     activeThread: activeThread ?? null,
@@ -1773,6 +1774,7 @@ function OpenCommandPaletteDialog(props: {
   actionItems.push(themeEditorItem);
   actionItems.push(workspaceModeItem);
   actionItems.push(voiceChatItem);
+  if (stopReadingItem) actionItems.push(stopReadingItem);
 
   if (environments.some((environment) => environment.serverConfig !== null)) {
     actionItems.push({

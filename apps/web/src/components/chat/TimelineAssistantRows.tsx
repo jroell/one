@@ -6,7 +6,7 @@ import { T, useGT, useMessages } from "gt-react";
 import { use, useState } from "react";
 import { type ChatMessage } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
-import { GitForkIcon, ReplyIcon } from "lucide-react";
+import { GitForkIcon, ReplyIcon, SquareIcon, Volume2Icon } from "lucide-react";
 import { captureAssistantMessageOpening } from "~/lib/assistantTextSelection";
 import { responseContextRecord } from "~/lib/composerContextRecords";
 import { Button } from "../ui/button";
@@ -24,6 +24,12 @@ import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { TimelineRowCtx, TimelineRowActivityCtx, type TimelineRow } from "./timelineRowContext";
 import { MESSAGE_HEADING_LEVEL, MessageAuthorHeading } from "./TimelineRowParts";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
+import {
+  readAloud,
+  stopReadingAloud,
+  useIsReadingAloud,
+  useSpeechEngines,
+} from "~/speech/readAloud";
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -234,6 +240,7 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
+      {!message.streaming && message.text ? <AssistantReadAloudButton message={message} /> : null}
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
       ) : null}
@@ -249,6 +256,37 @@ function AssistantMessageMeta({
         </SharedTooltipTrigger>
       )}
     </div>
+  );
+}
+
+function AssistantReadAloudButton({ message }: { message: ChatMessage }) {
+  const gt = useGT();
+  const reading = useIsReadingAloud(message.id);
+  const engines = useSpeechEngines();
+  const label = reading ? gt("Stop reading") : gt("Read aloud");
+  return (
+    <SharedTooltipTrigger
+      render={
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost-muted"
+          aria-label={label}
+          aria-pressed={reading}
+          onClick={() => {
+            if (reading) stopReadingAloud();
+            else readAloud(message.id, message.text, engines());
+          }}
+        />
+      }
+      label={<p>{label}</p>}
+    >
+      {reading ? (
+        <SquareIcon className="size-3 fill-current" />
+      ) : (
+        <Volume2Icon className="size-3" />
+      )}
+    </SharedTooltipTrigger>
   );
 }
 

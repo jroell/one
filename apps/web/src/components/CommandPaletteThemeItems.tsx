@@ -7,6 +7,7 @@ import {
   MonitorIcon,
   MoonIcon,
   PaletteIcon,
+  SquareIcon,
   SunIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ import {
 } from "./settings/ThemePreviewCircles";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { toggleVoiceChat } from "../one/startVoiceChat";
+import { stopReadingAloud, useIsAnyReadingAloud } from "../speech/readAloud";
 import { toggleWorkspaceMode, useWorkspaceMode } from "../one/workspaceMode";
 
 export const APPEARANCE_OPTIONS = [
@@ -66,6 +68,7 @@ function useThemeCards() {
 }
 
 export function useCommandPaletteThemeItems() {
+  const readingAloud = useIsAnyReadingAloud();
   const workspaceMode = useWorkspaceMode();
   const {
     theme,
@@ -212,11 +215,25 @@ export function useCommandPaletteThemeItems() {
     },
   };
 
+  const stopReadingItem: CommandPaletteActionItem | null = readingAloud
+    ? {
+        kind: "action",
+        value: "action:stop-reading-aloud",
+        searchTerms: ["stop", "read aloud", "speech", "voice", "mute", "quiet", "tts"],
+        title: gt("Stop reading aloud"),
+        icon: <SquareIcon className={ITEM_ICON_CLASS} />,
+        run: async () => {
+          stopReadingAloud();
+        },
+      }
+    : null;
+
   return {
     changeThemeItem,
     changeAppearanceItem,
     themeEditorItem,
     workspaceModeItem,
     voiceChatItem,
+    stopReadingItem,
   };
 }

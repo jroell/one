@@ -34,3 +34,13 @@ In **Settings → Voice → Transcription**, filter by language, download a mode
 - **Microphone priority**: Rank built-in, wired, Bluetooth, and CarPlay (iOS) devices in **Settings → Voice**—T3 Code uses the first connected device in the list.
 - **Test**: Use **Test microphone** (local 10-second loopback, no transcription) to verify input, and **Test model** to preview raw transcription without cleanup.
 - Browser recording requires **HTTPS** or `localhost`—for plain-HTTP remote servers, use the desktop app.
+
+## Read replies aloud
+
+Every finished reply has a **Read aloud** button next to **Copy**. Press it again, or run **Stop reading aloud** from the command palette, to stop. Voice chat reads with the same voice.
+
+Choose the voice in **Settings → Voice → Reading aloud**:
+
+- **This device** uses the voices built into your browser or operating system. **Best on this device** picks the most natural one it has for the reply's language. Nothing leaves your device.
+- **OpenRouter** voices sound much more natural. They use the OpenRouter key saved for transcription on an environment, so save one under **Transcribe with** first. Each reply's text is sent to OpenRouter with zero data retention, and OpenRouter bills your account per character. Some models have no zero-retention endpoint and fail; when a cloud voice fails, the device voice reads the rest of the reply and a notice says why.
+- **Reading speed** and **Play sample** apply to both.
