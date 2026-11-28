@@ -27,7 +27,7 @@ test("Find in thread matches İstanbul with istanbul", WEB, async ({ t3, app, sc
           ),
         { message: "Find in thread counts İstanbul as a match for istanbul" },
       )
-      .toBe("1/1");
+      .toBe("1 of 1");
   } finally {
     await app.screenshot("istanbul-find-result");
   }
