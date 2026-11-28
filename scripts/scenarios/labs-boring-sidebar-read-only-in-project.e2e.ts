@@ -7,6 +7,8 @@ test(
   WEB,
   async ({ t3, app, browser, screen }) => {
     await t3.project("demo");
+    // The scope bar hides itself when there is only one project to choose from.
+    await t3.project("other");
     await t3.open("/settings/labs");
 
     await screen.getByRole("switch", "Group threads by project").check();
