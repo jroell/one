@@ -2,7 +2,7 @@
 
 The `t3` command runs and manages One servers, background services, remote access, threads, workflows, and diagnostics. Run `t3 --help` or `t3 <command> --help` for full flags.
 
-See [Install One](./install.md#command-line) for installation (`curl -fsSL https://t3.codes/install.sh | sh`, `irm https://t3.codes/install.ps1 | iex`, or `npx t3@latest`).
+The One desktop app bundles `t3`; see [The t3 command](./install.md#the-t3-command). The `t3.codes` install scripts and `npx t3` install upstream T3 Code's `t3`, not One's.
 
 ## Running and connecting
 
@@ -18,11 +18,11 @@ See [Install One](./install.md#command-line) for installation (`curl -fsSL https
 
 ## Background service and updates
 
-| Command                       | Description                                                                                                                                         |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `t3 service`                  | Manage the background service (`install`, `status`, `restart`, `uninstall`, `protect [--undo]`). See [Background service](./background-service.md). |
-| `t3 update [version]`         | Update `t3` and the service (`--channel nightly`, `--allow-downgrade`, `--yes`).                                                                    |
-| `t3 install` / `t3 uninstall` | Install or remove the `t3` launcher and background service (keeps `~/.t3/userdata`).                                                                |
+| Command                       | Description                                                                                                                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `t3 service`                  | Manage the background service (`install`, `status`, `restart`, `uninstall`, `protect [--undo]`). See [Background service](./background-service.md).                                       |
+| `t3 update [version]`         | Update `t3` and the service from upstream T3 Code releases (`--channel nightly`, `--allow-downgrade`, `--yes`). On a One machine, this replaces One; [update One](./updating.md) instead. |
+| `t3 install` / `t3 uninstall` | Install or remove the `t3` launcher and background service (keeps `~/.t3/userdata`).                                                                                                      |
 
 ## Threads, projects, and workflows
 

@@ -4,7 +4,7 @@ Run One as a background user service on Linux, macOS, or Windows so your host st
 
 ## Manage the service
 
-Install the `t3` CLI first ([Command line](./install.md#command-line)), then run these commands on the host machine:
+Install the `t3` CLI first ([The t3 command](./install.md#the-t3-command)), then run these commands on the host machine:
 
 | Task                                    | Command                                                   |
 | --------------------------------------- | --------------------------------------------------------- |

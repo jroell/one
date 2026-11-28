@@ -180,7 +180,7 @@ Because One is an unofficial community fork, build it directly from this reposit
 
 ```bash
 git clone https://github.com/jroell/one.git
-cd t3code
+cd one
 vp i
 vp run dev
 ```

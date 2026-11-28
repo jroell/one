@@ -1,53 +1,53 @@
-# Updating T3 Code
+# Updating One
 
-T3 Code clients and servers can run on different machines and must share a compatible orchestration protocol. When a server or provider is behind, the sidebar update button and **Settings → Environments** handle updates.
+One is built from [the One repository](https://github.com/jroell/one), so updating One means pulling the latest code and building again. The repository takes in upstream T3 Code improvements and fixes every day, so pulling also brings those.
 
-## Update everything at once
+Clients and servers can run on different machines and must share a compatible orchestration protocol. Update every machine you connect to from the same code.
 
-Click the **Update** button at the bottom of the sidebar (web or desktop) to update outdated providers, behind servers, and the desktop app in one step.
+## Update One
 
-- Hover to preview what will update; click while running to view per-machine progress or retry failures.
-- Confirmation dialogs show which machines are skipped (offline or manual-only) and how many active threads will pause/resume.
-- Choose **Later** on the desktop restart countdown to restart when ready.
+From your clone of the repository:
 
-## Switch between Stable and Nightly
+```bash
+git pull
+vp i
+```
 
-In the desktop app, change **Settings → About → Update track** to switch connected machines together.
+Then restart what you run:
 
-- Moving a background service to an older Stable release requires running `t3 update --channel stable --allow-downgrade` on that host.
-- A switch is blocked if the machine's database has schema changes the target track doesn't support yet. macOS desktop apps must switch on that Mac.
+| What you run                         | Next step                                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `vp run dev` or `vp run dev:desktop` | Stop it and start it again.                                                              |
+| A desktop app you built              | Build the installer again ([Install One](./install.md#desktop-app)) and replace the app. |
+| The `t3` background service          | Reinstall the desktop app, then run `t3 service restart`.                                |
+| The mobile app                       | Build it again from `apps/mobile` ([Install One](./install.md#mobile-app)).              |
 
-## Continue threads after restarts
+A desktop app you built does not update itself, and the mobile app has no over-the-air updates.
 
-**Settings → Maintenance → Continue threads after restarts** is enabled by default. After an update, crash, or reboot (once T3 Code starts again), supported active threads automatically resume—and threads waiting on subagents or monitors are woken and notified that background work stopped.
+## What not to use on a One machine
 
-- Threads waiting for your approval/answer/secret—or archived, snoozed, or settled—are not auto-resumed.
-- After 3 consecutive crash recoveries of an unfinished turn, the thread waits for your next message.
-- Updating from V1? Read [Threads from older T3 Code versions](./thread-migration.md).
+These install upstream T3 Code in place of One:
 
-## Update a connected server manually
+- `t3 update`, and **Update server** for a machine that runs the `t3` background service.
+- The `t3.codes` install scripts and `npx t3`.
+- Homebrew, winget, Scoop, AUR, Nix, the App Store, and Google Play.
 
-| Situation                           | Action                                                                                                |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Background service / desktop server | Click **Update server** in **Settings → Environments** (desktop hosts relaunch automatically).        |
-| Installed `t3` CLI                  | Run `t3 update <version>` on the host (then `t3 service restart` if you declined the restart prompt). |
-| `npx` server                        | Stop the server and relaunch with `npx t3@<version>` and your usual flags.                            |
-| Package manager (Nix, AUR)          | Update via your package manager.                                                                      |
-
-Each server checks npm/Homebrew/pnpm using its own local registry and proxy settings.
+Machines you added over SSH already run upstream's `t3` server ([Install One](./install.md#remote-machines-over-ssh)), so updating those from **Settings → Environments** is fine.
 
 ## Update providers
 
-Open **Settings → Providers** and click **Update now** on individual providers or **Update all** across connected environments. Running chats keep using their current CLI until they end; new sessions and model catalogs refresh automatically. (Provider update checks in **Settings → Maintenance** must be enabled to fetch model catalog updates.)
+Open **Settings → Providers** and click **Update now** on individual providers or **Update all** across connected environments. The **Update** button at the bottom of the sidebar also updates outdated providers. Running chats keep using their current CLI until they end; new sessions and model catalogs refresh automatically. (Provider update checks in **Settings → Maintenance** must be enabled to fetch model catalog updates.)
 
-## Mobile updates
+## Continue threads after restarts
 
-- Update connected environments and providers from **Settings → Environments** on mobile.
-- Update the mobile app via the App Store or Google Play (background over-the-air updates apply on next app switch and preserve drafts/queued messages).
+**Settings → Maintenance → Continue threads after restarts** is enabled by default. After an update, crash, or reboot (once One starts again), supported active threads automatically resume, and threads waiting on subagents or monitors are woken and notified that background work stopped.
+
+- Threads waiting for your approval, answer, or secret, and archived, snoozed, or settled threads, are not auto-resumed.
+- After 3 consecutive crash recoveries of an unfinished turn, the thread waits for your next message.
+- Coming from T3 Code V1? Read [Threads from older T3 Code versions](./thread-migration.md).
 
 ## Troubleshooting
 
-- **Version mismatch**: Update whichever side (app or server) the connection notice names.
-- **Failed update**: Retry once; confirm you updated the host machine (not just the client) and that only one server owns the T3 home directory.
-- **macOS Alpha → Beta**: Open `/Applications/T3 Code (Beta).app` manually and re-pin it to the Dock.
-- **Desktop won't start**: Use the recovery window's **Update** button, install the linked last-working version, or **Copy details** for a bug report.
+- **Version mismatch**: Update whichever side (app or server) the connection notice names, from the same code.
+- **Failed update**: Run `vp i` again, confirm you rebuilt on the host machine (not just the client), and check that only one server owns the One home directory (`~/.one` for an installed app).
+- **Desktop won't start**: Use **Copy details** in the recovery window for a bug report, then rebuild from the last commit that worked (`git checkout <commit>`, `vp i`, build again).
