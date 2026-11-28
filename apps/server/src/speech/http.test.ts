@@ -451,3 +451,85 @@ effectIt.effect("tells the client why transcript cleanup failed", () =>
     expect(yield* Effect.promise(() => response.text())).toContain(detail);
   }),
 );
+
+effectIt.effect(
+  "serves the speech catalog and the audio bytes, and returns read-aloud failures as 422",
+  () =>
+    Effect.gen(function* () {
+      const audio = new Uint8Array([0x49, 0x44, 0x33, 7, 8, 9]);
+      const speak = vi.fn();
+      const cloud = Layer.mock(CloudSpeech.CloudSpeech)({
+        voices: Effect.succeed([
+          { id: "acme/voice-1", name: "Acme Voice", format: "mp3" as const, voices: ["ava"] },
+        ]),
+        speak: (request) => {
+          speak(request);
+          return request.text === "limit"
+            ? Effect.fail(
+                new CloudSpeechError({
+                  provider: "openrouter",
+                  operation: "speak",
+                  reason: "rate-limit",
+                }),
+              )
+            : Effect.succeed({ audio, format: "mp3" as const });
+        },
+      });
+      const { handler, dispose } = HttpRouter.toWebHandler(
+        HttpApiBuilder.layer(HttpApi.make("environment").add(EnvironmentVoiceHttpApi)).pipe(
+          Layer.provide(speechHttpApiLayer),
+          Layer.provide(principal(AuthOrchestrationOperateScope)),
+          Layer.provide(Layer.mock(SpeechService.SpeechService)({})),
+          Layer.provide(cloud),
+          Layer.provide(dependencies),
+          Layer.provide(HttpServer.layerServices),
+          Layer.provide(NodeServices.layer),
+        ),
+        { disableLogger: true },
+      );
+      yield* Effect.addFinalizer(() => Effect.promise(dispose));
+      const context = yield* Layer.build(NodeServices.layer);
+      const call = (path: string, init?: RequestInit) =>
+        Effect.promise(() =>
+          handler(
+            new Request(`http://localhost/api/voice/cloud/openrouter/${path}`, init),
+            context,
+          ),
+        );
+      const post = (body: unknown) =>
+        call("speak", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      const voices = yield* call("voices");
+      expect(yield* Effect.promise(() => voices.json())).toEqual({
+        models: [{ id: "acme/voice-1", name: "Acme Voice", format: "mp3", voices: ["ava"] }],
+      });
+      const spoken = yield* post({ model: "acme/voice-1", voice: "ava", text: "Hello." });
+      expect(spoken.status).toBe(200);
+      expect(new Uint8Array(yield* Effect.promise(() => spoken.arrayBuffer()))).toEqual(audio);
+      expect(speak).toHaveBeenLastCalledWith({
+        model: "acme/voice-1",
+        voice: "ava",
+        text: "Hello.",
+      });
+      const limited = yield* post({ model: "acme/voice-1", voice: "ava", text: "limit" });
+      expect(limited.status).toBe(422);
+      expect(yield* Effect.promise(() => limited.json())).toEqual({
+        _tag: "CloudSpeechError",
+        provider: "openrouter",
+        operation: "speak",
+        reason: "rate-limit",
+      });
+      speak.mockClear();
+      const invalid = [
+        { model: "openrouter/auto", voice: "ava", text: "Hello." },
+        { model: "acme/voice-1", voice: "has space", text: "Hello." },
+        { model: "acme/voice-1", voice: "ava", text: "" },
+        { model: "acme/voice-1", voice: "ava", text: "x".repeat(4001) },
+      ];
+      for (const body of invalid) expect((yield* post(body)).status).toBe(400);
+      expect(speak).not.toHaveBeenCalled();
+    }),
+);

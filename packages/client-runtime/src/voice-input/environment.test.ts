@@ -4,7 +4,11 @@ import * as Effect from "effect/Effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
 
 import { BearerConnectionTarget, type PreparedConnection } from "../connection/model.ts";
-import { installEnvironmentSpeechModel } from "./environment.ts";
+import {
+  CloudSpeechSynthesisError,
+  installEnvironmentSpeechModel,
+  synthesizeCloudSpeech,
+} from "./environment.ts";
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
 const PREPARED: PreparedConnection = {
@@ -99,6 +103,61 @@ describe("installEnvironmentSpeechModel", () => {
         Effect.provideService(HttpClient.HttpClient, client),
       );
       expect(models).toEqual([downloaded]);
+    }),
+  );
+});
+
+describe("reading text aloud with a cloud voice", () => {
+  const speech = { model: "acme/voice-1", voice: "ava", text: "Hello." };
+
+  it.effect("returns the audio bytes and posts the model, voice and text", () =>
+    Effect.gen(function* () {
+      const audio = new Uint8Array([0x49, 0x44, 0x33, 1, 2]);
+      let sent: unknown;
+      const client = HttpClient.make((request) => {
+        sent =
+          request.body._tag === "Uint8Array"
+            ? JSON.parse(new TextDecoder().decode(request.body.body))
+            : undefined;
+        return Effect.succeed(
+          HttpClientResponse.fromWeb(
+            request,
+            new Response(audio, { headers: { "content-type": "application/octet-stream" } }),
+          ),
+        );
+      });
+      const received = yield* synthesizeCloudSpeech(PREPARED, speech).pipe(
+        Effect.provideService(HttpClient.HttpClient, client),
+      );
+      expect([...received]).toEqual([...audio]);
+      expect(sent).toEqual(speech);
+    }),
+  );
+
+  it.effect("shows the server's read-aloud failure message instead of a transport error", () =>
+    Effect.gen(function* () {
+      const client = HttpClient.make((request) =>
+        Effect.succeed(
+          HttpClientResponse.fromWeb(
+            request,
+            Response.json(
+              {
+                _tag: "CloudSpeechError",
+                provider: "openrouter",
+                operation: "speak",
+                reason: "unavailable",
+              },
+              { status: 422 },
+            ),
+          ),
+        ),
+      );
+      const error = yield* synthesizeCloudSpeech(PREPARED, speech).pipe(
+        Effect.provideService(HttpClient.HttpClient, client),
+        Effect.flip,
+      );
+      expect(error).toBeInstanceOf(CloudSpeechSynthesisError);
+      expect(error.message).toBe("OpenRouter couldn’t read this reply aloud. Try again later.");
     }),
   );
 });

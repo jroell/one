@@ -125,6 +125,25 @@ export const speechHttpApiLayer = HttpApiBuilder.group(
         }),
       )
       .handle(
+        "cloudVoices",
+        Effect.fn("environment.voice.cloudVoices")(function* (args) {
+          yield* guard(args.endpoint.name);
+          return { models: yield* cloud.voices };
+        }),
+      )
+      .handle(
+        "speakCloud",
+        Effect.fn("environment.voice.speakCloud")(function* (args) {
+          yield* guard(args.endpoint.name);
+          const { audio } = yield* cloud.speak(args.payload).pipe(
+            Effect.catchTags({
+              ServerSettingsError: (error) => failEnvironmentInternal("internal_error", error),
+            }),
+          );
+          return audio;
+        }),
+      )
+      .handle(
         "transcribeCloud",
         Effect.fn("environment.voice.transcribeCloud")(function* (args) {
           yield* guard(args.endpoint.name);

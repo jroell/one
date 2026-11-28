@@ -205,3 +205,219 @@ it.effect("removing a key while a catalog read is pending prevents the upload", 
     expect(exit._tag).toBe("Failure");
   }),
 );
+
+const speechEntry = (
+  id: string,
+  voices: unknown,
+  formats: ReadonlyArray<string>,
+  extra: Record<string, unknown> = {},
+) => ({
+  id,
+  name: `Name of ${id}`,
+  created: 1,
+  output_modalities: [
+    {
+      type: "speech",
+      supported_parameters: {
+        voice: voices,
+        response_format: { type: "enum", values: formats },
+      },
+    },
+  ],
+  ...extra,
+});
+
+const speechCatalog = {
+  data: [
+    speechEntry("acme/both", { type: "enum", values: ["ava", "ben"] }, ["pcm", "wav", "mp3"]),
+    speechEntry("acme/wav-only", { type: "enum", values: ["zoe"] }, ["pcm", "wav"], {
+      unexpected: { nested: true },
+    }),
+    speechEntry("acme/pcm-only", { type: "enum", values: ["ava"] }, ["pcm"]),
+    speechEntry("acme/free-voice", { type: "unknown" }, ["mp3"]),
+    speechEntry("acme/bad-voices", { type: "enum", values: ["has space", ""] }, ["mp3"]),
+    speechEntry("openrouter/auto", { type: "enum", values: ["ava"] }, ["mp3"]),
+    { id: "acme/no-modalities", name: "Broken" },
+    "not an entry",
+    null,
+  ],
+};
+
+const makeSpeech = (upstream: typeof fetch) =>
+  CloudSpeech.CloudSpeech.pipe(
+    Effect.provide(
+      CloudSpeech.layer.pipe(
+        Layer.provide(FetchHttpClient.layer),
+        Layer.provide(ServerSettings.ServerSettingsService.layerTest()),
+        Layer.provide(Layer.mock(SecretResolver.SecretResolver)({})),
+      ),
+    ),
+    Effect.map((service) => ({
+      service,
+      voices: service.voices.pipe(Effect.provideService(FetchHttpClient.Fetch, upstream)),
+      speak: (request: { model: string; voice: string; text: string }) =>
+        service
+          .speak(request as never)
+          .pipe(Effect.provideService(FetchHttpClient.Fetch, upstream)),
+    })),
+  );
+
+const isSpeechCatalogRequest = (input: Parameters<typeof fetch>[0]) =>
+  new URL(String(input)).pathname.endsWith("/audio/speech/models");
+
+it.effect(
+  "lists only speech models with named voices and a playable format, preferring mp3 over wav",
+  () =>
+    Effect.gen(function* () {
+      const upstream = vi.fn<typeof fetch>(async () => Response.json(speechCatalog));
+      const { voices } = yield* makeSpeech(upstream);
+      expect(yield* voices).toEqual([
+        {
+          id: "acme/both",
+          name: "Name of acme/both",
+          format: "mp3",
+          voices: ["ava", "ben"],
+        },
+        { id: "acme/wav-only", name: "Name of acme/wav-only", format: "wav", voices: ["zoe"] },
+      ]);
+      expect(new URL(String(upstream.mock.calls[0]![0])).searchParams.get("zdr")).toBe("true");
+      yield* voices;
+      expect(upstream).toHaveBeenCalledTimes(1);
+    }),
+);
+
+it.effect("reports an unavailable speech catalog with the read-aloud wording", () =>
+  Effect.gen(function* () {
+    const { voices } = yield* makeSpeech(async () => new Response(null, { status: 503 }));
+    expect(yield* Effect.flip(voices)).toMatchObject({
+      provider: "openrouter",
+      operation: "speak",
+      reason: "unavailable",
+    });
+  }),
+);
+
+it.effect("sends the chosen text to OpenRouter as zero-retention JSON and returns the audio", () =>
+  Effect.gen(function* () {
+    const audio = new Uint8Array([0x49, 0x44, 0x33, 4, 5]);
+    const upstream = vi.fn<typeof fetch>(async (input) =>
+      isSpeechCatalogRequest(input)
+        ? Response.json(speechCatalog)
+        : new Response(audio, { headers: { "content-type": "audio/mpeg" } }),
+    );
+    const { service, speak } = yield* makeSpeech(upstream);
+    yield* service.setKey("openrouter", Redacted.make("router-key"));
+    const result = yield* speak({ model: "acme/both", voice: "ben", text: "  Hello there.\n" });
+    expect(result.format).toBe("mp3");
+    expect([...result.audio]).toEqual([...audio]);
+    const [url, init] = upstream.mock.calls.find(([target]) => !isSpeechCatalogRequest(target))!;
+    expect(String(url)).toBe("https://openrouter.ai/api/v1/audio/speech");
+    expect(init?.redirect).toBe("error");
+    expect(new Headers(init?.headers).get("authorization")).toBe("Bearer router-key");
+    expect(JSON.parse(yield* Effect.promise(() => new Response(init?.body).text()))).toEqual({
+      model: "acme/both",
+      input: "  Hello there.\n",
+      voice: "ben",
+      response_format: "mp3",
+      provider: { zdr: true },
+    });
+    const wav = yield* speak({ model: "acme/wav-only", voice: "zoe", text: "Hi." });
+    expect(wav.format).toBe("wav");
+    const lastBody = upstream.mock.calls.at(-1)![1]!.body;
+    expect(
+      JSON.parse(yield* Effect.promise(() => new Response(lastBody).text())).response_format,
+    ).toBe("wav");
+  }),
+);
+
+it.effect("fails reading aloud without a saved OpenRouter key before any network call", () =>
+  Effect.gen(function* () {
+    const upstream = vi.fn<typeof fetch>(async () => Response.json(speechCatalog));
+    const { speak } = yield* makeSpeech(upstream);
+    expect(
+      yield* Effect.flip(speak({ model: "acme/both", voice: "ava", text: "Hi." })),
+    ).toMatchObject({
+      provider: "openrouter",
+      operation: "speak",
+      reason: "missing-key",
+    });
+    expect(upstream).not.toHaveBeenCalled();
+  }),
+);
+
+it.effect.each([
+  { name: "a model missing from the catalog", model: "acme/delisted", voice: "ava" },
+  { name: "a model without a playable format", model: "acme/pcm-only", voice: "ava" },
+  { name: "a voice the model does not list", model: "acme/both", voice: "zoe" },
+])("refuses to read aloud with $name and sends no text", ({ model, voice }) =>
+  Effect.gen(function* () {
+    const upstream = vi.fn<typeof fetch>(async () => Response.json(speechCatalog));
+    const { service, speak } = yield* makeSpeech(upstream);
+    yield* service.setKey("openrouter", Redacted.make("router-key"));
+    expect(yield* Effect.flip(speak({ model, voice, text: "Secret reply." }))).toMatchObject({
+      operation: "speak",
+      reason: "model-unavailable",
+    });
+    expect(upstream.mock.calls.filter(([input]) => !isSpeechCatalogRequest(input))).toEqual([]);
+  }),
+);
+
+it.effect.each([
+  { status: 429, reason: "rate-limit" },
+  { status: 401, reason: "rejected-key" },
+  { status: 402, reason: "rejected-key" },
+  { status: 404, reason: "model-unavailable" },
+  { status: 500, reason: "unavailable" },
+])("maps an OpenRouter $status reply to $reason for reading aloud", ({ status, reason }) =>
+  Effect.gen(function* () {
+    const { service, speak } = yield* makeSpeech(async (input) =>
+      isSpeechCatalogRequest(input)
+        ? Response.json(speechCatalog)
+        : new Response("upstream diagnostic", { status }),
+    );
+    yield* service.setKey("openrouter", Redacted.make("router-key"));
+    expect(
+      yield* Effect.flip(speak({ model: "acme/both", voice: "ava", text: "Hi." })),
+    ).toMatchObject({ provider: "openrouter", operation: "speak", reason });
+  }),
+);
+
+it.effect("treats an empty audio reply as unavailable", () =>
+  Effect.gen(function* () {
+    const { service, speak } = yield* makeSpeech(async (input) =>
+      isSpeechCatalogRequest(input) ? Response.json(speechCatalog) : new Response(new Uint8Array()),
+    );
+    yield* service.setKey("openrouter", Redacted.make("router-key"));
+    expect(
+      yield* Effect.flip(speak({ model: "acme/both", voice: "ava", text: "Hi." })),
+    ).toMatchObject({ operation: "speak", reason: "unavailable" });
+  }),
+);
+
+it.effect("sends no text when the key changes while the speech catalog is loading", () =>
+  Effect.gen(function* () {
+    const catalogStarted = Promise.withResolvers<void>();
+    const catalog = Promise.withResolvers<Response>();
+    const sent: string[] = [];
+    const { service, speak } = yield* makeSpeech(async (input) => {
+      if (isSpeechCatalogRequest(input)) {
+        catalogStarted.resolve();
+        return catalog.promise;
+      }
+      sent.push(String(input));
+      return new Response(new Uint8Array([1]));
+    });
+    yield* service.setKey("openrouter", Redacted.make("old-key"));
+    const job = yield* speak({ model: "acme/both", voice: "ava", text: "Hi." }).pipe(
+      Effect.forkChild,
+    );
+    yield* Effect.promise(() => catalogStarted.promise);
+    yield* service.setKey("openrouter", Redacted.make("new-key"));
+    catalog.resolve(Response.json(speechCatalog));
+    expect(yield* Effect.flip(Fiber.join(job))).toMatchObject({
+      operation: "speak",
+      reason: "key-changed",
+    });
+    expect(sent).toEqual([]);
+  }),
+);

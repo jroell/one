@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 import { CloudSpeechError, SPEECH_STREAM_PATH } from "@t3tools/contracts";
 import type {
   CloudSpeechModelId,
+  CloudSpeechSynthesisRequest,
   CloudSpeechProvider,
   EnvironmentSpeechModelDownload,
   SettingsSecretValue,
@@ -89,6 +90,43 @@ export const getCloudSpeechModels = (prepared: PreparedConnection) =>
     path: (urls) => urls.cloudModels(),
     run: ({ client, headers }) => client.cloudModels({ headers }),
   });
+
+export const getCloudSpeechVoices = (prepared: PreparedConnection) =>
+  request({
+    group: "voice",
+    prepared,
+    method: "GET",
+    path: (urls) => urls.cloudVoices(),
+    run: ({ client, headers }) => client.cloudVoices({ headers }),
+  });
+
+/** A failed attempt to read text aloud; `message` is safe to show the person. */
+export class CloudSpeechSynthesisError extends Schema.TaggedError<CloudSpeechSynthesisError>()(
+  "CloudSpeechSynthesisError",
+  { message: Schema.String },
+) {}
+
+/** Returns the audio bytes; the voice catalog says whether they are mp3 or wav. */
+export const synthesizeCloudSpeech = (
+  prepared: PreparedConnection,
+  speech: CloudSpeechSynthesisRequest,
+  canSend: () => boolean = () => true,
+) =>
+  request({
+    group: "voice",
+    prepared,
+    method: "POST",
+    canSend,
+    timeoutMs: 60_000,
+    path: (urls) => urls.speakCloud(),
+    run: ({ client, headers }) => client.speakCloud({ headers, payload: speech }),
+  }).pipe(
+    Effect.mapError((error) =>
+      error._tag === "RemoteEnvironmentAuthFetchError" && isCloudSpeechError(error.cause)
+        ? new CloudSpeechSynthesisError({ message: error.cause.message })
+        : error,
+    ),
+  );
 
 export const requireCloudSpeechKey = (
   prepared: PreparedConnection,

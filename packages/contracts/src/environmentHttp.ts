@@ -60,6 +60,8 @@ import {
   CloudSpeechModelId,
   CloudSpeechModels,
   CloudSpeechProvider,
+  CloudSpeechSynthesisRequest,
+  CloudSpeechVoiceModels,
   EnvironmentSpeechAccelerationRequest,
   EnvironmentSpeechModelLinkRequest,
   EnvironmentSpeechModelRequest,
@@ -878,6 +880,28 @@ export class EnvironmentVoiceHttpApi extends HttpApiGroup.make("voice")
       headers: OptionalBearerHeaders,
       success: CloudSpeechModels,
       error: [...EnvironmentScopedOperationErrors, CloudSpeechError],
+    }).middleware(EnvironmentAuthenticatedAuth),
+  )
+  .add(
+    // Public catalog of speech models that publish their voices; carries no credential and no text.
+    HttpApiEndpoint.get("cloudVoices", "/api/voice/cloud/openrouter/voices", {
+      headers: OptionalBearerHeaders,
+      success: CloudSpeechVoiceModels,
+      error: [...EnvironmentScopedOperationErrors, CloudSpeechError],
+    }).middleware(EnvironmentAuthenticatedAuth),
+  )
+  .add(
+    HttpApiEndpoint.post("speakCloud", "/api/voice/cloud/openrouter/speak", {
+      headers: OptionalBearerHeaders,
+      payload: CloudSpeechSynthesisRequest,
+      success: Schema.Uint8Array.pipe(
+        HttpApiSchema.asUint8Array({ contentType: "application/octet-stream" }),
+      ),
+      error: [
+        ...EnvironmentScopedOperationErrors,
+        EnvironmentRequestInvalidError,
+        CloudSpeechError,
+      ],
     }).middleware(EnvironmentAuthenticatedAuth),
   )
   .add(

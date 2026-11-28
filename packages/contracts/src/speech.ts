@@ -40,10 +40,46 @@ export type CloudSpeechModel = typeof CloudSpeechModel.Type;
 export const CloudSpeechModels = Schema.Struct({ models: Schema.Array(CloudSpeechModel) });
 export type CloudSpeechModels = typeof CloudSpeechModels.Type;
 
+/** A voice id as the speech model publishes it; ids are model-specific. */
+export const CloudSpeechVoiceId = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(120),
+  Schema.isPattern(/^[\w.:-]+$/),
+);
+export type CloudSpeechVoiceId = typeof CloudSpeechVoiceId.Type;
+/** Audio the client can play without decoding it itself. */
+export const CloudSpeechAudioFormat = Schema.Literals(["mp3", "wav"]);
+export type CloudSpeechAudioFormat = typeof CloudSpeechAudioFormat.Type;
+/** A speech model that publishes its voices and returns audio in a playable format. */
+export const CloudSpeechVoiceModel = Schema.Struct({
+  id: CloudSpeechModelId,
+  name: Schema.String,
+  format: CloudSpeechAudioFormat,
+  voices: Schema.Array(CloudSpeechVoiceId),
+});
+export type CloudSpeechVoiceModel = typeof CloudSpeechVoiceModel.Type;
+export const CloudSpeechVoiceModels = Schema.Struct({
+  models: Schema.Array(CloudSpeechVoiceModel),
+});
+export type CloudSpeechVoiceModels = typeof CloudSpeechVoiceModels.Type;
+/** One stretch of a reply, usually a sentence or two; clients split long replies. */
+const CLOUD_SPEECH_MAX_TEXT_LENGTH = 4000;
+export const CloudSpeechSynthesisRequest = Schema.Struct({
+  model: CloudSpeechModelId,
+  voice: CloudSpeechVoiceId,
+  text: Schema.String.check(
+    Schema.isMinLength(1),
+    Schema.isMaxLength(CLOUD_SPEECH_MAX_TEXT_LENGTH),
+  ),
+});
+export type CloudSpeechSynthesisRequest = typeof CloudSpeechSynthesisRequest.Type;
+
 export class CloudSpeechError extends Schema.TaggedError<CloudSpeechError>()(
   "CloudSpeechError",
   {
     provider: CloudSpeechProvider,
+    /** What the request was doing; servers that predate reading aloud omit it. */
+    operation: Schema.optionalKey(Schema.Literals(["transcribe", "speak"])),
     reason: Schema.Literals([
       "missing-key",
       "key-changed",
@@ -72,7 +108,9 @@ export class CloudSpeechError extends Schema.TaggedError<CloudSpeechError>()(
       case "model-unavailable":
         return `The chosen model isn’t available on ${name}. Choose another model in Settings → Voice.`;
       case "unavailable":
-        return `${name} couldn’t transcribe this recording. Try again later.`;
+        return this.operation === "speak"
+          ? `${name} couldn’t read this reply aloud. Try again later.`
+          : `${name} couldn’t transcribe this recording. Try again later.`;
     }
   }
 }
