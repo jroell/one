@@ -37,6 +37,8 @@ import {
 import * as DateTime from "effect/DateTime";
 import { Atom, AsyncResult } from "effect/reactivity";
 import { describe, expect, it, onTestFinished, vi } from "vite-plus/test";
+
+import { DEFAULT_VOICE_CHAT_STYLE, setVoiceChatStyle } from "~/one/voiceChatPreferences";
 import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 
 import "~/index.css";
@@ -4130,6 +4132,9 @@ describe("MessagesTimeline read aloud", () => {
       .spyOn(window.speechSynthesis, "speak")
       .mockImplementation((utterance) => void spoken.push(utterance));
     using cancel = vi.spyOn(window.speechSynthesis, "cancel").mockImplementation(() => undefined);
+    // The test browser lists no voices, which the default Conqueror voice waits for.
+    setVoiceChatStyle("natural");
+    using _style = { [Symbol.dispose]: () => setVoiceChatStyle(DEFAULT_VOICE_CHAT_STYLE) };
     await using screen = await renderTimeline([
       message("Why do rainbows form?", {}, "question"),
       message(
