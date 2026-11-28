@@ -168,15 +168,26 @@ it.effect("runs background Git in its own lane so user commands never queue behi
   Effect.gen(function* () {
     const gate = yield* Deferred.make<void>();
     const starts = yield* Queue.unbounded<string>();
+    let runningBackground = 0;
+    let peakBackground = 0;
     const spawner = ChildProcessSpawner.make((command) =>
       Effect.gen(function* () {
-        yield* Queue.offer(
-          starts,
-          ChildProcess.isStandardCommand(command) ? String(command.args[0]) : "",
-        );
+        const lane = ChildProcess.isStandardCommand(command) ? String(command.args[0]) : "";
+        if (lane === "background") {
+          runningBackground += 1;
+          peakBackground = Math.max(peakBackground, runningBackground);
+        }
+        yield* Queue.offer(starts, lane);
         return ChildProcessSpawner.makeHandle({
           ...makeSuccessfulHandle("ok"),
-          exitCode: Deferred.await(gate).pipe(Effect.as(ChildProcessSpawner.ExitCode(0))),
+          exitCode: Deferred.await(gate).pipe(
+            Effect.tap(() =>
+              Effect.sync(() => {
+                if (lane === "background") runningBackground -= 1;
+              }),
+            ),
+            Effect.as(ChildProcessSpawner.ExitCode(0)),
+          ),
         });
       }),
     );
@@ -197,8 +208,9 @@ it.effect("runs background Git in its own lane so user commands never queue behi
       concurrency: "unbounded",
     }).pipe(Effect.forkChild);
 
-    yield* TestClock.adjust("2 seconds");
-    const started = yield* Queue.takeAll(starts);
+    // Git prepares its trace file and resolves the executable before it spawns, so wait for the
+    // starts instead of reading the queue after a fixed virtual time.
+    const started = yield* Effect.forEach(Array.from({ length: 6 }), () => Queue.take(starts));
     assert.deepStrictEqual([...started].toSorted(), [
       "background",
       "background",
@@ -210,6 +222,7 @@ it.effect("runs background Git in its own lane so user commands never queue behi
     yield* Deferred.succeed(gate, undefined);
     assert.equal((yield* Fiber.join(background)).length, 12);
     assert.equal((yield* Fiber.join(foreground)).length, 4);
+    assert.equal(peakBackground, 2);
   }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );
 
