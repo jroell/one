@@ -19,6 +19,9 @@ const readLines = (file: string) =>
     }),
   );
 
+// macOS ships BSD ls, which has no --hyperlink; Homebrew installs GNU ls there as gls.
+const GNU_LS = "$(command -v gls || echo ls)";
+
 test(
   "Ctrl+click on a GNU ls --hyperlink filename, whose file URI names this machine, opens that file",
   WEB,
@@ -37,7 +40,7 @@ test(
     await input.focus();
     // GNU ls writes `file://<hostname>/<path>`. Enough rows to scroll, so every row is the link.
     await browser.keyboard.type(
-      "for i in $(seq 1 100); do command ls --hyperlink=always --color=never -1 one.txt; done; touch ls.done\n",
+      `for i in $(seq 1 100); do command ${GNU_LS} --hyperlink=always --color=never -1 one.txt; done; touch ls.done\n`,
     );
     await expect.poll(() => readLines(`${project}/ls.done`), { timeout: 30_000 }).toEqual([""]);
     await browser.setViewport({ width: 1000, height: 700 });
