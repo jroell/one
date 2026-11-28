@@ -36,7 +36,11 @@ test(
 
     await t3.open("/settings/appearance");
     await screen.getByRole("slider", "Contrast", { exact: true }).press("End");
-    await screen.getByText("200%", { exact: true }).waitFor();
+    // The slider's range labels also end in "200%", so wait on the readout beside the slider.
+    await browser
+      .locator('output[for="appearance-contrast"]')
+      .filter({ hasText: "200%" })
+      .waitFor();
 
     await t3.open(thread);
     const background200 = await readPressedBackground();
