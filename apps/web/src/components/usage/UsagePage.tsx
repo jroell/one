@@ -320,7 +320,7 @@ export function UsagePage() {
               environmentId,
               refreshUsageLimits(
                 environmentId,
-                () => refreshProviders({ environmentId, input: {} }),
+                () => refreshProviders({ environmentId, input: { limitsOnly: true } }),
                 automatic,
               ),
             );

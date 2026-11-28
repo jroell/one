@@ -24,10 +24,7 @@ import {
   resolveThreadActivityTimestamp,
 } from "@t3tools/client-runtime/state/thread-sort";
 import { type EnvironmentThreadSearchMatch } from "@t3tools/client-runtime/state/thread-search";
-import {
-  formatWorkingDurationLabel,
-  resolveThreadProviderStack,
-} from "@t3tools/client-runtime/state/models";
+import { formatWorkingDurationLabel } from "@t3tools/client-runtime/state/models";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { toServerClock } from "@t3tools/client-runtime/clock";
 import {
@@ -228,16 +225,14 @@ function terminalProcessLabel(count: number, resolve: MessageResolver): string {
   );
 }
 
-function SidebarProviderStack(props: {
+function SidebarProviderIcon(props: {
   thread: SidebarThreadSummary;
   providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
   /** Names the glyph for assistive technology and in a tooltip; the card row's meta line does. */
   labelled?: boolean;
 }) {
   const gt = useGT();
-  const stack = resolveThreadProviderStack(props.thread);
-  const currentInstanceId = stack[stack.length - 1]!;
-  const currentEntry = props.providerEntryByInstanceId.get(currentInstanceId) ?? null;
+  const currentEntry = currentProviderEntry(props.thread, props.providerEntryByInstanceId);
   if (currentEntry === null) return null;
   const showInstanceBadge = shouldShowInstanceBadge(
     currentEntry,
@@ -275,37 +270,16 @@ function SidebarProviderStack(props: {
     ) : (
       glyphs
     );
-  if (stack.length === 1) {
-    return named(<span className="inline-flex shrink-0 items-center">{current}</span>);
-  }
-  return named(
-    <span className="inline-flex shrink-0 items-center gap-1.5">
-      {stack.slice(0, -1).map((instanceId) => {
-        const entry = props.providerEntryByInstanceId.get(instanceId);
-        if (entry === undefined) return null;
-        return (
-          <ProviderInstanceIcon
-            key={instanceId}
-            driverKind={entry.driverKind}
-            displayName={entry.displayName}
-            acpRegistryAgentId={entry.acpRegistryAgentId}
-            acpRegistryIconUrl={entry.acpRegistryIconUrl}
-            iconClassName="size-3 opacity-35 grayscale"
-          />
-        );
-      })}
-      <span className="relative z-10 inline-flex items-center">{current}</span>
-    </span>,
-  );
+  return named(<span className="inline-flex shrink-0 items-center">{current}</span>);
 }
 
 function currentProviderEntry(
   thread: SidebarThreadSummary,
   entries: ReadonlyMap<string, SidebarProviderEntry>,
 ): SidebarProviderEntry | null {
-  const stack = resolveThreadProviderStack(thread);
-  const instanceId = stack[stack.length - 1];
-  return instanceId === undefined ? null : (entries.get(instanceId) ?? null);
+  return (
+    entries.get(thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId) ?? null
+  );
 }
 
 /** What a row says in words about where a thread runs, for the focused row's description. */
@@ -363,7 +337,7 @@ function SidebarThreadWhere(props: {
       <span className="min-w-0 flex-1" />
       {props.trailing}
       {props.withoutProvider === true ? null : (
-        <SidebarProviderStack
+        <SidebarProviderIcon
           thread={props.thread}
           providerEntryByInstanceId={props.providerEntryByInstanceId}
           labelled
@@ -1449,7 +1423,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         aria-hidden
         className="pointer-events-none ml-auto inline-flex shrink-0 items-center gap-1"
       >
-        <SidebarProviderStack
+        <SidebarProviderIcon
           thread={thread}
           providerEntryByInstanceId={props.providerEntryByInstanceId}
         />
@@ -1501,7 +1475,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       </span>
     ) : null;
   const cardProvider = (
-    <SidebarProviderStack
+    <SidebarProviderIcon
       thread={thread}
       providerEntryByInstanceId={props.providerEntryByInstanceId}
       labelled
@@ -1516,7 +1490,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const titleLineIcons = metaLineEmpty ? (
     <span aria-hidden className="inline-flex shrink-0 items-center gap-1">
-      <SidebarProviderStack
+      <SidebarProviderIcon
         thread={thread}
         providerEntryByInstanceId={props.providerEntryByInstanceId}
       />

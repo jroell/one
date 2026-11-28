@@ -1,5 +1,12 @@
 import "~/index.css";
-import { EnvironmentId, ProviderDriverKind, ThreadId, TurnItemId } from "@t3tools/contracts";
+import {
+  EnvironmentId,
+  NodeId,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  ThreadId,
+  TurnItemId,
+} from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
@@ -139,4 +146,66 @@ it("keeps an outstanding sync line in a live region until the phase settles", as
   expect(getComputedStyle(line).visibility).toBe("visible");
   await screen.rerender(<ThreadNow attention={null} work={null} goal={null} syncPhase={null} />);
   expect(screen.container.querySelector("[data-composer-sync-status]")).toBeNull();
+});
+
+it("offers to open a subagent running in a linked environment", async () => {
+  const remoteItemId = TurnItemId.make("subagent-item-1");
+  await using screen = await render(
+    <ThreadNow
+      attention={null}
+      syncPhase={null}
+      goal={null}
+      work={backgroundWorkNowItem({
+        environmentId: EnvironmentId.make("mac"),
+        threadId: ThreadId.make("parent"),
+        tasks: [
+          {
+            taskId: "remote-task",
+            itemId: remoteItemId,
+            kind: "subagent",
+            description: "Implement Anzen",
+          },
+        ],
+        turnItems: [
+          {
+            id: remoteItemId,
+            threadId: ThreadId.make("parent"),
+            runId: null,
+            nodeId: null,
+            providerThreadId: null,
+            providerTurnId: null,
+            nativeItemRef: null,
+            parentItemId: null,
+            ordinal: 1,
+            status: "running",
+            title: "Implement Anzen",
+            startedAt: null,
+            completedAt: null,
+            updatedAt: DateTime.makeUnsafe("2026-11-09T00:00:00Z"),
+            type: "subagent",
+            subagentId: NodeId.make("subagent-1"),
+            origin: "app_owned",
+            driver: ProviderDriverKind.make("remote"),
+            providerInstanceId: ProviderInstanceId.make("remote"),
+            childThreadId: null,
+            remoteChild: {
+              environmentId: EnvironmentId.make("boat"),
+              threadId: ThreadId.make("remote-child"),
+              label: "Boat",
+            },
+            prompt: "",
+            result: null,
+          },
+        ],
+        stopDisabled: false,
+        stopping: false,
+        onStop: async () => undefined,
+        onOpenThread: () => undefined,
+      })}
+    />,
+  );
+  await screen.getByRole("button", { name: "Details", exact: true }).click();
+  await expect
+    .element(page.getByRole("dialog").getByRole("button", { name: "Open subagent" }))
+    .toBeVisible();
 });

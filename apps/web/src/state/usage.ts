@@ -104,14 +104,17 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
       const hasSessionError = sessionResult._tag === "Failure";
       // The session atom keeps the previous grant while a replacement check is in flight. Until the
       // check has answered for this authorization, the grant is treated as not yet known.
-      const access = resolveUsageAccess({
-        connectionPhase: presentation.connection.phase,
-        session:
-          authorization.confirmed || hasSessionError
-            ? AsyncResult.getOrElse(sessionResult, () => null)
-            : null,
-        hasSessionError,
-      });
+      const access = resolveUsageAccess(
+        {
+          connectionPhase: presentation.connection.phase,
+          session:
+            authorization.confirmed || hasSessionError
+              ? AsyncResult.getOrElse(sessionResult, () => null)
+              : null,
+          hasSessionError,
+        },
+        m,
+      );
       if (!access.canReadDiagnostics) {
         statuses.push({
           environmentId,
