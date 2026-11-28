@@ -24,9 +24,10 @@ const removeEditorArgs = () =>
     Effect.flatMap(FileSystem.FileSystem, (fs) => fs.remove(EDITOR_ARGS, { force: true })),
   );
 
-// GNU ls, made hostless, for filenames that end like a position.
+// GNU ls, made hostless, for filenames that end like a position. macOS ships BSD ls, which has
+// no --hyperlink; Homebrew installs GNU ls there as gls.
 const listed = (name: string) =>
-  `command ls -d --hyperlink=always --color=never -1 --quoting-style=literal -- '${name}' | sed -E 's@file://[^/]+/@file:///@'`;
+  `command $(command -v gls || echo ls) -d --hyperlink=always --color=never -1 --quoting-style=literal -- '${name}' | sed -E 's@file://[^/]+/@file:///@'`;
 // An opaque label, so only the URI can name the file.
 const hashed = (uriPath: string) =>
   `printf '\\033]8;;file://%s\\033\\\\CLICKME\\033]8;;\\033\\\\\\n' "$PWD/${uriPath}"`;
