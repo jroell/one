@@ -59,6 +59,25 @@ export const holdImageCompression = (browser: Browser) =>
         return bitmap;
       })) as typeof createImageBitmap;
 
+    // Oversized pastes are decoded and resized inside the compression worker, where this page's
+    // createImageBitmap patch cannot see them, so hold and track their worker task instead.
+    const postMessage = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message: unknown, ...rest: [Transferable[]?]) {
+      const task = message as { id: number; task?: { kind?: string } };
+      if (task?.task?.kind !== "fit") return postMessage.call(this, message, ...(rest as []));
+      hold.inFlight++;
+      const settle = (event: MessageEvent<{ id: number }>) => {
+        if (event.data?.id !== task.id) return;
+        this.removeEventListener("message", settle);
+        hold.compressionDecodes++;
+        hold.inFlight--;
+      };
+      this.addEventListener("message", settle);
+      const send = () => postMessage.call(this, message, ...(rest as []));
+      if (hold.released) send();
+      else hold.held.push(send);
+    };
+
     const convertToBlob = OffscreenCanvas.prototype.convertToBlob;
     OffscreenCanvas.prototype.convertToBlob = function (options) {
       return track(() => convertToBlob.call(this, options));
