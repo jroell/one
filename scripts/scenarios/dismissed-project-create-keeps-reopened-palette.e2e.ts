@@ -66,7 +66,7 @@ test(
     await t3.open(thread);
     await screen.getByText("Start", { exact: true }).waitFor({ timeout: 30_000 });
     const palette = screen.getByRole("dialog", "Command palette");
-    await browser.keyboard.press("Control+k");
+    await browser.keyboard.press("ControlOrMeta+k");
     await palette.getByRole("combobox").fill("> New project");
     await palette.getByText("New project", { exact: true }).tap();
     await palette.getByRole("combobox").fill("new-scenario-project");
@@ -74,7 +74,7 @@ test(
     await browser.locator("html[data-scenario-create-reply=ready]").waitFor();
     await browser.keyboard.press("Escape");
     await palette.waitFor({ state: "hidden" });
-    await browser.keyboard.press("Control+k");
+    await browser.keyboard.press("ControlOrMeta+k");
     await palette.getByRole("combobox").fill("Current work");
     await browser.evaluate(async () => {
       document.dispatchEvent(new Event("release-palette-create-project"));

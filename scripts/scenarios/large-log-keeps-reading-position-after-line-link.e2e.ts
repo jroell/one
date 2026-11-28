@@ -47,7 +47,7 @@ test(
       });
     const readingLine = await firstVisibleLine();
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("notes.txt");
     await screen.getByRole("option", "notes.txt", { exact: false }).tap();
     await screen.getByRole("button", "app.log", { exact: true }).tap();

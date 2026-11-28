@@ -28,7 +28,7 @@ test(
     const thread = await t3.thread({ project, title: "Review the procedure", messages: ["Start"] });
     await t3.open(thread);
     await screen.getByText("fixture turn complete", { exact: false }).waitFor();
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("procedure.odt");
     await screen.getByRole("option", "procedure.odt", { exact: false }).tap();
 
