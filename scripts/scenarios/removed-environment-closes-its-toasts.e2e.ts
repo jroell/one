@@ -34,6 +34,8 @@ test(
       await dialog.getByPlaceholder("backend.example.com").fill(host);
       await dialog.getByPlaceholder("PAIRCODE").fill(token);
       await dialog.getByRole("button", "Add environment").tap();
+      // The page opens on a map of machines; each machine's actions menu is in the list view.
+      await screen.getByRole("button", "List", { exact: true }).tap();
       const moreActions = screen.getByRole("button", "More actions for Scenario");
       await expect(moreActions).toBeVisible({ timeout: 60_000 });
 
@@ -50,20 +52,22 @@ test(
       await runPromise(
         second.cli(["thread", "send", thread.threadId, "second", "--wait", "--json"]),
       );
-      const toast = browser.locator(
-        '[data-slot="toast-description"]:has-text("Finished elsewhere")',
-      );
-      await expect(toast).toBeVisible({ timeout: 60_000 });
+      // One shows a single notification at a time. The other machine's waits behind it as a "+N"
+      // count (the earlier "Backend added" notice waits there too) and has no timer while it waits.
+      const waiting = browser.locator('[data-slot="toast-count"]');
+      await expect(waiting).toHaveAttribute("aria-label", "2 more notifications", {
+        timeout: 60_000,
+      });
 
-      // A hovered toast does not time out. The removal goes by keyboard so the pointer stays.
-      await toast.hover();
+      // The removal goes by keyboard so the pointer stays on the notification on screen.
+      await primaryToast.hover();
       await moreActions.press("Enter");
       await screen.getByRole("menuitem", "Remove from this device…").press("Enter");
-      await expect(toast).toBeVisible();
-      await screen.getByRole("button", "Confirm").press("Enter");
+      await expect(waiting).toHaveAttribute("aria-label", "2 more notifications");
+      await screen.getByRole("button", "Remove environment", { exact: true }).press("Enter");
       try {
-        await expect(toast).toBeHidden();
-        // Both timers pause together; an older surviving toast rules out auto-dismissal.
+        await expect(waiting).toHaveAttribute("aria-label", "1 more notifications");
+        // The notification from the machine that stays is untouched.
         await expect(primaryToast).toBeVisible();
       } finally {
         await app.screenshot("after-removal");
