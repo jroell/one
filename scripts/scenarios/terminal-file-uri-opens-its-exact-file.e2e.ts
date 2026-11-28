@@ -85,10 +85,11 @@ test(
       if (!canvas) throw new Error("The terminal canvas is not on the page.");
       // Alternate rows, or a quick second click on the same spot counts as a double-click.
       await browser.mouse.move(canvas.x + 16, canvas.y + canvas.height / 2 - (index % 2) * 40);
-      await browser.keyboard.down("Control");
+      // macOS opens the context menu on Control-click, so the link click holds Command there.
+      await browser.keyboard.down("ControlOrMeta");
       await browser.mouse.down();
       await browser.mouse.up();
-      await browser.keyboard.up("Control");
+      await browser.keyboard.up("ControlOrMeta");
 
       await expect
         .poll(() => readLines(EDITOR_ARGS), { timeout: 15_000 })
