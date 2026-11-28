@@ -7,7 +7,7 @@ Dictate into the composer, citation comments, diff/file annotations, PR comments
 - **Web and desktop**: Nothing is recorded or sent until you choose a destination in **Settings → Voice → Transcribe with**:
   - **On this Mac (Apple Speech)** (macOS 26+ desktop): Transcribes locally on your Mac (silence filtering and filler removal unavailable; dictionary applies only with cleanup enabled).
   - **A connected environment**: Sends audio over your authenticated connection to transcribe locally on that host and discards the audio. Never silently fails over to another host.
-  - **Cloud providers (OpenAI, Grok Voice Transcribe, OpenRouter)**: Configure an API key (or [secret reference](./secrets.md)) on an environment to forward recordings to that provider. OpenRouter lets each user pick a model from its live STT catalog and requests zero data retention.
+  - **Cloud providers (OpenAI, Grok Voice Transcribe, OpenRouter)**: Configure an API key (or [secret reference](./secrets.md)) on an environment to forward recordings to that provider. OpenRouter lets each user pick a model from its live STT catalog. OpenRouter and the model's provider handle the audio under their own data policies.
 - **Mobile (iOS and Android)**: Transcribes on-device by default (iOS 26+ or Android 12+ with compatible Google speech services; first use may download a speech model, then works offline). To transcribe on a paired environment or cloud provider instead, configure **Settings → Voice → Transcribe on**. Keep T3 Code open while dictating on Android.
 
 ## Set up a local transcription model
@@ -42,6 +42,6 @@ Every finished reply has a **Read aloud** button next to **Copy**. Press it agai
 Choose the voice in **Settings → Voice → Reading aloud**:
 
 - **This device** uses the voices built into your browser or operating system. **Best on this device** picks the most natural one it has for the reply's language. Nothing leaves your device.
-- **OpenRouter** voices sound much more natural. They use the OpenRouter key saved for transcription on an environment, so save one under **Transcribe with** first. Each reply's text is sent to OpenRouter with zero data retention, and OpenRouter bills your account per character. Some models have no zero-retention endpoint and fail; when a cloud voice fails, the device voice reads the rest of the reply and a notice says why.
+- **OpenRouter** voices sound much more natural. They use the OpenRouter key saved for transcription on an environment, so save one under **Transcribe with** first. Each reply's text is sent to OpenRouter and the model's provider, which handle it under their own data policies, and OpenRouter bills your account per character. When a cloud voice fails, for example because the account behind the model is out of credits, the device voice reads the rest of the reply and a notice says why.
 - **Reading speed** and **Play sample** apply to both.
 - **Conqueror voice** is on by default. It reads with this device's voices in a deeper, slower voice: the voice you chose, or the deepest one the device has when you left it on **Best on this device**. Turn it off for the device voice as it normally sounds. It does not change OpenRouter voices.

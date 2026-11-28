@@ -38,9 +38,9 @@ const endpoints = {
   openrouter: { url: "https://openrouter.ai/api/v1/audio/transcriptions" },
 };
 const OPENROUTER_SPEECH_URL = "https://openrouter.ai/api/v1/audio/speech";
-const OPENROUTER_VOICE_CATALOG_URL = "https://openrouter.ai/api/v1/audio/speech/models?zdr=true";
+const OPENROUTER_VOICE_CATALOG_URL = "https://openrouter.ai/api/v1/audio/speech/models";
 const OPENROUTER_CATALOG_URL =
-  "https://openrouter.ai/api/v1/models?output_modalities=transcription&zdr=true";
+  "https://openrouter.ai/api/v1/models?output_modalities=transcription";
 const isApiKey = Schema.is(CloudSpeechApiKey);
 const isModelId = Schema.is(CloudSpeechModelId);
 const isVoiceId = Schema.is(CloudSpeechVoiceId);
@@ -150,9 +150,30 @@ function openRouterBody(model: string, audio: ArrayBuffer, language: string) {
     model,
     input_audio: { data: Buffer.from(audio).toString("base64"), format: "wav" },
     ...(language !== "auto" ? { language } : {}),
-    provider: { zdr: true },
   });
 }
+
+/**
+ * Why a provider refused a request. OpenRouter answers 402 when its own credits run out and
+ * passes on a model provider's 403 when the account behind that model ran out, so a 403 only
+ * means a bad key when its message does not name credits or a spending limit.
+ */
+const refusalReason = Effect.fnUntraced(function* (
+  response: HttpClientResponse.HttpClientResponse,
+  unknownModel: boolean,
+) {
+  if (response.status === 429 || response.status === 402) return "rate-limit" as const;
+  if (response.status === 403) {
+    const text = yield* response.text.pipe(Effect.orElseSucceed(() => ""));
+    return /credits|spending limit/i.test(text)
+      ? ("rate-limit" as const)
+      : ("rejected-key" as const);
+  }
+  if (response.status === 401) return "rejected-key" as const;
+  return response.status === 404 && unknownModel
+    ? ("model-unavailable" as const)
+    : ("unavailable" as const);
+});
 
 export class CloudSpeech extends Context.Service<
   CloudSpeech,
@@ -332,15 +353,7 @@ export const layer = Layer.effect(
               Effect.mapError(() => fail("unavailable")),
             );
             if (response.status < 200 || response.status >= 300)
-              return yield* fail(
-                response.status === 429
-                  ? "rate-limit"
-                  : [401, 402, 403].includes(response.status)
-                    ? "rejected-key"
-                    : response.status === 404 && provider === "openrouter"
-                      ? "model-unavailable"
-                      : "unavailable",
-              );
+              return yield* fail(yield* refusalReason(response, provider === "openrouter"));
             const { text } = yield* HttpClientResponse.schemaBodyJson(
               EnvironmentSpeechTranscriptionResult,
             )(response).pipe(Effect.mapError(() => fail("unavailable")));
@@ -385,22 +398,13 @@ export const layer = Layer.effect(
                 input: input.text,
                 voice: input.voice,
                 response_format: model.format,
-                provider: { zdr: true },
               }),
             );
             const response = yield* execute(request).pipe(
               Effect.mapError(() => fail("unavailable")),
             );
             if (response.status < 200 || response.status >= 300)
-              return yield* fail(
-                response.status === 429
-                  ? "rate-limit"
-                  : [401, 402, 403].includes(response.status)
-                    ? "rejected-key"
-                    : response.status === 404
-                      ? "model-unavailable"
-                      : "unavailable",
-              );
+              return yield* fail(yield* refusalReason(response, true));
             const audio = yield* response.arrayBuffer.pipe(
               Effect.mapError(() => fail("unavailable")),
             );
