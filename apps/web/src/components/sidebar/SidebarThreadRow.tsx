@@ -1985,8 +1985,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           </>
                         }
                       >
+                        {/* Icon only: the controls share the title's line, and a translated
+                            label can widen them over the row's middle, where clicks open it. */}
                         <CheckIcon className="size-3.5" />
-                        <T>Settle</T>
                       </SharedTooltipTrigger>
                     ) : null}
                   </span>
