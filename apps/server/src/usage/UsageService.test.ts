@@ -140,8 +140,9 @@ const WINDOW: UsageSummaryInput = {
 };
 
 const setup = Effect.gen(function* () {
-  const home = yield* Effect.promise(() =>
-    NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "usage-service-test-")),
+  // The service reports real paths, and macOS puts its temp dir behind a symlink.
+  const home = yield* Effect.promise(async () =>
+    NodeFSP.realpath(await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "usage-service-test-"))),
   );
   yield* Effect.addFinalizer(() =>
     Effect.promise(() => NodeFSP.rm(home, { recursive: true, force: true })),
