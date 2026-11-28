@@ -233,7 +233,8 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
         continue;
       }
       return Option.some({
-        command: resolved === matches[0] ? candidate : resolved,
+        // The server later rewrites PATH from the login shell, so launch the file that was checked.
+        command: probed || resolved !== matches[0] ? resolved : candidate,
         baseArgs:
           editor.id === "kiro" && (platform === "darwin" || platform === "win32") ? [] : baseArgs,
       });
