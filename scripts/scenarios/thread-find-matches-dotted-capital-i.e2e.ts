@@ -16,7 +16,7 @@ test("Find in thread matches İstanbul with istanbul", WEB, async ({ t3, app, sc
     .getByText("Travel notes for İstanbul", { exact: true })
     .waitFor();
 
-  await browser.keyboard.press("Control+f");
+  await browser.keyboard.press("ControlOrMeta+f");
   await screen.getByRole("searchbox", "Find in thread").fill("istanbul");
   try {
     await expect

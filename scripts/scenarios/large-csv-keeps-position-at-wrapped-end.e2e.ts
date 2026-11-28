@@ -23,7 +23,7 @@ test(
     await screen.getByRole("textbox", "Message Review events").waitFor();
 
     const openFile = async (name: string) => {
-      await browser.keyboard.press("Control+p");
+      await browser.keyboard.press("ControlOrMeta+p");
       await screen.getByPlaceholder("Search files…").fill(name);
       await screen.getByRole("option", name, { exact: false }).tap();
     };

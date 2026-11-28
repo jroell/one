@@ -55,7 +55,7 @@ test(
     await t3.open(thread);
     await screen.getByText("fixture turn complete", { exact: false }).waitFor();
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("budget.xlsx");
     await screen.getByRole("option", "budget.xlsx", { exact: false }).tap();
     await browser
@@ -91,7 +91,7 @@ test(
       )
       .toBe("Forecast");
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("wraparound.xlsx");
     await screen.getByRole("option", "wraparound.xlsx", { exact: false }).tap();
     await browser

@@ -95,7 +95,7 @@ test(
       await t3.open(thread);
       await screen.getByText("Start", { exact: true }).waitFor({ timeout: 30_000 });
       const palette = screen.getByRole("dialog", "Command palette");
-      await browser.keyboard.press("Control+k");
+      await browser.keyboard.press("ControlOrMeta+k");
       await palette.getByRole("combobox").fill("> Add project");
       await palette.getByText("Add project", { exact: true }).tap();
       await palette.getByRole("option", /^Git URL/).tap();
@@ -106,7 +106,7 @@ test(
       await browser.locator("html[data-scenario-clone-reply=ready]").waitFor();
       await browser.keyboard.press("Escape");
       await palette.waitFor({ state: "hidden" });
-      await browser.keyboard.press("Control+k");
+      await browser.keyboard.press("ControlOrMeta+k");
       await palette.getByRole("combobox").fill("Current work");
       await browser.evaluate(() => {
         document.dispatchEvent(new Event("release-palette-clone-start"));
