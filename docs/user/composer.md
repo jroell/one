@@ -26,7 +26,7 @@ Attach up to **100 files** per message:
 Files upload to the environment's machine as soon as you attach them, and all uploads must finish before sending. Provider and model limits still apply.
 
 - **Web and desktop**: Drag, paste, or pick files. Reloading before an upload finishes requires re-attaching.
-- **Mobile**: Pick files, share into T3 Code via the system share sheet, or drag images in Android split screen.
+- **Mobile**: Pick files, share into One via the system share sheet, or drag images in Android split screen.
 
 In the desktop app, when the thread's environment runs on this computer, drag a
 folder onto the composer or choose **Folder…** from the attach button to add its
@@ -65,7 +65,7 @@ Mobile keeps local copies of draft attachments so you can preview them and queue
 
 ## Custom models and defaults
 
-- **Remembered defaults**: T3 Code remembers your last provider, model, and options for new threads. A project's configured model overrides this. Leaving reasoning level or service tier unset uses the provider's default.
+- **Remembered defaults**: One remembers your last provider, model, and options for new threads. A project's configured model overrides this. Leaving reasoning level or service tier unset uses the provider's default.
 - **Custom models**: Add unlisted models in **Settings → Providers → Models** (web and desktop; not supported for Antigravity, which uses its account catalog).
 - **Rename a built-in model across all clients**: Add an entry in the server's `userdata/settings.json`:
 
@@ -134,7 +134,7 @@ If you stop the agent or the server restarts, queued messages pause in order. Cl
 Type `/` for commands or `$` for skills from the selected environment and provider.
 
 - Skills also appear in the `/` menu unless you disable **Settings → Chat → Show skills in slash menu** (under Advanced).
-- Provider commands must start the message; T3 Code commands (like `/model`) and `$` skills work on any line.
+- Provider commands must start the message; One commands (like `/model`) and `$` skills work on any line.
 - `/compact` reduces context usage when supported by the provider.
 - `/clear` starts a fresh provider session in the same thread (earlier messages and diffs stay visible above a **New session** divider).
 - After adding or changing skills, plugins, or MCP servers, run **Restart agent session** from the command palette so your next message picks up the new config.
@@ -162,7 +162,7 @@ Attached context—files, terminal excerpts, diff/file review comments, preview 
 
 Select any file chip in a draft or sent message to preview it (syntax-highlighted code/JSON, rendered/raw Markdown/HTML/CSV/TSV, audio playback, and ZIP folder browsing up to 50 MB). Large text files show a truncated preview—save the file to read it in full.
 
-When a preview asks for a file password, enter it and select **Unlock**. T3 Code uses the password on your device. Web and desktop can unlock supported PDF, ZIP, Office, and OpenDocument files. The mobile app can unlock ZIP attachments, and Android can unlock PDFs. Ebooks protected by DRM need a compatible reader.
+When a preview asks for a file password, enter it and select **Unlock**. One uses the password on your device. Web and desktop can unlock supported PDF, ZIP, Office, and OpenDocument files. The mobile app can unlock ZIP attachments, and Android can unlock PDFs. Ebooks protected by DRM need a compatible reader.
 
 ## Images and videos in messages
 
@@ -179,4 +179,4 @@ Following an agent's file link to a file outside the workspace opens it read-onl
 
 ## HTML and PDF files in the file viewer
 
-On web and desktop, HTML and PDF files open rendered (HTML previews are sandboxed from your T3 Code session; line-specific HTML links open source view). On mobile, PDFs open in the native iOS viewer or an installed Android viewer.
+On web and desktop, HTML and PDF files open rendered (HTML previews are sandboxed from your One session; line-specific HTML links open source view). On mobile, PDFs open in the native iOS viewer or an installed Android viewer.
