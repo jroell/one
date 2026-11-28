@@ -536,7 +536,7 @@ describe("resolveThreadStatusPill", () => {
     const thread = { ...baseThread, connectionPhase: "reconnecting" as const };
     expect(
       resolveThreadStatusPill({ thread: { ...thread, hasPendingApprovals: true } })?.label,
-    ).toBe("Pending Approval");
+    ).toBe("Needs approval");
     expect(
       resolveThreadStatusPill({ thread: { ...thread, hasPendingUserInput: true } })?.label,
     ).toBe("Awaiting Input");
