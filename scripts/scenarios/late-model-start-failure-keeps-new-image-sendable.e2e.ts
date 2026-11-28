@@ -135,13 +135,25 @@ test(
     });
     await screen.getByText("First image launch outcome unknown.", { exact: true }).waitFor();
     await sendImage("third.png", "blue");
+    // One shows one notice at a time; the others wait behind "+N", which can bring one forward.
+    const showWaiting = async (title: string) => {
+      await browser.locator('[data-slot="toast-count"]').first().tap();
+      await browser
+        .locator('[data-slot="toast-waiting-show"]')
+        .filter({ hasText: title })
+        .first()
+        .tap();
+    };
+    await showWaiting("Started 2 threads in background");
     await expect(bothStarted).toBeVisible();
     await app.screenshot("replacement-image-started-both-threads");
 
+    await showWaiting("A background prompt could not be sent");
     await screen.getByRole("button", "Restore prompt", { exact: true }).tap();
     await sendAttachedImage("first.png");
     const warning =
       "The previous request may have started. Open its thread to check before sending again.";
+    await showWaiting("Could not start showcase");
     const retainedLaunch = screen
       .getByRole("dialog", "Could not start showcase", { exact: true })
       .filter({ hasText: warning });
