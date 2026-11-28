@@ -7,7 +7,7 @@ import { runPromise, test, WEB } from "./t3.ts";
 test(
   "Expanding visible diffs keeps a hidden test file folded",
   WEB,
-  async ({ t3, app, screen }) => {
+  async ({ t3, app, browser, screen }) => {
     const project = await t3.project("demo", {
       "notes.txt": "Old implementation notes\n",
       "notes.test.ts": "const expected = 1;\n",
@@ -35,12 +35,17 @@ test(
       await fileToggle(path, false).waitFor();
     }
 
-    const filter = screen.getByRole("button", "Hide test files", { exact: true });
-    await filter.tap();
+    const toggleHideTestFiles = async () => {
+      await screen.getByRole("button", "View options", { exact: true }).tap();
+      await screen.getByRole("menuitemcheckbox", "Hide test files", { exact: true }).tap();
+      // A checkbox item keeps the View menu open, and the open menu blocks the toolbar.
+      await browser.keyboard.press("Escape");
+    };
+    await toggleHideTestFiles();
     await fileToggle("notes.test.ts", false).waitFor({ state: "hidden" });
     await screen.getByRole("button", "Expand all files", { exact: true }).tap();
     await fileToggle("notes.txt", true).waitFor();
-    await filter.tap();
+    await toggleHideTestFiles();
 
     const testFile = screen.getByRole("button", /^(Collapse|Expand) notes\.test\.ts$/);
     await testFile.waitFor();
