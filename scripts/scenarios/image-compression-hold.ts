@@ -62,9 +62,13 @@ export const holdImageCompression = (browser: Browser) =>
     // Oversized pastes are decoded and resized inside the compression worker, where this page's
     // createImageBitmap patch cannot see them, so hold and track their worker task instead.
     const postMessage = Worker.prototype.postMessage;
-    Worker.prototype.postMessage = function (message: unknown, ...rest: [Transferable[]?]) {
+    Worker.prototype.postMessage = function (
+      message: unknown,
+      transfer?: Transferable[] | StructuredSerializeOptions,
+    ) {
       const task = message as { id: number; task?: { kind?: string } };
-      if (task?.task?.kind !== "fit") return postMessage.call(this, message, ...(rest as []));
+      const send = () => Reflect.apply(postMessage, this, [message, transfer]);
+      if (task?.task?.kind !== "fit") return send();
       hold.inFlight++;
       const settle = (event: MessageEvent<{ id: number }>) => {
         if (event.data?.id !== task.id) return;
@@ -73,7 +77,6 @@ export const holdImageCompression = (browser: Browser) =>
         hold.inFlight--;
       };
       this.addEventListener("message", settle);
-      const send = () => postMessage.call(this, message, ...(rest as []));
       if (hold.released) send();
       else hold.held.push(send);
     };
