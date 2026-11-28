@@ -435,13 +435,31 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("POSIX setup co
     }),
   );
 
-  it.live.each([
-    { name: "an explicit exit", command: "exit 7", exitCode: 7 },
-    { name: "a syntax error", command: "if then", exitCode: 2 },
-  ])("reports a nonzero completion for $name", ({ command, exitCode }) =>
+  it.live("reports a nonzero completion for an explicit exit", () =>
     Effect.gen(function* () {
-      const result = yield* runObservedSetup(command);
-      assert.equal(result.exitCode, exitCode);
+      const result = yield* runObservedSetup("exit 7");
+      assert.equal(result.exitCode, 7);
+    }),
+  );
+
+  it.live("reports the shell's own nonzero completion for a syntax error", () =>
+    Effect.gen(function* () {
+      // bash 3.2 (macOS /bin/bash) exits 1 on an eval syntax error; bash 4 and later exit 2.
+      const shellExitCode = yield* Effect.gen(function* () {
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        const handle = yield* spawner.spawn(
+          ChildProcess.make("/bin/bash", [
+            "--noprofile",
+            "--norc",
+            "-c",
+            '( eval "if then" ) 2>/dev/null',
+          ]),
+        );
+        return yield* handle.exitCode;
+      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
+      assert.isAbove(shellExitCode, 0);
+      const result = yield* runObservedSetup("if then");
+      assert.equal(result.exitCode, shellExitCode);
     }),
   );
 });
