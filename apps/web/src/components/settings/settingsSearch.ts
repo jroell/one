@@ -8,14 +8,23 @@ import {
   sourceControlClients,
   type SourceControlDefinition,
 } from "@t3tools/client-runtime/source-control-clients";
+import { nativeLanguageName } from "@t3tools/client-runtime/locales";
 import { DEFAULT_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import * as Schema from "effect/Schema";
 import { decodeMsg, msg, useMessages } from "gt-react";
 import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
 import { writeLocalStorageValue } from "../../hooks/useLocalStorage";
+import { SUPPORTED_LOCALES } from "../../i18n/locales";
 import type { MessageResolver } from "../../i18n/messages";
 import { commandLabel } from "./KeybindingsSettings.logic";
 import type { ResolvedSettingsScope } from "./settingsScope";
+
+const ENGLISH_LANGUAGE_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
+
+/** Every language the selector offers, as the selector shows it and in English, in any UI language. */
+const OFFERED_LANGUAGE_NAMES = SUPPORTED_LOCALES.map(
+  (locale) => `${nativeLanguageName(locale)} ${ENGLISH_LANGUAGE_NAMES.of(locale) ?? locale}`,
+).join(" ");
 
 export type SettingsPath =
   | "/settings/projects"
@@ -820,6 +829,7 @@ export const SETTINGS_SEARCH_ITEMS = [
       msg(
         "locale translation english deutsch german español spanish français french português portuguese brasil brazilian chinese 中文 japanese 日本語 korean 한국어 russian русский swedish svenska sprache idioma langue 语言 言語 언어 язык",
       ),
+      OFFERED_LANGUAGE_NAMES,
     ],
   },
   {

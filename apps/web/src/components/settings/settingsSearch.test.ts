@@ -7,7 +7,9 @@ import {
 import { UNKNOWN_SOURCE_CONTROL_CLIENT } from "@t3tools/client-runtime/source-control-clients";
 import * as Schema from "effect/Schema";
 import { decodeMsg } from "gt-react";
+import { nativeLanguageName } from "@t3tools/client-runtime/locales";
 
+import { SUPPORTED_LOCALES } from "../../i18n/locales";
 import {
   filterAvailableSettingsSearchItems,
   getSettingsSearchTargetScope,
@@ -142,6 +144,18 @@ describe("searchSettings", () => {
   it("finds where subagents and side chats open by any of its names", () => {
     for (const query of ["side panel", "subagent", "side chat", "linked thread", "middle click"]) {
       expect(searchSettings(query).map((item) => item.id)).toContain("side-thread-open-target");
+    }
+  });
+
+  it("finds the Language setting by the name of each language the selector offers, native or English", () => {
+    const english = new Intl.DisplayNames(["en"], { type: "language" });
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const query of [nativeLanguageName(locale), english.of(locale)!]) {
+        expect(
+          searchSettings(query).map((item) => item.id),
+          `${locale}: ${query}`,
+        ).toContain("language");
+      }
     }
   });
 
