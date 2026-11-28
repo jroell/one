@@ -1373,7 +1373,11 @@ html:not([data-theme-id]):not(.dark)
 }
 
 [data-slot="toggle"][data-pressed]:not([data-variant="segmented"]) {
-  background-color: color-mix(in oklch, var(--one-brand) 14%, var(--ui-press));
+  background-color: color-mix(
+    in oklch,
+    color-mix(in oklch, var(--one-brand) 14%, var(--ui-press)),
+    var(--foreground) var(--appearance-contrast-border-boost)
+  );
   color: var(--foreground);
 }
 
