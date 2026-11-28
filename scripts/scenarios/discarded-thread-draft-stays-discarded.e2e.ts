@@ -31,7 +31,8 @@ test(
     await expect(screen.getByRole("img", "Unsent draft")).toBeHidden();
 
     await screen.getByRole("button", "undo", { exact: false }).tap();
-    await screen.getByRole("button", "Screenshot work", { exact: false }).tap();
+    // Tap the title: the hovered row's discard and settle controls cover the middle of the row.
+    await screen.getByText("Screenshot work", { exact: true }).tap();
     await app.screenshot("after-undo");
     await expect(composer).toContainText("Half-written prompt");
   },
