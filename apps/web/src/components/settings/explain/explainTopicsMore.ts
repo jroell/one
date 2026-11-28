@@ -70,7 +70,7 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What is T3 Connect, and do I need it?"),
     notes: `T3 Connect makes an environment available to the person's other devices without router forwarding. On the host machine, open Settings, Sharing & access, sign in, and turn on T3 Connect for that environment; on a command-line host run t3 up and choose T3 Connect (t3 connect is the same as t3 up --connect; t3 status shows the choice). On the other device, sign in to the same T3 Connect account and choose the environment. The host must stay running and reachable; closing the desktop app's last window stops its local server unless T3 Code runs as a background service, and saving the sign-in alone does not start a server. Each T3 Connect account can link up to 3 machines; phones and browsers do not count. Linking T3 Chat raises the limit to 10 machines with Pro or 100 with Premier; machines already linked stay linked after a downgrade. By default any device signed in to the account can open a linked machine. Require approval for new devices (Settings, Sharing & access, T3 Connect) makes a new device wait and show a code such as K7QM-2XFD that must be approved from an already connected device; a request expires after 10 minutes; approved devices are listed under T3 Connect devices and can be revoked there. When a connection fails, Settings, Environments, Details shows which of four parts failed (this device, T3 Connect, the host's tunnel, T3 Code on the host); see t3-connect-troubleshooting.md.`,
-    docs: { page: "remote-access.md", anchor: "t3-connect" },
+    docs: { page: "remote-access.md", anchor: "t3-connect-recommended" },
     facts: () => [],
   },
   "authorized-clients": {
@@ -114,7 +114,7 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     ],
     question: msg("What is a secret provider, and should I set one up?"),
     notes: `Secret providers are under Settings, Secrets, which the docs call a preview page that is not in every build. 1Password is the supported provider. One reads secrets with the 1Password CLI (op), which must be installed and signed in on the machine that runs the One server (for a remote or phone session that is the remote machine). A desktop sign-in asks for approval on that machine, which a remote user cannot answer; on a remote or headless server sign op in with a 1Password service account or a Connect server instead. Add provider takes a name and the 1Password account (the shorthand, sign-in address without https://, or ID that op account list shows). Providers belong to the environment, and each environment keeps its own list. Credential fields in Settings (provider environment variables and credentials, source control tokens, usage limit keys, device host tokens) show a source picker: Value saves the credential itself; a secret provider plus a reference such as op://vault/item/field saves only the reference, and the check button reads it now. One reads the secret when it needs it, for example when a provider starts. If 1Password is locked or signed out, the feature that needs the secret shows an error naming the provider; unlock 1Password on the server's machine and use Refresh in Settings, Providers. One never replaces a saved credential it cannot read with another login. Removing a provider lists the fields that read from it and clears them; the secrets in 1Password are untouched. Separately, an agent that needs a secret shows a private card in the thread, so the value never appears in the conversation.`,
-    docs: { page: "secrets.md", anchor: "secret-providers" },
+    docs: { page: "secrets.md", anchor: "connect-1password" },
     facts: () => [],
   },
   "voice-transcription": {
@@ -226,7 +226,7 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     skipWhen: [msg("You want the same behavior everywhere.")],
     question: msg("What does choosing a project or computer here change?"),
     notes: `The sentence under a Settings page title, "Applying settings for <project> on <environment>", says which level the settings on the page edit. The same rows edit environment defaults or a project's overrides depending on the project chosen (docs/user/project-settings.md, Defaults and inheritance). Settings resolve in one order: a project override, then the environment setting, then t3.json in the repository, then the built-in default; a setting left on Inherit lets the next tier decide. When a project has several checkouts on one environment, a third choice, the checkout, narrows to one. An environment is a machine running the server that holds projects and runs agents. The bar is only shown when there is more than one project or more than one machine, or when a project is selected. Pages about this device (General, Appearance, Chat, Diffs, Snapshots, Environments, Sharing and access, About) have no bar because they are not per project.`,
-    docs: { page: "project-settings.md", anchor: "defaults-and-inheritance" },
+    docs: { page: "project-settings.md", anchor: "scope-and-inheritance" },
     facts: () => [],
   },
   "project-file": {
@@ -248,7 +248,7 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     skipWhen: [msg("The defaults on this page already suit the project.")],
     question: msg("What is t3.json, and do I need one in my project?"),
     notes: `t3.json is a file in a project's folder (or a checkout's) that declares settings and commands for that project. Per docs/user/project-settings.md, settings a repository declares in t3.json, such as the workspace for new threads, resolve in one order: a project override, then the environment setting, then t3.json, then the built-in default; leaving a setting on Inherit lets the next tier decide. A project's t3.json actions can be imported under Settings, Projects (Import from t3.json). Other things it can hold, from the docs: "worktreeSubmodules" (how new worktrees initialize git submodules, read from the branch being checked out), "worktreeSparsePatternsPath" (a repository-relative file of git sparse-checkout patterns), "worktreeLayout" with create and remove commands, and a list that keeps a repository inside the project folder out of the project (multi-repo-projects.md). In a project with several repositories only the project folder's t3.json is read. A t3.json that fails to parse is reported on Settings, Projects, and every action and icon it declares is ignored. Do not describe fields that these docs do not name.`,
-    docs: { page: "project-settings.md", anchor: "defaults-and-inheritance" },
+    docs: { page: "project-settings.md", anchor: "scope-and-inheritance" },
     facts: () => [],
   },
   "chat-settings": {
@@ -354,7 +354,7 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     skipWhen: [msg("You want a steady app: leave them off.")],
     question: msg("What are the Labs features, and are any worth turning on?"),
     notes: `Settings, Labs lists early features, each with its own switch: Group threads by project (the sidebar as project folders; pinned threads stay on top, and Snoozed and Settled stay below the folders), Two-line folder rows, Guest links (needs T3 Connect on the machine; docs/user/guest-links.md), Linked environments (agents here work on other machines and theirs here; turn on per machine, link them in Environments), Workflows (run workflows from files in the server's workflows folder, start them from the command palette), Skipped runs kept, Suggest next prompt (after a Claude or Codex turn, shows a predicted next message in the empty composer; Tab uses it; each prediction is one extra request on the person's plan; Codex needs version 0.165 or newer), Simlock device hosts (alpha), Fast worktree checkout (macOS beta, docs/user/project-settings.md) and Agent feedback. Early features can change or go away.`,
-    docs: { page: "project-settings.md", anchor: "fast-worktree-checkout-on-macos" },
+    docs: { page: "project-settings.md", anchor: "worktree-settings" },
     facts: () => [],
   },
   "source-control": {
@@ -410,7 +410,7 @@ export const MORE_TOPICS: Readonly<Record<MoreExplainTopicId, ExplainTopic>> = {
     skipWhen: [msg("Threads work in your own folder and you never use worktrees.")],
     question: msg("What is a worktree, and which of these settings should I touch?"),
     notes: `Settings, Worktrees: Worktree cleanup (remove unused worktrees when active or archived threads are deleted; worktrees with local changes are kept; also removes worktrees whose pull request is merged, worktrees inactive for a number of days, days after a thread settles, and worktrees with no commits beyond the default branch; branches and thread history are kept), Worktree location (a folder for new worktrees, per machine, an absolute path such as ~/worktrees or D:\\worktrees on Windows; existing worktrees stay; empty means One's data folder), Submodules (how new worktrees populate git submodules: recursively by default, top level only or skip), Start from remote, Worktree branch naming (a static prefix defaulting to t3/, a model-selected semantic prefix such as feat/ or fix/, or custom instructions; docs/user/project-settings.md). Fast worktree checkout is a macOS beta in Labs. Do not claim what Start from remote does beyond what the row's own description says.`,
-    docs: { page: "project-settings.md", anchor: "worktree-location" },
+    docs: { page: "project-settings.md", anchor: "worktree-settings" },
     facts: () => [],
   },
   maintenance: {
