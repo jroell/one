@@ -905,8 +905,8 @@ for (const cwd of ["/workspace with spaces/", "/workspace with spaces/file.ts:12
 const scripts = { works: "", fails: "exit 1", stalls: "exec sleep 30" };
 // Each row: title, editor, script first on PATH, extra install, result on darwin, result on linux.
 for (const [title, id, first, extra, onDarwin, onLinux = onDarwin] of [
-  ["keeps a working cursor on PATH ahead of the bundle", "cursor", "works", "bundle", "cursor"],
-  ["keeps a cursor that never answers --version", "cursor", "stalls", "none", "cursor"],
+  ["keeps a working cursor on PATH ahead of the bundle", "cursor", "works", "bundle", "first"],
+  ["keeps a cursor that never answers --version", "cursor", "stalls", "none", "first"],
   ["skips a failing cursor for a later cursor on PATH", "cursor", "fails", "later", "later"],
   ["skips a failing cursor for the Cursor bundle", "cursor", "fails", "bundle", "bundle", "none"],
   ["rejects a zed that never answers --version", "zed", "stalls", "none", "none"],
@@ -918,7 +918,6 @@ for (const [title, id, first, extra, onDarwin, onLinux = onDarwin] of [
         const path = yield* Path.Path;
         const home = yield* fs.makeTempDirectoryScoped({ prefix: "t3-editor-check-" });
         const commands = {
-          cursor: "cursor",
           none: undefined,
           first: path.join(home, "bin", id),
           later: path.join(home, "later-bin", id),
@@ -1413,7 +1412,41 @@ it.effect.skipIf(windowsHost)("ignores unusable app bundles and keeps PATH launc
         }),
       ),
     );
-    assert.equal(spawned?.command, "cursor");
+    assert.equal(spawned?.command, path.join(env.PATH, "cursor"));
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+// The server rewrites process.env.PATH from the login shell after startup, so a bare name can
+// spawn a different file, such as the Cursor Agent CLI, than the one `--version` accepted.
+it.effect.skipIf(windowsHost)("launches the cursor file that answered --version, by path", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const bin = yield* fs.makeTempDirectoryScoped({ prefix: "t3-editor-launch-path-" });
+    for (const name of ["cursor", "code"]) {
+      yield* fs.writeFileString(path.join(bin, name), "#!/bin/sh\n");
+      yield* fs.chmod(path.join(bin, name), 0o755);
+    }
+    const spawned: ChildProcess.StandardCommand[] = [];
+    yield* Effect.gen(function* () {
+      const launcher = yield* ExternalLauncher.ExternalLauncher;
+      yield* launcher.launchEditor({ editor: "cursor", cwd: "/workspace/main.c:1:25" });
+      yield* launcher.launchEditor({ editor: "vscode", cwd: "/workspace" });
+    }).pipe(
+      Effect.provide(
+        layerTest({
+          platform: "darwin",
+          env: { HOME: bin, PATH: bin },
+          onSpawn: (command) => {
+            if (!command.args.includes("--version")) spawned.push(command);
+          },
+        }),
+      ),
+    );
+    assert.deepEqual(
+      spawned.map((command) => command.command),
+      [path.join(bin, "cursor"), "code"],
+    );
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
