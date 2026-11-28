@@ -197,7 +197,7 @@ function UsageAccessTitle() {
 }
 
 function UsageAccessIntro() {
-  return <T>T3 Code reads these from each agent, system-wide. Pick which agents to allow.</T>;
+  return <T>One reads these from each agent, system-wide. Pick which agents to allow.</T>;
 }
 
 function UsageAccessActions({ choices }: { readonly choices: UsageAccessChoices }) {

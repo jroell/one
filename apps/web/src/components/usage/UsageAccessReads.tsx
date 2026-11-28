@@ -18,7 +18,7 @@ export function UsageAccessReads({ driver }: { readonly driver: ProviderDriverKi
     case "antigravity":
       return <T>Reads its conversation history.</T>;
     case "cursor":
-      return <T>Asks Cursor for your account's usage, using the API key you gave T3 Code.</T>;
+      return <T>Asks Cursor for your account's usage, using the API key you gave One.</T>;
     default:
       return <T>Reads its session history.</T>;
   }

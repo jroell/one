@@ -876,8 +876,8 @@ function FindProjectsSection({
           </span>
           <span className="block text-xs text-muted-foreground">
             <T>
-              T3 Code can read your <Var>{importSourcesLabel}</Var> session history to find the
-              folders you worked in, and their git remotes.
+              One can read your <Var>{importSourcesLabel}</Var> session history to find the folders
+              you worked in, and their git remotes.
             </T>
           </span>
         </span>
