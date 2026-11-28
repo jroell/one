@@ -456,7 +456,7 @@ export function explainTopic(id: ExplainTopicId): ExplainTopic {
 export const EXPLAIN_TOPIC_IDS = Object.keys(TOPICS) as ReadonlyArray<ExplainTopicId>;
 
 /** Where the docs pages live; the same address the app's other links use. */
-const DOCS_BASE = "https://github.com/pingdotgg/t3code/blob/main/docs/user/";
+const DOCS_BASE = "https://github.com/jroell/one/blob/custom/main/docs/user/";
 
 export function explainDocsUrl(topic: ExplainTopic): string | null {
   if (topic.docs === undefined) return null;
